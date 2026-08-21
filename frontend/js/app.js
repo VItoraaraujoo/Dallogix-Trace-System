@@ -5,11 +5,12 @@ import { home } from './screens/home.js';
 import { manifests, importScreen, division, work } from './screens/operations.js';
 import { occurrences, summary, history, tablet, products, alerts, emergency } from './screens/monitoring.js';
 import { settings } from './screens/settings.js';
+import { dashboard } from './screens/dashboard.js';
 
 const store = new TraceStore();
-const screens = { home, manifests, import: importScreen, division, work, occurrences, summary, history, tablet, products, alerts, emergency, settings };
+const screens = { home, dashboard, manifests, import: importScreen, division, work, occurrences, summary, history, tablet, products, alerts, emergency, settings };
 const router = new TraceRouter(store, render);
-const groups = [['Operação',[['home','Home'],['manifests','Romaneios do dia'],['import','Importar CSV'],['division','Divisão por caminhão'],['work','Tela de trabalho']]],['Acompanhamento',[['alerts','Alertas'],['occurrences','Ocorrências'],['summary','Resumo final'],['history','Histórico'],['tablet','Monitor tablet']]],['Cadastros',[['products','Produtos'],['emergency','Emergência']]],['Sistema',[['settings','Configurações']]]];
+const groups = [['Operação',[['home','Home'],['dashboard','Dashboard'],['manifests','Romaneios do dia'],['import','Importar CSV'],['division','Divisão por caminhão'],['work','Tela de trabalho']]],['Acompanhamento',[['alerts','Alertas'],['occurrences','Ocorrências'],['summary','Resumo final'],['history','Histórico'],['tablet','Monitor tablet']]],['Cadastros',[['products','Produtos'],['emergency','Emergência']]],['Sistema',[['settings','Configurações']]]];
 let authenticatedUser = null;
 
 function loginView(message = '') { return `<main class="login-page"><section class="login-card"><div class="brand login-brand"><strong>DALLOGIX</strong><small>TRACE PLATFORM</small></div><p class="kicker">Acesso local</p><h1>Dallogix Trace</h1><p class="login-description">Entre para acessar a rastreabilidade de carregamento.</p>${message ? `<div class="login-error">${message}</div>` : ''}<form id="login-form"><label>E-mail<input name="email" type="email" value="admin@dallogix.local" autocomplete="username" required /></label><label>Senha<input name="password" type="password" autocomplete="current-password" required /></label><button class="button primary login-button" type="submit">Entrar no sistema</button></form><small class="login-hint">Ambiente local • sem dependência de internet</small></section></main>`; }
@@ -28,5 +29,5 @@ function bindActions() { document.querySelectorAll('[data-action]').forEach((nod
   const csvForm = document.querySelector('#csv-form');
   if (csvForm) csvForm.addEventListener('submit', async (event) => { event.preventDefault(); const response = await fetch('/api/importar_csv.php', { method: 'POST', headers: store.csrfToken ? { 'X-CSRF-Token': store.csrfToken } : {}, body: new FormData(csvForm) }); const result = await response.json(); if (!response.ok) { alert(result.error || 'Falha ao importar CSV.'); return; } await store.loadManifests(); alert(`${result.data.items} item(ns) importado(s).`); router.go('manifests'); });
 }
-async function bootstrap() { const response = await fetch('/api/me.php'); if (response.ok) { const result = await response.json(); authenticatedUser = result.user; store.setUser(authenticatedUser); store.setCsrfToken(result.csrf_token); await store.loadManifests(); await store.loadActiveLoading(); await store.loadMonitoring(); await store.loadProducts(); await store.loadConfiguration(); } render(); }
+async function bootstrap() { const response = await fetch('/api/me.php'); if (response.ok) { const result = await response.json(); authenticatedUser = result.user; store.setUser(authenticatedUser); store.setCsrfToken(result.csrf_token); await store.loadManifests(); await store.loadActiveLoading(); await store.loadMonitoring(); await store.loadProducts(); await store.loadConfiguration(); await store.loadEquipments(); } render(); }
 bootstrap();

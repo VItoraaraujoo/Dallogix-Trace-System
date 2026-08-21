@@ -1,0 +1,34 @@
+:root {
+  --ink: #17212b;
+  --muted: #6b7785;
+  --line: #dfe5eb;
+  --bg: #f4f6f8;
+  --nav: #ffffff;
+  --blue: #176fa5;
+  --green: #23834f;
+  --red: #b83242;
+  --yellow: #a56b00;
+}
+
+html, body { background: var(--bg); color: var(--ink); }
+.sidebar { background: #fff; border-right: 1px solid var(--line); color: var(--ink); }
+.brand strong { color: #17212b; }
+.brand small, .nav-label, .sidebar footer { color: #748294; }
+.nav-item { color: #536273; }
+.nav-item:hover, .nav-item.active { background: #edf4f8; color: #145f8a; }
+.main { background: var(--bg); }
+.topbar { background: #fff; border-bottom: 1px solid var(--line); color: var(--ink); }
+.topbar h1 small, .title-row p, .panel p, .metric small, .progress-label, li small { color: var(--muted); }
+.panel, .status span, th { background: #fff; border-color: var(--line); color: var(--ink); }
+.panel { box-shadow: 0 3px 12px rgba(23,33,43,.06); }
+th { color: var(--muted); background: #f5f7f9; }
+input, select, textarea { background: #fff; color: var(--ink); border-color: var(--line); }
+input::placeholder, textarea::placeholder { color: #8793a0; }
+.primary { background: var(--blue); color: #fff; }
+.secondary { background: #e9f4f8; color: #145f8a; }
+.ghost { background: #eef2f4; color: var(--ink); }
+.quick { background: transparent; color: var(--ink); border-color: var(--line); }
+.hero { background: linear-gradient(125deg,#0f5b7f,#1686a8); color: #fff; }
+.hero p, .hero .kicker { color: #c7e8f1; }
+.emergency { background: #7d1f25; }
+.tablet { background: #12212c; }
