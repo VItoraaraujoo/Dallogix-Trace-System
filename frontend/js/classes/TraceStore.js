@@ -1,6 +1,6 @@
 export class TraceStore {
   constructor() {
-    this.state = { page: 'home', loaded: 2435, planned: 3000, running: false, emergency: false, returnMode: false, loadingId: null, operationalState: 'AGUARDANDO', truck: '—', romaneio: '—', monitoring: null, products: [], userRole: null };
+    this.state = { page: 'manifests', loaded: 2435, planned: 3000, running: false, emergency: false, returnMode: false, loadingId: null, operationalState: 'AGUARDANDO', truck: '—', romaneio: '—', monitoring: null, products: [], userRole: null };
     this.csrfToken = '';
     this.state.configuration = null;
     this.state.equipments = [];
