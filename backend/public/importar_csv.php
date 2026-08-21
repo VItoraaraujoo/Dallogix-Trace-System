@@ -5,8 +5,10 @@ require_once __DIR__ . '/../config/bootstrap.php';
 
 $user = require_session_user();
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') json_response(['error' => 'Método não permitido.'], 405);
+require_csrf();
 if ($user['company_id'] === null) json_response(['error' => 'Usuário sem empresa vinculada.'], 403);
 if (!isset($_FILES['file']) || $_FILES['file']['error'] !== UPLOAD_ERR_OK) json_response(['error' => 'Envie um arquivo CSV válido.'], 422);
+if ((int) ($_FILES['file']['size'] ?? 0) > 5 * 1024 * 1024) json_response(['error' => 'CSV excede o limite de 5 MB.'], 413);
 
 $handle = fopen($_FILES['file']['tmp_name'], 'rb');
 if ($handle === false) json_response(['error' => 'Não foi possível ler o arquivo CSV.'], 422);
@@ -15,6 +17,7 @@ $rows = [];
 while (($row = fgetcsv($handle, 0, ';')) !== false) {
     if (count(array_filter($row, static fn ($value) => trim((string) $value) !== '')) === 0) continue;
     $rows[] = array_map(static fn ($value) => trim((string) $value), $row);
+    if (count($rows) > 10000) json_response(['error' => 'CSV excede o limite de 10.000 linhas.'], 413);
 }
 fclose($handle);
 if (count($rows) < 2) json_response(['error' => 'CSV vazio ou sem linhas de dados.'], 422);

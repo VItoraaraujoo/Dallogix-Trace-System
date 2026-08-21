@@ -13,6 +13,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
     json_response(['data' => $statement->fetchAll()]);
 }
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') json_response(['error' => 'Método não permitido.'], 405);
+require_csrf();
 
 $payload = request_json();
 $equipmentId = filter_var($payload['equipment_id'] ?? ($payload['esteira_id'] ?? null), FILTER_VALIDATE_INT);

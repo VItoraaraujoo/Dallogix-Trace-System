@@ -1,6 +1,7 @@
 export class TraceStore {
   constructor() {
     this.state = { page: 'home', loaded: 2435, planned: 3000, running: false, emergency: false, returnMode: false, loadingId: null, operationalState: 'AGUARDANDO', truck: '—', romaneio: '—', monitoring: null, products: [], userRole: null };
+    this.csrfToken = '';
     this.manifests = [
       ['04/03/2026', '1025', 'ABC1234', 'Em andamento', '2.435'],
       ['04/03/2026', '1024', 'DEF5678', 'Em andamento', '4.500'],
@@ -10,6 +11,8 @@ export class TraceStore {
   }
   navigate(page) { this.state.page = page; }
   setUser(user) { this.state.userRole = user?.role || null; }
+  setCsrfToken(token) { this.csrfToken = token || ''; }
+  jsonHeaders() { return { 'Content-Type': 'application/json', ...(this.csrfToken ? { 'X-CSRF-Token': this.csrfToken } : {}) }; }
   async loadManifests() {
     const response = await fetch('/api/romaneios.php');
     if (!response.ok) return;
@@ -38,7 +41,7 @@ export class TraceStore {
   }
   async changeLoadingState(target) {
     if (!this.state.loadingId) throw new Error('Nenhum carregamento ativo encontrado.');
-    const response = await fetch('/api/estado_carregamento.php', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ carregamento_id: this.state.loadingId, state: target }) });
+    const response = await fetch('/api/estado_carregamento.php', { method: 'PATCH', headers: this.jsonHeaders(), body: JSON.stringify({ carregamento_id: this.state.loadingId, state: target }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Não foi possível alterar o estado.');
     this.state.operationalState = result.data.state;
@@ -47,14 +50,14 @@ export class TraceStore {
   }
   async unlockMachine() {
     if (!this.state.loadingId) throw new Error('Nenhum carregamento ativo encontrado.');
-    const response = await fetch('/api/desbloquear_maquina.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ carregamento_id: this.state.loadingId }) });
+    const response = await fetch('/api/desbloquear_maquina.php', { method: 'POST', headers: this.jsonHeaders(), body: JSON.stringify({ carregamento_id: this.state.loadingId }) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Não foi possível desbloquear a máquina.');
     this.state.operationalState = result.data.state;
     this.state.running = false;
     this.state.emergency = false;
   }
-  async finishLoading() { if (!this.state.loadingId) throw new Error('Nenhum carregamento ativo encontrado.'); const response = await fetch('/api/encerrar_carregamento.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ carregamento_id: this.state.loadingId }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Não foi possível finalizar o carregamento.'); this.state.operationalState = 'FINALIZADO'; this.state.running = false; await this.loadMonitoring(); }
+  async finishLoading() { if (!this.state.loadingId) throw new Error('Nenhum carregamento ativo encontrado.'); const response = await fetch('/api/encerrar_carregamento.php', { method: 'POST', headers: this.jsonHeaders(), body: JSON.stringify({ carregamento_id: this.state.loadingId }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Não foi possível finalizar o carregamento.'); this.state.operationalState = 'FINALIZADO'; this.state.running = false; await this.loadMonitoring(); }
   async loadMonitoring() {
     const response = await fetch('/api/monitoramento.php');
     if (response.ok) this.state.monitoring = (await response.json()).data;
@@ -64,7 +67,7 @@ export class TraceStore {
     if (response.ok) this.state.products = (await response.json()).data;
   }
   async createOccurrence(data) {
-    const response = await fetch('/api/ocorrencias.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+    const response = await fetch('/api/ocorrencias.php', { method: 'POST', headers: this.jsonHeaders(), body: JSON.stringify(data) });
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || 'Não foi possível salvar a ocorrência.');
     await this.loadMonitoring();
@@ -72,6 +75,6 @@ export class TraceStore {
   toggleRun() { this.state.running = !this.state.running; if (this.state.running) this.state.loaded = Math.min(this.state.planned, this.state.loaded + 1); }
   stop() { this.state.running = false; }
   toggleReturn() { this.state.returnMode = !this.state.returnMode; }
-  async createProduct(data) { const response = await fetch('/api/produtos.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Não foi possível cadastrar o produto.'); await this.loadProducts(); }
+  async createProduct(data) { const response = await fetch('/api/produtos.php', { method: 'POST', headers: this.jsonHeaders(), body: JSON.stringify(data) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Não foi possível cadastrar o produto.'); await this.loadProducts(); }
   activateEmergency() { this.state.emergency = true; }
 }

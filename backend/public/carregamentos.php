@@ -28,6 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_response(['error' => 'Método não permitido.'], 405);
 }
+require_csrf();
 
 $payload = request_json();
 $romaneioId = filter_var($payload['romaneio_id'] ?? null, FILTER_VALIDATE_INT);

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../config/bootstrap.php';
+require_csrf();
 
 $_SESSION = [];
 if (ini_get('session.use_cookies')) {

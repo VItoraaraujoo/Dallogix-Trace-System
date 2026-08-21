@@ -2,12 +2,16 @@
 declare(strict_types=1);
 
 header('Content-Type: application/json; charset=utf-8');
+header('X-Content-Type-Options: nosniff');
+header('X-Frame-Options: DENY');
+header('Referrer-Policy: no-referrer');
 
 session_name('dallogix_trace_session');
+$isSecureSession = (getenv('APP_ENV') ?: 'local') === 'production' || filter_var(getenv('SESSION_SECURE') ?: 'false', FILTER_VALIDATE_BOOLEAN);
 session_set_cookie_params([
     'httponly' => true,
     'samesite' => 'Lax',
-    'secure' => false,
+    'secure' => $isSecureSession,
 ]);
 session_start();
 
@@ -26,6 +30,9 @@ function db(): PDO
     $name = getenv('DB_NAME') ?: 'trace_local';
     $user = getenv('DB_USER') ?: 'trace';
     $password = getenv('DB_PASSWORD') ?: 'change-me-local';
+    if ((getenv('APP_ENV') ?: 'local') === 'production' && in_array($password, ['', 'change-me-local', 'change-me-root'], true)) {
+        throw new RuntimeException('DB_PASSWORD de produção não configurado.');
+    }
     $connection = new PDO("mysql:host={$host};dbname={$name};charset=utf8mb4", $user, $password, [
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
@@ -38,6 +45,46 @@ function request_json(): array
 {
     $payload = json_decode(file_get_contents('php://input'), true);
     return is_array($payload) ? $payload : [];
+}
+
+function csrf_token(): string
+{
+    if (empty($_SESSION['csrf_token'])) $_SESSION['csrf_token'] = bin2hex(random_bytes(32));
+    return (string) $_SESSION['csrf_token'];
+}
+
+function require_csrf(): void
+{
+    if ((getenv('APP_ENV') ?: 'local') !== 'production') return;
+    $provided = (string) ($_SERVER['HTTP_X_CSRF_TOKEN'] ?? '');
+    if ($provided === '' || !hash_equals(csrf_token(), $provided)) json_response(['error' => 'Token CSRF inválido ou ausente.'], 419);
+}
+
+function enforce_login_rate_limit(string $identity): void
+{
+    if ((getenv('APP_ENV') ?: 'local') !== 'production') return;
+    $key = hash('sha256', ($_SERVER['REMOTE_ADDR'] ?? 'unknown') . '|' . strtolower($identity));
+    $file = sys_get_temp_dir() . '/dallogix-login-' . $key . '.json';
+    $handle = fopen($file, 'c+');
+    if ($handle === false) return;
+    flock($handle, LOCK_EX);
+    $content = stream_get_contents($handle);
+    $attempts = json_decode($content ?: '[]', true);
+    if (!is_array($attempts)) $attempts = [];
+    $now = time();
+    $attempts = array_values(array_filter($attempts, static fn ($timestamp) => is_int($timestamp) && $timestamp > $now - 60));
+    if (count($attempts) >= 10) {
+        flock($handle, LOCK_UN);
+        fclose($handle);
+        json_response(['error' => 'Muitas tentativas. Aguarde um minuto.'], 429);
+    }
+    $attempts[] = $now;
+    ftruncate($handle, 0);
+    rewind($handle);
+    fwrite($handle, json_encode($attempts));
+    fflush($handle);
+    flock($handle, LOCK_UN);
+    fclose($handle);
 }
 
 function session_user(): ?array

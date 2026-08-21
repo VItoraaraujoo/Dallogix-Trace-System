@@ -5,6 +5,9 @@ require_once __DIR__ . '/../config/bootstrap.php';
 
 $expectedToken = trim((string) (getenv('CAMERA_INTERNAL_TOKEN') ?: ''));
 $providedToken = trim((string) ($_SERVER['HTTP_X_INTERNAL_TOKEN'] ?? ''));
+if ((getenv('APP_ENV') ?: 'local') === 'production' && ($expectedToken === '' || $expectedToken === 'change-me-camera-token')) {
+    json_response(['error' => 'Token interno não configurado.'], 503);
+}
 if ($expectedToken === '' || !hash_equals($expectedToken, $providedToken)) {
     json_response(['error' => 'Token interno inválido.'], 401);
 }
@@ -32,6 +35,9 @@ if ($action !== 'COMPLETE') json_response(['error' => 'Ação inválida.'], 422)
 $requestId = filter_var($payload['request_id'] ?? null, FILTER_VALIDATE_INT);
 $imagePath = trim((string) ($payload['image_path'] ?? ''));
 if (!$requestId || $imagePath === '') json_response(['error' => 'request_id e image_path são obrigatórios.'], 422);
+if (strlen($imagePath) > 500 || str_contains($imagePath, '..') || str_starts_with($imagePath, '/') || !preg_match('/^[a-zA-Z0-9._\/-]+$/', $imagePath)) {
+    json_response(['error' => 'image_path inválido. Use um caminho relativo permitido.'], 422);
+}
 
 $request = $pdo->prepare('SELECT id, carregamento_id, equipment_id FROM camera_capture_requests WHERE id = :id AND status = \'CAPTURANDO\' LIMIT 1');
 $request->execute(['id' => $requestId]);

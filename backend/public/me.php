@@ -8,4 +8,4 @@ if ($user === null) {
     json_response(['authenticated' => false], 401);
 }
 
-json_response(['authenticated' => true, 'user' => $user]);
+json_response(['authenticated' => true, 'user' => $user, 'csrf_token' => csrf_token()]);

@@ -9,6 +9,7 @@ if ($user['company_id'] === null) {
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    require_csrf();
     if (!in_array($user['role'], ['ADMIN_DALLOGIX', 'ADMIN_EMPRESA', 'SUPERVISOR'], true)) {
         json_response(['error' => 'Perfil sem permissão para cadastrar produto.'], 403);
     }

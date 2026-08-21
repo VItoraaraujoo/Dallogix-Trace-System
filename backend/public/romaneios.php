@@ -28,6 +28,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'GET') {
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     json_response(['error' => 'Método não permitido.'], 405);
 }
+require_csrf();
 
 $payload = request_json();
 $number = trim((string) ($payload['number'] ?? ''));
