@@ -8,7 +8,7 @@ HTML, CSS, JavaScript, PHP, MySQL, Node-RED, Nginx, Docker e Docker Compose.
 
 ## Etapa atual
 
-Etapa 17 — evidência de incidentes. O ambiente base, a operação persistida, o login, a tela de trabalho, auditoria, fila local, monitoramento, ocorrências, catálogo, importação transacional, equipamento único, sincronização segura, status dos dispositivos e captura seletiva de evidências estão disponíveis. A integração com CLP real ainda não foi iniciada.
+Etapa 19 — simulador industrial. O ambiente base, a operação persistida, o login, a tela de trabalho, auditoria, fila local, monitoramento, ocorrências, catálogo, importação transacional, equipamento único, sincronização segura, status dos dispositivos, captura seletiva de evidências, encerramento seguro e simulador de CLP estão disponíveis. A integração física real ainda depende dos dados técnicos dos equipamentos.
 
 ## Executar
 
