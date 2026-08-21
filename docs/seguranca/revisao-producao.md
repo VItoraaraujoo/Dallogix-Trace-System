@@ -11,12 +11,13 @@
 - token padrão da câmera recusado em produção;
 - senha não fica mais preenchida na tela de login;
 - Content Security Policy no Nginx.
+- rate limit de login no PHP para produção, por identidade e endereço de origem.
 
 ## Obrigatório antes da publicação externa
 
 - trocar todos os segredos e credenciais locais;
 - usar HTTPS no proxy de produção;
-- habilitar rate limit e bloqueio progressivo no login;
+- configurar bloqueio progressivo e armazenamento compartilhado do rate limit quando houver múltiplas réplicas;
 - validar caminhos de imagens contra diretório permitido;
 - restringir acesso ao Node-RED e ao banco por rede/firewall;
 - adicionar backup, logs centralizados e alertas;
