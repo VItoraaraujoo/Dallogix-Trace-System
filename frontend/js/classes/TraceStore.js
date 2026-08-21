@@ -2,6 +2,7 @@ export class TraceStore {
   constructor() {
     this.state = { page: 'home', loaded: 2435, planned: 3000, running: false, emergency: false, returnMode: false, loadingId: null, operationalState: 'AGUARDANDO', truck: '—', romaneio: '—', monitoring: null, products: [], userRole: null };
     this.csrfToken = '';
+    this.state.configuration = null;
     this.manifests = [
       ['04/03/2026', '1025', 'ABC1234', 'Em andamento', '2.435'],
       ['04/03/2026', '1024', 'DEF5678', 'Em andamento', '4.500'],
@@ -66,6 +67,9 @@ export class TraceStore {
     const response = await fetch('/api/produtos.php');
     if (response.ok) this.state.products = (await response.json()).data;
   }
+  async loadConfiguration() { const response = await fetch('/api/configuracoes.php'); if (response.ok) this.state.configuration = (await response.json()).data; }
+  async saveConfiguration(data) { const response = await fetch('/api/configuracoes.php', { method: 'PUT', headers: this.jsonHeaders(), body: JSON.stringify(data) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Não foi possível salvar a configuração.'); await this.loadConfiguration(); }
+  async createEquipment(data) { const response = await fetch('/api/equipamentos.php', { method: 'POST', headers: this.jsonHeaders(), body: JSON.stringify(data) }); const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Não foi possível cadastrar a Dala.'); await this.loadConfiguration(); }
   async createOccurrence(data) {
     const response = await fetch('/api/ocorrencias.php', { method: 'POST', headers: this.jsonHeaders(), body: JSON.stringify(data) });
     const result = await response.json();

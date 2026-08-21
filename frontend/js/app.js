@@ -4,11 +4,12 @@ import { TraceRouter } from './classes/TraceRouter.js';
 import { home } from './screens/home.js';
 import { manifests, importScreen, division, work } from './screens/operations.js';
 import { occurrences, summary, history, tablet, products, alerts, emergency } from './screens/monitoring.js';
+import { settings } from './screens/settings.js';
 
 const store = new TraceStore();
-const screens = { home, manifests, import: importScreen, division, work, occurrences, summary, history, tablet, products, alerts, emergency };
+const screens = { home, manifests, import: importScreen, division, work, occurrences, summary, history, tablet, products, alerts, emergency, settings };
 const router = new TraceRouter(store, render);
-const groups = [['Operação',[['home','Home'],['manifests','Romaneios do dia'],['import','Importar CSV'],['division','Divisão por caminhão'],['work','Tela de trabalho']]],['Acompanhamento',[['alerts','Alertas'],['occurrences','Ocorrências'],['summary','Resumo final'],['history','Histórico'],['tablet','Monitor tablet']]],['Cadastros',[['products','Produtos'],['emergency','Emergência']]]];
+const groups = [['Operação',[['home','Home'],['manifests','Romaneios do dia'],['import','Importar CSV'],['division','Divisão por caminhão'],['work','Tela de trabalho']]],['Acompanhamento',[['alerts','Alertas'],['occurrences','Ocorrências'],['summary','Resumo final'],['history','Histórico'],['tablet','Monitor tablet']]],['Cadastros',[['products','Produtos'],['emergency','Emergência']]],['Sistema',[['settings','Configurações']]]];
 let authenticatedUser = null;
 
 function loginView(message = '') { return `<main class="login-page"><section class="login-card"><div class="brand login-brand"><strong>TRACE</strong><small>PLATFORM CGP</small></div><p class="kicker">Acesso local</p><h1>Dallogix Trace</h1><p class="login-description">Entre para acessar a rastreabilidade de carregamento.</p>${message ? `<div class="login-error">${message}</div>` : ''}<form id="login-form"><label>E-mail<input name="email" type="email" value="admin@dallogix.local" autocomplete="username" required /></label><label>Senha<input name="password" type="password" autocomplete="current-password" required /></label><button class="button primary login-button" type="submit">Entrar no sistema</button></form><small class="login-hint">Ambiente local • sem dependência de internet</small></section></main>`; }
@@ -20,8 +21,12 @@ function bindActions() { document.querySelectorAll('[data-action]').forEach((nod
   if (form) form.addEventListener('submit', async (event) => { event.preventDefault(); const data = Object.fromEntries(new FormData(form)); const response = await fetch('/api/login.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) }); const result = await response.json(); if (!response.ok) { render(result.error || 'Não foi possível entrar.'); return; } authenticatedUser = result.user; store.setCsrfToken(result.csrf_token); render(); });
   const occurrenceForm = document.querySelector('#occurrence-form');
   if (occurrenceForm) occurrenceForm.addEventListener('submit', async (event) => { event.preventDefault(); try { await store.createOccurrence(Object.fromEntries(new FormData(occurrenceForm))); render(); } catch (error) { alert(error.message); } });
+  const settingsForm = document.querySelector('#settings-form');
+  if (settingsForm) settingsForm.addEventListener('submit', async (event) => { event.preventDefault(); const raw = Object.fromEntries(new FormData(settingsForm)); const pdf_field_mapping = {}; Object.entries(raw).filter(([key]) => key.startsWith('pdf_')).forEach(([key, value]) => { if (value) pdf_field_mapping[key.slice(4)] = value; }); try { await store.saveConfiguration({ gateway_public_ip: raw.gateway_public_ip, sync_remote_url: raw.sync_remote_url, pdf_field_mapping }); alert('Configuração salva.'); render(); } catch (error) { alert(error.message); } });
+  const dalaForm = document.querySelector('#dala-form');
+  if (dalaForm) dalaForm.addEventListener('submit', async (event) => { event.preventDefault(); try { await store.createEquipment(Object.fromEntries(new FormData(dalaForm))); alert('Dala cadastrada.'); render(); } catch (error) { alert(error.message); } });
   const csvForm = document.querySelector('#csv-form');
   if (csvForm) csvForm.addEventListener('submit', async (event) => { event.preventDefault(); const response = await fetch('/api/importar_csv.php', { method: 'POST', headers: store.csrfToken ? { 'X-CSRF-Token': store.csrfToken } : {}, body: new FormData(csvForm) }); const result = await response.json(); if (!response.ok) { alert(result.error || 'Falha ao importar CSV.'); return; } await store.loadManifests(); alert(`${result.data.items} item(ns) importado(s).`); router.go('manifests'); });
 }
-async function bootstrap() { const response = await fetch('/api/me.php'); if (response.ok) { const result = await response.json(); authenticatedUser = result.user; store.setUser(authenticatedUser); store.setCsrfToken(result.csrf_token); await store.loadManifests(); await store.loadActiveLoading(); await store.loadMonitoring(); await store.loadProducts(); } render(); }
+async function bootstrap() { const response = await fetch('/api/me.php'); if (response.ok) { const result = await response.json(); authenticatedUser = result.user; store.setUser(authenticatedUser); store.setCsrfToken(result.csrf_token); await store.loadManifests(); await store.loadActiveLoading(); await store.loadMonitoring(); await store.loadProducts(); await store.loadConfiguration(); } render(); }
 bootstrap();

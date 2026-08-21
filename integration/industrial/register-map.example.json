@@ -2,13 +2,16 @@
   "plc": {
     "model": "Delta DVP14SS",
     "variant": "CONFIRMAR_SUFIXO",
-    "protocol": "modbus-rtu",
-    "serial_port": "/dev/ttyUSB0",
-    "baud_rate": 9600,
-    "data_bits": 7,
-    "parity": "even",
-    "stop_bits": 1,
-    "station_id": 1
+    "protocol": "modbus-tcp",
+    "plc_ip": "CONFIRMAR",
+    "plc_port": 502,
+    "external_port": "CONFIRMAR",
+    "serial_port": null,
+    "baud_rate": null,
+    "data_bits": null,
+    "parity": null,
+    "stop_bits": null,
+    "station_id": null
   },
   "signals": {
     "sack_sensor": {"type": "coil", "address": "CONFIRMAR"},

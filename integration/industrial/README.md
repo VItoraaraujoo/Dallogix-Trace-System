@@ -24,7 +24,7 @@ sem leitura → SEM_LEITURA + câmera imediata
 
 Use [`register-map.example.json`](./register-map.example.json) como base. Os endereços estão deliberadamente como `CONFIRMAR`: não devem ser escritos no CLP antes da entrega do mapa elétrico e do programa Ladder.
 
-O exemplo usa Modbus RTU sobre RS-485. A Delta documenta leitura/escrita de sinais do DVP por Modbus, mas a variante completa do DVP14SS define a porta, os parâmetros e o cabeamento final.
+O escopo confirmado usa Ethernet entre o PC industrial e o CLP. A configuração principal será Modbus TCP; Modbus RTU via RS-485 permanece apenas como alternativa caso a variante instalada não tenha Ethernet. A Delta documenta leitura/escrita de sinais do DVP por Modbus, mas o módulo Ethernet e os registradores finais devem ser confirmados.
 
 ## Critério de prontidão física
 

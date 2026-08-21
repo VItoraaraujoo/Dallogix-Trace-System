@@ -17,7 +17,7 @@ Impacto: o Node-RED já possui o worker protegido; falta implementar o adaptador
 - Fabricante/modelo de referência: **Delta DVP14SS**.
 - Sufixo/variante exata:
 - IP e porta:
-- Protocolo: **preferencialmente Modbus RTU via RS-485**; confirmar na variante instalada.
+- Protocolo de referência: **Ethernet/Modbus TCP entre CLP e PC industrial**; Modbus RTU via RS-485 somente como alternativa da variante instalada.
 - Mapa de registradores:
 - Sinais de sensor, iniciar, parar, pausa e emergência:
 - Comportamento seguro em perda de comunicação:
