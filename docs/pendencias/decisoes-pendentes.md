@@ -14,9 +14,10 @@ Impacto: o Node-RED já possui o worker protegido; falta implementar o adaptador
 
 ## 2. CLP
 
-- Fabricante/modelo confirmado:
+- Fabricante/modelo de referência: **Delta DVP14SS**.
+- Sufixo/variante exata:
 - IP e porta:
-- Protocolo:
+- Protocolo: **preferencialmente Modbus RTU via RS-485**; confirmar na variante instalada.
 - Mapa de registradores:
 - Sinais de sensor, iniciar, parar, pausa e emergência:
 - Comportamento seguro em perda de comunicação:
@@ -25,13 +26,14 @@ Impacto: os estados do backend já existem; a comunicação real não deve ser i
 
 ## 3. Scanner
 
-- Modelo/interface:
-- USB, serial, TCP/IP ou teclado HID:
+- Modelo: **Elgin EL8600**.
+- Interface disponível: **USB ou RS-232**; a instalação deve escolher uma delas.
+- Modo operacional: **leitura contínua, sempre ativo**.
 - Formato enviado pelo scanner:
 - Timeout de leitura:
 - Código de término da leitura:
 
-Impacto: o fluxo `SEM_LEITURA` já está persistido; falta conectar o driver físico.
+Impacto: o fluxo `SEM_LEITURA` já está persistido. O driver do PC industrial manterá o scanner ouvindo continuamente; o evento do sensor do CLP será usado para associar a leitura ao saco correto. Não será necessário ligar/desligar o scanner a cada saco.
 
 ## 4. Cloud AWS
 

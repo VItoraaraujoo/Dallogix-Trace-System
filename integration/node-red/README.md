@@ -1,6 +1,8 @@
 # Node-RED local
 
-Integração industrial ainda pendente de confirmação do protocolo e dos registradores do CLP Delta DVP14SS. Nesta etapa o container apenas fornece a infraestrutura do Node-RED.
+Integração industrial preparada para o Delta DVP14SS. A variante exata, o mapa de registradores e o protocolo final ainda precisam ser confirmados em bancada; a referência preferencial é Modbus RTU via RS-485.
+
+O scanner Elgin EL8600 ficará conectado ao PC industrial em USB ou RS-232 e permanecerá em leitura contínua. O adaptador deverá manter um buffer das leituras e associá-las ao evento do sensor recebido do CLP. Se o evento não receber código dentro da janela operacional definida, o backend registra `SEM_LEITURA` e solicita a captura imediata da câmera.
 
 ## Sincronização remota
 

@@ -41,8 +41,8 @@ docker compose up -d
 
 ## Pendências técnicas
 
-- Protocolo e mapa de registradores do CLP.
-- Interface do scanner ELGIN EL8600.
+- Sufixo exato, protocolo e mapa de registradores do CLP Delta DVP14SS.
+- Escolha da interface física do scanner Elgin EL8600 (USB ou RS-232), terminador e formato de leitura.
 - Endereço e protocolo da câmera IP.
 - Credenciais e endpoint da nuvem Dallogix.
 
