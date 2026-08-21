@@ -1,6 +1,6 @@
 export class TraceStore {
   constructor() {
-    this.state = { page: 'home', loaded: 2435, planned: 3000, running: false, emergency: false, returnMode: false, loadingId: null, operationalState: 'AGUARDANDO', truck: '—', romaneio: '—', monitoring: null, products: [] };
+    this.state = { page: 'home', loaded: 2435, planned: 3000, running: false, emergency: false, returnMode: false, loadingId: null, operationalState: 'AGUARDANDO', truck: '—', romaneio: '—', monitoring: null, products: [], userRole: null };
     this.manifests = [
       ['04/03/2026', '1025', 'ABC1234', 'Em andamento', '2.435'],
       ['04/03/2026', '1024', 'DEF5678', 'Em andamento', '4.500'],
@@ -9,6 +9,7 @@ export class TraceStore {
     ];
   }
   navigate(page) { this.state.page = page; }
+  setUser(user) { this.state.userRole = user?.role || null; }
   async loadManifests() {
     const response = await fetch('/api/romaneios.php');
     if (!response.ok) return;
@@ -29,6 +30,7 @@ export class TraceStore {
     if (!loading) return;
     this.state.loadingId = Number(loading.id);
     this.state.operationalState = loading.state;
+    this.state.emergency = loading.state === 'EMERGENCIA';
     this.state.planned = Number(loading.planned_quantity) || this.state.planned;
     this.state.loaded = Number(loading.valid_readings) || 0;
     this.state.truck = loading.plate;
@@ -41,6 +43,16 @@ export class TraceStore {
     if (!response.ok) throw new Error(result.error || 'Não foi possível alterar o estado.');
     this.state.operationalState = result.data.state;
     this.state.running = ['CARREGANDO', 'FINALIZANDO'].includes(result.data.state);
+    this.state.emergency = result.data.state === 'EMERGENCIA';
+  }
+  async unlockMachine() {
+    if (!this.state.loadingId) throw new Error('Nenhum carregamento ativo encontrado.');
+    const response = await fetch('/api/desbloquear_maquina.php', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ carregamento_id: this.state.loadingId }) });
+    const result = await response.json();
+    if (!response.ok) throw new Error(result.error || 'Não foi possível desbloquear a máquina.');
+    this.state.operationalState = result.data.state;
+    this.state.running = false;
+    this.state.emergency = false;
   }
   async loadMonitoring() {
     const response = await fetch('/api/monitoramento.php');
