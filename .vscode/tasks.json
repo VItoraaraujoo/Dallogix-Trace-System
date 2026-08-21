@@ -1,0 +1,187 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Instalar dependências do frontend",
+			"type": "shell",
+			"command": "npm",
+			"args": [
+				"install"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Verificar Node.js disponível",
+			"type": "shell",
+			"command": "which",
+			"args": [
+				"node"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Validar sintaxe PHP",
+			"type": "shell",
+			"command": "php",
+			"args": [
+				"-l",
+				"php-app/index.php"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Checar interpretador PHP",
+			"type": "shell",
+			"command": "sh",
+			"args": [
+				"-lc",
+				"command -v php || command -v php8.3 || command -v php8.2 || command -v brew || command -v docker || true"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Instalar PHP pelo Homebrew",
+			"type": "shell",
+			"command": "brew",
+			"args": [
+				"install",
+				"php"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Validar sintaxe PHP após ajuste",
+			"type": "shell",
+			"command": "php",
+			"args": [
+				"-l",
+				"php-app/index.php"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Validar PHP após simplificar menu",
+			"type": "shell",
+			"command": "php",
+			"args": [
+				"-l",
+				"php-app/index.php"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Validar Romaneios em PHP",
+			"type": "shell",
+			"command": "php",
+			"args": [
+				"-l",
+				"php-app/index.php"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Revalidar Romaneios em PHP",
+			"type": "shell",
+			"command": "php",
+			"args": [
+				"-l",
+				"php-app/index.php"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Iniciar servidor Dallogix Trace",
+			"type": "shell",
+			"command": "php",
+			"args": [
+				"-S",
+				"127.0.0.1:8000",
+				"-t",
+				"php-app"
+			],
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Iniciar Dallogix Trace na porta 8001",
+			"type": "shell",
+			"command": "php",
+			"args": [
+				"-S",
+				"127.0.0.1:8001",
+				"-t",
+				"php-app"
+			],
+			"isBackground": true,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Validar frontend PHP ajustado",
+			"type": "shell",
+			"command": "php",
+			"args": [
+				"-l",
+				"php-app/index.php"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Validar Dashboard e permissões PHP",
+			"type": "shell",
+			"command": "php",
+			"args": [
+				"-l",
+				"php-app/index.php"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Validar permissões finais em PHP",
+			"type": "shell",
+			"command": "php",
+			"args": [
+				"-l",
+				"php-app/index.php"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		},
+		{
+			"label": "Validar menu por perfil",
+			"type": "shell",
+			"command": "php",
+			"args": [
+				"-l",
+				"php-app/index.php"
+			],
+			"isBackground": false,
+			"problemMatcher": [],
+			"group": "build"
+		}
+	]
+}
