@@ -23,6 +23,7 @@ services:
       DB_USER: ${MYSQL_USER:-trace}
       DB_PASSWORD: ${MYSQL_PASSWORD:-change-me-local}
       SYNC_REMOTE_URL: ${SYNC_REMOTE_URL:-}
+      CAMERA_INTERNAL_TOKEN: ${CAMERA_INTERNAL_TOKEN:-change-me-camera-token}
     volumes:
       - ./backend:/var/www/backend
       - ./storage:/var/www/storage

@@ -8,7 +8,7 @@ HTML, CSS, JavaScript, PHP, MySQL, Node-RED, Nginx, Docker e Docker Compose.
 
 ## Etapa atual
 
-Etapa 14 — dispositivos monitorados. O ambiente base, a operação persistida, o login, a tela de trabalho, auditoria, fila local, monitoramento, ocorrências, catálogo, importação transacional, equipamento único, sincronização segura e status dos dispositivos estão disponíveis. A integração com CLP real ainda não foi iniciada.
+Etapa 17 — evidência de incidentes. O ambiente base, a operação persistida, o login, a tela de trabalho, auditoria, fila local, monitoramento, ocorrências, catálogo, importação transacional, equipamento único, sincronização segura, status dos dispositivos e captura seletiva de evidências estão disponíveis. A integração com CLP real ainda não foi iniciada.
 
 ## Executar
 
@@ -45,3 +45,5 @@ docker compose up -d
 - Interface do scanner ELGIN EL8600.
 - Endereço e protocolo da câmera IP.
 - Credenciais e endpoint da nuvem Dallogix.
+
+As decisões externas estão organizadas em [docs/pendencias/decisoes-pendentes.md](docs/pendencias/decisoes-pendentes.md). O desenvolvimento local-first não depende dessas informações para continuar.

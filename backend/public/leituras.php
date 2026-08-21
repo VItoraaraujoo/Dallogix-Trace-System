@@ -13,6 +13,7 @@ if ($user['company_id'] === null) {
 
 $payload = request_json();
 $loadingId = filter_var($payload['carregamento_id'] ?? null, FILTER_VALIDATE_INT);
+$sensorEventId = filter_var($payload['sensor_event_id'] ?? null, FILTER_VALIDATE_INT);
 $barcode = trim((string) ($payload['barcode'] ?? ''));
 $attemptNumber = filter_var($payload['attempt_number'] ?? 1, FILTER_VALIDATE_INT);
 if (!$loadingId) {
@@ -32,6 +33,12 @@ $loadingStatement->execute(['id' => $loadingId, 'company_id' => $user['company_i
 $loading = $loadingStatement->fetch();
 if (!$loading) {
     json_response(['error' => 'Carregamento não encontrado para esta empresa.'], 404);
+}
+
+if ($sensorEventId) {
+    $sensorStatement = $pdo->prepare('SELECT id FROM sensor_events WHERE id = :sensor_event_id AND carregamento_id = :carregamento_id AND equipment_id = :equipment_id LIMIT 1');
+    $sensorStatement->execute(['sensor_event_id' => $sensorEventId, 'carregamento_id' => $loadingId, 'equipment_id' => $loading['equipment_id']]);
+    if (!$sensorStatement->fetch()) json_response(['error' => 'Evento de sensor não pertence ao carregamento.'], 422);
 }
 
 $result = 'SEM_LEITURA';
@@ -61,11 +68,16 @@ $readingId = (int) $pdo->lastInsertId();
 record_operational_event($pdo, $user, 'LEITURA_REGISTRADA', 'leitura', $readingId, ['carregamento_id' => (int) $loadingId, 'result' => $result, 'barcode' => $barcode, 'attempt_number' => $attemptNumber]);
 $occurrenceId = null;
 $cameraStatus = 'NAO_SOLICITADA';
+if ($result === 'VALIDO' && $sensorEventId) {
+    $discard = $pdo->prepare("UPDATE camera_capture_requests SET status = 'DESCARTADA', updated_at = NOW() WHERE sensor_event_id = :sensor_event_id AND status = 'PENDENTE'");
+    $discard->execute(['sensor_event_id' => $sensorEventId]);
+    $cameraStatus = 'DESCARTADA_EVENTO_NORMAL';
+}
 if ($result === 'SEM_LEITURA') {
     $occurrence = $pdo->prepare('INSERT INTO ocorrencias (company_id, carregamento_id, type, quantity, description, created_by) VALUES (:company_id, :carregamento_id, \'FALHA_SEM_LEITURA\', 1, :description, :created_by)');
     $occurrence->execute(['company_id' => $user['company_id'], 'carregamento_id' => $loadingId, 'description' => 'Saco detectado pelo sensor sem código de barras válido.', 'created_by' => $user['id']]);
     $occurrenceId = (int) $pdo->lastInsertId();
     record_operational_event($pdo, $user, 'FALHA_SEM_LEITURA', 'ocorrencia', $occurrenceId, ['carregamento_id' => (int) $loadingId, 'leitura_id' => $readingId]);
-    $cameraStatus = trim((string) (getenv('CAMERA_CAPTURE_URL') ?: '')) !== '' ? 'SOLICITAR_CAPTURA' : 'NAO_CONFIGURADA';
+    $cameraStatus = 'CAPTURA_PENDENTE_INCIDENTE';
 }
 json_response(['data' => ['id' => $readingId, 'result' => $result, 'barcode' => $barcode !== '' ? $barcode : null, 'attempt_number' => $attemptNumber, 'retry' => false, 'final' => true, 'occurrence_id' => $occurrenceId, 'camera_status' => $cameraStatus]], 201);

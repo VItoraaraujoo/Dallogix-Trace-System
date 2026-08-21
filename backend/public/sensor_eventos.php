@@ -41,7 +41,11 @@ try {
     $insert->execute(['carregamento_id' => $loadingId, 'equipment_id' => $equipmentId, 'event_uuid' => $eventUuid, 'detected_at' => $eventDate->format('Y-m-d H:i:s.v')]);
     $eventId = (int) $pdo->lastInsertId();
     record_operational_event($pdo, $user, 'SENSOR_EVENTO_RECEBIDO', 'sensor_event', $eventId, ['carregamento_id' => (int) $loadingId, 'event_uuid' => $eventUuid]);
-    json_response(['data' => ['id' => $eventId, 'duplicate' => false]], 201);
+    $cameraRequest = $pdo->prepare('INSERT INTO camera_capture_requests (sensor_event_id, carregamento_id, equipment_id, requested_at) VALUES (:sensor_event_id, :carregamento_id, :equipment_id, NOW(3))');
+    $cameraRequest->execute(['sensor_event_id' => $eventId, 'carregamento_id' => $loadingId, 'equipment_id' => $equipmentId]);
+    $cameraRequestId = (int) $pdo->lastInsertId();
+    record_operational_event($pdo, $user, 'CAMERA_CAPTURA_SOLICITADA', 'camera_request', $cameraRequestId, ['sensor_event_id' => $eventId, 'captura_no_evento' => true]);
+    json_response(['data' => ['id' => $eventId, 'duplicate' => false, 'camera_request_id' => $cameraRequestId, 'camera_trigger' => 'IMEDIATO']], 201);
 } catch (PDOException $exception) {
     if (isset($exception->errorInfo[1]) && (int) $exception->errorInfo[1] === 1062) {
         $existing = $pdo->prepare('SELECT id FROM sensor_events WHERE event_uuid = :event_uuid LIMIT 1');
