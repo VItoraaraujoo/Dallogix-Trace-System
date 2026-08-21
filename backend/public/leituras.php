@@ -35,6 +35,16 @@ if (!$loading) {
     json_response(['error' => 'Carregamento não encontrado para esta empresa.'], 404);
 }
 
+$plannedStatement = $pdo->prepare('SELECT COALESCE(SUM(ri.planned_quantity), 0) FROM romaneio_items ri WHERE ri.romaneio_id = :romaneio_id AND (ri.truck_id = :truck_id OR ri.truck_id IS NULL)');
+$plannedStatement->execute(['romaneio_id' => $loading['romaneio_id'], 'truck_id' => $loading['truck_id']]);
+$plannedQuantity = (int) $plannedStatement->fetchColumn();
+$validCountStatement = $pdo->prepare("SELECT COUNT(*) FROM leituras WHERE carregamento_id = :carregamento_id AND result = 'VALIDO'");
+$validCountStatement->execute(['carregamento_id' => $loadingId]);
+$validCount = (int) $validCountStatement->fetchColumn();
+if ($plannedQuantity > 0 && $validCount >= $plannedQuantity) {
+    json_response(['error' => 'Quantidade planejada já foi carregada.', 'data' => ['load_status' => 'COMPLETO', 'planned_quantity' => $plannedQuantity, 'valid_readings' => $validCount, 'excesso' => false]], 409);
+}
+
 if ($sensorEventId) {
     $sensorStatement = $pdo->prepare('SELECT id FROM sensor_events WHERE id = :sensor_event_id AND carregamento_id = :carregamento_id AND equipment_id = :equipment_id LIMIT 1');
     $sensorStatement->execute(['sensor_event_id' => $sensorEventId, 'carregamento_id' => $loadingId, 'equipment_id' => $loading['equipment_id']]);
@@ -80,4 +90,18 @@ if ($result === 'SEM_LEITURA') {
     record_operational_event($pdo, $user, 'FALHA_SEM_LEITURA', 'ocorrencia', $occurrenceId, ['carregamento_id' => (int) $loadingId, 'leitura_id' => $readingId]);
     $cameraStatus = 'CAPTURA_PENDENTE_INCIDENTE';
 }
-json_response(['data' => ['id' => $readingId, 'result' => $result, 'barcode' => $barcode !== '' ? $barcode : null, 'attempt_number' => $attemptNumber, 'retry' => false, 'final' => true, 'occurrence_id' => $occurrenceId, 'camera_status' => $cameraStatus]], 201);
+if ($result === 'PRODUTO_INCORRETO') {
+    $occurrence = $pdo->prepare('INSERT INTO ocorrencias (company_id, carregamento_id, type, quantity, description, created_by) VALUES (:company_id, :carregamento_id, \'PRODUTO_INCORRETO\', 1, :description, :created_by)');
+    $occurrence->execute(['company_id' => $user['company_id'], 'carregamento_id' => $loadingId, 'description' => 'Produto lido não está previsto para o carregamento.', 'created_by' => $user['id']]);
+    $occurrenceId = (int) $pdo->lastInsertId();
+    record_operational_event($pdo, $user, 'PRODUTO_INCORRETO', 'ocorrencia', $occurrenceId, ['carregamento_id' => (int) $loadingId, 'leitura_id' => $readingId]);
+    $cameraStatus = 'CAPTURA_PENDENTE_INCIDENTE';
+}
+$loadStatus = 'EM_ANDAMENTO';
+if ($result === 'VALIDO' && $plannedQuantity > 0 && ($validCount + 1) >= $plannedQuantity) {
+    $stateUpdate = $pdo->prepare("UPDATE carregamentos SET state = 'FINALIZANDO' WHERE id = :id AND state IN ('PREPARANDO', 'CARREGANDO', 'PAUSADO')");
+    $stateUpdate->execute(['id' => $loadingId]);
+    record_operational_event($pdo, $user, 'QUANTIDADE_PLANEJADA_ATINGIDA', 'carregamento', (int) $loadingId, ['planned_quantity' => $plannedQuantity, 'valid_readings' => $validCount + 1]);
+    $loadStatus = 'COMPLETO';
+}
+json_response(['data' => ['id' => $readingId, 'result' => $result, 'barcode' => $barcode !== '' ? $barcode : null, 'attempt_number' => $attemptNumber, 'retry' => false, 'final' => true, 'occurrence_id' => $occurrenceId, 'camera_status' => $cameraStatus, 'load_status' => $loadStatus, 'excesso' => false]], 201);

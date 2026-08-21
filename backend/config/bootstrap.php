@@ -54,6 +54,15 @@ function require_session_user(): array
     return $user;
 }
 
+function require_role(array $allowedRoles): array
+{
+    $user = require_session_user();
+    if (!in_array($user['role'], $allowedRoles, true)) {
+        json_response(['error' => 'Perfil sem permissão para esta ação.'], 403);
+    }
+    return $user;
+}
+
 function public_user(array $user): array
 {
     return [

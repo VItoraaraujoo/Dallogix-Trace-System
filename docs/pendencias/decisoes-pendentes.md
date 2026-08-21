@@ -44,9 +44,15 @@ Impacto: o fluxo `SEM_LEITURA` já está persistido; falta conectar o driver fí
 
 Impacto: o projeto usa `SYNC_REMOTE_URL` e permanece portátil para futura migração a servidor próprio.
 
-## 5. Operação
+## 5. Operação — definido
 
-- Tempo de retenção de imagens de incidentes:
-- Perfis autorizados a liberar emergência:
-- Necessidade de aprovação para finalizar carregamento:
-- Regras de excesso, retorno e produto incorreto:
+- Retenção de imagens de incidentes: **30 dias**.
+- Liberação de emergência: todos os perfis, exceto `OPERADOR`.
+- Aprovação para finalizar carregamento: **não necessária**.
+- Produto incorreto e retorno: incidentes do romaneio, com ocorrência e foto.
+- Excesso: não será tratado como incidente; ao atingir a quantidade planejada, a máquina deve alertar e o carregamento deve avançar para finalização.
+
+## 6. Ainda pendente
+
+- Confirmar se retorno será identificado por sinal do CLP, modo manual ou ambos.
+- Confirmar o texto/alarme exibido ao operador quando a quantidade planejada for atingida.

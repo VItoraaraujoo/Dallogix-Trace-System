@@ -40,6 +40,9 @@ if ($target === $current['state']) {
 if (!in_array($target, $allowed[$current['state']], true)) {
     json_response(['error' => "Transição inválida: {$current['state']} para {$target}."], 409);
 }
+if ($current['state'] === 'EMERGENCIA' && $target === 'PREPARANDO' && $user['role'] === 'OPERADOR') {
+    json_response(['error' => 'Operador não pode liberar uma emergência.'], 403);
+}
 
 $finishedAt = $target === 'FINALIZADO' ? ', finished_at = NOW()' : '';
 $update = $pdo->prepare("UPDATE carregamentos SET state = :state{$finishedAt} WHERE id = :id AND company_id = :company_id");
