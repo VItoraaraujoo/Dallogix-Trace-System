@@ -1,0 +1,63 @@
+# Atualizações remotas
+
+O Trace pode receber versões remotamente, mas a máquina industrial só instala uma versão quando não existe carregamento em andamento. Não há cobrança automática nem ação remota sobre o CLP.
+
+## Fluxo seguro
+
+1. O servidor de distribuição publica um pacote imutável e um manifesto assinado.
+2. A máquina consulta o manifesto por HTTPS e valida canal, versão, SHA-256 e assinatura com uma chave pública instalada localmente.
+3. O agente verifica no banco se há carregamento `PREPARANDO`, `CARREGANDO`, `PAUSADO`, `FINALIZANDO` ou `EMERGENCIA`. Se houver, a atualização é recusada e pode ser tentada novamente depois.
+4. Sem operação ativa, cria backup do banco e dos arquivos, instala a versão em uma área de releases e reinicia os serviços.
+5. O healthcheck precisa responder. Caso contrário, a versão anterior é restaurada automaticamente.
+
+O horário recomendado é uma janela de manutenção, por exemplo 03:30. O operador não precisa abrir terminal e não vê serviços técnicos; a equipe técnica continua podendo executar `TRACE_UPDATE_DRY_RUN=1` para validar um pacote sem instalar.
+
+## Contrato do manifesto
+
+```json
+{
+  "channel": "stable",
+  "version": "2026.08.30.1",
+  "artifact_url": "https://updates.exemplo.dallogix/trace-2026.08.30.1.tar.gz",
+  "sha256": "064c...256 caracteres hexadecimais...e91a",
+  "signature": "BASE64_DA_ASSINATURA_RSA_SHA256"
+}
+```
+
+A assinatura é RSA-SHA256 sobre exatamente estas três linhas, terminadas por uma quebra de linha:
+
+```text
+version
+artifact_url
+sha256
+```
+
+A chave privada fica somente no servidor de distribuição. A máquina recebe apenas o arquivo de chave pública configurado em `UPDATE_PUBLIC_KEY_FILE`. O pacote deve conter `docker-compose.yml` e uma estrutura compatível com a instalação atual.
+
+## Configuração Linux
+
+No `.env` da máquina:
+
+```dotenv
+UPDATE_MANIFEST_URL=https://updates.exemplo.dallogix/stable/manifest.json
+UPDATE_MANIFEST_TOKEN=token-da-maquina-ou-do-canal
+UPDATE_PUBLIC_KEY_FILE=/opt/dallogix-trace/armazenamento/updates/trace-update-public.pem
+UPDATE_CHANNEL=stable
+```
+
+Instale os serviços `dallogix-trace-update.service` e `dallogix-trace-update.timer` em `/etc/systemd/system/`, depois habilite o timer. O timer apenas consulta e instala seguindo as regras acima. Para testar sem alterar nada:
+
+```bash
+TRACE_UPDATE_DRY_RUN=1 bash scripts/update_trace.sh
+```
+
+## Windows industrial
+
+O mesmo contrato pode ser executado pelo atualizador do Windows dentro da janela de manutenção. O launcher continuará abrindo o Trace em quiosque após a atualização. A conta do operador não deve ter permissão para executar o atualizador; a tarefa agendada deve rodar com a conta técnica do equipamento.
+
+## Limites importantes
+
+- Não atualizar durante carregamento, retorno, emergência ou intervenção.
+- Não aceitar HTTP, pacote sem assinatura ou chave pública recebida junto com o pacote.
+- Não atualizar firmware do CLP por este mecanismo.
+- Revogar um token remoto impede novas consultas, mas não interrompe uma operação já iniciada.

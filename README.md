@@ -6,9 +6,16 @@ Sistema local-first para controle e rastreabilidade de carregamento de sacarias 
 
 HTML, CSS, JavaScript, PHP, MySQL, Node-RED, Nginx, Docker e Docker Compose.
 
-## Etapa atual
+## Estado atual
 
-Etapa 19 — simulador industrial. O ambiente base, a operação persistida, o login, a tela de trabalho, auditoria, fila local, monitoramento, ocorrências, catálogo, importação transacional, equipamento único, sincronização segura, status dos dispositivos, captura seletiva de evidências, encerramento seguro e simulador de CLP estão disponíveis. A integração física real ainda depende dos dados técnicos dos equipamentos.
+Operação local-first integrada. Cada tela possui seu próprio HTML (`interface/*.html`) com núcleo compartilhado em `js/aplicacao.js`; login em `index.html`. O ambiente base, operação persistida, auditoria, fila de sincronização, monitoramento, ocorrências, catálogo, importação transacional, preparação e encerramento de carregamentos, captura seletiva de evidências, retenção automática de imagens, relatório CSV, Monitor Tablet e controles por perfil estão disponíveis.
+
+A reversão também possui uma fila própria para o gateway industrial: o painel só registra a solicitação; o gateway autenticado confirma ou rejeita o comando após validar o CLP. Nenhuma escrita física é feita pelo servidor. A ligação real ainda depende do mapa de I/O homologado, do programa Ladder e dos testes de bancada.
+
+## Credenciais locais
+
+- `admin@dallogix.local` / `password` — administrador da empresa (operação local).
+- `master@dallogix.local` / `password` — administrador Dallogix (menu "Empresas" com todas as empresas e dashboards gerenciais).
 
 ## Executar
 
@@ -18,15 +25,20 @@ Etapa 19 — simulador industrial. O ambiente base, a operação persistida, o l
 4. Verifique a API local em `http://localhost:8080/api/index.php`.
 5. Verifique a saúde em `http://localhost:8080/api/health.php`.
 
+Para validar o transporte do CLP virtual, execute `python3 scripts/test_modbus_virtual.py` com os containers ativos. O teste escreve e lê somente a memória do simulador em `127.0.0.1:1502`.
+
 ## Banco local
 
 Com os containers ativos, aplique as migrations e o seed:
 
 ```bash
-docker compose exec -T mysql mysql -u root -pchange-me-root trace_local < database/migrations/001_initial_schema.sql
-docker compose exec -T mysql mysql -u root -pchange-me-root trace_local < database/migrations/002_operational_schema.sql
-docker compose exec -T mysql mysql -u root -pchange-me-root trace_local < database/seeds/001_local_seed.sql
+for migration in banco-de-dados/migrations/*.sql; do
+  docker compose exec -T mysql mysql -u root -pchange-me-root trace_local < "$migration"
+done
+docker compose exec -T mysql mysql -u root -pchange-me-root trace_local < banco-de-dados/seeds/001_local_seed.sql
 ```
+
+Em uma instalação já existente, aplique somente as migrations ainda não executadas. A mais recente é `018_consultas_operacionais.sql`.
 
 O seed cria uma empresa, usuário administrador, máquina, esteira, produto e barcode para desenvolvimento local.
 
@@ -39,6 +51,22 @@ docker compose down
 docker compose up -d
 ```
 
+## Backup e restauração local
+
+Crie um backup consistente do banco local com:
+
+```bash
+bash scripts/backup_db.sh
+```
+
+Restaure somente um arquivo escolhido explicitamente:
+
+```bash
+bash scripts/restore_db.sh armazenamento/backups/trace_local_YYYYMMDDTHHMMSSZ.sql
+```
+
+Em produção, a restauração exige `TRACE_ALLOW_RESTORE=1` definido conscientemente.
+
 ## Pendências técnicas
 
 - Sufixo exato, protocolo e mapa de registradores do CLP Delta DVP14SS.
@@ -46,4 +74,22 @@ docker compose up -d
 - Endereço e protocolo da câmera IP.
 - Credenciais e endpoint da nuvem Dallogix.
 
-As decisões externas estão organizadas em [docs/pendencias/decisoes-pendentes.md](docs/pendencias/decisoes-pendentes.md). O desenvolvimento local-first não depende dessas informações para continuar.
+O licenciamento mensal é controlado manualmente pelo Master Dallogix; o Trace não realiza cobranças automáticas nem integra gateways de pagamento.
+
+As decisões externas estão organizadas em [documentacao/pendencias/decisoes-pendentes.md](documentacao/pendencias/decisoes-pendentes.md). O desenvolvimento local-first não depende dessas informações para continuar.
+
+O procedimento de preparação para um servidor físico está em [documentacao/operacao/implantacao-servidor-fisico.md](documentacao/operacao/implantacao-servidor-fisico.md).
+
+Para PC industrial Windows, use o launcher e as orientações em [implantacao/windows/README.md](implantacao/windows/README.md). A preparação técnica usa `Install-TraceMachine.ps1` e vincula o `Dallogix Agent`; a interface pode funcionar como aplicativo quiosque, mantendo os serviços locais separados.
+
+Atualizações remotas seguras, com manifesto assinado, bloqueio durante operação, backup e rollback, estão descritas em [documentacao/operacao/atualizacoes-remotas.md](documentacao/operacao/atualizacoes-remotas.md).
+
+Antes de uma implantação física, carregue o `.env` no ambiente e execute `bash scripts/check_production_env.sh` para validar os requisitos mínimos sem revelar segredos.
+
+## Qualidade e arquitetura
+
+O padrão de camadas e as regras para novas alterações estão em [documentacao/arquitetura/padrao-desenvolvimento.md](documentacao/arquitetura/padrao-desenvolvimento.md). Antes de alterar o sistema, execute:
+
+```bash
+bash testes/qualidade.sh
+```

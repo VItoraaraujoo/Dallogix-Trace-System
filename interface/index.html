@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Acesso ao sistema • Dallogix Trace</title>
+    <link rel="stylesheet" href="css/styles.css" />
+    <link rel="stylesheet" href="css/light-theme.css?v=4" />
+    <link rel="stylesheet" href="css/auth.css" />
+  </head>
+  <body>
+    <main class="login-page">
+      <section class="login-card">
+        <div class="brand login-brand">
+          <strong>TRACE</strong><small>PLATFORM</small>
+        </div>
+        <p class="kicker">Acesso local</p>
+        <h1>Dallogix Trace</h1>
+        <p class="login-description">
+          Acesse a operação local e acompanhe os carregamentos em tempo real.
+        </p>
+        <div id="login-error"></div>
+        <form id="login-form" method="post" action="index.html">
+          <label
+            >E-mail<input
+              name="email"
+              type="email"
+              value="admin@dallogix.local"
+              autocomplete="username"
+              required
+          /></label>
+          <label
+            >Senha<input
+              name="password"
+              type="password"
+              autocomplete="current-password"
+              required
+          /></label>
+          <button class="button primary login-button" type="submit">
+            Entrar no sistema
+          </button>
+        </form>
+        <small class="login-hint"
+          >Ambiente local • sem dependência de internet</small
+        >
+      </section>
+    </main>
+    <script type="module" src="js/aplicacao.js?v=19" data-page="login"></script>
+  </body>
+</html>

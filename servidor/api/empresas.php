@@ -1,0 +1,165 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . "/../configuracao/bootstrap.php";
+
+$user = require_session_user();
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    if ($user["role"] !== "ADMIN_DALLOGIX") {
+        json_response(
+            [
+                "error" =>
+                    "Somente o Administrador Dallogix pode criar empresas.",
+            ],
+            403,
+        );
+    }
+    require_csrf();
+    $payload = request_json();
+    $name = trim((string) ($payload["name"] ?? ""));
+    if ($name === "" || mb_strlen($name) > 160) {
+        json_response(["error" => "Informe o nome da empresa."], 422);
+    }
+    try {
+        $insert = db()->prepare("INSERT INTO companies (name) VALUES (:name)");
+        $insert->execute(["name" => $name]);
+        json_response(
+            ["data" => ["id" => (int) db()->lastInsertId(), "name" => $name]],
+            201,
+        );
+    } catch (PDOException $exception) {
+        json_response(["error" => "Não foi possível criar a empresa."], 409);
+    }
+}
+if ($_SERVER["REQUEST_METHOD"] !== "GET") {
+    json_response(["error" => "Método não permitido."], 405);
+}
+
+$isAdminDallogix = $user["role"] === "ADMIN_DALLOGIX";
+$rawCompanyId = trim((string) ($_GET["company_id"] ?? ""));
+if (
+    $rawCompanyId !== "" &&
+    filter_var($rawCompanyId, FILTER_VALIDATE_INT) === false
+) {
+    json_response(["error" => "Identificador de empresa inválido."], 422);
+}
+$requestedCompanyId = $rawCompanyId === "" ? null : (int) $rawCompanyId;
+
+// ADMIN_DALLOGIX enxerga todas as empresas. Demais perfis somente a própria empresa.
+if (!$isAdminDallogix) {
+    if (
+        $user["company_id"] === null ||
+        ($requestedCompanyId !== null &&
+            $requestedCompanyId !== (int) $user["company_id"])
+    ) {
+        json_response(
+            ["error" => "Perfil sem permissão para consultar esta empresa."],
+            403,
+        );
+    }
+    $requestedCompanyId = (int) $user["company_id"];
+}
+
+$pdo = db();
+
+$machinesSql = "SELECT e.id, e.equipment_code, e.name,
+            d.status AS clp_status, d.last_seen_at,
+            c.state AS carregamento_state, r.number AS romaneio_number, rt.plate,
+            COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_items ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity,
+            (SELECT COUNT(*) FROM leituras l WHERE l.carregamento_id = c.id AND l.result = 'VALIDO') AS valid_readings
+     FROM equipments e
+     LEFT JOIN device_status d ON d.equipment_id = e.id AND d.device_type = 'CLP'
+     LEFT JOIN carregamentos c ON c.id = (SELECT c2.id FROM carregamentos c2 WHERE c2.equipment_id = e.id ORDER BY c2.id DESC LIMIT 1)
+     LEFT JOIN romaneios r ON r.id = c.romaneio_id
+     LEFT JOIN romaneio_trucks rt ON rt.id = c.truck_id
+     WHERE e.company_id = :company_id
+     ORDER BY e.equipment_code";
+
+if ($requestedCompanyId !== null) {
+    $companyStatement = $pdo->prepare(
+        "SELECT id, name, created_at FROM companies WHERE id = :id LIMIT 1",
+    );
+    $companyStatement->execute(["id" => $requestedCompanyId]);
+    $company = $companyStatement->fetch();
+    if (!$company) {
+        json_response(["error" => "Empresa não encontrada."], 404);
+    }
+
+    $machines = $pdo->prepare($machinesSql);
+    $machines->execute(["company_id" => $requestedCompanyId]);
+
+    $occurrences = $pdo->prepare(
+        "SELECT type, quantity, description, created_at FROM ocorrencias WHERE company_id = :company_id ORDER BY id DESC LIMIT 10",
+    );
+    $occurrences->execute(["company_id" => $requestedCompanyId]);
+
+    $romaneios = $pdo->prepare(
+        "SELECT status, COUNT(*) AS total FROM romaneios WHERE company_id = :company_id GROUP BY status",
+    );
+    $romaneios->execute(["company_id" => $requestedCompanyId]);
+    $romaneioSummary = [];
+    foreach ($romaneios->fetchAll() as $row) {
+        $romaneioSummary[$row["status"]] = (int) $row["total"];
+    }
+
+    $pendingSync = $pdo->prepare(
+        "SELECT COUNT(*) AS total FROM sync_queue q JOIN audit_logs a ON a.entity_type = q.aggregate_type AND a.entity_id = q.aggregate_id WHERE a.company_id = :company_id AND q.status = 'PENDENTE'",
+    );
+    $pendingSync->execute(["company_id" => $requestedCompanyId]);
+
+    json_response([
+        "data" => [
+            "id" => (int) $company["id"],
+            "name" => $company["name"],
+            "created_at" => $company["created_at"],
+            "maquinas" => $machines->fetchAll(),
+            "ocorrencias_recentes" => $occurrences->fetchAll(),
+            "romaneios" => $romaneioSummary,
+            "sync_pendente" => (int) ($pendingSync->fetch()["total"] ?? 0),
+        ],
+    ]);
+}
+
+$companies = $pdo->prepare(
+            "SELECT c.id, c.name, c.created_at,
+            (SELECT l.status FROM licenses l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_status,
+            (SELECT l.due_at FROM licenses l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_due_at,
+            (SELECT l.blocked_reason FROM licenses l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_reason,
+            COUNT(e.id) AS total_machines,
+            COALESCE(SUM(d.status = 'ONLINE'), 0) AS machines_online,
+            MAX(d.last_seen_at) AS last_signal_at,
+            (SELECT COUNT(*) FROM users u WHERE u.company_id = c.id) AS total_users,
+            (SELECT COUNT(*) FROM users u WHERE u.company_id = c.id AND u.active = 1) AS active_users,
+            (SELECT COUNT(*) FROM ocorrencias o WHERE o.company_id = c.id AND o.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)) AS ocorrencias_24h
+     FROM companies c
+     LEFT JOIN equipments e ON e.company_id = c.id
+     LEFT JOIN device_status d ON d.equipment_id = e.id AND d.device_type = 'CLP'
+     GROUP BY c.id, c.name, c.created_at
+     ORDER BY c.name",
+);
+$companies->execute();
+$rows = array_map(static function (array $row): array {
+    $total = (int) $row["total_machines"];
+    $online = (int) $row["machines_online"];
+    $licenseStatus = $row["license_status"] ?: "SEM_LICENCA";
+    if ($licenseStatus === "ATIVA" && $row["license_due_at"] < date("Y-m-d")) {
+        $licenseStatus = "INADIMPLENTE";
+    }
+    return [
+        "id" => (int) $row["id"],
+        "name" => $row["name"],
+        "created_at" => $row["created_at"],
+        "total_machines" => $total,
+        "machines_online" => $online,
+        "machines_offline" => max(0, $total - $online),
+        "last_signal_at" => $row["last_signal_at"],
+        "total_users" => (int) $row["total_users"],
+        "active_users" => (int) $row["active_users"],
+        "ocorrencias_24h" => (int) $row["ocorrencias_24h"],
+        "license_status" => $licenseStatus,
+        "license_due_at" => $row["license_due_at"],
+        "license_reason" => $row["license_reason"],
+    ];
+}, $companies->fetchAll());
+
+json_response(["data" => $rows]);
