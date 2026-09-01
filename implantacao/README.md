@@ -33,4 +33,4 @@ As atualizações são assinadas, verificadas por SHA-256, bloqueadas durante qu
 
 ## Sincronização com GitHub
 
-O repositório do servidor deve ter um remote GitHub autenticado por SSH ou pelo gerenciador de credenciais do sistema. Para preparar/verificar a sincronização sem alterar nada, execute `TRACE_GITHUB_DRY_RUN=1 bash scripts/sync_github.sh`. A execução normal aceita somente fast-forward, preserva `.env` e `armazenamento/`, reconstrói o Compose e exige healthcheck. Não use essa sincronização durante carregamentos ativos; para produção, prefira o fluxo de pacote assinado descrito acima.
+O repositório do servidor deve ter o remote `empresa` apontando para `https://github.com/VItoraaraujoo/Dallogix-Trace-System.git`, autenticado por SSH ou pelo gerenciador de credenciais do sistema. Para preparar/verificar a sincronização sem alterar nada, execute `TRACE_GITHUB_DRY_RUN=1 bash scripts/sync_github.sh`. A execução normal aceita somente fast-forward, preserva `.env` e `armazenamento/`, reconstrói o Compose e exige healthcheck. Não use essa sincronização durante carregamentos ativos; para produção, prefira o fluxo de pacote assinado descrito acima.

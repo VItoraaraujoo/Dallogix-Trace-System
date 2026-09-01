@@ -4,7 +4,7 @@ set -euo pipefail
 # Sincroniza uma instalação do servidor somente por fast-forward.
 # Não sobrescreve alterações locais, .env, armazenamento ou dados do Compose.
 root_dir="$(cd "$(dirname "$0")/.." && pwd)"
-remote_name="${TRACE_GITHUB_REMOTE:-origin}"
+remote_name="${TRACE_GITHUB_REMOTE:-empresa}"
 branch="${TRACE_GITHUB_BRANCH:-master}"
 dry_run="${TRACE_GITHUB_DRY_RUN:-0}"
 
