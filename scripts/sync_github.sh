@@ -40,7 +40,7 @@ docker compose up -d --build --force-recreate
 # resolução do upstream e evitando endereço antigo ou container apenas criado.
 docker compose up -d nginx
 healthy=0
-for _ in $(seq 1 30); do
+for _ in $(seq 1 "${HEALTHCHECK_ATTEMPTS:-90}"); do
   if curl --fail --silent --max-time 3 "http://127.0.0.1:${WEB_PORT:-80}/api/health.php" >/dev/null; then healthy=1; break; fi
   sleep 2
 done
