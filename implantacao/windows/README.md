@@ -4,6 +4,8 @@ O Windows pode apresentar o Trace como um único aplicativo para o operador. O a
 
 ## Instalação
 
+O pacote de instalação da equipe técnica é compilado a partir de `TraceSetup.iss` com o Inno Setup e gera `TraceSetup.exe`. O operador final não recebe esse arquivo.
+
 1. Instale Windows 10/11 IoT Enterprise ou Windows Pro, Docker Desktop e Edge/Chrome.
 2. Copie o repositório para `C:\ProgramData\DallogixTrace`.
 3. Copie `.env.example` para `.env` e preencha os valores reais da instalação.
