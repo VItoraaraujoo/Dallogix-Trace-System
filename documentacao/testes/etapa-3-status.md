@@ -7,7 +7,7 @@
 - Endpoint de sessão atual em `/api/me.php`.
 - Logout com destruição da sessão em `/api/logout.php`.
 - Tela de login integrada ao interface.
-- Usuários locais de teste: `admin@dallogix.local`, `supervisor@dallogix.local` e `operador@dallogix.local`, todos com senha `password`.
+- Usuário administrativo de teste: `admin@dallogix.local` / `password`. Supervisor e operador: `supervisor@dallogix.local` e `operador@dallogix.local`, ambos com senha `password1234`.
 
 ## Validação
 

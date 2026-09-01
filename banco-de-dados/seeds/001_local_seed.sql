@@ -60,7 +60,7 @@ SELECT
   c.id,
   'Supervisor local',
   'supervisor@dallogix.local',
-  '$2y$10$ebOT1MqNyajFths8pCaJu.qE7MOSNMWkXYLan9LVzGSXFHIdgxK8C',
+  '$2y$12$rNW5syuIUQXWmnkzFzzCUOq7APYSVr.0iN9JIkPvCvoT0mfa/Bwm.',
   'SUPERVISOR'
 FROM
   companies c
@@ -76,7 +76,7 @@ SELECT
   c.id,
   'Operador local',
   'operador@dallogix.local',
-  '$2y$10$ebOT1MqNyajFths8pCaJu.qE7MOSNMWkXYLan9LVzGSXFHIdgxK8C',
+  '$2y$12$rNW5syuIUQXWmnkzFzzCUOq7APYSVr.0iN9JIkPvCvoT0mfa/Bwm.',
   'USUARIO'
 FROM
   companies c

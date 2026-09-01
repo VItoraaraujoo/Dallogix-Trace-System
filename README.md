@@ -15,8 +15,8 @@ A reversão também possui uma fila própria para o gateway industrial: o painel
 ## Credenciais locais
 
 - `admin@dallogix.local` / `password` — administrador da empresa (operação local).
-- `supervisor@dallogix.local` / `password` — supervisor local (teste).
-- `operador@dallogix.local` / `password` — operador local (teste).
+- `supervisor@dallogix.local` / `password1234` — supervisor local (teste).
+- `operador@dallogix.local` / `password1234` — operador local (teste).
 - `master@dallogix.local` / `password` — administrador Dallogix (menu "Empresas" com todas as empresas e dashboards gerenciais).
 
 ## Executar
