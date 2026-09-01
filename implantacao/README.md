@@ -34,3 +34,5 @@ As atualizações são assinadas, verificadas por SHA-256, bloqueadas durante qu
 ## Sincronização com GitHub
 
 O repositório do servidor deve ter o remote `empresa` apontando para `https://github.com/VItoraaraujoo/Dallogix-Trace-System.git`, autenticado por SSH ou pelo gerenciador de credenciais do sistema. Para preparar/verificar a sincronização sem alterar nada, execute `TRACE_GITHUB_DRY_RUN=1 bash scripts/sync_github.sh`. A execução normal aceita somente fast-forward, preserva `.env` e `armazenamento/`, reconstrói o Compose e exige healthcheck. Não use essa sincronização durante carregamentos ativos; para produção, prefira o fluxo de pacote assinado descrito acima.
+
+O workflow `.github/workflows/deploy-test.yml` executa esse sincronizador automaticamente a cada push em `master`. No ambiente `test` do GitHub, cadastre `TEST_SERVER_HOST`, `TEST_SERVER_USER`, `TEST_SERVER_PATH`, `TEST_SERVER_SSH_PORT`, `TEST_SERVER_SSH_KEY` e `TEST_SERVER_KNOWN_HOSTS`. A chave privada deve ser exclusiva do deploy, e o usuário remoto deve ter somente as permissões necessárias para o diretório do Trace e o Docker Compose.

@@ -1,0 +1,41 @@
+name: Deploy test server
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dallogix-trace-test-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: test
+    steps:
+      - name: Configure SSH
+        env:
+          DEPLOY_KEY: ${{ secrets.TEST_SERVER_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.TEST_SERVER_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$DEPLOY_KEY" > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 644 "$HOME/.ssh/known_hosts"
+
+      - name: Deploy through the server synchronizer
+        env:
+          SERVER_HOST: ${{ secrets.TEST_SERVER_HOST }}
+          SERVER_USER: ${{ secrets.TEST_SERVER_USER }}
+          SERVER_PATH: ${{ secrets.TEST_SERVER_PATH }}
+          SERVER_PORT: ${{ secrets.TEST_SERVER_SSH_PORT }}
+        run: |
+          : "${SERVER_PORT:=22}"
+          : "${SERVER_PATH:=/opt/dallogix-trace}"
+          ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" \
+            "cd '$SERVER_PATH' && TRACE_GITHUB_REMOTE=empresa bash scripts/sync_github.sh"
