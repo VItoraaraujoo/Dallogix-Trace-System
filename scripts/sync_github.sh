@@ -36,6 +36,9 @@ git merge --ff-only "$remote_name/$branch"
 # O Nginx resolve o nome do PHP ao iniciar. Recriar todos os serviços evita que
 # ele conserve o IP antigo quando o container PHP for reconstruído.
 docker compose up -d --build --force-recreate
+# Recarrega a resolução do serviço PHP depois que todos os containers foram
+# recriados, evitando upstream antigo no Nginx.
+docker compose restart nginx
 healthy=0
 for _ in $(seq 1 30); do
   if curl --fail --silent --max-time 3 "http://127.0.0.1:${PHP_PORT:-8080}/api/health.php" >/dev/null; then healthy=1; break; fi
