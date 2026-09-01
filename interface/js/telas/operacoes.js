@@ -35,7 +35,7 @@ export function manifests(store) {
 <label>Código do romaneio<input name="number" value="${esc(filters.number || "")}" /></label>
 <label>Expedidor<input name="expedidor" value="${esc(filters.expedidor || "")}" /></label>
 <label>Status<select name="status">${options}</select></label>
-</div></form></section><br>${manifestsTable(store.manifests, canCreate)}`;
+</div></form></section><br>${manifestsTable(store.manifests)}`;
 }
 
 // Detalhe do romaneio (tela Visualizar).
@@ -54,7 +54,7 @@ export function manifestView(store) {
   const canCancel = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(store.state.userRole) && ["IMPORTADO", "AGUARDANDO"].includes(manifest.status);
   const formatDate = (value) =>
     value ? String(value).split("-").reverse().join("/") : "—";
-  return `<div class="title-row with-actions has-back"><button class="button secondary page-back" data-action="goto-manifests" type="button">← Voltar</button><div><h2>Romaneio ${esc(manifest.number)}</h2></div><div class="actions">${auditReport}${canCancel ? button("Cancelar romaneio", "cancel-manifest", "danger") : ""}${canPrepare ? `<button class="button primary" data-action="prepare-manifest" data-id="${manifest.id}" type="button">Preparar carregamento</button>` : ""}</div></div>
+  return `<div class="title-row with-actions has-back"><button class="button secondary page-back" data-action="goto-manifests" type="button">← Voltar</button><div><h2>Romaneio ${esc(manifest.number)}</h2></div><div class="actions">${auditReport}${canPrepare ? `<button class="button primary" data-action="prepare-manifest" data-id="${manifest.id}" type="button">Preparar carregamento</button>` : ""}</div></div>
 <div class="grid two detail-cards">
 <div class="panel detail-card"><small>Data do carregamento</small><strong>${formatDate(manifest.scheduled_date)}</strong></div>
 <div class="panel detail-card"><small>Expedidor</small><strong>${esc(manifest.expedidor || "—")}</strong></div>
@@ -65,7 +65,7 @@ export function manifestView(store) {
 </div><br>
 <section class="panel"><h3>Itens do Romaneio</h3><div class="table-wrap"><table><thead><tr><th>Produto</th><th>Código</th><th>Quantidade</th></tr></thead><tbody>
 ${items.length ? items.map((item) => `<tr><td><strong>${esc(item.name)}</strong></td><td><code>${esc(item.code || "—")}</code></td><td>${Number(item.planned_quantity).toLocaleString("pt-BR")}</td></tr>`).join("") : '<tr><td colspan="3" class="empty-cell">Nenhum item cadastrado.</td></tr>'}
-</tbody></table></div></section>`;
+</tbody></table></div></section>${canCancel ? `<section class="panel"><div class="actions"><div><strong>Cancelamento do romaneio</strong><p>Use somente se o carregamento ainda não tiver começado.</p></div>${button("Cancelar romaneio", "cancel-manifest", "danger")}</div></section>` : ""}`;
 }
 
 const itemRow = (products, selectedId = "") => `<tr class="manifest-item">
