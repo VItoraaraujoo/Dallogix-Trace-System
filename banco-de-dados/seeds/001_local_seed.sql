@@ -55,6 +55,38 @@ WHERE
   );
 
 INSERT INTO
+  users (company_id, name, email, password_hash, role)
+SELECT
+  c.id,
+  'Supervisor local',
+  'supervisor@dallogix.local',
+  '$2y$10$ebOT1MqNyajFths8pCaJu.qE7MOSNMWkXYLan9LVzGSXFHIdgxK8C',
+  'SUPERVISOR'
+FROM
+  companies c
+WHERE
+  c.name = 'Empresa Demonstração'
+  AND NOT EXISTS (
+    SELECT 1 FROM users WHERE email = 'supervisor@dallogix.local'
+  );
+
+INSERT INTO
+  users (company_id, name, email, password_hash, role)
+SELECT
+  c.id,
+  'Operador local',
+  'operador@dallogix.local',
+  '$2y$10$ebOT1MqNyajFths8pCaJu.qE7MOSNMWkXYLan9LVzGSXFHIdgxK8C',
+  'USUARIO'
+FROM
+  companies c
+WHERE
+  c.name = 'Empresa Demonstração'
+  AND NOT EXISTS (
+    SELECT 1 FROM users WHERE email = 'operador@dallogix.local'
+  );
+
+INSERT INTO
   products (company_id, code, name)
 SELECT
   c.id,
