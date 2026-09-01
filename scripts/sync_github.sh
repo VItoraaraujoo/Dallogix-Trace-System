@@ -41,7 +41,7 @@ docker compose up -d --build --force-recreate
 docker compose up -d nginx
 healthy=0
 for _ in $(seq 1 30); do
-  if curl --fail --silent --max-time 3 "http://127.0.0.1:${PHP_PORT:-8080}/api/health.php" >/dev/null; then healthy=1; break; fi
+  if curl --fail --silent --max-time 3 "http://127.0.0.1:${WEB_PORT:-80}/api/health.php" >/dev/null; then healthy=1; break; fi
   sleep 2
 done
 [[ "$healthy" == "1" ]] || { echo "Atualização aplicada, mas o healthcheck falhou." >&2; exit 6; }
