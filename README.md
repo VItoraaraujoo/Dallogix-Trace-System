@@ -8,7 +8,7 @@ HTML, CSS, JavaScript, PHP, MySQL, Node-RED, Nginx, Docker e Docker Compose.
 
 ## Estado atual
 
-Operação local-first integrada. Cada tela possui seu próprio HTML (`interface/*.html`) com núcleo compartilhado em `js/aplicacao.js`; login em `index.html`. O ambiente base, operação persistida, auditoria, fila de sincronização, monitoramento, ocorrências, catálogo, importação transacional, preparação e encerramento de carregamentos, captura seletiva de evidências, retenção automática de imagens, relatório CSV, Monitor Tablet e controles por perfil estão disponíveis.
+Operação local-first integrada. Cada tela possui seu próprio HTML (`interface/*.html`) com núcleo compartilhado em `js/aplicacao.js`; login em `index.html`. O ambiente base, operação persistida, auditoria, fila de sincronização, monitoramento, ocorrências, catálogo, importação transacional, preparação e encerramento de carregamentos, captura seletiva de evidências, retenção automática de imagens, relatório CSV e controles por perfil estão disponíveis.
 
 A reversão também possui uma fila própria para o gateway industrial: o painel só registra a solicitação; o gateway autenticado confirma ou rejeita o comando após validar o CLP. Nenhuma escrita física é feita pelo servidor. A ligação real ainda depende do mapa de I/O homologado, do programa Ladder e dos testes de bancada.
 
@@ -21,7 +21,7 @@ A reversão também possui uma fila própria para o gateway industrial: o painel
 
 1. Copie `.env.example` para `.env` e ajuste os valores.
 2. Execute `docker compose up -d --build`.
-3. Acesse `http://localhost:8080`.
+3. Acesse `http://localhost:8080` no quiosque do PC industrial.
 4. Verifique a API local em `http://localhost:8080/api/index.php`.
 5. Verifique a saúde em `http://localhost:8080/api/health.php`.
 
@@ -41,6 +41,10 @@ docker compose exec -T mysql mysql -u root -pchange-me-root trace_local < banco-
 Em uma instalação já existente, aplique somente as migrations ainda não executadas. A mais recente é `018_consultas_operacionais.sql`.
 
 O seed cria uma empresa, usuário administrador, máquina, esteira, produto e barcode para desenvolvimento local.
+
+## Acesso remoto e servidor central
+
+Não existe uma tela remota no PC industrial. Todo gerenciamento fora da máquina deve ser feito pelo servidor central. O PC industrial inicia as conexões de saída HTTPS para heartbeat e sincronização; não há port forwarding. A operação PC industrial ↔ CLP e o banco/fila local continuam disponíveis durante quedas de internet.
 
 Credencial local: `admin@dallogix.local` / `password`.
 

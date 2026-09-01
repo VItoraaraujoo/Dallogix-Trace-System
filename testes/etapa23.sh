@@ -24,7 +24,6 @@ check_page() {
 }
 
 check_page index.html login
-check_page home.html home
 check_page dashboard.html dashboard
 check_page manifests.html manifests
 check_page import.html import
@@ -33,7 +32,6 @@ check_page work.html work
 check_page occurrences.html occurrences
 check_page summary.html summary
 check_page history.html history
-check_page tablet.html tablet
 check_page products.html products
 check_page alerts.html alerts
 check_page emergency.html emergency
@@ -62,4 +60,4 @@ done
 cache_header="$(curl -sSI "$base_url/manifests.html" | grep -i 'cache-control' | head -1)"
 printf '%s' "$cache_header" | grep -qi 'no-cache' || fail "Cache-Control ausente no HTML: $cache_header"
 
-echo "OK: 18 páginas HTML independentes servidas com data-page correto e núcleo único em js/aplicacao.js."
+echo "OK: telas HTML locais servidas com data-page correto e núcleo único em js/aplicacao.js."

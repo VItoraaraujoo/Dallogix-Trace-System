@@ -372,27 +372,6 @@ li small {
   font-size: 42px;
   margin: 13px 0;
 }
-.tablet {
-  max-width: 620px;
-  margin: auto;
-  background: #12212c;
-  color: #fff;
-  border-radius: 20px;
-  padding: 24px;
-}
-.tablet .metric {
-  background: #1d3442;
-  border-color: #3b5766;
-}
-.tablet .metric small {
-  color: #afc2cc;
-}
-.tablet .progress i {
-  background: #43c18a;
-}
-.tablet .alert-box {
-  margin-top: 18px;
-}
 @media (max-width: 850px) {
   .sidebar {
     width: 205px;

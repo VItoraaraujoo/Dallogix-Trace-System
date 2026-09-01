@@ -165,9 +165,7 @@ export function companyCard(company) {
   const licenseStatus = String(company.license_status || "SEM_LICENCA");
   const licenseLabel = {
     ATIVA: "Licença ativa",
-    INADIMPLENTE: "Inadimplente",
     BLOQUEADA: "Bloqueada",
-    CANCELADA: "Cancelada",
     SEM_LICENCA: "Sem licença",
   }[licenseStatus] || licenseStatus;
   const licenseTone = licenseStatus === "ATIVA" ? "green" : "red";
@@ -179,7 +177,7 @@ export function companyCard(company) {
       <div><b class="metric-green">${online}</b><small>Online</small></div>
       <div><b>${activeUsers}/${users}</b><small>Acessos ativos</small></div>
     </div>
-    <footer><span class="kicker">${offline > 0 ? `${offline} máquina(s) sem sinal · ` : ""}${occurrences} ocorrência(s) em 24h${company.license_due_at ? ` · vence ${esc(company.license_due_at)}` : ""}</span><div class="actions"><button class="button secondary" data-action="open-company" data-id="${company.id}" type="button">Gerenciar</button><button class="button ${licenseStatus === "ATIVA" ? "danger" : "primary"} small" data-action="toggle-license" data-id="${company.id}" data-status="${esc(licenseStatus)}" data-due="${esc(company.license_due_at || "")}" type="button">${licenseAction}</button></div></footer>
+    <footer><span class="kicker">${offline > 0 ? `${offline} máquina(s) sem sinal · ` : ""}${occurrences} ocorrência(s) em 24h</span><div class="actions"><button class="button secondary" data-action="open-company" data-id="${company.id}" type="button">Gerenciar</button><button class="button ${licenseStatus === "ATIVA" ? "danger" : "primary"} small" data-action="toggle-license" data-id="${company.id}" data-status="${esc(licenseStatus)}" type="button">${licenseAction}</button><button class="button ghost danger-link small" data-action="delete-company" data-id="${company.id}" data-name="${esc(company.name)}" type="button">Remover</button></div></footer>
   </article>`;
 }
 

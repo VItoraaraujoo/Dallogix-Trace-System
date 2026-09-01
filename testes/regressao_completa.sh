@@ -14,7 +14,8 @@ if printf '%s' "$login" | grep -q '"authenticated":true'; then
   if ! printf '%s' "$active" | grep -Eq '"state":"(PREPARANDO|CARREGANDO|EMERGENCIA|PAUSADO)"'; then
     number="FIXTURE-$(date +%s%N)"
     plate="FIX$(date +%s%N | tail -c 8)"
-    manifest="$(curl -sS -b "$fixture_cookie" -H 'Content-Type: application/json' -d "{\"number\":\"$number\",\"scheduled_date\":\"2026-08-28\",\"plate\":\"$plate\",\"product_code\":\"PROD3\",\"planned_quantity\":20}" "$base_url/api/romaneios.php")"
+    manifest_date="$(date +%Y-%m-%d)"
+    manifest="$(curl -sS -b "$fixture_cookie" -H 'Content-Type: application/json' -d "{\"number\":\"$number\",\"scheduled_date\":\"$manifest_date\",\"plate\":\"$plate\",\"product_code\":\"PROD3\",\"planned_quantity\":20}" "$base_url/api/romaneios.php")"
     manifest_id="$(printf '%s' "$manifest" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
     truck_id="$(printf '%s' "$manifest" | sed -n 's/.*"truck_id":\([0-9][0-9]*\).*/\1/p')"
     equipment_ids="$(curl -sS -b "$fixture_cookie" "$base_url/api/equipamentos.php" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const x of (JSON.parse(s).data||[]).reverse()) console.log(x.id)})')"

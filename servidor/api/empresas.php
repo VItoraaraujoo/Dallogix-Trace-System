@@ -21,14 +21,82 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         json_response(["error" => "Informe o nome da empresa."], 422);
     }
     try {
-        $insert = db()->prepare("INSERT INTO companies (name) VALUES (:name)");
+        $pdo = db();
+        $existing = $pdo->prepare(
+            "SELECT id FROM companies WHERE name = :name LIMIT 1",
+        );
+        $existing->execute(["name" => $name]);
+        if ($existing->fetch()) {
+            json_response(["error" => "Já existe uma empresa com este nome."], 409);
+        }
+        $insert = $pdo->prepare("INSERT INTO companies (name) VALUES (:name)");
         $insert->execute(["name" => $name]);
         json_response(
-            ["data" => ["id" => (int) db()->lastInsertId(), "name" => $name]],
+            ["data" => ["id" => (int) $pdo->lastInsertId(), "name" => $name]],
             201,
         );
     } catch (PDOException $exception) {
         json_response(["error" => "Não foi possível criar a empresa."], 409);
+    }
+}
+if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
+    if ($user["role"] !== "ADMIN_DALLOGIX") {
+        json_response(
+            ["error" => "Somente o Administrador Dallogix pode remover empresas."],
+            403,
+        );
+    }
+    require_csrf();
+    $id = filter_var($_GET["id"] ?? null, FILTER_VALIDATE_INT);
+    if (!$id) {
+        json_response(["error" => "Empresa não informada."], 422);
+    }
+
+    $pdo = db();
+    $find = $pdo->prepare("SELECT id, name FROM companies WHERE id = :id LIMIT 1");
+    $find->execute(["id" => $id]);
+    $company = $find->fetch();
+    if (!$company) {
+        json_response(["error" => "Empresa não encontrada."], 404);
+    }
+
+    $dependencies = [
+        "users" => "SELECT COUNT(*) FROM users WHERE company_id = :id",
+        "equipamentos" => "SELECT COUNT(*) FROM equipments WHERE company_id = :id",
+        "produtos" => "SELECT COUNT(*) FROM products WHERE company_id = :id",
+        "romaneios" => "SELECT COUNT(*) FROM romaneios WHERE company_id = :id",
+        "carregamentos" => "SELECT COUNT(*) FROM carregamentos WHERE company_id = :id",
+        "ocorrências" => "SELECT COUNT(*) FROM ocorrencias WHERE company_id = :id",
+        "auditoria" => "SELECT COUNT(*) FROM audit_logs WHERE company_id = :id",
+        "configurações" => "SELECT COUNT(*) FROM company_settings WHERE company_id = :id",
+        "licenças" => "SELECT COUNT(*) FROM licenses WHERE company_id = :id",
+        "comandos industriais" => "SELECT COUNT(*) FROM plc_command_requests WHERE company_id = :id",
+    ];
+    $found = [];
+    foreach ($dependencies as $label => $query) {
+        $statement = $pdo->prepare($query);
+        $statement->execute(["id" => $id]);
+        if ((int) $statement->fetchColumn() > 0) {
+            $found[] = $label;
+        }
+    }
+    if ($found) {
+        json_response(
+            [
+                "error" =>
+                    "A empresa não pode ser removida porque possui dados vinculados: " .
+                    implode(", ", $found) . ".",
+            ],
+            409,
+        );
+    }
+
+    try {
+        $delete = $pdo->prepare("DELETE FROM companies WHERE id = :id");
+        $delete->execute(["id" => $id]);
+        json_response(["data" => ["deleted" => true, "name" => $company["name"]]]);
+    } catch (PDOException $exception) {
+        json_response(["error" => "Não foi possível remover a empresa com segurança."], 409);
     }
 }
 if ($_SERVER["REQUEST_METHOD"] !== "GET") {
@@ -123,7 +191,6 @@ if ($requestedCompanyId !== null) {
 $companies = $pdo->prepare(
             "SELECT c.id, c.name, c.created_at,
             (SELECT l.status FROM licenses l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_status,
-            (SELECT l.due_at FROM licenses l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_due_at,
             (SELECT l.blocked_reason FROM licenses l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_reason,
             COUNT(e.id) AS total_machines,
             COALESCE(SUM(d.status = 'ONLINE'), 0) AS machines_online,
@@ -142,9 +209,6 @@ $rows = array_map(static function (array $row): array {
     $total = (int) $row["total_machines"];
     $online = (int) $row["machines_online"];
     $licenseStatus = $row["license_status"] ?: "SEM_LICENCA";
-    if ($licenseStatus === "ATIVA" && $row["license_due_at"] < date("Y-m-d")) {
-        $licenseStatus = "INADIMPLENTE";
-    }
     return [
         "id" => (int) $row["id"],
         "name" => $row["name"],
@@ -157,7 +221,6 @@ $rows = array_map(static function (array $row): array {
         "active_users" => (int) $row["active_users"],
         "ocorrencias_24h" => (int) $row["ocorrencias_24h"],
         "license_status" => $licenseStatus,
-        "license_due_at" => $row["license_due_at"],
         "license_reason" => $row["license_reason"],
     ];
 }, $companies->fetchAll());

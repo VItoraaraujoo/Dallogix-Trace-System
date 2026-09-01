@@ -61,7 +61,7 @@ Impacto: o projeto usa `SYNC_REMOTE_URL` e permanece portátil para futura migra
 
 ## 7. Licenciamento — definido
 
-- Modelo: licença mensal por empresa.
-- Controle: manual pelo `ADMIN_DALLOGIX`.
-- Cobrança automática: não será implementada.
-- Ação por inadimplência: bloqueio lógico de novas operações, sem desligar carga em andamento ou alterar intertravamentos do CLP.
+- Modelo: status manual por empresa, sem data de vencimento.
+- Controle: o `ADMIN_DALLOGIX` pode bloquear ou desbloquear a empresa.
+- Cobrança automática e vencimento: não serão implementados.
+- Ao bloquear: o Trace impede novas preparações, início de carregamento e comandos operacionais, sem desligar carga em andamento ou alterar intertravamentos do CLP.

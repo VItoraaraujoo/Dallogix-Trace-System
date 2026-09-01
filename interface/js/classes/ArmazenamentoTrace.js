@@ -1,3 +1,5 @@
+import { apiUrl } from "../configuracao.js";
+
 export class ArmazenamentoTrace {
   constructor() {
     this.state = {
@@ -503,6 +505,17 @@ export class ArmazenamentoTrace {
     const result = await response.json().catch(() => ({}));
     if (!response.ok)
       throw new Error(result.error || "Não foi possível criar a empresa.");
+    return result.data;
+  }
+  async deleteCompany(id) {
+    const response = await fetch(`/api/empresas.php?id=${encodeURIComponent(id)}`, {
+      method: "DELETE",
+      headers: this.jsonHeaders(),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw new Error(result.error || "Não foi possível remover a empresa.");
+    await this.loadCompanies();
     return result.data;
   }
   async updateLicense(payload) {

@@ -1,7 +1,7 @@
 import { el, esc } from "./funcoes/html.js";
+import { apiUrl } from "./configuracao.js";
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js";
 import { FORM_ACTIONS } from "./constantes/acoes.js";
-import { home } from "./telas/inicio.js";
 import {
   manifests,
   importScreen,
@@ -13,7 +13,6 @@ import {
   occurrences,
   summary,
   history,
-  tablet,
   products,
   alerts,
   emergency,
@@ -28,9 +27,6 @@ import { users } from "./telas/usuarios.js";
 const store = new ArmazenamentoTrace();
 let renderRequestId = 0;
 const screens = {
-  // A Home antiga era uma segunda visão operacional. O escopo oficial tem uma
-  // única entrada para isso: Operação por Dala.
-  home: dashboard,
   dashboard,
   manifests,
   import: importScreen,
@@ -39,7 +35,6 @@ const screens = {
   occurrences,
   summary,
   history,
-  tablet,
   products,
   alerts,
   emergency,
@@ -55,7 +50,6 @@ const screens = {
 const ROLE_PAGES = {
   ADMIN_DALLOGIX: ["companies", "company", "users"],
   ADMIN_EMPRESA: [
-    "home",
     "dashboard",
     "manifests",
     "manifest",
@@ -65,7 +59,6 @@ const ROLE_PAGES = {
     "occurrences",
     "summary",
     "history",
-    "tablet",
     "products",
     "alerts",
     "emergency",
@@ -76,7 +69,6 @@ const ROLE_PAGES = {
     "users",
   ],
   SUPERVISOR: [
-    "home",
     "dashboard",
     "manifests",
     "manifest",
@@ -86,13 +78,11 @@ const ROLE_PAGES = {
     "occurrences",
     "summary",
     "history",
-    "tablet",
     "alerts",
     "emergency",
     "dala",
   ],
   USUARIO: [
-    "home",
     "dashboard",
     "manifests",
     "manifest",
@@ -100,7 +90,6 @@ const ROLE_PAGES = {
     "work",
     "summary",
     "occurrences",
-    "tablet",
     "alerts",
     "emergency",
   ],
@@ -133,9 +122,7 @@ const initialPage =
   document.querySelector("script[data-page]")?.dataset.page || "";
 let currentPage = initialPage;
 let authenticatedUser = null;
-let tabletTimer = null;
 let workTimer = null;
-let tabletPolling = false;
 let workPolling = false;
 
 function sidebarCollapsed() {
@@ -188,7 +175,6 @@ function queryReturnPage() {
 
 function navigationIcon(page) {
   const icons = {
-    home: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 11 9-7 9 7v9H3z"/><path d="M9 20v-6h6v6"/></svg>',
     manifests:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="12" height="16" rx="2"/><path d="M9 4.5h6M9 10h6M9 14h4"/></svg>',
     dashboard:
@@ -208,8 +194,6 @@ function navigationIcon(page) {
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
     alerts:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>',
-    tablet:
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="3" width="12" height="18" rx="2"/><path d="M11 18h2"/></svg>',
     companies:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5l8-3 8 3v16M4 10h16M8 7h.01M12 7h.01M16 7h.01M8 14h.01M12 14h.01M16 14h.01"/></svg>',
     users:
@@ -246,38 +230,15 @@ function hydrateChrome() {
 function render() {
   hydrateChrome();
   el("#screen-root").innerHTML = screens[currentPage](store);
+  // Os campos devem iniciar vazios; orientações ficam nos rótulos e textos da tela.
+  document
+    .querySelectorAll("#screen-root input[placeholder], #screen-root textarea[placeholder]")
+    .forEach((field) => field.removeAttribute("placeholder"));
   bindActions();
   bindForms();
   if (["dalas", "dala"].includes(currentPage)) checkDalaStatuses();
-  if (currentPage === "tablet") startTabletPolling();
-  else stopTabletPolling();
   if (currentPage === "work") startWorkPolling();
   else stopWorkPolling();
-}
-function stopTabletPolling() {
-  if (tabletTimer) {
-    window.clearInterval(tabletTimer);
-    tabletTimer = null;
-  }
-}
-function startTabletPolling() {
-  if (tabletTimer) return;
-  tabletTimer = window.setInterval(async () => {
-    if (currentPage !== "tablet") {
-      stopTabletPolling();
-      return;
-    }
-    if (tabletPolling) return;
-    tabletPolling = true;
-    try {
-      await Promise.all([store.loadActiveLoading(), store.loadMonitoring()]);
-      render();
-    } catch (error) {
-      /* mantém o último estado visível */
-    } finally {
-      tabletPolling = false;
-    }
-  }, 1000);
 }
 function stopWorkPolling() {
   if (workTimer) {
@@ -444,21 +405,33 @@ function bindActions() {
         navigate("company", `?id=${node.dataset.id}`);
         return;
       }
+      if (action === "delete-company") {
+        const name = node.dataset.name || "esta empresa";
+        if (!confirm(`Remover a empresa "${name}"? Esta ação não poderá ser desfeita.`)) return;
+        const typed = prompt(`Para confirmar, digite EXCLUIR para remover "${name}".`);
+        if (typed !== "EXCLUIR") {
+          if (typed !== null) alert("Confirmação inválida. A empresa não foi removida.");
+          return;
+        }
+        try {
+          await store.deleteCompany(node.dataset.id);
+          alert("Empresa removida.");
+          render();
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
       if (action === "toggle-license") {
         const active = node.dataset.status === "ATIVA";
         const reason = active
-          ? prompt("Motivo do bloqueio da licença:", "Inadimplência")
-          : "Licença mensal regularizada";
+          ? prompt("Motivo do bloqueio da licença:", "Bloqueio manual")
+          : "Licença desbloqueada manualmente";
         if (reason === null) return;
-        const dueAt = active
-          ? node.dataset.due || new Date().toISOString().slice(0, 10)
-          : prompt("Nova data de vencimento (AAAA-MM-DD):", node.dataset.due || "") || "";
-        if (!dueAt) return;
         try {
           await store.updateLicense({
             company_id: Number(node.dataset.id),
             status: active ? "BLOQUEADA" : "ATIVA",
-            due_at: dueAt,
             blocked_reason: active ? reason : "",
           });
           render();
@@ -1032,6 +1005,13 @@ function bindForms() {
     manifestForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const raw = Object.fromEntries(new FormData(manifestForm));
+      const scheduledDate = raw.scheduled_date;
+      const today = new Date();
+      const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      if (!scheduledDate || scheduledDate < todayString) {
+        alert("Informe uma data igual ou posterior ao dia atual do PC industrial.");
+        return;
+      }
       const items = [...document.querySelectorAll("#manifest-items tbody tr")]
         .map((row) => ({
           product_id: row.querySelector('[name="item_product"]')?.value,
@@ -1045,7 +1025,7 @@ function bindForms() {
       try {
         await store.createManifest({
           number: raw.number,
-          scheduled_date: raw.scheduled_date || undefined,
+          scheduled_date: scheduledDate,
           plate: raw.plate,
           expedidor: raw.expedidor,
           driver_name: raw.driver_name,
@@ -1172,6 +1152,10 @@ function bindForms() {
   if (companyForm)
     companyForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (companyForm.dataset.submitting === "1") return;
+      companyForm.dataset.submitting = "1";
+      const submit = companyForm.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
       try {
         await store.createCompany(
           Object.fromEntries(new FormData(companyForm)),
@@ -1182,6 +1166,9 @@ function bindForms() {
         alert("Empresa criada. Agora crie o login de administrador.");
       } catch (error) {
         alert(error.message);
+      } finally {
+        companyForm.dataset.submitting = "0";
+        if (submit) submit.disabled = false;
       }
     });
   // Filtros de romaneios: aplicam automaticamente ao alterar/confirmar.
@@ -1255,7 +1242,6 @@ async function loadPageData(page) {
     return;
   }
   const tasks = {
-    home: [store.loadActiveLoading(), store.loadMonitoring()],
     dashboard: [
       store.loadDashboard(),
       store.loadMonitoring(),
@@ -1279,7 +1265,6 @@ async function loadPageData(page) {
     occurrences: [store.loadMonitoring(), store.loadActiveLoading()],
     summary: [store.loadMonitoring(), store.loadActiveLoading()],
     history: [store.loadMonitoring(), store.loadReport()],
-    tablet: [store.loadMonitoring(), store.loadActiveLoading()],
     products: [store.loadProducts()],
     alerts: [
       store.loadMonitoring(),

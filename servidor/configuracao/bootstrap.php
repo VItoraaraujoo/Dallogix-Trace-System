@@ -2,6 +2,11 @@
 
 declare(strict_types=1);
 
+$configuredTimezone = trim((string) (getenv("TZ") ?: "America/Sao_Paulo"));
+if ($configuredTimezone !== "") {
+    date_default_timezone_set($configuredTimezone);
+}
+
 header("Content-Type: application/json; charset=utf-8");
 header("X-Content-Type-Options: nosniff");
 header("X-Frame-Options: DENY");
@@ -78,7 +83,7 @@ function require_internal_token(string $environmentKey, string $developmentDefau
 function require_active_license(PDO $pdo, int $companyId): array
 {
     $statement = $pdo->prepare(
-        "SELECT id, status, due_at, grace_until, blocked_reason
+        "SELECT id, status, blocked_reason
          FROM licenses WHERE company_id = :company_id ORDER BY id DESC LIMIT 1",
     );
     $statement->execute(["company_id" => $companyId]);
@@ -86,17 +91,11 @@ function require_active_license(PDO $pdo, int $companyId): array
     if (!$license) {
         json_response(["error" => "Empresa sem licença configurada."], 402);
     }
-    $today = new DateTimeImmutable("today");
-    $due = new DateTimeImmutable((string) $license["due_at"]);
-    $grace = $license["grace_until"]
-        ? new DateTimeImmutable((string) $license["grace_until"])
-        : null;
-    $expired = $due < $today && (!$grace || $grace < $today);
-    if ($license["status"] !== "ATIVA" || $expired) {
+    if ($license["status"] !== "ATIVA") {
         json_response(
             [
-                "error" => "Licença da empresa bloqueada ou inadimplente.",
-                "license_status" => $expired ? "INADIMPLENTE" : $license["status"],
+                "error" => "Licença da empresa bloqueada.",
+                "license_status" => $license["status"],
                 "blocked_reason" => $license["blocked_reason"],
             ],
             402,

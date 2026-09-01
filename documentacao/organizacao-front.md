@@ -35,7 +35,6 @@ Estas telas não ficam expostas como itens permanentes do menu. Elas são aberta
 | OCORRÊNCIAS | Ocorrências | Operação em andamento |
 | RESUMO FINAL | Resumo final | Encerramento da operação |
 | HISTÓRICO | Histórico operacional | Acompanhamento da operação |
-| MONITOR TABLET | Monitor tablet | Acesso específico do tablet |
 | CADASTRO DE PRODUTO | Formulário dentro de Produtos | Menu Produtos |
 | LISTA DE PRODUTOS | Lista dentro de Produtos | Menu Produtos |
 | EMERGÊNCIA | Tela de emergência | Estado crítico da operação |
@@ -48,7 +47,7 @@ As telas de empresas, usuários e administração global continuam disponíveis 
 
 ## Decisões aplicadas
 
-- A Home antiga foi consolidada com o Dashboard para evitar duas visões concorrentes da operação.
+- A Home legada foi removida; o Dashboard é a única visão geral da operação.
 - A entrada padrão de usuários da empresa agora é o Dashboard / Operação por Dala.
 - O menu principal não exibe fluxos intermediários nem ações industriais diretamente.
 - O Dashboard não controla máquinas; seus cards são somente informativos.
@@ -59,4 +58,4 @@ As telas de empresas, usuários e administração global continuam disponíveis 
 
 ## Próxima etapa
 
-Revisar cada fluxo interno, nesta ordem: Romaneio → Importação CSV → Divisão por caminhão → Tela de trabalho → Alertas/Ocorrências → Resumo final/Histórico → Monitor tablet → Emergência.
+Revisar cada fluxo interno, nesta ordem: Romaneio → Importação CSV → Divisão por caminhão → Tela de trabalho → Alertas/Ocorrências → Resumo final/Histórico → Emergência.

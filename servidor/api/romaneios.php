@@ -161,6 +161,12 @@ $date = DateTime::createFromFormat("Y-m-d", $scheduledDate);
 if (!$date || $date->format("Y-m-d") !== $scheduledDate) {
     json_response(["error" => "Data do carregamento inválida."], 422);
 }
+if ($scheduledDate < date("Y-m-d")) {
+    json_response(
+        ["error" => "A data do carregamento não pode ser anterior ao dia atual do PC industrial."],
+        422,
+    );
+}
 
 // Itens: formato novo (items[]) ou legado (product_code + planned_quantity).
 $items = $payload["items"] ?? null;

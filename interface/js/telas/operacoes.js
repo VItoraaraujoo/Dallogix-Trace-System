@@ -32,8 +32,8 @@ export function manifests(store) {
 <section class="panel filters"><form id="manifest-filters"><div class="filter-grid">
 <label>Data inicial<input name="date_from" type="date" value="${esc(filters.date_from || "")}" /></label>
 <label>Data final<input name="date_to" type="date" value="${esc(filters.date_to || "")}" /></label>
-<label>Código do romaneio<input name="number" placeholder="Código do romaneio" value="${esc(filters.number || "")}" /></label>
-<label>Expedidor<input name="expedidor" placeholder="Expedidor" value="${esc(filters.expedidor || "")}" /></label>
+<label>Código do romaneio<input name="number" value="${esc(filters.number || "")}" /></label>
+<label>Expedidor<input name="expedidor" value="${esc(filters.expedidor || "")}" /></label>
 <label>Status<select name="status">${options}</select></label>
 </div></form></section><br>${manifestsTable(store.manifests)}`;
 }
@@ -73,9 +73,17 @@ const itemRow = (products, selectedId = "") => `<tr class="manifest-item">
   <td>${button("Remover", "remove-item", "ghost")}</td>
 </tr>`;
 
+function industrialPcDate() {
+  const now = new Date();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+  return `${now.getFullYear()}-${month}-${day}`;
+}
+
 // Tela "Novo romaneio": importação por PDF que preenche os campos + cadastro manual com itens.
 export function importScreen(store) {
   const products = store.state.products || [];
+  const today = industrialPcDate();
   return `<div class="title-row has-back"><button class="button secondary page-back" data-action="goto-manifests" type="button">← Voltar</button><div><h2>Novo romaneio</h2></div></div>
 <section class="panel"><p>Selecione o arquivo PDF do romaneio para preencher os campos automaticamente. Confira os dados e salve.</p>
 <form id="pdf-form"><div class="actions"><input name="file" type="file" accept=".pdf,application/pdf" required />${button("Importar PDF", "import-pdf")}</div></form></section><br>
@@ -83,11 +91,11 @@ export function importScreen(store) {
 <p>Preencha os dados do romaneio e adicione os itens com produto e quantidade.</p>
 <form id="new-manifest-form">
 <section class="panel"><div class="grid three">
-<label>Código<input name="number" required placeholder="Código do romaneio" /></label>
-<label>Data do Carregamento<input name="scheduled_date" type="date" /></label>
-<label>Placa do caminhão<input name="plate" required placeholder="ABC1D23" /></label>
-<label>Expedidor<input name="expedidor" placeholder="Expedidor" /></label>
-<label>Motorista<input name="driver_name" placeholder="Motorista" /></label>
+<label>Código<input name="number" required /></label>
+<label>Data do Carregamento<input name="scheduled_date" type="date" min="${today}" value="${today}" required /></label>
+<label>Placa do caminhão<input name="plate" required /></label>
+<label>Expedidor<input name="expedidor" /></label>
+<label>Motorista<input name="driver_name" /></label>
 </div></section><br>
 <section class="panel"><div class="panel-heading"><h3>Itens do Romaneio</h3>${button("Adicionar item", "add-item", "secondary")}</div>
 <div class="table-wrap"><table id="manifest-items"><thead><tr><th>Produto</th><th>Quantidade</th><th></th></tr></thead><tbody>${itemRow(products)}</tbody></table></div>
@@ -175,7 +183,7 @@ function workControls(store) {
   const loadingPicker = `<section class="panel work-loading-picker"><div class="panel-heading"><div class="work-loading-summary"><span class="kicker">Dala em operação</span><strong>${esc(equipmentLabel(store))}</strong><p>Romaneio ${esc(store.state.romaneio)} · Caminhão ${esc(store.state.truck)}</p></div>${canChooseDala ? button("← Trocar Dala", "change-loading", "secondary") : ""}</div></section>`;
   const pendingReadings = store.state.pendingReadings || [];
   const manualIdentification = pendingReadings.length
-    ? `<section class="panel alert-box"><h3>Leituras sem código</h3><p>Identifique manualmente cada saca após conferência física.</p>${pendingReadings.map((reading) => `<form class="manual-reading-form" data-reading-id="${reading.id}"><label>Leitura #${reading.id}<input name="barcode" required maxlength="80" placeholder="Código de barras ou produto" /></label>${button("Identificar leitura", "identify-reading", "secondary")}</form>`).join("")}</section>`
+    ? `<section class="panel alert-box"><h3>Leituras sem código</h3><p>Identifique manualmente cada saca após conferência física.</p>${pendingReadings.map((reading) => `<form class="manual-reading-form" data-reading-id="${reading.id}"><label>Leitura #${reading.id}<input name="barcode" required maxlength="80" /></label>${button("Identificar leitura", "identify-reading", "secondary")}</form>`).join("")}</section>`
     : "";
   const command = store.state.plcCommand;
   const reverse = canReverse

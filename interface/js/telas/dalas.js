@@ -19,11 +19,11 @@ export function dalas(store) {
   );
   const form = open
     ? `<section class="panel"><h3>Nova dala</h3><form id="dala-create-form"><div class="grid three">
-<label>Nome<input name="name" required placeholder="nutridani_03" /></label>
-<label>Identificador<input name="equipment_code" required pattern="[a-z0-9_]{1,30}" title="Letras minúsculas, números e underscores (máx. 30)" placeholder="nutridani_03" /></label>
-<label>IP do CLP<input name="plc_ip" required placeholder="192.168.1.5" /></label>
+<label>Nome<input name="name" required /></label>
+<label>Identificador<input name="equipment_code" required pattern="[a-z0-9_]{1,30}" title="Letras minúsculas, números e underscores (máx. 30)" /></label>
+<label>IP do CLP<input name="plc_ip" required /></label>
 <label>Porta do CLP<input name="plc_port" type="number" value="502" min="1" max="65535" required /></label>
-<label>Porta externa no gateway<input name="external_port" type="number" min="1" max="65535" placeholder="8101" /></label>
+<label>Porta externa no gateway<input name="external_port" type="number" min="1" max="65535" /></label>
 </div><div class="actions">${button("Salvar", "submit-dala")}${button("Cancelar", "toggle-dala-form", "ghost")}</div></form></section><br>`
     : "";
   return `<div class="title-row with-actions"><div><h2>Dalas</h2></div>${canManage ? button(open ? "Fechar formulário" : "Nova dala", "toggle-dala-form") : ""}</div>

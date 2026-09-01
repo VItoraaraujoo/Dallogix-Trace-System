@@ -4,7 +4,7 @@ O TRACE é organizado para operar no PC industrial, sem internet, com o CLP como
 
 | Pasta                     | Responsabilidade                                                                                         |
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `interface/`              | Telas web, estilos e JavaScript da operação, tablet e administração.                                     |
+| `interface/`              | Telas web, estilos e JavaScript da operação local e administração.                                      |
 | `servidor/api/`           | API HTTP local. Mantém as rotas `/api/*.php` consumidas pela interface e pelo Node-RED.                  |
 | `servidor/src/Aplicacao/` | Serviços de regra de negócio: estado do carregamento, comandos do CLP, gateway e relatório de auditoria. |
 | `servidor/configuracao/`  | Inicialização, sessão, banco de dados, autorização e auditoria.                                          |

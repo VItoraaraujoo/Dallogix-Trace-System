@@ -16,7 +16,7 @@ Próxima evolução recomendada: substituir por CTEs ou tabelas derivadas agrega
 
 ### P1 — polling com renderização completa
 
-`interface/js/aplicacao.js` atualiza Tablet a cada segundo e Trabalho a cada dois segundos, reconstruindo o conteúdo da tela. O mecanismo evita bloquear a navegação, porém pode gerar trabalho desnecessário quando não houve alteração.
+`interface/js/aplicacao.js` atualiza a tela de Trabalho a cada dois segundos, reconstruindo o conteúdo da tela. O mecanismo evita bloquear a navegação, porém pode gerar trabalho desnecessário quando não houve alteração.
 
 Próxima evolução recomendada: retornar `updated_at`/versão do monitoramento, atualizar somente os componentes alterados e aplicar backoff quando o navegador estiver oculto ou o serviço estiver indisponível.
 

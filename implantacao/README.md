@@ -5,7 +5,7 @@ O PC industrial com interface gráfica usa o Trace em modo quiosque: o operador 
 ## Instalação
 
 1. Copie o projeto para `/opt/dallogix-trace`.
-2. Crie o `.env` e valide-o com `bash scripts/check_physical_deployment.sh`. Use `WEB_BIND_ADDRESS=0.0.0.0` para permitir tablets e computadores da rede local; mantenha `BIND_ADDRESS=127.0.0.1` para MySQL, Node-RED e Modbus.
+2. Crie o `.env` e valide-o com `bash scripts/check_physical_deployment.sh`. Mantenha `WEB_BIND_ADDRESS=127.0.0.1`: nenhum acesso remoto entra no PC industrial. Todo gerenciamento remoto ocorre no servidor central. `BIND_ADDRESS=127.0.0.1` permanece obrigatório para MySQL, Node-RED e Modbus.
 3. Instale o Chromium/Chrome e configure o usuário operador com login automático no ambiente gráfico.
 4. Copie os serviços para `/etc/systemd/system/` e habilite:
 
@@ -25,8 +25,12 @@ docker compose ps
 docker compose logs --tail=100
 ```
 
-Não exponha as portas do MySQL, Node-RED ou Modbus fora da rede técnica. A comunicação do CLP real só deve ser habilitada depois da homologação do mapa de I/O.
+Não exponha as portas do MySQL, Node-RED, Modbus ou da interface web local fora do PC industrial. O PC inicia as conexões de saída HTTPS para o servidor central; não é necessário port forwarding no roteador da empresa. A comunicação PC industrial ↔ CLP continua local e a operação permanece disponível sem internet.
 
 ## Atualizações remotas
 
 As atualizações são assinadas, verificadas por SHA-256, bloqueadas durante qualquer carregamento e protegidas por backup e rollback. Configure os campos `UPDATE_*` no `.env` e siga [documentacao/operacao/atualizacoes-remotas.md](../documentacao/operacao/atualizacoes-remotas.md). O timer deve ser instalado somente pela equipe técnica.
+
+## Sincronização com GitHub
+
+O repositório do servidor deve ter um remote GitHub autenticado por SSH ou pelo gerenciador de credenciais do sistema. Para preparar/verificar a sincronização sem alterar nada, execute `TRACE_GITHUB_DRY_RUN=1 bash scripts/sync_github.sh`. A execução normal aceita somente fast-forward, preserva `.env` e `armazenamento/`, reconstrói o Compose e exige healthcheck. Não use essa sincronização durante carregamentos ativos; para produção, prefira o fluxo de pacote assinado descrito acima.
