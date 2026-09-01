@@ -51,11 +51,16 @@ $items->execute([$romaneioId]);
 $itemRows = $items->fetchAll();
 
 $occurrences = [];
+$incidentImages = [];
 if ($loadIds !== []) {
     $occurrenceQuery = $pdo->prepare("SELECT o.type, o.quantity, o.description, o.created_at, p.name AS product_name
         FROM ocorrencias o LEFT JOIN products p ON p.id = o.product_id WHERE o.carregamento_id IN ({$placeholders}) ORDER BY o.created_at");
     $occurrenceQuery->execute($loadIds);
     $occurrences = $occurrenceQuery->fetchAll();
+
+    $imageQuery = $pdo->prepare("SELECT path, reason, captured_at FROM imagens WHERE carregamento_id IN ({$placeholders}) AND reason <> 'NORMAL' ORDER BY captured_at");
+    $imageQuery->execute($loadIds);
+    $incidentImages = $imageQuery->fetchAll();
 }
 
 $report = new RelatorioAuditoriaPdf(
@@ -152,6 +157,36 @@ if ($occurrences === []) {
         ),
         [100, 115, 150, 150],
     );
+}
+$report->heading("Evidências fotográficas");
+if ($incidentImages === []) {
+    $report->paragraph("Nenhuma imagem de incidente registrada.");
+} else {
+    $storageRoot = realpath(__DIR__ . "/../../armazenamento") ?: "";
+    $addedImages = 0;
+    foreach ($incidentImages as $image) {
+        $relativePath = ltrim((string) $image["path"], "/");
+        if (str_starts_with($relativePath, "armazenamento/")) {
+            $relativePath = substr($relativePath, strlen("armazenamento/"));
+        }
+        $absolutePath = $storageRoot !== "" ? realpath($storageRoot . "/" . $relativePath) : false;
+        if (
+            $absolutePath === false ||
+            $storageRoot === "" ||
+            !str_starts_with($absolutePath, $storageRoot . DIRECTORY_SEPARATOR)
+        ) {
+            continue;
+        }
+        if ($report->incidentImage(
+            $absolutePath,
+            (string) $image["reason"] . " · " . (string) $image["captured_at"],
+        )) {
+            $addedImages++;
+        }
+    }
+    if ($addedImages === 0) {
+        $report->paragraph("As imagens registradas não estão disponíveis em formato JPEG.");
+    }
 }
 record_operational_event(
     $pdo,

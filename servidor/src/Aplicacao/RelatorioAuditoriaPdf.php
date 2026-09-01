@@ -18,6 +18,9 @@ final class RelatorioAuditoriaPdf
     private array $pages = [];
     /** @var list<string> */
     private array $content = [];
+    /** @var array<string, array{data:string,width:int,height:int}> */
+    private array $images = [];
+    private int $imageSequence = 0;
     private float $y = self::TOP;
 
     public function __construct(
@@ -113,10 +116,77 @@ final class RelatorioAuditoriaPdf
         $this->y -= 5;
     }
 
+    /**
+     * Adds a JPEG evidence image to the report. Unsupported or unreadable files
+     * are deliberately ignored so one bad camera file cannot break the PDF.
+     */
+    public function incidentImage(string $path, string $caption = ""): bool
+    {
+        if (!is_file($path) || !is_readable($path)) {
+            return false;
+        }
+        $info = @getimagesize($path);
+        if (!$info || ($info["mime"] ?? "") !== "image/jpeg") {
+            return false;
+        }
+        $data = @file_get_contents($path);
+        if ($data === false || $data === "") {
+            return false;
+        }
+        $alias = "Im" . (++$this->imageSequence);
+        $this->images[$alias] = [
+            "data" => $data,
+            "width" => (int) $info[0],
+            "height" => (int) $info[1],
+        ];
+        $maxWidth = 245.0;
+        $maxHeight = 170.0;
+        $scale = min($maxWidth / $info[0], $maxHeight / $info[1], 1.0);
+        $width = $info[0] * $scale;
+        $height = $info[1] * $scale;
+        $blockHeight = $height + ($caption !== "" ? 28 : 8);
+        $this->ensure($blockHeight);
+        $x = 40.0;
+        $y = $this->y - $height;
+        $this->content[] = sprintf(
+            "q %.2F 0 0 %.2F %.2F %.2F cm /%s Do Q",
+            $width,
+            $height,
+            $x,
+            $y,
+            $alias,
+        );
+        if ($caption !== "") {
+            foreach ($this->wrap($caption, 52) as $index => $line) {
+                $this->text($line, $x, $y - 14 - $index * 10, 8);
+                if ($index >= 1) {
+                    break;
+                }
+            }
+        }
+        $this->y -= $blockHeight;
+        return true;
+    }
+
     public function output(): string
     {
         $this->finishPage();
         $objects = ["<< /Type /Catalog /Pages 2 0 R >>", ""];
+        $imageRefs = [];
+        foreach ($this->images as $alias => $image) {
+            $imageId = count($objects) + 1;
+            $imageRefs[$alias] = $imageId;
+            $objects[] =
+                "<< /Type /XObject /Subtype /Image /Width " .
+                $image["width"] .
+                " /Height " .
+                $image["height"] .
+                " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " .
+                strlen($image["data"]) .
+                " >>\nstream\n" .
+                $image["data"] .
+                "\nendstream";
+        }
         $pageRefs = [];
         foreach ($this->pages as $page) {
             $contentId = count($objects) + 1;
@@ -126,12 +196,16 @@ final class RelatorioAuditoriaPdf
                 " >>\nstream\n{$page}\nendstream";
             $pageId = count($objects) + 1;
             $pageRefs[] = "{$pageId} 0 R";
+            $xObjects = "";
+            foreach ($imageRefs as $alias => $imageId) {
+                $xObjects .= "/{$alias} {$imageId} 0 R ";
+            }
             $objects[] =
                 "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " .
                 self::WIDTH .
                 " " .
                 self::HEIGHT .
-                "] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> /F2 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >> >> >> /Contents {$contentId} 0 R >>";
+                "] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> /F2 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >> >> /XObject << {$xObjects} >> >> /Contents {$contentId} 0 R >>";
         }
         $objects[1] =
             "<< /Type /Pages /Kids [" .
