@@ -42,9 +42,9 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
         $trucks->execute(["id" => $detailId]);
         $romaneio["trucks"] = $trucks->fetchAll();
         json_response(["data" => $romaneio]);
-    }
+}
 
-    $parseDate = static function (string $value, string $label): ?string {
+$parseDate = static function (string $value, string $label): ?string {
         $value = trim($value);
         if ($value === "") {
             return null;
@@ -134,6 +134,38 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     }
     unset($row);
     json_response(["data" => $rows]);
+}
+
+if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
+    require_csrf();
+    if (!in_array($user["role"], ["ADMIN_EMPRESA", "SUPERVISOR"], true)) {
+        json_response(["error" => "Somente administração ou supervisão pode cancelar romaneios."], 403);
+    }
+    $payload = request_json();
+    $romaneioId = filter_var($payload["romaneio_id"] ?? null, FILTER_VALIDATE_INT);
+    if (!$romaneioId) {
+        json_response(["error" => "Romaneio obrigatório."], 422);
+    }
+    $pdo->beginTransaction();
+    $statement = $pdo->prepare(
+        "SELECT r.id, r.status, EXISTS(SELECT 1 FROM carregamentos c WHERE c.romaneio_id = r.id) AS has_loading
+         FROM romaneios r WHERE r.id = :id AND r.company_id = :company_id LIMIT 1 FOR UPDATE",
+    );
+    $statement->execute(["id" => $romaneioId, "company_id" => $companyId]);
+    $romaneio = $statement->fetch();
+    if (!$romaneio) {
+        $pdo->rollBack();
+        json_response(["error" => "Romaneio não encontrado."], 404);
+    }
+    if (in_array($romaneio["status"], ["FINALIZADO", "CANCELADO"], true) || (int) $romaneio["has_loading"] === 1) {
+        $pdo->rollBack();
+        json_response(["error" => "Só é possível cancelar um romaneio que ainda não iniciou carregamento."], 409);
+    }
+    $update = $pdo->prepare("UPDATE romaneios SET status = 'CANCELADO' WHERE id = :id AND status NOT IN ('FINALIZADO', 'CANCELADO')");
+    $update->execute(["id" => $romaneioId]);
+    record_operational_event($pdo, $user, "ROMANEIO_CANCELADO", "romaneio", (int) $romaneioId, ["previous_status" => $romaneio["status"]]);
+    $pdo->commit();
+    json_response(["data" => ["id" => (int) $romaneioId, "status" => "CANCELADO"]]);
 }
 
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {

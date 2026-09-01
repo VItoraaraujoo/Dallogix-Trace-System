@@ -407,6 +407,17 @@ export class ArmazenamentoTrace {
     await this.loadPendingReadings();
     return result.data;
   }
+  async cancelManifest(manifestId) {
+    const response = await fetch("/api/romaneios.php", {
+      method: "PATCH",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({ romaneio_id: manifestId }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível cancelar o romaneio.");
+    await this.loadManifests();
+    return result.data;
+  }
   async registerReturn(readingId, reason) {
     const response = await fetch("/api/retornos.php", { method: "POST", headers: this.jsonHeaders(), body: JSON.stringify({ carregamento_id: this.state.loadingId, leitura_id: readingId, reason }) });
     const result = await response.json().catch(() => ({}));
