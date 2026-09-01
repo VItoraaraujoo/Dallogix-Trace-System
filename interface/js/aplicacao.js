@@ -1134,26 +1134,6 @@ function bindForms() {
       }
     });
   });
-  const barcodeForm = document.querySelector("#barcode-reading-form");
-  if (barcodeForm)
-    barcodeForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const input = barcodeForm.querySelector('[name="barcode"]');
-      const submit = barcodeForm.querySelector('button[type="submit"]');
-      if (submit) submit.disabled = true;
-      try {
-        const result = await store.registerBarcode(input?.value || "");
-        barcodeForm.reset();
-        input?.focus();
-        alert(`Leitura registrada: ${result.result}.`);
-        render();
-      } catch (error) {
-        alert(error.message);
-        input?.focus();
-      } finally {
-        if (submit) submit.disabled = false;
-      }
-    });
   const userForm = document.querySelector("#user-create-form");
   if (userForm)
     userForm.addEventListener("submit", async (event) => {

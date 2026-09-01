@@ -407,19 +407,6 @@ export class ArmazenamentoTrace {
     await this.loadPendingReadings();
     return result.data;
   }
-  async registerBarcode(barcode) {
-    const value = String(barcode || "").trim();
-    if (!value) throw new Error("Leia um código de barras.");
-    const response = await fetch("/api/leituras.php", {
-      method: "POST",
-      headers: this.jsonHeaders(),
-      body: JSON.stringify({ carregamento_id: this.state.loadingId, barcode: value }),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível registrar o código de barras.");
-    await this.loadActiveLoading(this.state.loadingId);
-    return result.data;
-  }
   async registerReturn(readingId, reason) {
     const response = await fetch("/api/retornos.php", { method: "POST", headers: this.jsonHeaders(), body: JSON.stringify({ carregamento_id: this.state.loadingId, leitura_id: readingId, reason }) });
     const result = await response.json().catch(() => ({}));

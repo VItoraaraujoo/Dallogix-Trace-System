@@ -160,7 +160,6 @@ function loadingSelection(store) {
 }
 function workControls(store) {
   const left = Math.max(0, store.state.planned - store.state.loaded);
-  const finalized = store.state.operationalState === "FINALIZADO";
   const canUnlock = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(
     store.state.userRole,
   );
@@ -183,9 +182,6 @@ function workControls(store) {
   };
   const loadingPicker = `<section class="panel work-loading-picker"><div class="panel-heading"><div class="work-loading-summary"><span class="kicker">Dala em operação</span><strong>${esc(equipmentLabel(store))}</strong><p>Romaneio ${esc(store.state.romaneio)} · Caminhão ${esc(store.state.truck)}</p></div>${canChooseDala ? button("← Trocar Dala", "change-loading", "secondary") : ""}</div></section>`;
   const pendingReadings = store.state.pendingReadings || [];
-  const barcodeReader = !finalized && !store.state.emergency
-    ? `<section class="panel scanner-reader"><div class="panel-heading"><div><span class="kicker">Scanner conectado ao PC industrial</span><h3>Leitura de código de barras</h3><p>Deixe o cursor neste campo. O scanner USB/RS-232 envia o código e confirma com Enter.</p></div><span class="badge blue">Sempre ativo</span></div><form id="barcode-reading-form"><label>Código de barras<input name="barcode" maxlength="80" autocomplete="off" inputmode="numeric" autofocus required /></label><div class="actions">${button("Registrar leitura", "register-barcode", "primary")}</div></form><small>O código será validado contra o produto previsto no romaneio.</small></section>`
-    : "";
   const manualIdentification = pendingReadings.length
     ? `<section class="panel alert-box"><h3>Leituras sem código</h3><p>Identifique manualmente cada saca após conferência física.</p>${pendingReadings.map((reading) => `<form class="manual-reading-form" data-reading-id="${reading.id}"><label>Leitura #${reading.id}<input name="barcode" required maxlength="80" /></label>${button("Identificar leitura", "identify-reading", "secondary")}</form>`).join("")}</section>`
     : "";
@@ -193,6 +189,7 @@ function workControls(store) {
   const reverse = canReverse
     ? `${button("Ativar reversão", "reverse-on", "secondary", bloqueioComando)}${button("Desativar reversão", "reverse-off", "warning", bloqueioComando)}`
     : "";
+  const finalized = store.state.operationalState === "FINALIZADO";
   const controls = finalized
     ? ""
     : `<div class="work-controls">${button("Iniciar", "run", "primary", bloqueioComando)}${button("Parar", "stop", "ghost", bloqueioComando)}${button("Emergência", "emergency", "danger", bloqueioComando)}${reverse}</div>`;
@@ -214,7 +211,7 @@ function workControls(store) {
   const avisoClp = clpDisponivel
     ? ""
     : `<div class="alert-box" role="alert"><strong>Comandos bloqueados.</strong> ${esc(store.mensagemClpIndisponivel())}</div>`;
-  return `${pageHeader(`Operação / ${equipmentLabel(store)}`, "Tela de Trabalho", `Romaneio #${store.state.romaneio} para o caminhão ${store.state.truck}.`, badge)}${loadingPicker}${statuses(store)}${avisoClp}${barcodeReader}${manualIdentification}${store.state.emergency ? emergencyPanel : `<div class="grid two"><section class="panel"><span class="kicker">Produto atual</span><h3>Produto do romaneio</h3><p>Leituras vinculadas ao carregamento atual</p><div class="grid three"><div class="metric"><small>Programado</small><strong>${store.state.planned}</strong></div><div class="metric"><small>Carregado</small><strong>${store.state.loaded}</strong></div><div class="metric"><small>Faltam</small><strong>${left}</strong></div></div>${progress(store)}${left <= 5 && left > 0 ? '<div class="alert-box">Faltam 5 sacas ou menos. Reduza o envio.</div>' : ""}<div class="actions">${controls}</div></section><aside class="panel"><h3>Estado persistido</h3><ul><li>Estado atual <small>${store.state.operationalState}</small></li>${commandPanel}<li>Leituras válidas <small>${store.state.loaded}</small></li><li>Carregamento #${store.state.loadingId || "—"} <small>Sincronizado no banco local</small></li></ul>${summaryAction ? `<div class="actions work-summary-action">${summaryAction}</div>` : ""}</aside></div>`}`;
+  return `${pageHeader(`Operação / ${equipmentLabel(store)}`, "Tela de Trabalho", `Romaneio #${store.state.romaneio} para o caminhão ${store.state.truck}.`, badge)}${loadingPicker}${statuses(store)}${avisoClp}${manualIdentification}${store.state.emergency ? emergencyPanel : `<div class="grid two"><section class="panel"><span class="kicker">Produto atual</span><h3>Produto do romaneio</h3><p>Leituras vinculadas ao carregamento atual</p><div class="grid three"><div class="metric"><small>Programado</small><strong>${store.state.planned}</strong></div><div class="metric"><small>Carregado</small><strong>${store.state.loaded}</strong></div><div class="metric"><small>Faltam</small><strong>${left}</strong></div></div>${progress(store)}${left <= 5 && left > 0 ? '<div class="alert-box">Faltam 5 sacas ou menos. Reduza o envio.</div>' : ""}<div class="actions">${controls}</div></section><aside class="panel"><h3>Estado persistido</h3><ul><li>Estado atual <small>${store.state.operationalState}</small></li>${commandPanel}<li>Leituras válidas <small>${store.state.loaded}</small></li><li>Carregamento #${store.state.loadingId || "—"} <small>Sincronizado no banco local</small></li></ul>${summaryAction ? `<div class="actions work-summary-action">${summaryAction}</div>` : ""}</aside></div>`}`;
 }
 export function work(store) {
   if (
