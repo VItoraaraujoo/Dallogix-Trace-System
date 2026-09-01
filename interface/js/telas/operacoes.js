@@ -35,7 +35,7 @@ export function manifests(store) {
 <label>Código do romaneio<input name="number" value="${esc(filters.number || "")}" /></label>
 <label>Expedidor<input name="expedidor" value="${esc(filters.expedidor || "")}" /></label>
 <label>Status<select name="status">${options}</select></label>
-</div></form></section><br>${manifestsTable(store.manifests)}`;
+</div></form></section><br>${manifestsTable(store.manifests, canCreate)}`;
 }
 
 // Detalhe do romaneio (tela Visualizar).

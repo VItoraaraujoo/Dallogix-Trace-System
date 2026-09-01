@@ -67,7 +67,7 @@ export function manifestStatusBadge(row) {
 const formatDate = (value) =>
   value ? String(value).split("-").reverse().join("/") : "—";
 
-export function manifestsTable(rows) {
+export function manifestsTable(rows, canCancel = false) {
   const list = Array.isArray(rows) ? rows : [];
   const body = list.length
     ? list
@@ -76,13 +76,16 @@ export function manifestsTable(rows) {
           const operation = operating
             ? `<button class="button primary small" data-action="resume-loading" data-id="${r.id}" data-loading-id="${r.active_loading_id || ""}" type="button">${r.active_state === "PAUSADO" ? "Continuar" : "Retomar"}</button>`
             : "";
+          const cancellation = canCancel && ["IMPORTADO", "AGUARDANDO"].includes(r.status)
+            ? button("Cancelar", "cancel-manifest", "danger").replace('data-action="cancel-manifest"', `data-action="cancel-manifest" data-id="${r.id}"`)
+            : "";
           return `<tr>
           <td>${formatDate(r.scheduled_date)}</td>
           <td><strong>${esc(r.number)}</strong></td>
           <td>${esc(r.expedidor || "—")}</td>
           <td>${manifestStatusBadge(r)}</td>
           <td>${button("Visualizar", "view-manifest", "secondary").replace('data-action="view-manifest"', `data-action="view-manifest" data-id="${r.id}"`)}</td>
-          <td>${operation}</td>
+          <td>${operation}${cancellation}</td>
         </tr>`;
         })
         .join("")

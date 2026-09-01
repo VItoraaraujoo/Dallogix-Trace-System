@@ -556,6 +556,19 @@ function bindActions() {
         navigate("division", `?id=${node.dataset.id}`);
         return;
       }
+      if (action === "cancel-manifest") {
+        if (!confirm("Confirma o cancelamento deste romaneio? Essa ação não poderá ser desfeita.")) return;
+        if (!confirm("SEGUNDA CONFIRMAÇÃO: cancelar este romaneio agora?")) return;
+        try {
+          await store.cancelManifest(node.dataset.id || queryId());
+          alert("Romaneio cancelado.");
+          await navigate("manifests");
+          render();
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
       if (action === "back-manifest") {
         navigate("manifest", `?id=${queryId()}`);
         return;
@@ -820,17 +833,6 @@ function bindActions() {
             store.state.monitoring?.sync_pendente || 0,
           ],
         ]);
-      } else if (action === "cancel-manifest") {
-        if (!confirm("Confirma o cancelamento deste romaneio? Essa ação não poderá ser desfeita.")) return;
-        if (!confirm("SEGUNDA CONFIRMAÇÃO: cancelar este romaneio agora?")) return;
-        try {
-          await store.cancelManifest(queryId());
-          alert("Romaneio cancelado.");
-          await navigate("manifests");
-          render();
-        } catch (error) {
-          alert(error.message);
-        }
       }
     });
   });
