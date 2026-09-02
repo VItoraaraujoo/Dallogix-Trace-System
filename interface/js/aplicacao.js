@@ -19,7 +19,7 @@ import {
 } from "./telas/monitoramento.js";
 import { settings } from "./telas/configuracoes.js";
 import { dashboard } from "./telas/painel.js";
-import { dalas, dalaView, dalaEdit } from "./telas/dalas.js";
+import { dalas, dalaView, dalaEdit, dalaActions } from "./telas/dalas.js";
 import { companies } from "./telas/empresas.js";
 import { company } from "./telas/empresa.js";
 import { users } from "./telas/usuarios.js";
@@ -42,6 +42,7 @@ const screens = {
   dalas,
   dala: dalaView,
   "dala-edit": dalaEdit,
+  "dala-actions": dalaActions,
   manifest: manifestView,
   companies,
   company,
@@ -66,6 +67,7 @@ const ROLE_PAGES = {
     "dalas",
     "dala",
     "dala-edit",
+    "dala-actions",
     "users",
   ],
   SUPERVISOR: [
@@ -81,6 +83,7 @@ const ROLE_PAGES = {
     "alerts",
     "emergency",
     "dala",
+    "dala-actions",
   ],
   USUARIO: [
     "dashboard",
@@ -615,6 +618,10 @@ function bindActions() {
         const from =
           currentPage === "dashboard" ? "dashboard" : queryReturnPage();
         navigate("dala", `?id=${node.dataset.id}&from=${from}`);
+        return;
+      }
+      if (action === "dala-actions") {
+        navigate("dala-actions", `?id=${node.dataset.id}&from=dalas`);
         return;
       }
       if (action === "edit-dala") {
@@ -1313,10 +1320,11 @@ async function loadPageData(page) {
     dalas: [store.loadEquipments()],
     dala: [store.loadEquipment(queryId()), store.loadMonitoring(), store.loadDalaCommandHistory(queryId())],
     "dala-edit": [store.loadEquipment(queryId())],
+    "dala-actions": [store.loadEquipment(queryId()), store.loadActiveLoading()],
     users: [store.loadUsers()],
   };
   if (
-    ["manifest", "division", "dala", "dala-edit"].includes(page) &&
+    ["manifest", "division", "dala", "dala-edit", "dala-actions"].includes(page) &&
     !queryId()
   )
     throw new Error("Registro não informado.");

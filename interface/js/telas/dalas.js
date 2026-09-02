@@ -84,6 +84,20 @@ export function dalaView(store) {
   </div>`;
 }
 
+export function dalaActions(store) {
+  const dala = store.state.equipmentDetail;
+  if (!dala) return `${pageHeader("Cadastros / dalas", "Ações", "Carregando…")}`;
+  const loading = (store.state.activeLoadings || []).find(
+    (item) => Number(item.equipment_id) === Number(dala.id),
+  );
+  const action = (label, dataAction, tone = "secondary") =>
+    `<button class="button ${tone}" data-action="open-dala-operation" data-loading-id="${loading?.id || ""}" type="button"${loading ? "" : " disabled"}>${label}</button>`;
+  const dalaLabel = dala.equipment_code || dala.name || "Dala";
+  return `<div class="title-row with-actions has-back"><button class="button secondary page-back" data-action="back-dala" type="button">← Voltar</button><div><h2>Ações — ${esc(dalaLabel)}</h2></div></div>
+  <section class="panel"><h3>Comandos da Dala</h3><p>${loading ? `Operação ${esc(loading.romaneio_number || "ativa")} selecionada.` : "Não existe operação ativa para esta Dala."}</p><div class="actions">${action("Ligar", "run", "primary")}${action("Parar", "stop", "danger")}${action("Emergência", "emergency", "danger")}${action("Reverso", "reverse-on", "secondary")}</div></section>
+  <section class="panel compact-help"><strong>Validação do CLP</strong><p>Os comandos passam pela tela de operação, com confirmação e intertravamentos do CLP. O diagnóstico e o retorno ficam registrados na visualização da Dala.</p></section>`;
+}
+
 // Tela Editar dala: mesmo formulário da criação, com dados preenchidos.
 export function dalaEdit(store) {
   const dala = store.state.equipmentDetail;
