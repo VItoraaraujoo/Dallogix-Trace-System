@@ -378,6 +378,11 @@ function bindActions() {
     node.dataset.actionBound = "1";
     node.addEventListener("click", async () => {
       const action = node.dataset.action;
+      if (node.classList.contains("page-back")) {
+        if (window.history.length > 1) window.history.back();
+        else await navigate(defaultPage(), "", { replace: true });
+        return;
+      }
       if (FORM_ACTIONS.has(action)) {
         node.closest("form")?.requestSubmit();
         return;
