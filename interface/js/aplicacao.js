@@ -623,6 +623,20 @@ function bindActions() {
         navigate(queryReturnPage());
         return;
       }
+      if (action === "open-dala-operation") {
+        store.state.selectedLoadingId = Number(node.dataset.loadingId) || null;
+        await navigate("work");
+        return;
+      }
+      if (action === "reload-dala-diagnostics") {
+        try {
+          await store.loadDalaCommandHistory(node.dataset.id);
+          render();
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
       if (action === "reload-dalas") {
         render();
         return;
@@ -667,7 +681,12 @@ function bindActions() {
         return;
       }
       if (action === "delete-dala") {
+        if (!["ADMIN_DALLOGIX", "ADMIN_EMPRESA"].includes(store.state.userRole)) {
+          alert("Somente administradores podem excluir Dala.");
+          return;
+        }
         if (!confirm(`Excluir a dala "${node.dataset.name}"?`)) return;
+        if (!confirm(`SEGUNDA CONFIRMAÇÃO: excluir a dala "${node.dataset.name}" definitivamente?`)) return;
         try {
           await store.deleteEquipment(node.dataset.id);
           alert("Dala excluída.");
@@ -1287,7 +1306,7 @@ async function loadPageData(page) {
     emergency: [store.loadActiveLoading(), store.loadMonitoring()],
     settings: [store.loadConfiguration(), store.loadEquipments()],
     dalas: [store.loadEquipments()],
-    dala: [store.loadEquipment(queryId()), store.loadMonitoring()],
+    dala: [store.loadEquipment(queryId()), store.loadMonitoring(), store.loadDalaCommandHistory(queryId())],
     "dala-edit": [store.loadEquipment(queryId())],
     users: [store.loadUsers()],
   };

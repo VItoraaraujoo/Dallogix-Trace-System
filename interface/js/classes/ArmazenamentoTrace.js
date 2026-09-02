@@ -40,6 +40,7 @@ export class ArmazenamentoTrace {
       dashboard: null,
       manifestDetail: null,
       equipmentDetail: null,
+      dalaCommands: [],
       plcCommand: null,
       productFormOpen: false,
       dalaFormOpen: false,
@@ -188,6 +189,13 @@ export class ArmazenamentoTrace {
         message: result.error || "Falha na verificação.",
       };
     return result.data;
+  }
+  async loadDalaCommandHistory(id) {
+    const response = await fetch(`/api/comandos_industriais.php?equipment_id=${encodeURIComponent(id)}`);
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível carregar o diagnóstico do CLP.");
+    this.state.dalaCommands = Array.isArray(result.data) ? result.data : [];
+    return this.state.dalaCommands;
   }
   async updateEquipment(data) {
     const response = await fetch("/api/equipamentos.php", {

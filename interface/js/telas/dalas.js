@@ -61,7 +61,10 @@ export function dalaView(store) {
   const loaded = Number(operation.valid_readings || 0);
   const percentage =
     planned > 0 ? Math.min(100, Math.round((loaded / planned) * 100)) : 0;
-  return `<div class="title-row with-actions has-back dala-view-header"><button class="button secondary page-back" data-action="back-dala" type="button">← Voltar</button><div><h2>Dala ${esc(dala.equipment_code)}</h2></div></div>
+  const commands = store.state.dalaCommands || [];
+  const commandRows = commands.length ? commands.map((command) => `<tr><td>#${command.id}</td><td><code>${esc(command.command)}</code></td><td>${esc(command.status)}</td><td>${esc(command.requested_at || "—")}</td><td>${esc(command.response_message || "Aguardando resposta")}</td></tr>`).join("") : '<tr><td colspan="5" class="empty-cell">Nenhum comando registrado para esta Dala.</td></tr>';
+  const operationAction = operation.carregamento_id ? `<button class="button primary" data-action="open-dala-operation" data-loading-id="${operation.carregamento_id}" type="button">Abrir operação</button>` : "";
+  return `<div class="title-row with-actions has-back dala-view-header"><button class="button secondary page-back" data-action="back-dala" type="button">← Voltar</button><div><h2>Dala ${esc(dala.equipment_code)}</h2></div><div class="actions">${operationAction}</div></div>
 <section class="panel"><h3>Estatísticas da Dala</h3><div class="grid four">
   <div class="metric"><small>Estado da operação</small><strong>${esc(operation.carregamento_state || "Sem operação")}</strong></div>
   <div class="metric"><small>Romaneio atual</small><strong>${esc(operation.romaneio_number ? `#${operation.romaneio_number}` : "—")}</strong></div>
@@ -69,6 +72,7 @@ export function dalaView(store) {
   <div class="metric"><small>Progresso</small><strong>${percentage}%</strong></div>
   </div><p class="muted">Último sinal: ${esc(operation.last_seen_at || "Sem sinal registrado")}</p></section><br>
 <section class="panel"><p id="dala-view-status" class="dala-status-line" data-equipment-id="${dala.id}"><span class="status-dot"></span>Verificando comunicação com o serviço Modbus…</p></section><br>
+<section class="panel"><div class="panel-heading"><div><h3>Diagnóstico do CLP</h3><p class="muted">Comandos enviados, status do gateway e retorno registrado.</p></div><button class="button secondary" data-action="reload-dala-diagnostics" data-id="${dala.id}" type="button">Atualizar</button></div><div class="table-wrap"><table><thead><tr><th>ID</th><th>Comando</th><th>Status</th><th>Solicitado em</th><th>Resposta</th></tr></thead><tbody>${commandRows}</tbody></table></div></section><br>
 <div class="grid two detail-cards">
 <div class="panel detail-card"><small>Nome</small><strong>${esc(dala.name)}</strong></div>
 <div class="panel detail-card"><small>Identificador</small><strong><code>${esc(dala.equipment_code)}</code></strong></div>

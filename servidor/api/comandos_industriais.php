@@ -12,8 +12,14 @@ if ($user["company_id"] === null) {
 }
 
 $loadingId = filter_var($_GET["carregamento_id"] ?? null, FILTER_VALIDATE_INT);
+ $equipmentId = filter_var($_GET["equipment_id"] ?? null, FILTER_VALIDATE_INT);
+if ($equipmentId) {
+    $statement = db()->prepare("SELECT r.id, r.carregamento_id, r.command, r.status, r.requested_at, r.claimed_at, r.completed_at, r.response_message, m.romaneio AS romaneio_number FROM plc_command_requests r LEFT JOIN romaneios m ON m.id = r.carregamento_id WHERE r.equipment_id = :equipment_id AND r.company_id = :company_id ORDER BY r.id DESC LIMIT 30");
+    $statement->execute(["equipment_id" => $equipmentId, "company_id" => $user["company_id"]]);
+    json_response(["data" => $statement->fetchAll()]);
+}
 if (!$loadingId) {
-    json_response(["error" => "carregamento_id é obrigatório."], 422);
+    json_response(["error" => "equipment_id ou carregamento_id é obrigatório."], 422);
 }
 
 $statement = db()
