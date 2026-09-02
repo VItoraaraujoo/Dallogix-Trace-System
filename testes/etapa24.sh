@@ -17,7 +17,7 @@ check_page() {
   grep -q 'class="sidebar"' /tmp/dx-etapa24.html || fail "$file sem menu lateral estático"
   grep -q 'id="screen-root"' /tmp/dx-etapa24.html || fail "$file sem área de conteúdo"
   grep -q 'data-action="logout"' /tmp/dx-etapa24.html || fail "$file sem botão sair"
-  grep -q 'js/aplicacao.js?v=19' /tmp/dx-etapa24.html || fail "$file sem versionamento do app.js"
+  grep -Eq 'js/aplicacao.js\?v=[0-9]+' /tmp/dx-etapa24.html || fail "$file sem versionamento do app.js"
 }
 check_page manifest.html manifest
 check_page dala.html dala

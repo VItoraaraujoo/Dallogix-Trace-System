@@ -4,6 +4,7 @@ set -u
 base_url="${TRACE_BASE_URL:-http://localhost:8080}"
 cookie_file="/tmp/dallogix-trace-etapa4-cookie.txt"
 number="TEST-$(date +%s)"
+scheduled_date="$(date +%F)"
 
 status() {
   curl -sS -o /dev/null -w '%{http_code}' "$@"
@@ -25,7 +26,7 @@ if [[ "$(status -b "$cookie_file" "$base_url/api/produtos.php")" != "200" ]]; th
   exit 1
 fi
 
-payload="{\"number\":\"${number}\",\"scheduled_date\":\"2026-08-20\",\"plate\":\"TST4$(date +%s | tail -c 5)\",\"product_code\":\"PROD3\",\"planned_quantity\":10}"
+payload="{\"number\":\"${number}\",\"scheduled_date\":\"${scheduled_date}\",\"plate\":\"TST4$(date +%s | tail -c 5)\",\"product_code\":\"PROD3\",\"planned_quantity\":10}"
 created="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "$payload" "$base_url/api/romaneios.php")"
 if ! printf '%s' "$created" | grep -q '"status":"AGUARDANDO"'; then
   echo "FAIL: criação de romaneio falhou: $created"
@@ -42,7 +43,7 @@ if [[ "$(status -b "$cookie_file" "$base_url/api/romaneios.php")" != "200" ]]; t
   exit 1
 fi
 
-filtered="$(curl -sS -b "$cookie_file" "$base_url/api/romaneios.php?number=${number}&status=AGUARDANDO&date_from=2026-08-20&date_to=2026-08-20")"
+filtered="$(curl -sS -b "$cookie_file" "$base_url/api/romaneios.php?number=${number}&status=AGUARDANDO&date_from=${scheduled_date}&date_to=${scheduled_date}")"
 if ! printf '%s' "$filtered" | grep -q "$number"; then
   echo "FAIL: filtro por número/status/data não retornou o romaneio: $filtered"
   exit 1
@@ -54,7 +55,7 @@ if printf '%s' "$miss" | grep -q "$number"; then
   exit 1
 fi
 
-outside="$(curl -sS -b "$cookie_file" "$base_url/api/romaneios.php?number=${number}&date_from=2026-08-21")"
+outside="$(curl -sS -b "$cookie_file" "$base_url/api/romaneios.php?number=${number}&date_from=2099-01-01")"
 if printf '%s' "$outside" | grep -q "$number"; then
   echo "FAIL: filtro por data ignorou o critério: $outside"
   exit 1

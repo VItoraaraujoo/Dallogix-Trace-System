@@ -40,7 +40,7 @@ ${
 <td>${equipment.plc_port || "—"}</td>
 <td>${equipment.external_port || "—"}</td>
 ${dalaStatusCell(equipment)}
-<td><button class="text-link" data-action="view-dala" data-id="${equipment.id}" type="button">Visualizar</button>${canManage ? `<button class="text-link" data-action="edit-dala" data-id="${equipment.id}" type="button">Editar</button><button class="text-link" data-action="dala-actions" data-id="${equipment.id}" type="button">Ações</button>` : ""}${canDelete ? `<button class="text-link danger-link" data-action="delete-dala" data-id="${equipment.id}" data-name="${esc(equipment.name)}" type="button">Excluir</button>` : ""}</td>
+<td><div class="table-actions"><button class="text-link" data-action="view-dala" data-id="${equipment.id}" type="button">Visualizar</button>${canManage ? `<button class="text-link" data-action="edit-dala" data-id="${equipment.id}" type="button">Editar</button><button class="text-link" data-action="dala-actions" data-id="${equipment.id}" type="button">Ações</button>` : ""}${canDelete ? `<button class="text-link danger-link" data-action="delete-dala" data-id="${equipment.id}" data-name="${esc(equipment.name)}" type="button">Excluir</button>` : ""}</div></td>
 </tr>`,
         )
         .join("")

@@ -89,7 +89,7 @@ ${form}
 <td>${esc(product.code || "—")}</td>
 <td>${esc(product.category || "—")}</td>
 <td><span class="badge ${Number(product.active) ? "green" : "red"}">${Number(product.active) ? "Sim" : "Não"}</span></td>
-<td><button class="text-link" data-action="edit-product" data-id="${product.id}" type="button">Editar</button><button class="text-link danger-link" data-action="delete-product" data-id="${product.id}" data-name="${esc(product.name)}" type="button">Excluir</button></td>
+<td><div class="table-actions"><button class="text-link" data-action="edit-product" data-id="${product.id}" type="button">Editar</button><button class="text-link danger-link" data-action="delete-product" data-id="${product.id}" data-name="${esc(product.name)}" type="button">Excluir</button></div></td>
 </tr>`,
           )
           .join("")

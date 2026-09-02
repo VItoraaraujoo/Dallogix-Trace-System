@@ -239,6 +239,13 @@ textarea::placeholder {
   font-weight: 700;
   padding: 4px 7px;
 }
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2px;
+  min-width: max-content;
+}
 .danger-link {
   color: var(--red);
 }

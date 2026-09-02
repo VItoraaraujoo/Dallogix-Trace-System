@@ -9,7 +9,9 @@ while IFS= read -r php_file; do
 done < <(find servidor -type f -name '*.php' | sort)
 
 while IFS= read -r js_file; do
-  node --check "$js_file" >/dev/null
+  # O front-end usa módulos ES. Validar pela entrada padrão evita que versões
+  # antigas do Node tratem arquivos .js como CommonJS apenas por não haver package.json.
+  node --input-type=module --check < "$js_file" >/dev/null
 done < <(find interface/js -type f -name '*.js' | sort)
 
 while IFS= read -r shell_file; do

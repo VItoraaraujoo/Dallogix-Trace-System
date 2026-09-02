@@ -20,7 +20,7 @@ check_page() {
   else
     grep -q 'id="login-form"' /tmp/dx-etapa23.html || fail "$file sem formulário de login estático"
   fi
-  grep -q 'js/aplicacao.js?v=19' /tmp/dx-etapa23.html || fail "$file sem versionamento do app.js"
+  grep -Eq 'js/aplicacao.js\?v=[0-9]+' /tmp/dx-etapa23.html || fail "$file sem versionamento do app.js"
 }
 
 check_page index.html login

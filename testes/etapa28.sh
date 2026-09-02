@@ -17,6 +17,6 @@ grep -q 'dragstart' "$app" || fail "proteção contra arraste não instalada"
 grep -q 'width: 30px' "$css" || fail "ícones do menu não ampliados"
 grep -q 'r.id AS romaneio_id' "$monitoring" || fail "monitoramento sem id do romaneio"
 
-node --check "$app" >/dev/null || fail "app.js inválido"
-node --check "$dashboard" >/dev/null || fail "dashboard.js inválido"
+node --input-type=module --check < "$app" >/dev/null || fail "app.js inválido"
+node --input-type=module --check < "$dashboard" >/dev/null || fail "dashboard.js inválido"
 echo "OK: dashboard vinculado, permissões por perfil, ícones ampliados e arraste bloqueado."
