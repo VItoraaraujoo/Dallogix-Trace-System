@@ -73,15 +73,20 @@ export function manifestsTable(rows) {
     ? list
         .map((r) => {
           const operating = r.status === "EM_ANDAMENTO";
-          const operation = operating
-            ? `<button class="button primary small" data-action="resume-loading" data-id="${r.id}" data-loading-id="${r.active_loading_id || ""}" type="button">${r.active_state === "PAUSADO" ? "Continuar" : "Retomar"}</button>`
-            : "";
+          const canEdit = ["IMPORTADO", "AGUARDANDO"].includes(r.status);
+          const canCancel = ["IMPORTADO", "AGUARDANDO"].includes(r.status);
+          const actions = `${button("Visualizar", "view-manifest", "secondary").replace('data-action="view-manifest"', `data-action="view-manifest" data-id="${r.id}"`)}${canEdit ? `<button class="button secondary small" data-action="edit-manifest" data-id="${r.id}" type="button">Editar</button>` : ""}${canCancel ? `<button class="button danger small" data-action="cancel-manifest" data-id="${r.id}" type="button">Cancelar</button>` : ""}`;
+          const operation = r.status === "AGUARDANDO"
+            ? `<button class="button primary small" data-action="prepare-manifest" data-id="${r.id}" type="button">Iniciar</button>`
+            : operating
+              ? `<button class="button primary small" data-action="resume-loading" data-id="${r.id}" data-loading-id="${r.active_loading_id || ""}" type="button">${r.active_state === "PAUSADO" ? "Continuar" : "Retomar"}</button>`
+              : "";
           return `<tr>
           <td>${formatDate(r.scheduled_date)}</td>
           <td><strong>${esc(r.number)}</strong></td>
           <td>${esc(r.expedidor || "—")}</td>
           <td>${manifestStatusBadge(r)}</td>
-          <td>${button("Visualizar", "view-manifest", "secondary").replace('data-action="view-manifest"', `data-action="view-manifest" data-id="${r.id}"`)}</td>
+          <td><div class="actions">${actions}</div></td>
           <td>${operation}</td>
         </tr>`;
         })
