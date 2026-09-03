@@ -11,8 +11,8 @@ dry_run="${TRACE_GITHUB_DRY_RUN:-0}"
 cd "$root_dir"
 [[ -d .git ]] || { echo "Repositório Git não encontrado: $root_dir" >&2; exit 2; }
 git remote get-url "$remote_name" >/dev/null || { echo "Remote GitHub não configurado: $remote_name" >&2; exit 3; }
-[[ -z "$(git status --porcelain --untracked-files=all -- . ':!.env' ':!armazenamento/' ':!tmp/')" ]] || {
-  echo "Sincronização interrompida: existem alterações locais fora de .env/armazenamento/tmp." >&2
+[[ -z "$(git status --porcelain --untracked-files=all -- . ':!.env' ':!armazenamento/' ':!tmp/' ':!**/__pycache__/')" ]] || {
+  echo "Sincronização interrompida: existem alterações locais fora de .env/armazenamento/tmp/cache." >&2
   exit 4
 }
 
