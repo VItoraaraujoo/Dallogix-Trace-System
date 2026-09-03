@@ -148,6 +148,18 @@ export class ArmazenamentoTrace {
     await this.loadManifests();
     return result.data;
   }
+  async updateManifest(payload) {
+    const response = await fetch("/api/romaneios.php", {
+      method: "PATCH",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({ action: "update", ...payload }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw new Error(result.error || "Não foi possível atualizar o romaneio.");
+    await this.loadManifests();
+    return result.data;
+  }
   async prepareLoading(payload) {
     const response = await fetch("/api/carregamentos.php", {
       method: "POST",

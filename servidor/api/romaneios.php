@@ -142,6 +142,115 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
         json_response(["error" => "Somente administração ou supervisão pode cancelar romaneios."], 403);
     }
     $payload = request_json();
+    if (($payload["action"] ?? "") === "update") {
+        $romaneioId = filter_var($payload["romaneio_id"] ?? null, FILTER_VALIDATE_INT);
+        $number = trim((string) ($payload["number"] ?? ""));
+        $scheduledDate = trim((string) ($payload["scheduled_date"] ?? ""));
+        $plate = strtoupper(trim((string) ($payload["plate"] ?? "")));
+        $driverName = trim((string) ($payload["driver_name"] ?? ""));
+        $expedidor = trim((string) ($payload["expedidor"] ?? ""));
+        if (!$romaneioId || $number === "" || $plate === "") {
+            json_response(["error" => "Romaneio, código e placa são obrigatórios."], 422);
+        }
+        $date = DateTime::createFromFormat("Y-m-d", $scheduledDate);
+        if (!$date || $date->format("Y-m-d") !== $scheduledDate) {
+            json_response(["error" => "Data do carregamento inválida."], 422);
+        }
+        if ($scheduledDate < date("Y-m-d")) {
+            json_response(["error" => "A data do carregamento não pode ser anterior ao dia atual do PC industrial."], 422);
+        }
+        $items = $payload["items"] ?? [];
+        if (!is_array($items) || $items === []) {
+            json_response(["error" => "Informe ao menos um item com produto e quantidade."], 422);
+        }
+        $normalizedItems = [];
+        foreach (array_values($items) as $index => $item) {
+            $productId = filter_var($item["product_id"] ?? null, FILTER_VALIDATE_INT);
+            $quantity = filter_var($item["quantity"] ?? null, FILTER_VALIDATE_INT);
+            if (!$productId || $quantity === false || $quantity < 1) {
+                json_response(["error" => "Item " . ($index + 1) . " inválido."], 422);
+            }
+            if (isset($normalizedItems[$productId])) {
+                json_response(["error" => "Produto duplicado nos itens do romaneio."], 422);
+            }
+            $normalizedItems[$productId] = $quantity;
+        }
+        try {
+            $pdo->beginTransaction();
+            $statement = $pdo->prepare(
+                "SELECT r.id, r.status, EXISTS(SELECT 1 FROM carregamentos c WHERE c.romaneio_id = r.id) AS has_loading
+                 FROM romaneios r WHERE r.id = :id AND r.company_id = :company_id LIMIT 1 FOR UPDATE",
+            );
+            $statement->execute(["id" => $romaneioId, "company_id" => $companyId]);
+            $romaneio = $statement->fetch();
+            if (!$romaneio) {
+                $pdo->rollBack();
+                json_response(["error" => "Romaneio não encontrado."], 404);
+            }
+            if (!in_array($romaneio["status"], ["IMPORTADO", "AGUARDANDO"], true) || (int) $romaneio["has_loading"] === 1) {
+                $pdo->rollBack();
+                json_response(["error" => "Só é possível editar um romaneio antes de iniciar o carregamento."], 409);
+            }
+            $productStatement = $pdo->prepare(
+                "SELECT id FROM products WHERE id = :id AND company_id = :company_id AND active = 1 LIMIT 1",
+            );
+            foreach (array_keys($normalizedItems) as $productId) {
+                $productStatement->execute(["id" => $productId, "company_id" => $companyId]);
+                if (!$productStatement->fetch()) {
+                    $pdo->rollBack();
+                    json_response(["error" => "Produto não encontrado ou inativo."], 422);
+                }
+            }
+            $truckStatement = $pdo->prepare(
+                "SELECT id FROM romaneio_trucks WHERE romaneio_id = :romaneio_id ORDER BY id LIMIT 1 FOR UPDATE",
+            );
+            $truckStatement->execute(["romaneio_id" => $romaneioId]);
+            $truck = $truckStatement->fetch();
+            if (!$truck) {
+                $pdo->rollBack();
+                json_response(["error" => "Caminhão do romaneio não encontrado."], 409);
+            }
+            $pdo->prepare(
+                "UPDATE romaneios SET number = :number, scheduled_date = :scheduled_date, expedidor = :expedidor WHERE id = :id",
+            )->execute([
+                "number" => $number,
+                "scheduled_date" => $scheduledDate,
+                "expedidor" => $expedidor !== "" ? $expedidor : null,
+                "id" => $romaneioId,
+            ]);
+            $pdo->prepare(
+                "UPDATE romaneio_trucks SET plate = :plate, driver_name = :driver_name WHERE id = :id",
+            )->execute([
+                "plate" => $plate,
+                "driver_name" => $driverName !== "" ? $driverName : null,
+                "id" => $truck["id"],
+            ]);
+            $pdo->prepare("DELETE FROM romaneio_items WHERE romaneio_id = :romaneio_id")
+                ->execute(["romaneio_id" => $romaneioId]);
+            $itemStatement = $pdo->prepare(
+                "INSERT INTO romaneio_items (romaneio_id, product_id, truck_id, planned_quantity) VALUES (:romaneio_id, :product_id, :truck_id, :planned_quantity)",
+            );
+            foreach ($normalizedItems as $productId => $quantity) {
+                $itemStatement->execute([
+                    "romaneio_id" => $romaneioId,
+                    "product_id" => $productId,
+                    "truck_id" => $truck["id"],
+                    "planned_quantity" => $quantity,
+                ]);
+            }
+            record_operational_event($pdo, $user, "ROMANEIO_ATUALIZADO", "romaneio", (int) $romaneioId, ["items" => count($normalizedItems)]);
+            $pdo->commit();
+            json_response(["data" => ["id" => (int) $romaneioId, "status" => $romaneio["status"]]]);
+        } catch (PDOException $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            if ((int) $exception->errorInfo[1] === 1062) {
+                json_response(["error" => "Já existe um romaneio com este número."], 409);
+            }
+            json_response(["error" => "Não foi possível atualizar o romaneio."], 500);
+        }
+    }
     $romaneioId = filter_var($payload["romaneio_id"] ?? null, FILTER_VALIDATE_INT);
     if (!$romaneioId) {
         json_response(["error" => "Romaneio obrigatório."], 422);

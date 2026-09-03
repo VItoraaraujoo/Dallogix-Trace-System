@@ -8,6 +8,7 @@ import {
   division,
   work,
   manifestView,
+  manifestEdit,
 } from "./telas/operacoes.js";
 import {
   occurrences,
@@ -44,6 +45,7 @@ const screens = {
   "dala-edit": dalaEdit,
   "dala-actions": dalaActions,
   manifest: manifestView,
+  "manifest-edit": manifestEdit,
   companies,
   company,
   users,
@@ -54,6 +56,7 @@ const ROLE_PAGES = {
     "dashboard",
     "manifests",
     "manifest",
+    "manifest-edit",
     "import",
     "division",
     "work",
@@ -74,6 +77,7 @@ const ROLE_PAGES = {
     "dashboard",
     "manifests",
     "manifest",
+    "manifest-edit",
     "import",
     "division",
     "work",
@@ -558,6 +562,10 @@ function bindActions() {
       }
       if (action === "view-manifest") {
         navigate("manifest", `?id=${node.dataset.id}`);
+        return;
+      }
+      if (action === "edit-manifest") {
+        navigate("manifest-edit", `?id=${node.dataset.id}`);
         return;
       }
       if (action === "prepare-manifest") {
@@ -1081,6 +1089,43 @@ function bindForms() {
         alert(error.message);
       }
     });
+  const manifestEditForm = document.querySelector("#edit-manifest-form");
+  if (manifestEditForm)
+    manifestEditForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const raw = Object.fromEntries(new FormData(manifestEditForm));
+      const today = new Date();
+      const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+      if (!raw.scheduled_date || raw.scheduled_date < todayString) {
+        alert("Informe uma data igual ou posterior ao dia atual do PC industrial.");
+        return;
+      }
+      const items = [...document.querySelectorAll("#manifest-items tbody tr")]
+        .map((row) => ({
+          product_id: row.querySelector('[name="item_product"]')?.value,
+          quantity: row.querySelector('[name="item_quantity"]')?.value,
+        }))
+        .filter((item) => item.product_id && Number(item.quantity) >= 1);
+      if (!items.length) {
+        alert("Adicione ao menos um item com produto e quantidade.");
+        return;
+      }
+      try {
+        await store.updateManifest({
+          romaneio_id: manifestEditForm.dataset.id,
+          number: raw.number,
+          scheduled_date: raw.scheduled_date,
+          plate: raw.plate,
+          expedidor: raw.expedidor,
+          driver_name: raw.driver_name,
+          items,
+        });
+        alert("Romaneio atualizado.");
+        await navigate("manifest", `?id=${manifestEditForm.dataset.id}`);
+      } catch (error) {
+        alert(error.message);
+      }
+    });
   // Importação PDF: preenche o formulário manual com os campos extraídos.
   const pdfForm = document.querySelector("#pdf-form");
   if (pdfForm)
@@ -1293,6 +1338,7 @@ async function loadPageData(page) {
     ],
     manifests: [store.loadManifests()],
     manifest: [store.loadManifest(queryId())],
+    "manifest-edit": [store.loadManifest(queryId()), store.loadProducts()],
     import: [store.loadProducts()],
     division: [
       store.loadManifest(queryId()),
@@ -1324,7 +1370,7 @@ async function loadPageData(page) {
     users: [store.loadUsers()],
   };
   if (
-    ["manifest", "division", "dala", "dala-edit", "dala-actions"].includes(page) &&
+    ["manifest", "manifest-edit", "division", "dala", "dala-edit", "dala-actions"].includes(page) &&
     !queryId()
   )
     throw new Error("Registro não informado.");
@@ -1352,9 +1398,9 @@ async function renderPage() {
   } catch (error) {
     if (requestId !== renderRequestId) return;
     console.error(error);
-    if (["manifest", "dala", "dala-edit", "company"].includes(currentPage)) {
+    if (["manifest", "manifest-edit", "dala", "dala-edit", "company"].includes(currentPage)) {
       await navigate(
-        currentPage === "manifest"
+        ["manifest", "manifest-edit"].includes(currentPage)
           ? "manifests"
           : currentPage === "company"
             ? "companies"

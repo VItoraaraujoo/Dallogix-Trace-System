@@ -67,14 +67,15 @@ export function manifestStatusBadge(row) {
 const formatDate = (value) =>
   value ? String(value).split("-").reverse().join("/") : "—";
 
-export function manifestsTable(rows) {
+export function manifestsTable(rows, userRole = "") {
   const list = Array.isArray(rows) ? rows : [];
   const body = list.length
     ? list
         .map((r) => {
           const operating = r.status === "EM_ANDAMENTO";
-          const canEdit = ["IMPORTADO", "AGUARDANDO"].includes(r.status);
-          const canCancel = ["IMPORTADO", "AGUARDANDO"].includes(r.status);
+          const canManage = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(userRole);
+          const canEdit = canManage && ["IMPORTADO", "AGUARDANDO"].includes(r.status);
+          const canCancel = canManage && ["IMPORTADO", "AGUARDANDO"].includes(r.status);
           const actions = `${button("Visualizar", "view-manifest", "secondary").replace('data-action="view-manifest"', `data-action="view-manifest" data-id="${r.id}"`)}${canEdit ? `<button class="button secondary small" data-action="edit-manifest" data-id="${r.id}" type="button">Editar</button>` : ""}${canCancel ? `<button class="button danger small" data-action="cancel-manifest" data-id="${r.id}" type="button">Cancelar</button>` : ""}`;
           const operation = r.status === "AGUARDANDO"
             ? `<button class="button primary small" data-action="prepare-manifest" data-id="${r.id}" type="button">Iniciar</button>`

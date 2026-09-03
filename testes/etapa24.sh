@@ -20,6 +20,7 @@ check_page() {
   grep -Eq 'js/aplicacao.js\?v=[0-9]+' /tmp/dx-etapa24.html || fail "$file sem versionamento do app.js"
 }
 check_page manifest.html manifest
+check_page manifest-edit.html manifest-edit
 check_page dala.html dala
 check_page dala-edit.html dala-edit
 
