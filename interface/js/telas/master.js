@@ -1,4 +1,4 @@
-import { button, esc } from "../funcoes/html.js";
+import { esc } from "../funcoes/html.js";
 import { companyGrid, pageHeader } from "../funcoes/view.js";
 
 function formatDate(value) {
@@ -32,16 +32,14 @@ export function masterHome(store) {
     ? "Verifique conectividade das máquinas ou a situação da licença antes de abrir a operação."
     : "Nenhuma máquina sem sinal ou licença bloqueada foi identificada nesta consulta.";
 
-  return `${pageHeader(
+  return `<div class="master-home">${pageHeader(
     "Dallogix / administração global",
     "Central Master",
-    "Acompanhe as empresas, priorize pendências e entre na gestão correta sem acessar a operação local.",
-    `<div class="actions master-header-actions">${button("Empresas", "goto-companies", "secondary")}${button("Logs de erros", "goto-error-logs", "secondary")}</div>`,
+    "Acompanhe as empresas e priorize pendências sem acessar a operação local.",
   )}
   <section class="master-watch ${affectedCompanies.length ? "has-attention" : "is-clear"}" aria-live="polite">
     <div class="master-watch-marker" aria-hidden="true">${affectedCompanies.length ? "!" : "✓"}</div>
     <div><span class="kicker">Monitoramento das instalações</span><strong>${esc(attentionLabel)}</strong><p>${esc(attentionText)}</p></div>
-    <button class="button secondary small" data-action="reload-master-home" type="button">Atualizar visão</button>
   </section>
   <section class="grid four dashboard-metrics master-metrics" aria-label="Resumo das empresas">
     <div class="panel metric"><small>Empresas cadastradas</small><strong>${companies.length}</strong></div>
@@ -49,8 +47,8 @@ export function masterHome(store) {
     <div class="panel metric"><small>Empresas em atenção</small><strong class="${affectedCompanies.length ? "metric-red" : "metric-green"}">${affectedCompanies.length}</strong></div>
     <div class="panel metric"><small>Licenças bloqueadas</small><strong class="${blockedLicenses ? "metric-red" : "metric-green"}">${blockedLicenses}</strong></div>
   </section>
-  <section class="master-section-heading"><div><span class="kicker">Acesso rápido</span><h3>${affectedCompanies.length ? "Empresas que precisam de verificação" : "Empresas cadastradas"}</h3><p>${affectedCompanies.length ? "As empresas com máquina sem sinal ou licença bloqueada aparecem primeiro." : "Abra uma empresa para gerenciar máquinas, usuários e licenças."}</p></div>${button("Ver todas as empresas", "goto-companies", "secondary")}</section>
-  ${companyGrid(visibleCompanies, "Nenhuma empresa cadastrada.")}
-  <section class="master-section-heading master-log-heading"><div><span class="kicker">Diagnóstico</span><h3>Últimos erros registrados</h3><p>Use este histórico para rastrear falhas durante testes e atendimento.</p></div>${button("Abrir histórico completo", "goto-error-logs", "secondary")}</section>
-  <section class="panel reference-table-panel master-log-preview"><div class="table-wrap"><table><thead><tr><th>Data</th><th>Origem</th><th>Mensagem</th><th>Empresa</th></tr></thead><tbody>${logs.length ? logs.slice(0, 5).map((item) => `<tr><td>${esc(formatDate(item.criado_em))}</td><td><code>${esc(item.origem || "Sistema")}</code></td><td class="error-message-cell">${esc(item.mensagem || "—")}</td><td>${esc(item.empresa || "Sistema")}</td></tr>`).join("") : '<tr><td colspan="4" class="empty-cell">Nenhum erro inesperado registrado.</td></tr>'}</tbody></table></div></section>`;
+  <section class="master-section-heading"><div><span class="kicker">Empresas</span><h3>${affectedCompanies.length ? "Empresas que precisam de verificação" : "Empresas cadastradas"}</h3><p>${affectedCompanies.length ? "Máquina sem sinal ou licença bloqueada: estas empresas aparecem primeiro." : "Abra uma empresa para gerenciar máquinas, usuários e licenças."}</p></div></section>
+  ${companyGrid(visibleCompanies, "Nenhuma empresa cadastrada.", { compact: true })}
+  <section class="master-section-heading master-log-heading"><div><span class="kicker">Diagnóstico</span><h3>Últimos erros registrados</h3><p>O histórico completo fica disponível em Logs de erros, no menu lateral.</p></div></section>
+  <section class="panel reference-table-panel master-log-preview"><div class="table-wrap"><table><thead><tr><th>Data</th><th>Origem</th><th>Mensagem</th><th>Empresa</th></tr></thead><tbody>${logs.length ? logs.slice(0, 5).map((item) => `<tr><td>${esc(formatDate(item.criado_em))}</td><td><code>${esc(item.origem || "Sistema")}</code></td><td class="error-message-cell">${esc(item.mensagem || "—")}</td><td>${esc(item.empresa || "Sistema")}</td></tr>`).join("") : '<tr><td colspan="4" class="empty-cell">Nenhum erro inesperado registrado.</td></tr>'}</tbody></table></div></section></div>`;
 }
