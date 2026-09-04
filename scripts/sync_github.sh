@@ -33,6 +33,17 @@ if [[ "$dry_run" == "1" ]]; then
 fi
 
 git merge --ff-only "$remote_name/$branch"
+# Migrações versionadas: mantém os dados, cria backup antes de qualquer DDL e
+# impede que o código novo suba usando uma estrutura antiga.
+mkdir -p armazenamento/backups
+bash scripts/backup_db.sh
+for migration in banco-de-dados/migrations/020_nomenclatura_portugues.sql banco-de-dados/migrations/021_acoes_dala_e_logs_erros.sql; do
+  [[ -f "$migration" ]] || continue
+  marker="armazenamento/.migration-$(basename "$migration").done"
+  [[ -f "$marker" ]] && continue
+  docker compose exec -T mysql mysql -uroot -p"${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD não configurada}" "${MYSQL_DATABASE:?MYSQL_DATABASE não configurado}" < "$migration"
+  touch "$marker"
+done
 # O Nginx resolve o nome do PHP ao iniciar. Recriar todos os serviços evita que
 # ele conserve o IP antigo quando o container PHP for reconstruído.
 docker compose up -d --build --force-recreate
