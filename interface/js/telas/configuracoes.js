@@ -6,6 +6,16 @@ import { pageHeader } from "../funcoes/view.js";
 export function settings(store) {
   const config = store.state.configuration || { settings: {}, dalas: [] };
   const saved = config.settings || {};
+  const sync = store.state.syncStatus || {};
+  const summary = sync.summary || {};
+  const pending = Number(summary.PENDENTE || 0) + Number(summary.PROCESSANDO || 0);
+  const errors = Number(summary.ERRO || 0);
+  const syncConfigured = Boolean(sync.remote_configured);
+  const syncTone = !syncConfigured || errors > 0 ? "offline" : "online";
+  const syncLabel = !syncConfigured ? "Não configurado" : errors > 0 ? "Com erros" : "Conectado";
+  const syncDetail = !syncConfigured
+    ? "A integração será definida no backend do servidor."
+    : `${pending} pendência(s) e ${errors} erro(s) na fila de sincronização.`;
   const mapping = saved.pdf_field_mapping || {};
   const searchField = saved.pdf_search_field || "barcode";
   const fields = [
@@ -33,8 +43,8 @@ ${canManageUsers ? `<section class="panel settings-access-panel"><div class="pan
 <section class="panel"><h3>Rede do cliente</h3>
 <p>Configure o IP público do gateway do cliente. O Trace usará esse endereço com a porta externa de cada dala para alcançar o serviço dala-modbus na fábrica.</p>
 <form id="network-form"><label>IP público do gateway<input name="gateway_public_ip" value="${esc(saved.gateway_public_ip || "")}" placeholder="170.80.219.146" /><small>IP fixo ou DDNS do modem/roteador do cliente.</small></label>
-<label>URL da API cloud (sincronização)<input name="sync_remote_url" type="url" value="${esc(saved.sync_remote_url || "")}" placeholder="https://api.exemplo.com" /></label>
 <div class="actions">${button("Salvar configuração", "save-network")}</div></form></section><br>
+<section class="panel"><h3>Conexão com o servidor</h3><p>A integração é executada no backend. Nenhuma URL ou credencial fica disponível nesta tela.</p><div class="sync-status-row"><span class="status-dot ${syncTone}"></span><strong>${syncLabel}</strong><span>${esc(syncDetail)}</span></div></section><br>
 <section class="panel"><div class="panel-heading"><h3>Dalas</h3><div class="actions">${button("Recarregar", "reload-dalas", "secondary")}${button("Gerenciar dalas", "goto-dalas")}</div></div>
 <p>Visão consolidada das dalas cadastradas e do status de comunicação com o serviço dala-modbus. A tabela abaixo é somente leitura — para cadastrar ou editar, use Gerenciar dalas.</p>
 <p><strong>Identificador:</strong> código único da máquina (letras minúsculas, números e underscores). Deve coincidir com o ID configurado no dala-modbus na fábrica para que comandos e verificação de status funcionem.</p>

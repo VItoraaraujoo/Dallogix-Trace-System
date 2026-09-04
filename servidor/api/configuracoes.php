@@ -11,12 +11,11 @@ $pdo = db();
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $settings = $pdo->prepare(
-        "SELECT gateway_public_ip, sync_remote_url, pdf_field_mapping, pdf_search_field, updated_at FROM configuracoes_empresa WHERE company_id = :company_id LIMIT 1",
+        "SELECT gateway_public_ip, pdf_field_mapping, pdf_search_field, updated_at FROM configuracoes_empresa WHERE company_id = :company_id LIMIT 1",
     );
     $settings->execute(["company_id" => $user["company_id"]]);
     $data = $settings->fetch() ?: [
         "gateway_public_ip" => null,
-        "sync_remote_url" => null,
         "pdf_field_mapping" => null,
         "pdf_search_field" => "barcode",
         "updated_at" => null,
@@ -49,7 +48,17 @@ if (!in_array($user["role"], ["ADMIN_DALLOGIX", "ADMIN_EMPRESA"], true)) {
 
 $payload = request_json();
 $gatewayIp = trim((string) ($payload["gateway_public_ip"] ?? ""));
-$syncUrl = trim((string) ($payload["sync_remote_url"] ?? ""));
+if (array_key_exists("sync_remote_url", $payload)) {
+    json_response(
+        ["error" => "A integração com o servidor é configurada somente no backend."],
+        403,
+    );
+}
+$currentSync = $pdo->prepare(
+    "SELECT sync_remote_url FROM configuracoes_empresa WHERE company_id = :company_id LIMIT 1",
+);
+$currentSync->execute(["company_id" => $user["company_id"]]);
+$syncUrl = trim((string) ($currentSync->fetchColumn() ?: ""));
 $mapping = $payload["pdf_field_mapping"] ?? [];
 $pdfSearchField = in_array(
     $payload["pdf_search_field"] ?? "barcode",
@@ -60,21 +69,6 @@ $pdfSearchField = in_array(
     : "barcode";
 if ($gatewayIp !== "" && strlen($gatewayIp) > 255) {
     json_response(["error" => "IP ou DDNS do gateway inválido."], 422);
-}
-if (
-    $syncUrl !== "" &&
-    (!filter_var($syncUrl, FILTER_VALIDATE_URL) || strlen($syncUrl) > 500)
-) {
-    json_response(["error" => "URL de sincronização inválida."], 422);
-}
-if ($syncUrl !== "") {
-    $scheme = strtolower((string) parse_url($syncUrl, PHP_URL_SCHEME));
-    $allowedSchemes = (getenv("APP_ENV") ?: "local") === "production"
-        ? ["https"]
-        : ["http", "https"];
-    if (!in_array($scheme, $allowedSchemes, true)) {
-        json_response(["error" => "A sincronização deve usar HTTP/HTTPS válido."], 422);
-    }
 }
 if (!is_array($mapping)) {
     json_response(["error" => "Mapeamento PDF inválido."], 422);

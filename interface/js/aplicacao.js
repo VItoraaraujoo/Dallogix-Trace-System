@@ -1093,7 +1093,6 @@ function bindForms() {
       try {
         await store.saveConfiguration({
           gateway_public_ip: raw.gateway_public_ip,
-          sync_remote_url: raw.sync_remote_url,
           pdf_field_mapping: saved.pdf_field_mapping || {},
           pdf_search_field: saved.pdf_search_field || "barcode",
         });
@@ -1119,7 +1118,6 @@ function bindForms() {
       try {
         await store.saveConfiguration({
           gateway_public_ip: saved.gateway_public_ip || "",
-          sync_remote_url: saved.sync_remote_url || "",
           pdf_field_mapping,
           pdf_search_field: raw.pdf_search_field,
         });
@@ -1521,7 +1519,7 @@ async function loadPageData(page) {
       store.loadSyncStatus(),
     ],
     emergency: [store.loadActiveLoading(), store.loadMonitoring()],
-    settings: [store.loadConfiguration(), store.loadEquipments()],
+    settings: [store.loadConfiguration(), store.loadEquipments(), store.loadSyncStatus()],
     dalas: [store.loadEquipments()],
     dala: [loadDalaView(queryId())],
     "dala-edit": [store.loadEquipment(queryId())],

@@ -2105,6 +2105,22 @@ textarea {
   background: var(--red);
   box-shadow: 0 0 0 3px rgba(184, 50, 66, 0.13);
 }
+.sync-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--bg);
+}
+.sync-status-row .status-dot {
+  flex: 0 0 auto;
+}
+.sync-status-row strong {
+  white-space: nowrap;
+}
 .dala-status-line {
   display: flex;
   align-items: center;
