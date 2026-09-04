@@ -80,10 +80,15 @@ export class ArmazenamentoTrace {
       `/api/romaneios.php${query ? `?${query}` : ""}`,
     );
     const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(
-        result.error || "Não foi possível carregar os romaneios.",
-      );
+    if (!response.ok) {
+      const message =
+        response.status === 401
+          ? "Sua sessão expirou. Entre novamente no sistema."
+          : [429, 503].includes(response.status)
+            ? "O servidor está ocupado. Aguarde alguns segundos e tente novamente."
+            : result.error || "Não foi possível carregar os romaneios.";
+      throw new Error(message);
+    }
     this.manifests = result.data || [];
   }
   async applyManifestFilters(raw) {
