@@ -25,22 +25,11 @@ export function masterHome(store) {
     return total > online || String(company.license_status || "SEM_LICENCA") !== "ATIVA";
   });
   const visibleCompanies = affectedCompanies.length ? affectedCompanies : companies;
-  const attentionLabel = affectedCompanies.length
-    ? `${affectedCompanies.length} empresa(s) precisam de atenção`
-    : "Todas as empresas estão em condição normal";
-  const attentionText = affectedCompanies.length
-    ? "Verifique conectividade das máquinas ou a situação da licença antes de abrir a operação."
-    : "Nenhuma máquina sem sinal ou licença bloqueada foi identificada nesta consulta.";
-
   return `<div class="master-home">${pageHeader(
     "Dallogix / administração global",
     "Central Master",
     "Acompanhe as empresas e priorize pendências sem acessar a operação local.",
   )}
-  <section class="master-watch ${affectedCompanies.length ? "has-attention" : "is-clear"}" aria-live="polite">
-    <div class="master-watch-marker" aria-hidden="true">${affectedCompanies.length ? "!" : "✓"}</div>
-    <div><span class="kicker">Monitoramento das instalações</span><strong>${esc(attentionLabel)}</strong><p>${esc(attentionText)}</p></div>
-  </section>
   <section class="grid four dashboard-metrics master-metrics" aria-label="Resumo das empresas">
     <div class="panel metric"><small>Empresas cadastradas</small><strong>${companies.length}</strong></div>
     <div class="panel metric"><small>Máquinas conectadas</small><strong class="metric-green">${onlineMachines} / ${totalMachines}</strong></div>
