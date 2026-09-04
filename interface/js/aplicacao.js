@@ -1,28 +1,29 @@
+import { el, esc } from "./funcoes/html.js";
+import { apiUrl } from "./configuracao.js";
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js";
 import { FORM_ACTIONS } from "./constantes/acoes.js";
-import { el, esc } from "./funcoes/html.js";
-import { settings } from "./telas/configuracoes.js";
-import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js";
-import { company } from "./telas/empresa.js";
-import { companies } from "./telas/empresas.js";
-import { errorLogs } from "./telas/logs.js";
 import {
-    alerts,
-    emergency,
-    history,
-    occurrences,
-    products,
-    summary,
-} from "./telas/monitoramento.js";
-import {
-    division,
-    importScreen,
-    manifestEdit,
-    manifests,
-    manifestView,
-    work,
+  manifests,
+  importScreen,
+  division,
+  work,
+  manifestView,
+  manifestEdit,
 } from "./telas/operacoes.js";
+import {
+  occurrences,
+  summary,
+  history,
+  products,
+  alerts,
+  emergency,
+} from "./telas/monitoramento.js";
+import { settings } from "./telas/configuracoes.js";
 import { dashboard } from "./telas/painel.js";
+import { errorLogs } from "./telas/logs.js";
+import { dalas, dalaView, dalaEdit, dalaActions } from "./telas/dalas.js";
+import { companies } from "./telas/empresas.js";
+import { company } from "./telas/empresa.js";
 import { users } from "./telas/usuarios.js";
 
 const store = new ArmazenamentoTrace();
@@ -50,12 +51,6 @@ const screens = {
   company,
   users,
   "error-logs": errorLogs,
-};
-const ROLE_LABELS = {
-  ADMIN_DALLOGIX: "Master Dallogix",
-  ADMIN_EMPRESA: "Administrador da empresa",
-  SUPERVISOR: "Supervisor",
-  USUARIO: "Operador",
 };
 const ROLE_PAGES = {
   ADMIN_DALLOGIX: ["companies", "company", "users", "error-logs"],
@@ -118,13 +113,6 @@ const NAV_GROUPS = [
     ],
   ],
   [
-    "Administração",
-    [
-      ["companies", "Empresas"],
-      ["users", "Logins"],
-    ],
-  ],
-  [
     "Cadastros",
     [
       ["products", "Produtos"],
@@ -155,24 +143,18 @@ function sidebarCollapsed() {
     return false;
   }
 }
-function normalizeRole(role) {
-  return typeof role === "string" ? role.toUpperCase() : "";
-}
 function allowedPages() {
-  return ROLE_PAGES[normalizeRole(authenticatedUser?.role)] || [];
+  return ROLE_PAGES[authenticatedUser?.role] || [];
 }
 function defaultPage() {
-  const normalizedRole = normalizeRole(authenticatedUser?.role);
-  if (normalizedRole === "ADMIN_DALLOGIX") return "companies";
-  const permittedPages = allowedPages();
-  return permittedPages.includes("dashboard") ? "dashboard" : permittedPages[0] || "manifests";
+  return authenticatedUser?.role === "ADMIN_DALLOGIX"
+    ? "companies"
+    : allowedPages().includes("dashboard")
+      ? "dashboard"
+      : "manifests";
 }
 function isAllowedPage(page) {
-  return typeof page === "string" && allowedPages().includes(page);
-}
-function resolveAuthorizedPage(page, fallbackPage = defaultPage()) {
-  if (typeof page !== "string" || !isAllowedPage(page)) return fallbackPage;
-  return page;
+  return allowedPages().includes(page);
 }
 function pagePath(page, query = "") {
   return `${page}.html${query}`;
@@ -182,9 +164,7 @@ function pageFromPath(pathname = window.location.pathname) {
   return file === "index.html" ? "login" : file.replace(/\.html$/, "");
 }
 async function navigate(page, query = "", { replace = false } = {}) {
-  const safePage = resolveAuthorizedPage(page, defaultPage());
-  page = safePage;
-  if (!screens[page]) {
+  if (!screens[page] || !isAllowedPage(page)) {
     page = defaultPage();
     query = "";
   }
@@ -252,12 +232,11 @@ function hydrateChrome() {
       if (!permitted.length) return "";
       return `<span class="nav-label">${esc(group)}</span>${permitted.map(([page, label]) => `<a class="nav-item${page === currentPage ? " active" : ""}${["dashboard", "dalas"].includes(page) ? " nav-section-end" : ""}" data-page="${page}" data-label="${esc(label)}" href="${pagePath(page)}"><span class="nav-icon">${navigationIcon(page)}</span><span class="nav-text">${esc(label)}</span></a>`).join("")}`;
     }).join("");
-  const userRole = normalizeRole(authenticatedUser?.role);
-  el("#user-avatar").textContent = (authenticatedUser?.name || "A")
+  el("#user-avatar").textContent = (authenticatedUser.name || "A")
     .slice(0, 1)
     .toUpperCase();
-  el("#user-name").textContent = authenticatedUser?.name || "";
-  el("#user-role").textContent = ROLE_LABELS[userRole] || (authenticatedUser?.role || "");
+  el("#user-name").textContent = authenticatedUser.name || "";
+  el("#user-role").textContent = authenticatedUser.role || "";
 }
 function render() {
   hydrateChrome();
@@ -410,10 +389,7 @@ function bindActions() {
     node.dataset.actionBound = "1";
     node.addEventListener("click", async () => {
       const action = node.dataset.action;
-      // Botões com uma ação declarada precisam seguir sua rota contextual
-      // (por exemplo, Dala aberta pelo dashboard volta ao dashboard). O
-      // fallback de histórico fica reservado para botões sem rota própria.
-      if (node.classList.contains("page-back") && !action) {
+      if (node.classList.contains("page-back")) {
         if (window.history.length > 1) window.history.back();
         else await navigate(defaultPage(), "", { replace: true });
         return;
@@ -1586,10 +1562,8 @@ async function bootstrap() {
   authenticatedUser = result.user;
   store.setUser(authenticatedUser);
   store.setCsrfToken(result.csrf_token);
-  const requestedPage = resolveAuthorizedPage(currentPage, defaultPage());
-  if (requestedPage !== currentPage) {
-    currentPage = requestedPage;
-    window.location.replace(pagePath(currentPage));
+  if (!isAllowedPage(currentPage)) {
+    window.location.replace(pagePath(defaultPage()));
     return;
   }
   await renderPage();
