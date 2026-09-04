@@ -32,6 +32,8 @@ session_start();
 
 function json_response(array $payload, int $status = 200): never
 {
+    header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+    header("Pragma: no-cache");
     http_response_code($status);
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit();
@@ -68,7 +70,17 @@ function db(): PDO
 
 function request_json(): array
 {
-    $payload = json_decode(file_get_contents("php://input"), true);
+    $raw = file_get_contents("php://input");
+    if ($raw === false || trim($raw) === "") {
+        return [];
+    }
+    if (strlen($raw) > 1024 * 1024) {
+        json_response(["error" => "Requisição excede o limite permitido."], 413);
+    }
+    $payload = json_decode($raw, true);
+    if (json_last_error() !== JSON_ERROR_NONE || !is_array($payload)) {
+        json_response(["error" => "JSON inválido."], 400);
+    }
     return is_array($payload) ? $payload : [];
 }
 
@@ -295,6 +307,11 @@ function registrar_log_erro(Throwable $exception, string $origem = "api"): void
 {
     $user = session_user();
     $message = mb_substr(trim($exception->getMessage()) ?: "Falha inesperada.", 0, 1000);
+    $message = preg_replace(
+        '/((?:password|senha|token|secret|authorization)[^:=]*[:=]\s*)[^,;\s]+/iu',
+        '$1[REDACTED]',
+        $message,
+    ) ?: "Falha inesperada.";
     error_log("Dallogix Trace [{$origem}]: {$message}");
     try {
         $context = json_encode([

@@ -27,6 +27,16 @@ if (
     json_response(["error" => "E-mail ou senha inválidos."], 401);
 }
 
+if (password_needs_rehash($user["password_hash"], PASSWORD_DEFAULT)) {
+    $rehash = db()->prepare(
+        "UPDATE usuarios SET password_hash = :password_hash WHERE id = :id",
+    );
+    $rehash->execute([
+        "password_hash" => password_hash($password, PASSWORD_DEFAULT),
+        "id" => $user["id"],
+    ]);
+}
+
 session_regenerate_id(true);
 $_SESSION["user"] = public_user($user);
 
