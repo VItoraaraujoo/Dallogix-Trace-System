@@ -62,8 +62,10 @@ if ($scenario === 'admin-target') {
 } else { throw new RuntimeException('Cenário inválido.'); }
 $code = file_get_contents(__DIR__ . '/../servidor/api/' . $endpoint);
 $code = preg_replace('/^require_once .*bootstrap\.php";$/m', '', $code);
+// eval já recebe código PHP: uma saída para HTML antes do declare viola strict_types no PHP 8.3.
+$code = preg_replace('/\A<\?php\s*/', '', $code, 1);
 try {
-    eval('?>' . $code);
+    eval($code);
     throw new RuntimeException('Resposta ausente.');
 } catch (Result $result) {
     if ($result->status !== $expected) throw new RuntimeException('Status inesperado: ' . $result->status);
