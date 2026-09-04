@@ -11,7 +11,7 @@ $pdo = db();
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $settings = $pdo->prepare(
-        "SELECT gateway_public_ip, sync_remote_url, pdf_field_mapping, pdf_search_field, updated_at FROM company_settings WHERE company_id = :company_id LIMIT 1",
+        "SELECT gateway_public_ip, sync_remote_url, pdf_field_mapping, pdf_search_field, updated_at FROM configuracoes_empresa WHERE company_id = :company_id LIMIT 1",
     );
     $settings->execute(["company_id" => $user["company_id"]]);
     $data = $settings->fetch() ?: [
@@ -28,7 +28,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
         );
     }
     $equipment = $pdo->prepare(
-        "SELECT id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol FROM equipments WHERE company_id = :company_id ORDER BY equipment_code",
+        "SELECT id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol FROM equipamentos WHERE company_id = :company_id ORDER BY equipment_code",
     );
     $equipment->execute(["company_id" => $user["company_id"]]);
     json_response([
@@ -81,7 +81,7 @@ if (!is_array($mapping)) {
 }
 
 $upsert = $pdo->prepare(
-    "INSERT INTO company_settings (company_id, gateway_public_ip, sync_remote_url, pdf_field_mapping, pdf_search_field, updated_by) VALUES (:company_id, :gateway_public_ip, :sync_remote_url, :pdf_field_mapping, :pdf_search_field, :updated_by) ON DUPLICATE KEY UPDATE gateway_public_ip = VALUES(gateway_public_ip), sync_remote_url = VALUES(sync_remote_url), pdf_field_mapping = VALUES(pdf_field_mapping), pdf_search_field = VALUES(pdf_search_field), updated_by = VALUES(updated_by)",
+    "INSERT INTO configuracoes_empresa (company_id, gateway_public_ip, sync_remote_url, pdf_field_mapping, pdf_search_field, updated_by) VALUES (:company_id, :gateway_public_ip, :sync_remote_url, :pdf_field_mapping, :pdf_search_field, :updated_by) ON DUPLICATE KEY UPDATE gateway_public_ip = VALUES(gateway_public_ip), sync_remote_url = VALUES(sync_remote_url), pdf_field_mapping = VALUES(pdf_field_mapping), pdf_search_field = VALUES(pdf_search_field), updated_by = VALUES(updated_by)",
 );
 $upsert->execute([
     "company_id" => $user["company_id"],
@@ -98,7 +98,7 @@ record_operational_event(
     $pdo,
     $user,
     "CONFIGURACAO_ATUALIZADA",
-    "company_settings",
+    "configuracoes_empresa",
     (int) $user["company_id"],
     [
         "gateway_public_ip" => $gatewayIp,

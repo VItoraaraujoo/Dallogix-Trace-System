@@ -55,7 +55,7 @@ $pdo = db();
 $statement = $pdo->prepare(
     "SELECT r.id, r.number, r.scheduled_date, r.status, r.expedidor,
             MAX(rt.plate) AS plate,
-            COALESCE((SELECT SUM(ri2.planned_quantity) FROM romaneio_items ri2 WHERE ri2.romaneio_id = r.id), 0) AS planned_quantity,
+            COALESCE((SELECT SUM(ri2.planned_quantity) FROM romaneio_itens ri2 WHERE ri2.romaneio_id = r.id), 0) AS planned_quantity,
             COALESCE((SELECT COUNT(*) FROM leituras l WHERE l.carregamento_id = c.id AND l.result = 'VALIDO'), 0) AS loaded_quantity,
             COALESCE((SELECT COUNT(*) FROM leituras l WHERE l.carregamento_id = c.id AND l.result = 'SEM_LEITURA'), 0) AS no_readings,
             COALESCE((SELECT COUNT(*) FROM leituras l WHERE l.carregamento_id = c.id AND l.result = 'PRODUTO_INCORRETO'), 0) AS wrong_products,
@@ -63,8 +63,8 @@ $statement = $pdo->prepare(
             c.state AS loading_state, c.started_at, c.finished_at,
             CASE WHEN c.started_at IS NOT NULL AND c.finished_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, c.started_at, c.finished_at) ELSE NULL END AS duration_minutes
      FROM romaneios r
-     LEFT JOIN romaneio_trucks rt ON rt.romaneio_id = r.id
-     LEFT JOIN romaneio_items ri ON ri.romaneio_id = r.id
+     LEFT JOIN romaneio_caminhoes rt ON rt.romaneio_id = r.id
+     LEFT JOIN romaneio_itens ri ON ri.romaneio_id = r.id
      LEFT JOIN carregamentos c ON c.id = (SELECT c2.id FROM carregamentos c2 WHERE c2.romaneio_id = r.id ORDER BY c2.id DESC LIMIT 1)
      WHERE " .
         implode(" AND ", $conditions) .

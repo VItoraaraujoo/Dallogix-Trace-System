@@ -246,6 +246,78 @@ textarea::placeholder {
   gap: 2px;
   min-width: max-content;
 }
+.dala-actions-header {
+  align-items: center;
+}
+.dala-actions-header > .actions {
+  margin-left: auto;
+}
+.dala-actions-table {
+  min-width: 920px;
+}
+.error-logs-table {
+  min-width: 900px;
+}
+.error-message-cell {
+  min-width: 320px;
+  white-space: normal;
+}
+.action-order {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.action-order > span {
+  min-width: 18px;
+  font-weight: 800;
+  text-align: center;
+}
+.icon-button {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border: 2px solid currentColor;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 19px;
+  font-weight: 800;
+  line-height: 1;
+}
+.icon-button:hover:not(:disabled),
+.icon-button:focus-visible:not(:disabled) {
+  border-color: var(--cyan);
+  color: var(--cyan);
+  outline: none;
+}
+.icon-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.38;
+}
+.section-title {
+  margin: 40px 0 18px;
+  font-size: 26px;
+}
+.dala-action-editor,
+.dala-trigger-editor {
+  margin-top: 18px;
+}
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.checkbox-label input {
+  width: auto;
+  margin: 0;
+}
+@media (max-width: 760px) {
+  .dala-actions-header > .actions {
+    margin-left: 0;
+    width: 100%;
+  }
+}
 .danger-link {
   color: var(--red);
 }

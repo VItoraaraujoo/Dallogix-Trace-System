@@ -87,15 +87,30 @@ export function dalaView(store) {
 export function dalaActions(store) {
   const dala = store.state.equipmentDetail;
   if (!dala) return `${pageHeader("Cadastros / dalas", "Ações", "Carregando…")}`;
-  const loading = (store.state.activeLoadings || []).find(
-    (item) => Number(item.equipment_id) === Number(dala.id),
-  );
-  const action = (label, dataAction, tone = "secondary") =>
-    `<button class="button ${tone}" data-action="open-dala-operation" data-loading-id="${loading?.id || ""}" type="button"${loading ? "" : " disabled"}>${label}</button>`;
+  const config = store.state.dalaActionConfig || { acoes: [], gatilhos: [] };
+  const canManage = Boolean(config.can_manage);
+  const actions = config.acoes || [];
+  const triggers = config.gatilhos || [];
+  const commandLabel = {
+    INICIAR_CARREGAMENTO: "start",
+    PAUSAR_CARREGAMENTO: "stop",
+    REVERSAO_ATIVAR: "reverse",
+    REVERSAO_DESATIVAR: "reverse_s",
+    EMERGENCIA: "emergency",
+  };
+  const actionOptions = actions.map((item) => `<option value="${item.id}">${esc(item.rotulo)} (${esc(item.comando)})</option>`).join("");
+  const actionRows = actions.length ? actions.map((item, index) => `<tr>
+    <td><div class="action-order"><span>${item.ordem}</span>${canManage ? `<button class="icon-button" data-action="move-dala-action" data-id="${item.id}" data-direction="up" type="button"${index === 0 ? " disabled" : ""} aria-label="Mover para cima">↑</button><button class="icon-button" data-action="move-dala-action" data-id="${item.id}" data-direction="down" type="button"${index === actions.length - 1 ? " disabled" : ""} aria-label="Mover para baixo">↓</button>` : ""}</div></td>
+    <td><code>${esc(commandLabel[item.comando] || item.comando)}</code></td><td><strong>${esc(item.rotulo)}</strong></td><td>${esc(item.cor[0] + item.cor.slice(1).toLowerCase())}</td><td>${Number(item.visivel) ? "Sim" : "Não"}</td><td>${esc(item.modo[0] + item.modo.slice(1).toLowerCase())}</td>
+    ${canManage ? `<td><div class="table-actions"><button class="text-link" data-action="edit-dala-action" data-id="${item.id}" type="button">Editar</button><button class="text-link danger-link" data-action="delete-dala-action" data-id="${item.id}" data-name="${esc(item.rotulo)}" type="button">Excluir</button></div></td>` : ""}</tr>`).join("") : `<tr><td colspan="${canManage ? 7 : 6}" class="empty-cell">Nenhuma ação configurada.</td></tr>`;
+  const triggerRows = triggers.length ? triggers.map((trigger) => `<tr><td>${esc(trigger.evento === "QUANTIDADE_PLANEJADA_ATINGIDA" ? "Operação atingir 100%" : trigger.evento.replaceAll("_", " "))}</td><td>${esc(trigger.acao_rotulo || "Nenhuma ação")}</td>${canManage ? `<td><div class="table-actions"><button class="text-link" data-action="edit-dala-trigger" data-id="${trigger.id}" type="button">Editar</button></div></td>` : ""}</tr>`).join("") : `<tr><td colspan="${canManage ? 3 : 2}" class="empty-cell">Nenhum gatilho configurado.</td></tr>`;
   const dalaLabel = dala.equipment_code || dala.name || "Dala";
-  return `<div class="title-row with-actions has-back"><button class="button secondary page-back" data-action="back-dala" type="button">← Voltar</button><div><h2>Ações — ${esc(dalaLabel)}</h2></div></div>
-  <section class="panel"><h3>Comandos da Dala</h3><p>${loading ? `Operação ${esc(loading.romaneio_number || "ativa")} selecionada.` : "Não existe operação ativa para esta Dala."}</p><div class="actions">${action("Ligar", "run", "primary")}${action("Parar", "stop", "danger")}${action("Emergência", "emergency", "danger")}${action("Reverso", "reverse-on", "secondary")}</div></section>
-  <section class="panel compact-help"><strong>Validação do CLP</strong><p>Os comandos passam pela tela de operação, com confirmação e intertravamentos do CLP. O diagnóstico e o retorno ficam registrados na visualização da Dala.</p></section>`;
+  return `<div class="title-row with-actions has-back dala-actions-header"><button class="button secondary page-back" data-action="back-dala" type="button">← Voltar</button><div><h2>Ações — ${esc(dalaLabel)}</h2></div><div class="actions">${canManage ? `<button class="button secondary" data-action="new-dala-trigger" type="button">Novo gatilho</button><button class="button primary" data-action="new-dala-action" type="button">Nova ação</button>` : ""}</div></div>
+  <section class="panel reference-table-panel"><div class="table-wrap"><table class="dala-actions-table"><thead><tr><th>Ordem</th><th>Comando</th><th>Rótulo</th><th>Cor</th><th>Visível</th><th>Modo</th>${canManage ? "<th>Ações</th>" : ""}</tr></thead><tbody>${actionRows}</tbody></table></div></section>
+  <section class="dala-action-editor" hidden><form id="dala-action-form"><input name="id" type="hidden" /><div class="grid three"><label>Comando<select name="comando" required><option value="INICIAR_CARREGAMENTO">start</option><option value="PAUSAR_CARREGAMENTO">stop</option><option value="REVERSAO_ATIVAR">reverse</option><option value="REVERSAO_DESATIVAR">reverse_s</option><option value="EMERGENCIA">emergency</option></select></label><label>Rótulo<input name="rotulo" maxlength="80" required /></label><label>Cor<select name="cor"><option value="VERDE">Verde</option><option value="VERMELHO">Vermelho</option><option value="CINZA">Cinza</option><option value="AMBAR">Âmbar</option><option value="AZUL">Azul</option></select></label><label>Modo<select name="modo"><option value="INCREMENTAL">Incremental</option><option value="DECREMENTAL">Decremental</option><option value="DIRETO">Direto</option></select></label><label class="checkbox-label"><input name="visivel" type="checkbox" checked /> Visível na operação</label></div><div class="actions"><button class="button primary" type="submit">Salvar ação</button><button class="button secondary" data-action="cancel-dala-action" type="button">Cancelar</button></div></form></section>
+  <br><h3 class="section-title">Gatilhos</h3><section class="panel reference-table-panel"><div class="table-wrap"><table><thead><tr><th>Evento</th><th>Ação</th>${canManage ? "<th>Ações</th>" : ""}</tr></thead><tbody>${triggerRows}</tbody></table></div></section>
+  <section class="dala-trigger-editor" hidden><form id="dala-trigger-form"><input name="trigger_id" type="hidden" /><div class="grid two"><label>Evento<input value="Operação atingir 100%" disabled /></label><label>Ação<select name="acao_id"><option value="">Nenhuma ação</option>${actionOptions}</select></label></div><div class="actions"><button class="button primary" type="submit">Salvar gatilho</button><button class="button secondary" data-action="cancel-dala-trigger" type="button">Cancelar</button></div></form></section>
+  <section class="panel compact-help"><strong>Segurança operacional</strong><p>Esta tela configura as ações e gatilhos. A execução passa pela operação e pelo gateway industrial; o CLP mantém os intertravamentos físicos e registra a resposta no diagnóstico da Dala.</p></section>`;
 }
 
 // Tela Editar dala: mesmo formulário da criação, com dados preenchidos.

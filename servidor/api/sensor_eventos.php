@@ -39,7 +39,7 @@ if (
 
 $loadingStatement = db()->prepare(
     'SELECT c.id FROM carregamentos c
-     JOIN equipments e ON e.id = c.equipment_id AND e.id = :equipment_id
+     JOIN equipamentos e ON e.id = c.equipment_id AND e.id = :equipment_id
      WHERE c.id = :loading_id AND c.company_id = :company_id LIMIT 1',
 );
 $loadingStatement->execute([
@@ -65,7 +65,7 @@ if (!$eventDate) {
 $pdo = db();
 try {
     $debounce = $pdo->prepare(
-        "SELECT id FROM sensor_events
+        "SELECT id FROM eventos_sensor
          WHERE carregamento_id = :carregamento_id
            AND equipment_id = :equipment_id
            AND TIMESTAMPDIFF(MICROSECOND, detected_at, :detected_at) BETWEEN 0 AND 400000
@@ -88,7 +88,7 @@ try {
         ]);
     }
     $insert = $pdo->prepare(
-        "INSERT INTO sensor_events (carregamento_id, equipment_id, event_uuid, detected_at, debounce_ms) VALUES (:carregamento_id, :equipment_id, :event_uuid, :detected_at, 400)",
+        "INSERT INTO eventos_sensor (carregamento_id, equipment_id, event_uuid, detected_at, debounce_ms) VALUES (:carregamento_id, :equipment_id, :event_uuid, :detected_at, 400)",
     );
     $insert->execute([
         "carregamento_id" => $loadingId,
@@ -123,7 +123,7 @@ try {
         (int) $exception->errorInfo[1] === 1062
     ) {
         $existing = $pdo->prepare(
-            "SELECT id FROM sensor_events WHERE event_uuid = :event_uuid LIMIT 1",
+            "SELECT id FROM eventos_sensor WHERE event_uuid = :event_uuid LIMIT 1",
         );
         $existing->execute(["event_uuid" => $eventUuid]);
         json_response(

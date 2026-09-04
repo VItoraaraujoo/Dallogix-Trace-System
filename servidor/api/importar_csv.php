@@ -112,7 +112,7 @@ try {
         }
 
         $productStatement = $pdo->prepare(
-            "SELECT id FROM products WHERE company_id = :company_id AND code = :code AND active = 1 LIMIT 1",
+            "SELECT id FROM produtos WHERE company_id = :company_id AND code = :code AND active = 1 LIMIT 1",
         );
         $productStatement->execute([
             "company_id" => $user["company_id"],
@@ -141,7 +141,7 @@ try {
         $truckKey = $number . "|" . $plate;
         if (!isset($truckIds[$truckKey])) {
             $truckStatement = $pdo->prepare(
-                "INSERT INTO romaneio_trucks (romaneio_id, plate, driver_name) VALUES (:romaneio_id, :plate, :driver_name)",
+                "INSERT INTO romaneio_caminhoes (romaneio_id, plate, driver_name) VALUES (:romaneio_id, :plate, :driver_name)",
             );
             $truckStatement->execute([
                 "romaneio_id" => $romaneioId,
@@ -154,11 +154,11 @@ try {
             $romaneioId . "|" . $truckIds[$truckKey] . "|" . $product["id"];
         if (isset($itemIds[$itemKey])) {
             $pdo->prepare(
-                "UPDATE romaneio_items SET planned_quantity = planned_quantity + :quantity WHERE id = :id",
+                "UPDATE romaneio_itens SET planned_quantity = planned_quantity + :quantity WHERE id = :id",
             )->execute(["quantity" => $quantity, "id" => $itemIds[$itemKey]]);
         } else {
             $itemStatement = $pdo->prepare(
-                "INSERT INTO romaneio_items (romaneio_id, product_id, truck_id, planned_quantity) VALUES (:romaneio_id, :product_id, :truck_id, :quantity)",
+                "INSERT INTO romaneio_itens (romaneio_id, product_id, truck_id, planned_quantity) VALUES (:romaneio_id, :product_id, :truck_id, :quantity)",
             );
             $itemStatement->execute([
                 "romaneio_id" => $romaneioId,

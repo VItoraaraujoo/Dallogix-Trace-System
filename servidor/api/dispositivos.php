@@ -11,7 +11,7 @@ $pdo = db();
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $statement = $pdo->prepare(
-        "SELECT d.id, d.equipment_id, e.equipment_code, d.device_type, d.status, d.last_seen_at, d.details FROM device_status d JOIN equipments e ON e.id = d.equipment_id WHERE e.company_id = :company_id ORDER BY e.equipment_code, d.device_type",
+        "SELECT d.id, d.equipment_id, e.equipment_code, d.device_type, d.status, d.last_seen_at, d.details FROM status_dispositivos d JOIN equipamentos e ON e.id = d.equipment_id WHERE e.company_id = :company_id ORDER BY e.equipment_code, d.device_type",
     );
     $statement->execute(["company_id" => $user["company_id"]]);
     json_response(["data" => $statement->fetchAll()]);
@@ -45,7 +45,7 @@ if (
 }
 
 $equipment = $pdo->prepare(
-    "SELECT id FROM equipments WHERE id = :id AND company_id = :company_id LIMIT 1",
+    "SELECT id FROM equipamentos WHERE id = :id AND company_id = :company_id LIMIT 1",
 );
 $equipment->execute([
     "id" => $equipmentId,
@@ -62,7 +62,7 @@ $details = isset($payload["details"])
     )
     : null;
 $upsert = $pdo->prepare(
-    "INSERT INTO device_status (equipment_id, device_type, status, last_seen_at, details) VALUES (:equipment_id, :device_type, :status, NOW(), :details) ON DUPLICATE KEY UPDATE status = VALUES(status), last_seen_at = VALUES(last_seen_at), details = VALUES(details)",
+    "INSERT INTO status_dispositivos (equipment_id, device_type, status, last_seen_at, details) VALUES (:equipment_id, :device_type, :status, NOW(), :details) ON DUPLICATE KEY UPDATE status = VALUES(status), last_seen_at = VALUES(last_seen_at), details = VALUES(details)",
 );
 $upsert->execute([
     "equipment_id" => $equipmentId,

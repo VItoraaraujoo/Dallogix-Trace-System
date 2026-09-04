@@ -13,7 +13,7 @@ if ($email === "" || $password === "") {
 enforce_login_rate_limit($email);
 
 $statement = db()->prepare(
-    "SELECT id, company_id, name, email, password_hash, role, active FROM users WHERE email = :email LIMIT 1",
+    "SELECT id, company_id, name, email, password_hash, role, active FROM usuarios WHERE email = :email LIMIT 1",
 );
 $statement->execute(["email" => $email]);
 $user = $statement->fetch();

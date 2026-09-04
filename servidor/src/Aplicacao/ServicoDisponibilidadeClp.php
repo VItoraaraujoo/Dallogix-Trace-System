@@ -31,8 +31,8 @@ final class ServicoDisponibilidadeClp
         $statement = $this->connection->prepare(
             "SELECT d.status, d.last_seen_at,
                     TIMESTAMPDIFF(SECOND, d.last_seen_at, NOW()) AS segundos_sem_sinal
-             FROM equipments e
-             LEFT JOIN device_status d
+             FROM equipamentos e
+             LEFT JOIN status_dispositivos d
                ON d.equipment_id = e.id AND d.device_type = 'CLP'
              WHERE e.id = :equipment_id AND e.company_id = :company_id
              LIMIT 1",

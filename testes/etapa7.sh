@@ -22,8 +22,8 @@ if ! printf '%s' "$reading" | grep -q '"result":"VALIDO"'; then
   exit 1
 fi
 
-audit_count="$(docker compose exec -T mysql mysql -N -B -u root "-p${db_password}" "$db_name" -e "SELECT COUNT(*) FROM audit_logs WHERE action='LEITURA_REGISTRADA';" 2>/dev/null)"
-sync_count="$(docker compose exec -T mysql mysql -N -B -u root "-p${db_password}" "$db_name" -e "SELECT COUNT(*) FROM sync_queue WHERE aggregate_type='leitura';" 2>/dev/null)"
+audit_count="$(docker compose exec -T mysql mysql -N -B -u root "-p${db_password}" "$db_name" -e "SELECT COUNT(*) FROM logs_auditoria WHERE action='LEITURA_REGISTRADA';" 2>/dev/null)"
+sync_count="$(docker compose exec -T mysql mysql -N -B -u root "-p${db_password}" "$db_name" -e "SELECT COUNT(*) FROM fila_sincronizacao WHERE aggregate_type='leitura';" 2>/dev/null)"
 
 if [[ -z "$audit_count" || "$audit_count" -lt 1 ]]; then
   echo "FAIL: auditoria não foi registrada"

@@ -40,20 +40,20 @@ $syncBarcode = static function (PDO $pdo, int $productId, string $barcode) use (
     $barcodeError,
 ): void {
     $existing = $pdo->prepare(
-        "SELECT id FROM product_codes WHERE product_id = :product_id ORDER BY id LIMIT 1",
+        "SELECT id FROM codigos_produtos WHERE product_id = :product_id ORDER BY id LIMIT 1",
     );
     $existing->execute(["product_id" => $productId]);
     $row = $existing->fetch();
     try {
         if ($row) {
             $update = $pdo->prepare(
-                "UPDATE product_codes SET barcode = :barcode WHERE id = :id",
+                "UPDATE codigos_produtos SET barcode = :barcode WHERE id = :id",
             );
             $update->execute(["barcode" => $barcode, "id" => $row["id"]]);
             return;
         }
         $insert = $pdo->prepare(
-            "INSERT INTO product_codes (product_id, barcode) VALUES (:product_id, :barcode)",
+            "INSERT INTO codigos_produtos (product_id, barcode) VALUES (:product_id, :barcode)",
         );
         $insert->execute(["product_id" => $productId, "barcode" => $barcode]);
     } catch (PDOException $exception) {
@@ -67,12 +67,12 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $params = ["company_id" => $user["company_id"]];
     if ($search !== "") {
         $conditions[] =
-            "(p.name LIKE :search OR p.code LIKE :search OR p.category LIKE :search OR EXISTS (SELECT 1 FROM product_codes pc WHERE pc.product_id = p.id AND pc.barcode LIKE :search))";
+            "(p.name LIKE :search OR p.code LIKE :search OR p.category LIKE :search OR EXISTS (SELECT 1 FROM codigos_produtos pc WHERE pc.product_id = p.id AND pc.barcode LIKE :search))";
         $params["search"] = "%" . addcslashes($search, "%_\\") . "%";
     }
     $statement = $pdo->prepare(
         'SELECT p.id, p.code, p.name, p.category, p.active, GROUP_CONCAT(pc.barcode ORDER BY pc.barcode SEPARATOR ",") AS barcodes
-         FROM products p LEFT JOIN product_codes pc ON pc.product_id = p.id
+         FROM produtos p LEFT JOIN codigos_produtos pc ON pc.product_id = p.id
          WHERE ' .
             implode(" AND ", $conditions) .
             '
@@ -111,7 +111,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $temporaryCode =
             $code !== "" ? $code : "TMP-" . bin2hex(random_bytes(8));
         $insert = $pdo->prepare(
-            "INSERT INTO products (company_id, code, name, category) VALUES (:company_id, :code, :name, :category)",
+            "INSERT INTO produtos (company_id, code, name, category) VALUES (:company_id, :code, :name, :category)",
         );
         $insert->execute([
             "company_id" => $user["company_id"],
@@ -122,7 +122,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $productId = (int) $pdo->lastInsertId();
         if ($code === "") {
             $finalize = $pdo->prepare(
-                "UPDATE products SET code = :code WHERE id = :id",
+                "UPDATE produtos SET code = :code WHERE id = :id",
             );
             $finalize->execute([
                 "code" => "SKU" . $productId,
@@ -181,7 +181,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
         json_response(["error" => "Produto não informado."], 422);
     }
     $find = $pdo->prepare(
-        "SELECT id FROM products WHERE id = :id AND company_id = :company_id LIMIT 1",
+        "SELECT id FROM produtos WHERE id = :id AND company_id = :company_id LIMIT 1",
     );
     $find->execute(["id" => $productId, "company_id" => $user["company_id"]]);
     if (!$find->fetch()) {
@@ -199,7 +199,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
     try {
         $pdo->beginTransaction();
         $update = $pdo->prepare(
-            "UPDATE products SET name = :name, code = COALESCE(NULLIF(:code, ''), code), category = :category, active = COALESCE(:active, active) WHERE id = :id",
+            "UPDATE produtos SET name = :name, code = COALESCE(NULLIF(:code, ''), code), category = :category, active = COALESCE(:active, active) WHERE id = :id",
         );
         $update->execute([
             "name" => $name,
@@ -257,7 +257,7 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
         json_response(["error" => "Produto não informado."], 422);
     }
     $find = $pdo->prepare(
-        "SELECT id FROM products WHERE id = :id AND company_id = :company_id LIMIT 1",
+        "SELECT id FROM produtos WHERE id = :id AND company_id = :company_id LIMIT 1",
     );
     $find->execute(["id" => $productId, "company_id" => $user["company_id"]]);
     if (!$find->fetch()) {
@@ -266,9 +266,9 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
     try {
         $pdo->beginTransaction();
         $pdo->prepare(
-            "DELETE FROM product_codes WHERE product_id = :id",
+            "DELETE FROM codigos_produtos WHERE product_id = :id",
         )->execute(["id" => $productId]);
-        $pdo->prepare("DELETE FROM products WHERE id = :id")->execute([
+        $pdo->prepare("DELETE FROM produtos WHERE id = :id")->execute([
             "id" => $productId,
         ]);
         record_operational_event(
@@ -288,7 +288,7 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
         if ((int) $exception->errorInfo[1] === 1451) {
             // Produto com histórico (romaneios/carregamentos): apenas desativa para preservar o histórico.
             $pdo->prepare(
-                "UPDATE products SET active = 0 WHERE id = :id",
+                "UPDATE produtos SET active = 0 WHERE id = :id",
             )->execute(["id" => $productId]);
             record_operational_event(
                 $pdo,

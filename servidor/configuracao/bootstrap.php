@@ -84,7 +84,7 @@ function require_active_license(PDO $pdo, int $companyId): array
 {
     $statement = $pdo->prepare(
         "SELECT id, status, blocked_reason
-         FROM licenses WHERE company_id = :company_id ORDER BY id DESC LIMIT 1",
+         FROM licencas WHERE company_id = :company_id ORDER BY id DESC LIMIT 1",
     );
     $statement->execute(["company_id" => $companyId]);
     $license = $statement->fetch();
@@ -221,7 +221,7 @@ function record_operational_event(
         "{}";
     try {
         $audit = $connection->prepare(
-            "INSERT INTO audit_logs (company_id, user_id, action, entity_type, entity_id, metadata) VALUES (:company_id, :user_id, :action, :entity_type, :entity_id, :metadata)",
+            "INSERT INTO logs_auditoria (company_id, user_id, action, entity_type, entity_id, metadata) VALUES (:company_id, :user_id, :action, :entity_type, :entity_id, :metadata)",
         );
         $audit->execute([
             "company_id" => $user["company_id"],
@@ -252,7 +252,7 @@ function record_operational_event(
             ) ?:
             "{}";
         $queue = $connection->prepare(
-            "INSERT INTO sync_queue (event_uuid, aggregate_type, aggregate_id, payload) VALUES (:event_uuid, :aggregate_type, :aggregate_id, :payload)",
+            "INSERT INTO fila_sincronizacao (event_uuid, aggregate_type, aggregate_id, payload) VALUES (:event_uuid, :aggregate_type, :aggregate_id, :payload)",
         );
         $queue->execute([
             "event_uuid" => $eventUuid,
@@ -267,3 +267,39 @@ function record_operational_event(
         );
     }
 }
+
+/** Registra somente falhas inesperadas; campos sensíveis nunca entram no contexto. */
+function registrar_log_erro(Throwable $exception, string $origem = "api"): void
+{
+    $user = session_user();
+    $message = mb_substr(trim($exception->getMessage()) ?: "Falha inesperada.", 0, 1000);
+    error_log("Dallogix Trace [{$origem}]: {$message}");
+    try {
+        $context = json_encode([
+            "tipo" => get_class($exception),
+            "arquivo" => basename($exception->getFile()),
+            "linha" => $exception->getLine(),
+            "metodo" => $_SERVER["REQUEST_METHOD"] ?? "CLI",
+            "rota" => strtok($_SERVER["REQUEST_URI"] ?? "", "?"),
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: "{}";
+        $statement = db()->prepare(
+            "INSERT INTO logs_erros (company_id, user_id, origem, mensagem, contexto) VALUES (:company_id, :user_id, :origem, :mensagem, :contexto)",
+        );
+        $statement->execute([
+            "company_id" => $user["company_id"] ?? null,
+            "user_id" => $user["id"] ?? null,
+            "origem" => mb_substr($origem, 0, 120),
+            "mensagem" => $message,
+            "contexto" => $context,
+        ]);
+    } catch (Throwable $ignored) {
+        error_log("Dallogix Trace: não foi possível persistir o log de erro.");
+    }
+}
+
+set_exception_handler(static function (Throwable $exception): void {
+    registrar_log_erro($exception, "erro_nao_tratado");
+    if (!headers_sent()) {
+        json_response(["error" => "Ocorreu um erro inesperado. Consulte os logs do sistema."], 500);
+    }
+});

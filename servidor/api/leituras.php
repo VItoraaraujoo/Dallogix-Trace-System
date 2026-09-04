@@ -77,7 +77,7 @@ if ($loading["state"] !== "CARREGANDO") {
 }
 
 $plannedStatement = $pdo->prepare(
-    "SELECT COALESCE(SUM(ri.planned_quantity), 0) FROM romaneio_items ri WHERE ri.romaneio_id = :romaneio_id AND (ri.truck_id = :truck_id OR ri.truck_id IS NULL)",
+    "SELECT COALESCE(SUM(ri.planned_quantity), 0) FROM romaneio_itens ri WHERE ri.romaneio_id = :romaneio_id AND (ri.truck_id = :truck_id OR ri.truck_id IS NULL)",
 );
 $plannedStatement->execute([
     "romaneio_id" => $loading["romaneio_id"],
@@ -91,7 +91,7 @@ $validCountStatement->execute(["carregamento_id" => $loadingId]);
 $validCount = (int) $validCountStatement->fetchColumn();
 if ($sensorEventId) {
     $sensorStatement = $pdo->prepare(
-        "SELECT id FROM sensor_events WHERE id = :sensor_event_id AND carregamento_id = :carregamento_id AND equipment_id = :equipment_id LIMIT 1",
+        "SELECT id FROM eventos_sensor WHERE id = :sensor_event_id AND carregamento_id = :carregamento_id AND equipment_id = :equipment_id LIMIT 1",
     );
     $sensorStatement->execute([
         "sensor_event_id" => $sensorEventId,
@@ -111,8 +111,8 @@ $productId = null;
 if ($barcode !== "") {
     $productStatement = $pdo->prepare(
         'SELECT p.id
-         FROM product_codes pc
-         JOIN products p ON p.id = pc.product_id AND p.company_id = :company_id
+         FROM codigos_produtos pc
+         JOIN produtos p ON p.id = pc.product_id AND p.company_id = :company_id
          WHERE pc.barcode = :barcode AND p.active = 1 LIMIT 1',
     );
     $productStatement->execute([
@@ -122,7 +122,7 @@ if ($barcode !== "") {
     $product = $productStatement->fetch();
     if ($product) {
         $plannedStatement = $pdo->prepare(
-            "SELECT 1 FROM romaneio_items WHERE romaneio_id = :romaneio_id AND product_id = :product_id AND (truck_id = :truck_id OR truck_id IS NULL) LIMIT 1",
+            "SELECT 1 FROM romaneio_itens WHERE romaneio_id = :romaneio_id AND product_id = :product_id AND (truck_id = :truck_id OR truck_id IS NULL) LIMIT 1",
         );
         $plannedStatement->execute([
             "romaneio_id" => $loading["romaneio_id"],
@@ -284,7 +284,7 @@ if (
     $sensorEventId
 ) {
     $cameraRequest = $pdo->prepare(
-        'INSERT INTO camera_capture_requests (sensor_event_id, carregamento_id, equipment_id, reason, requested_at)
+        'INSERT INTO solicitacoes_captura_camera (sensor_event_id, carregamento_id, equipment_id, reason, requested_at)
          VALUES (:sensor_event_id, :carregamento_id, :equipment_id, :reason, NOW(3))
          ON DUPLICATE KEY UPDATE reason = VALUES(reason), status = IF(status = \'ERRO\', \'PENDENTE\', status), requested_at = VALUES(requested_at)',
     );
@@ -311,10 +311,50 @@ if (
     $plannedQuantity > 0 &&
     $validCount + 1 >= $plannedQuantity
 ) {
+    $trigger = $pdo->prepare(
+        "SELECT a.id, a.comando, a.rotulo
+         FROM gatilhos_dala g
+         JOIN acoes_dala a ON a.id = g.acao_id AND a.visivel = 1
+         WHERE g.company_id = :company_id AND g.equipment_id = :equipment_id
+           AND g.evento = 'QUANTIDADE_PLANEJADA_ATINGIDA' AND g.ativo = 1
+         LIMIT 1",
+    );
+    $trigger->execute([
+        "company_id" => $user["company_id"],
+        "equipment_id" => $loading["equipment_id"],
+    ]);
+    $configuredAction = $trigger->fetch();
     $stateUpdate = $pdo->prepare(
         "UPDATE carregamentos SET state = 'FINALIZANDO' WHERE id = :id AND state IN ('PREPARANDO', 'CARREGANDO', 'PAUSADO')",
     );
     $stateUpdate->execute(["id" => $loadingId]);
+    if ($configuredAction) {
+        $queue = $pdo->prepare(
+            "INSERT INTO solicitacoes_comandos_clp (company_id, equipment_id, carregamento_id, command, requested_by)
+             VALUES (:company_id, :equipment_id, :carregamento_id, :command, :requested_by)",
+        );
+        $queue->execute([
+            "company_id" => $user["company_id"],
+            "equipment_id" => $loading["equipment_id"],
+            "carregamento_id" => $loadingId,
+            "command" => $configuredAction["comando"],
+            "requested_by" => $user["id"],
+        ]);
+        record_operational_event(
+            $pdo,
+            $user,
+            "GATILHO_DALA_DISPARADO",
+            "solicitacao_comando_clp",
+            (int) $pdo->lastInsertId(),
+            [
+                "carregamento_id" => (int) $loadingId,
+                "evento" => "QUANTIDADE_PLANEJADA_ATINGIDA",
+                "acao" => $configuredAction["comando"],
+                "rotulo" => $configuredAction["rotulo"],
+                "gateway_clp_required" => true,
+            ],
+        );
+    }
     record_operational_event(
         $pdo,
         $user,
@@ -324,6 +364,7 @@ if (
         [
             "planned_quantity" => $plannedQuantity,
             "valid_readings" => $validCount + 1,
+            "gatilho_configurado" => $configuredAction["comando"] ?? null,
         ],
     );
     $loadStatus = "COMPLETO";

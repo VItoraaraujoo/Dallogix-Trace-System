@@ -40,7 +40,7 @@ if (!in_array($loading["state"], ["CARREGANDO", "FINALIZANDO"], true)) {
 }
 
 $pending = $pdo->prepare(
-    "SELECT COUNT(*) FROM camera_capture_requests WHERE carregamento_id = :id AND status IN ('PENDENTE','CAPTURANDO')",
+    "SELECT COUNT(*) FROM solicitacoes_captura_camera WHERE carregamento_id = :id AND status IN ('PENDENTE','CAPTURANDO')",
 );
 $pending->execute(["id" => $loadingId]);
 if ((int) $pending->fetchColumn() > 0) {
@@ -52,7 +52,7 @@ if ((int) $pending->fetchColumn() > 0) {
         409,
     );
 }
-$planned = $pdo->prepare("SELECT COALESCE(SUM(ri.planned_quantity), 0) FROM romaneio_items ri WHERE ri.romaneio_id = :romaneio_id AND (ri.truck_id = (SELECT truck_id FROM carregamentos WHERE id = :loading_id) OR ri.truck_id IS NULL)");
+$planned = $pdo->prepare("SELECT COALESCE(SUM(ri.planned_quantity), 0) FROM romaneio_itens ri WHERE ri.romaneio_id = :romaneio_id AND (ri.truck_id = (SELECT truck_id FROM carregamentos WHERE id = :loading_id) OR ri.truck_id IS NULL)");
 $planned->execute(["romaneio_id" => $loading["romaneio_id"], "loading_id" => $loadingId]);
 $plannedQuantity = (int) $planned->fetchColumn();
 $loaded = $pdo->prepare("SELECT COUNT(*) FROM leituras WHERE carregamento_id = :id AND result = 'VALIDO'");
@@ -79,7 +79,7 @@ try {
     // A divergência precisa virar ocorrência auditável: não é apenas um estado visual do romaneio.
     $divergences = $pdo->prepare("SELECT ri.product_id, ri.planned_quantity,
         COALESCE((SELECT COUNT(*) FROM leituras l WHERE l.carregamento_id = :loading_id AND l.product_id = ri.product_id AND l.result = 'VALIDO'), 0) AS moved_quantity,
-        p.name FROM romaneio_items ri JOIN products p ON p.id = ri.product_id
+        p.name FROM romaneio_itens ri JOIN produtos p ON p.id = ri.product_id
         WHERE ri.romaneio_id = :romaneio_id AND (ri.truck_id = (SELECT truck_id FROM carregamentos WHERE id = :loading_id) OR ri.truck_id IS NULL)");
     $divergences->execute([
         "loading_id" => $loadingId,

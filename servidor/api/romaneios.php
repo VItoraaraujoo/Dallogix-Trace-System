@@ -17,9 +17,9 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     if ($detailId) {
         $header = $pdo->prepare(
             "SELECT r.id, r.number, r.scheduled_date, r.status, r.expedidor, r.created_at, r.updated_at,
-                    (SELECT rt.plate FROM romaneio_trucks rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS plate,
-                    (SELECT rt.driver_name FROM romaneio_trucks rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS driver_name,
-                    COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_items ri WHERE ri.romaneio_id = r.id), 0) AS planned_quantity,
+                    (SELECT rt.plate FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS plate,
+                    (SELECT rt.driver_name FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS driver_name,
+                    COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = r.id), 0) AS planned_quantity,
                     COALESCE((SELECT COUNT(*) FROM leituras l JOIN carregamentos c2 ON c2.id = l.carregamento_id WHERE c2.romaneio_id = r.id AND l.result = 'VALIDO'), 0) AS loaded_quantity
              FROM romaneios r WHERE r.id = :id AND r.company_id = :company_id LIMIT 1",
         );
@@ -30,14 +30,14 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
         }
         $items = $pdo->prepare(
             'SELECT ri.id, ri.product_id, ri.truck_id, ri.planned_quantity, p.code, p.name, p.category,
-                    COALESCE((SELECT pc.barcode FROM product_codes pc WHERE pc.product_id = p.id ORDER BY pc.id LIMIT 1), \'\') AS barcode
-             FROM romaneio_items ri JOIN products p ON p.id = ri.product_id
+                    COALESCE((SELECT pc.barcode FROM codigos_produtos pc WHERE pc.product_id = p.id ORDER BY pc.id LIMIT 1), \'\') AS barcode
+             FROM romaneio_itens ri JOIN produtos p ON p.id = ri.product_id
              WHERE ri.romaneio_id = :id ORDER BY ri.id',
         );
         $items->execute(["id" => $detailId]);
         $romaneio["items"] = $items->fetchAll();
         $trucks = $pdo->prepare(
-            "SELECT id, plate, driver_name FROM romaneio_trucks WHERE romaneio_id = :id ORDER BY id",
+            "SELECT id, plate, driver_name FROM romaneio_caminhoes WHERE romaneio_id = :id ORDER BY id",
         );
         $trucks->execute(["id" => $detailId]);
         $romaneio["trucks"] = $trucks->fetchAll();
@@ -105,17 +105,17 @@ $parseDate = static function (string $value, string $label): ?string {
     $where = implode(" AND ", $conditions);
     $statement = $pdo->prepare(
         "SELECT r.id, r.number, r.scheduled_date, r.status, r.expedidor,
-                (SELECT rt.plate FROM romaneio_trucks rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS plate,
-                (SELECT rt.driver_name FROM romaneio_trucks rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS driver_name,
+                (SELECT rt.plate FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS plate,
+                (SELECT rt.driver_name FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS driver_name,
                 COUNT(DISTINCT rt.id) AS trucks_count,
-                COALESCE((SELECT SUM(ri2.planned_quantity) FROM romaneio_items ri2 WHERE ri2.romaneio_id = r.id), 0) AS planned_quantity,
+                COALESCE((SELECT SUM(ri2.planned_quantity) FROM romaneio_itens ri2 WHERE ri2.romaneio_id = r.id), 0) AS planned_quantity,
                 COALESCE((SELECT COUNT(*) FROM leituras l JOIN carregamentos c2 ON c2.id = l.carregamento_id WHERE c2.romaneio_id = r.id AND l.result = 'VALIDO'), 0) AS loaded_quantity,
                 (SELECT COUNT(*) FROM ocorrencias o WHERE o.carregamento_id IN (SELECT c3.id FROM carregamentos c3 WHERE c3.romaneio_id = r.id)) AS ocorrencias_count,
                 (SELECT c4.id FROM carregamentos c4 WHERE c4.romaneio_id = r.id AND c4.state <> 'FINALIZADO' ORDER BY c4.id DESC LIMIT 1) AS active_loading_id,
                 (SELECT c5.state FROM carregamentos c5 WHERE c5.romaneio_id = r.id AND c5.state <> 'FINALIZADO' ORDER BY c5.id DESC LIMIT 1) AS active_state,
-                (SELECT e.equipment_code FROM carregamentos c6 JOIN equipments e ON e.id = c6.equipment_id WHERE c6.romaneio_id = r.id AND c6.state <> 'FINALIZADO' ORDER BY c6.id DESC LIMIT 1) AS active_equipment
+                (SELECT e.equipment_code FROM carregamentos c6 JOIN equipamentos e ON e.id = c6.equipment_id WHERE c6.romaneio_id = r.id AND c6.state <> 'FINALIZADO' ORDER BY c6.id DESC LIMIT 1) AS active_equipment
          FROM romaneios r
-         LEFT JOIN romaneio_trucks rt ON rt.romaneio_id = r.id
+         LEFT JOIN romaneio_caminhoes rt ON rt.romaneio_id = r.id
          WHERE {$where}
          GROUP BY r.id
          ORDER BY r.scheduled_date DESC, r.id DESC",
@@ -192,7 +192,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
                 json_response(["error" => "Só é possível editar um romaneio antes de iniciar o carregamento."], 409);
             }
             $productStatement = $pdo->prepare(
-                "SELECT id FROM products WHERE id = :id AND company_id = :company_id AND active = 1 LIMIT 1",
+                "SELECT id FROM produtos WHERE id = :id AND company_id = :company_id AND active = 1 LIMIT 1",
             );
             foreach (array_keys($normalizedItems) as $productId) {
                 $productStatement->execute(["id" => $productId, "company_id" => $companyId]);
@@ -202,7 +202,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
                 }
             }
             $truckStatement = $pdo->prepare(
-                "SELECT id FROM romaneio_trucks WHERE romaneio_id = :romaneio_id ORDER BY id LIMIT 1 FOR UPDATE",
+                "SELECT id FROM romaneio_caminhoes WHERE romaneio_id = :romaneio_id ORDER BY id LIMIT 1 FOR UPDATE",
             );
             $truckStatement->execute(["romaneio_id" => $romaneioId]);
             $truck = $truckStatement->fetch();
@@ -219,16 +219,16 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
                 "id" => $romaneioId,
             ]);
             $pdo->prepare(
-                "UPDATE romaneio_trucks SET plate = :plate, driver_name = :driver_name WHERE id = :id",
+                "UPDATE romaneio_caminhoes SET plate = :plate, driver_name = :driver_name WHERE id = :id",
             )->execute([
                 "plate" => $plate,
                 "driver_name" => $driverName !== "" ? $driverName : null,
                 "id" => $truck["id"],
             ]);
-            $pdo->prepare("DELETE FROM romaneio_items WHERE romaneio_id = :romaneio_id")
+            $pdo->prepare("DELETE FROM romaneio_itens WHERE romaneio_id = :romaneio_id")
                 ->execute(["romaneio_id" => $romaneioId]);
             $itemStatement = $pdo->prepare(
-                "INSERT INTO romaneio_items (romaneio_id, product_id, truck_id, planned_quantity) VALUES (:romaneio_id, :product_id, :truck_id, :planned_quantity)",
+                "INSERT INTO romaneio_itens (romaneio_id, product_id, truck_id, planned_quantity) VALUES (:romaneio_id, :product_id, :truck_id, :planned_quantity)",
             );
             foreach ($normalizedItems as $productId => $quantity) {
                 $itemStatement->execute([
@@ -381,7 +381,7 @@ try {
     foreach ($normalizedItems as $item) {
         if ($item["product_id"]) {
             $productStatement = $pdo->prepare(
-                "SELECT id, code, name FROM products WHERE id = :id AND company_id = :company_id AND active = 1 LIMIT 1",
+                "SELECT id, code, name FROM produtos WHERE id = :id AND company_id = :company_id AND active = 1 LIMIT 1",
             );
             $productStatement->execute([
                 "id" => $item["product_id"],
@@ -390,7 +390,7 @@ try {
         } else {
             $code = substr((string) $item["key"], 5);
             $productStatement = $pdo->prepare(
-                "SELECT id, code, name FROM products WHERE company_id = :company_id AND active = 1 AND (code = :code OR id IN (SELECT product_id FROM product_codes WHERE barcode = :barcode)) LIMIT 1",
+                "SELECT id, code, name FROM produtos WHERE company_id = :company_id AND active = 1 AND (code = :code OR id IN (SELECT product_id FROM codigos_produtos WHERE barcode = :barcode)) LIMIT 1",
             );
             $productStatement->execute([
                 "company_id" => $companyId,
@@ -425,7 +425,7 @@ try {
     $romaneioId = (int) $pdo->lastInsertId();
 
     $truckStatement = $pdo->prepare(
-        "INSERT INTO romaneio_trucks (romaneio_id, plate, driver_name) VALUES (:romaneio_id, :plate, :driver_name)",
+        "INSERT INTO romaneio_caminhoes (romaneio_id, plate, driver_name) VALUES (:romaneio_id, :plate, :driver_name)",
     );
     $truckStatement->execute([
         "romaneio_id" => $romaneioId,
@@ -435,7 +435,7 @@ try {
     $truckId = (int) $pdo->lastInsertId();
 
     $itemStatement = $pdo->prepare(
-        "INSERT INTO romaneio_items (romaneio_id, product_id, truck_id, planned_quantity) VALUES (:romaneio_id, :product_id, :truck_id, :planned_quantity)",
+        "INSERT INTO romaneio_itens (romaneio_id, product_id, truck_id, planned_quantity) VALUES (:romaneio_id, :product_id, :truck_id, :planned_quantity)",
     );
     foreach ($resolved as $entry) {
         $itemStatement->execute([

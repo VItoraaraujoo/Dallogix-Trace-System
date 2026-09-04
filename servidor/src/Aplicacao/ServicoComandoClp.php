@@ -76,7 +76,7 @@ final class ServicoComandoClp
         $this->connection->beginTransaction();
         try {
             $insert = $this->connection
-                ->prepare("INSERT INTO plc_command_requests
+                ->prepare("INSERT INTO solicitacoes_comandos_clp
                 (company_id, equipment_id, carregamento_id, command, requested_by)
                 VALUES (:company_id, :equipment_id, :carregamento_id, :command, :requested_by)");
             $insert->execute([
@@ -141,7 +141,7 @@ final class ServicoComandoClp
     private function hasPendingCommand(int $loadingId): bool
     {
         $statement = $this->connection
-            ->prepare("SELECT id FROM plc_command_requests
+            ->prepare("SELECT id FROM solicitacoes_comandos_clp
             WHERE carregamento_id = :carregamento_id
               AND status IN ('PENDENTE', 'PROCESSANDO') LIMIT 1");
         $statement->execute(["carregamento_id" => $loadingId]);

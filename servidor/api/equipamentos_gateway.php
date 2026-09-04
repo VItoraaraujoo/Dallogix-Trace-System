@@ -9,6 +9,6 @@ if ($_SERVER["REQUEST_METHOD"] !== "GET") {
 require_internal_token("PLC_INTERNAL_TOKEN", "change-me-plc-token");
 
 $statement = db()->query(
-    "SELECT id, equipment_code, name, plc_ip, plc_port, plc_protocol FROM equipments ORDER BY id",
+    "SELECT id, equipment_code, name, plc_ip, plc_port, plc_protocol FROM equipamentos ORDER BY id",
 );
 json_response(["data" => $statement->fetchAll()]);

@@ -1,7 +1,7 @@
 SET NAMES utf8mb4;
 
 INSERT INTO
-  companies (name)
+  empresas (name)
 SELECT
   'Empresa Demonstração'
 WHERE
@@ -9,32 +9,32 @@ WHERE
     SELECT
       1
     FROM
-      companies
+      empresas
     WHERE
       name = 'Empresa Demonstração'
   );
 
 INSERT INTO
-  equipments (company_id, equipment_code, name)
+  equipamentos (company_id, equipment_code, name)
 SELECT
   c.id,
   'EST-001',
   'Esteira principal'
 FROM
-  companies c
+  empresas c
 WHERE
   c.name = 'Empresa Demonstração'
   AND NOT EXISTS (
     SELECT
       1
     FROM
-      equipments e
+      equipamentos e
     WHERE
       e.equipment_code = 'EST-001'
   );
 
 INSERT INTO
-  users (company_id, name, email, password_hash, role)
+  usuarios (company_id, name, email, password_hash, role)
 SELECT
   c.id,
   'Administrador local',
@@ -42,20 +42,20 @@ SELECT
   '$2y$10$ebOT1MqNyajFths8pCaJu.qE7MOSNMWkXYLan9LVzGSXFHIdgxK8C',
   'ADMIN_EMPRESA'
 FROM
-  companies c
+  empresas c
 WHERE
   c.name = 'Empresa Demonstração'
   AND NOT EXISTS (
     SELECT
       1
     FROM
-      users
+      usuarios
     WHERE
       email = 'admin@dallogix.local'
   );
 
 INSERT INTO
-  users (company_id, name, email, password_hash, role)
+  usuarios (company_id, name, email, password_hash, role)
 SELECT
   c.id,
   'Supervisor local',
@@ -63,15 +63,15 @@ SELECT
   '$2y$12$rNW5syuIUQXWmnkzFzzCUOq7APYSVr.0iN9JIkPvCvoT0mfa/Bwm.',
   'SUPERVISOR'
 FROM
-  companies c
+  empresas c
 WHERE
   c.name = 'Empresa Demonstração'
   AND NOT EXISTS (
-    SELECT 1 FROM users WHERE email = 'supervisor@dallogix.local'
+    SELECT 1 FROM usuarios WHERE email = 'supervisor@dallogix.local'
   );
 
 INSERT INTO
-  users (company_id, name, email, password_hash, role)
+  usuarios (company_id, name, email, password_hash, role)
 SELECT
   c.id,
   'Operador local',
@@ -79,52 +79,52 @@ SELECT
   '$2y$12$rNW5syuIUQXWmnkzFzzCUOq7APYSVr.0iN9JIkPvCvoT0mfa/Bwm.',
   'USUARIO'
 FROM
-  companies c
+  empresas c
 WHERE
   c.name = 'Empresa Demonstração'
   AND NOT EXISTS (
-    SELECT 1 FROM users WHERE email = 'operador@dallogix.local'
+    SELECT 1 FROM usuarios WHERE email = 'operador@dallogix.local'
   );
 
 INSERT INTO
-  products (company_id, code, name)
+  produtos (company_id, code, name)
 SELECT
   c.id,
   'PROD3',
   'Ração cães adulto • 10,1 KG'
 FROM
-  companies c
+  empresas c
 WHERE
   c.name = 'Empresa Demonstração'
   AND NOT EXISTS (
     SELECT
       1
     FROM
-      products p
+      produtos p
     WHERE
       p.code = 'PROD3'
   );
 
 INSERT INTO
-  product_codes (product_id, barcode)
+  codigos_produtos (product_id, barcode)
 SELECT
   p.id,
   '7898250782592'
 FROM
-  products p
+  produtos p
 WHERE
   p.code = 'PROD3'
   AND NOT EXISTS (
     SELECT
       1
     FROM
-      product_codes pc
+      codigos_produtos pc
     WHERE
       pc.barcode = '7898250782592'
   );
 
 INSERT INTO
-  users (company_id, name, email, password_hash, role)
+  usuarios (company_id, name, email, password_hash, role)
 SELECT
   NULL,
   'Administrador Dallogix',
@@ -136,7 +136,7 @@ WHERE
     SELECT
       1
     FROM
-      users
+      usuarios
     WHERE
       email = 'master@dallogix.local'
   );

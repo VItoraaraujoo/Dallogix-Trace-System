@@ -41,12 +41,12 @@ $occurrences = $query(
 );
 $audit = $query(
     $pdo,
-    "SELECT action, entity_type, entity_id, created_at FROM audit_logs WHERE company_id = :company_id ORDER BY id DESC LIMIT 10",
+    "SELECT action, entity_type, entity_id, created_at FROM logs_auditoria WHERE company_id = :company_id ORDER BY id DESC LIMIT 10",
     ["company_id" => $companyId],
 );
 $pendingSync = $query(
     $pdo,
-    "SELECT COUNT(*) AS total FROM sync_queue q JOIN audit_logs a ON a.entity_type = q.aggregate_type AND a.entity_id = q.aggregate_id WHERE a.company_id = :company_id AND q.status = 'PENDENTE'",
+    "SELECT COUNT(*) AS total FROM fila_sincronizacao q JOIN logs_auditoria a ON a.entity_type = q.aggregate_type AND a.entity_id = q.aggregate_id WHERE a.company_id = :company_id AND q.status = 'PENDENTE'",
     ["company_id" => $companyId],
 );
 $devices = $query(
@@ -60,8 +60,8 @@ $devices = $query(
             d.last_seen_at,
             CASE WHEN d.last_seen_at IS NULL THEN NULL ELSE TIMESTAMPDIFF(SECOND, d.last_seen_at, NOW()) END AS segundos_sem_sinal,
             e.equipment_code
-     FROM device_status d
-     JOIN equipments e ON e.id = d.equipment_id
+     FROM status_dispositivos d
+     JOIN equipamentos e ON e.id = d.equipment_id
      WHERE e.company_id = :company_id
      ORDER BY e.equipment_code, d.device_type",
     ["company_id" => $companyId],
@@ -71,13 +71,13 @@ $maquinas = $query(
     "SELECT e.id, e.equipment_code, e.name,
         d.status AS clp_status, d.last_seen_at,
         c.id AS carregamento_id, c.state AS carregamento_state, r.id AS romaneio_id, r.number AS romaneio_number, rt.plate,
-        COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_items ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity,
+        COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity,
         (SELECT COUNT(*) FROM leituras l WHERE l.carregamento_id = c.id AND l.result = 'VALIDO') AS valid_readings
- FROM equipments e
- LEFT JOIN device_status d ON d.equipment_id = e.id AND d.device_type = 'CLP'
+ FROM equipamentos e
+ LEFT JOIN status_dispositivos d ON d.equipment_id = e.id AND d.device_type = 'CLP'
  LEFT JOIN carregamentos c ON c.id = (SELECT c2.id FROM carregamentos c2 WHERE c2.equipment_id = e.id ORDER BY c2.id DESC LIMIT 1)
  LEFT JOIN romaneios r ON r.id = c.romaneio_id
- LEFT JOIN romaneio_trucks rt ON rt.id = c.truck_id
+ LEFT JOIN romaneio_caminhoes rt ON rt.id = c.truck_id
  WHERE e.company_id = :company_id
  ORDER BY e.equipment_code",
     ["company_id" => $companyId],

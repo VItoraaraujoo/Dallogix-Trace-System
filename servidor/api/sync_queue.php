@@ -13,8 +13,8 @@ $pdo = db();
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $statement = $pdo->prepare(
         'SELECT q.id, q.event_uuid, q.aggregate_type, q.aggregate_id, q.payload, q.status, q.attempts, q.last_error, q.available_at, q.created_at
-         FROM sync_queue q
-         WHERE EXISTS (SELECT 1 FROM audit_logs a WHERE a.company_id = :company_id AND a.entity_type = q.aggregate_type AND a.entity_id = q.aggregate_id)
+         FROM fila_sincronizacao q
+         WHERE EXISTS (SELECT 1 FROM logs_auditoria a WHERE a.company_id = :company_id AND a.entity_type = q.aggregate_type AND a.entity_id = q.aggregate_id)
          ORDER BY q.id DESC LIMIT 100',
     );
     $statement->execute(["company_id" => $user["company_id"]]);
@@ -33,9 +33,9 @@ if (!$queueId) {
 }
 
 $statement = $pdo->prepare(
-    'SELECT q.* FROM sync_queue q
+    'SELECT q.* FROM fila_sincronizacao q
      WHERE q.id = :id AND q.status IN (\'PENDENTE\', \'ERRO\')
-       AND EXISTS (SELECT 1 FROM audit_logs a WHERE a.company_id = :company_id AND a.entity_type = q.aggregate_type AND a.entity_id = q.aggregate_id)
+       AND EXISTS (SELECT 1 FROM logs_auditoria a WHERE a.company_id = :company_id AND a.entity_type = q.aggregate_type AND a.entity_id = q.aggregate_id)
      LIMIT 1',
 );
 $statement->execute(["id" => $queueId, "company_id" => $user["company_id"]]);
@@ -50,7 +50,7 @@ if (!$event) {
 $remoteUrl = trim((string) (getenv("SYNC_REMOTE_URL") ?: ""));
 if ($remoteUrl === "") {
     $settings = $pdo->prepare(
-        "SELECT sync_remote_url FROM company_settings WHERE company_id = :company_id LIMIT 1",
+        "SELECT sync_remote_url FROM configuracoes_empresa WHERE company_id = :company_id LIMIT 1",
     );
     $settings->execute(["company_id" => $user["company_id"]]);
     $remoteUrl = trim((string) ($settings->fetchColumn() ?: ""));
@@ -70,7 +70,7 @@ if ($remoteUrl === "") {
 }
 
 $updateProcessing = $pdo->prepare(
-    "UPDATE sync_queue SET status = 'PROCESSANDO', attempts = attempts + 1 WHERE id = :id",
+    "UPDATE fila_sincronizacao SET status = 'PROCESSANDO', attempts = attempts + 1 WHERE id = :id",
 );
 $updateProcessing->execute(["id" => $queueId]);
 $requestBody = json_encode(
@@ -103,7 +103,7 @@ $success =
 
 if ($success) {
     $done = $pdo->prepare(
-        "UPDATE sync_queue SET status = 'ENVIADO', last_error = NULL WHERE id = :id",
+        "UPDATE fila_sincronizacao SET status = 'ENVIADO', last_error = NULL WHERE id = :id",
     );
     $done->execute(["id" => $queueId]);
     json_response([
@@ -117,7 +117,7 @@ if ($success) {
 
 $error = "Falha ao enviar para o endpoint remoto.";
 $failed = $pdo->prepare(
-    "UPDATE sync_queue SET status = 'ERRO', last_error = :last_error, available_at = DATE_ADD(NOW(), INTERVAL LEAST(attempts * 5, 300) SECOND) WHERE id = :id",
+    "UPDATE fila_sincronizacao SET status = 'ERRO', last_error = :last_error, available_at = DATE_ADD(NOW(), INTERVAL LEAST(attempts * 5, 300) SECOND) WHERE id = :id",
 );
 $failed->execute(["id" => $queueId, "last_error" => $error]);
 json_response(

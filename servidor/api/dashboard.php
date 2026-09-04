@@ -43,7 +43,7 @@ $divergenciaStatement = $pdo->prepare(
         FROM romaneios r
         WHERE r.company_id = :company_id AND r.status = 'FINALIZADO'
           AND (
-            COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_items ri WHERE ri.romaneio_id = r.id), 0)
+            COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = r.id), 0)
               <> COALESCE((SELECT COUNT(*) FROM leituras l JOIN carregamentos c2 ON c2.id = l.carregamento_id WHERE c2.romaneio_id = r.id AND l.result = 'VALIDO'), 0)
             OR EXISTS (SELECT 1 FROM ocorrencias o WHERE o.carregamento_id IN (SELECT c3.id FROM carregamentos c3 WHERE c3.romaneio_id = r.id))
           )

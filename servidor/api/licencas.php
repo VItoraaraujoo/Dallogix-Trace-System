@@ -11,8 +11,8 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
         "SELECT l.id, l.company_id, c.name AS company_name, l.plan_name,
                 l.billing_period, l.status,
                 l.blocked_at, l.blocked_reason, l.created_at, l.updated_at
-         FROM licenses l JOIN companies c ON c.id = l.company_id
-         WHERE l.id = (SELECT latest.id FROM licenses latest
+         FROM licencas l JOIN empresas c ON c.id = l.company_id
+         WHERE l.id = (SELECT latest.id FROM licencas latest
                        WHERE latest.company_id = l.company_id
                        ORDER BY latest.id DESC LIMIT 1)
          ORDER BY c.name",
@@ -35,12 +35,12 @@ if (!$companyId || !in_array($status, ["ATIVA", "BLOQUEADA"], true)) {
 if ($plan === "" || mb_strlen($plan) > 100 || mb_strlen($reason) > 255) {
     json_response(["error" => "Dados da licença inválidos."], 422);
 }
-$company = $pdo->prepare("SELECT id FROM companies WHERE id = :id LIMIT 1");
+$company = $pdo->prepare("SELECT id FROM empresas WHERE id = :id LIMIT 1");
 $company->execute(["id" => $companyId]);
 if (!$company->fetch()) json_response(["error" => "Empresa não encontrada."], 404);
 
 $statement = $pdo->prepare(
-    "INSERT INTO licenses (company_id, plan_name, billing_period, status, blocked_at, blocked_reason)
+    "INSERT INTO licencas (company_id, plan_name, billing_period, status, blocked_at, blocked_reason)
      VALUES (:company_id, :plan_name, 'MENSAL', :status, :blocked_at, :reason)",
 );
 $statement->execute([

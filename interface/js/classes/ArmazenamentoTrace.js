@@ -41,6 +41,8 @@ export class ArmazenamentoTrace {
       manifestDetail: null,
       equipmentDetail: null,
       dalaCommands: [],
+      dalaActionConfig: { acoes: [], gatilhos: [], can_manage: false },
+      errorLogs: [],
       plcCommand: null,
       productFormOpen: false,
       dalaFormOpen: false,
@@ -208,6 +210,55 @@ export class ArmazenamentoTrace {
     if (!response.ok) throw new Error(result.error || "Não foi possível carregar o diagnóstico do CLP.");
     this.state.dalaCommands = Array.isArray(result.data) ? result.data : [];
     return this.state.dalaCommands;
+  }
+  async loadDalaActionConfig(id) {
+    const response = await fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(id)}`);
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível carregar as ações da Dala.");
+    this.state.dalaActionConfig = result.data || { acoes: [], gatilhos: [], can_manage: false };
+    return this.state.dalaActionConfig;
+  }
+  async saveDalaAction(id, payload) {
+    const method = payload.id ? "PATCH" : "POST";
+    const response = await fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(id)}`, {
+      method,
+      headers: this.jsonHeaders(),
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível salvar a ação.");
+    return this.loadDalaActionConfig(id);
+  }
+  async reorderDalaActions(id, ids) {
+    const response = await fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(id)}`, {
+      method: "PATCH", headers: this.jsonHeaders(), body: JSON.stringify({ action: "reorder", ids }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível ordenar as ações.");
+    return this.loadDalaActionConfig(id);
+  }
+  async deleteDalaAction(equipmentId, actionId) {
+    const response = await fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(equipmentId)}&id=${encodeURIComponent(actionId)}`, {
+      method: "DELETE", headers: this.jsonHeaders(),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível excluir a ação.");
+    return this.loadDalaActionConfig(equipmentId);
+  }
+  async saveDalaTrigger(equipmentId, payload) {
+    const response = await fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(equipmentId)}`, {
+      method: "PATCH", headers: this.jsonHeaders(), body: JSON.stringify({ action: "trigger", ...payload }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível salvar o gatilho.");
+    return this.loadDalaActionConfig(equipmentId);
+  }
+  async loadErrorLogs() {
+    const response = await fetch("/api/logs_erros.php");
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível carregar os logs de erro.");
+    this.state.errorLogs = result.data || [];
+    return this.state.errorLogs;
   }
   async updateEquipment(data) {
     const response = await fetch("/api/equipamentos.php", {

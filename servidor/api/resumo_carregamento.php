@@ -17,7 +17,7 @@ if (!$loadingId) {
 
 $pdo = db();
 $loading = $pdo->prepare(
-    "SELECT c.id, c.state, c.started_at, c.finished_at, r.number AS romaneio_number, rt.plate, e.equipment_code FROM carregamentos c JOIN romaneios r ON r.id = c.romaneio_id JOIN romaneio_trucks rt ON rt.id = c.truck_id JOIN equipments e ON e.id = c.equipment_id WHERE c.id = :id AND c.company_id = :company_id LIMIT 1",
+    "SELECT c.id, c.state, c.started_at, c.finished_at, r.number AS romaneio_number, rt.plate, e.equipment_code FROM carregamentos c JOIN romaneios r ON r.id = c.romaneio_id JOIN romaneio_caminhoes rt ON rt.id = c.truck_id JOIN equipamentos e ON e.id = c.equipment_id WHERE c.id = :id AND c.company_id = :company_id LIMIT 1",
 );
 $loading->execute(["id" => $loadingId, "company_id" => $user["company_id"]]);
 $data = $loading->fetch();
@@ -52,7 +52,7 @@ $data["ocorrencias"] = $count(
 );
 $data["capturas_pendentes"] = $count(
     $pdo,
-    "SELECT COUNT(*) FROM camera_capture_requests WHERE carregamento_id = :id AND status IN ('PENDENTE','CAPTURANDO')",
+    "SELECT COUNT(*) FROM solicitacoes_captura_camera WHERE carregamento_id = :id AND status IN ('PENDENTE','CAPTURANDO')",
     ["id" => $loadingId],
 );
 $data["imagens_incidentes"] = $count(

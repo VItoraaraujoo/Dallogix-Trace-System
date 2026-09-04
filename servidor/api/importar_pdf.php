@@ -159,7 +159,7 @@ $normalized = pdf_normalize($text);
 
 $pdo = db();
 $settingsStatement = $pdo->prepare(
-    "SELECT pdf_field_mapping, pdf_search_field FROM company_settings WHERE company_id = :company_id LIMIT 1",
+    "SELECT pdf_field_mapping, pdf_search_field FROM configuracoes_empresa WHERE company_id = :company_id LIMIT 1",
 );
 $settingsStatement->execute(["company_id" => $user["company_id"]]);
 $settings = $settingsStatement->fetch() ?: [];
@@ -225,7 +225,7 @@ if (isset($fields["produto"]) && $fields["produto"] !== "") {
     $identifier = $fields["produto"];
     if ($searchField === "sku") {
         $productStatement = $pdo->prepare(
-            "SELECT id, code, name FROM products WHERE company_id = :company_id AND active = 1 AND code = :identifier LIMIT 1",
+            "SELECT id, code, name FROM produtos WHERE company_id = :company_id AND active = 1 AND code = :identifier LIMIT 1",
         );
         $productStatement->execute([
             "company_id" => $user["company_id"],
@@ -233,7 +233,7 @@ if (isset($fields["produto"]) && $fields["produto"] !== "") {
         ]);
     } else {
         $productStatement = $pdo->prepare(
-            "SELECT id, code, name FROM products WHERE company_id = :company_id AND active = 1 AND id IN (SELECT product_id FROM product_codes WHERE barcode = :identifier) LIMIT 1",
+            "SELECT id, code, name FROM produtos WHERE company_id = :company_id AND active = 1 AND id IN (SELECT product_id FROM codigos_produtos WHERE barcode = :identifier) LIMIT 1",
         );
         $productStatement->execute([
             "company_id" => $user["company_id"],

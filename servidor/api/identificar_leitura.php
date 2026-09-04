@@ -32,17 +32,17 @@ if ($current["result"] !== "SEM_LEITURA") {
 }
 
 if ($productId) {
-    $product = $pdo->prepare("SELECT id, name, code FROM products WHERE id = :id AND company_id = :company_id AND active = 1 LIMIT 1");
+    $product = $pdo->prepare("SELECT id, name, code FROM produtos WHERE id = :id AND company_id = :company_id AND active = 1 LIMIT 1");
     $product->execute(["id" => $productId, "company_id" => $user["company_id"]]);
 } else {
-    $product = $pdo->prepare("SELECT p.id, p.name, p.code FROM product_codes pc JOIN products p ON p.id = pc.product_id WHERE pc.barcode = :barcode AND p.company_id = :company_id AND p.active = 1 LIMIT 1");
+    $product = $pdo->prepare("SELECT p.id, p.name, p.code FROM codigos_produtos pc JOIN produtos p ON p.id = pc.product_id WHERE pc.barcode = :barcode AND p.company_id = :company_id AND p.active = 1 LIMIT 1");
     $product->execute(["barcode" => $barcode, "company_id" => $user["company_id"]]);
 }
 $selected = $product->fetch();
 if (!$selected) {
     json_response(["error" => "Produto não encontrado ou inativo."], 422);
 }
-$expected = $pdo->prepare("SELECT 1 FROM romaneio_items WHERE romaneio_id = :romaneio_id AND product_id = :product_id AND (truck_id = :truck_id OR truck_id IS NULL) LIMIT 1");
+$expected = $pdo->prepare("SELECT 1 FROM romaneio_itens WHERE romaneio_id = :romaneio_id AND product_id = :product_id AND (truck_id = :truck_id OR truck_id IS NULL) LIMIT 1");
 $expected->execute([
     "romaneio_id" => $current["romaneio_id"],
     "product_id" => $selected["id"],

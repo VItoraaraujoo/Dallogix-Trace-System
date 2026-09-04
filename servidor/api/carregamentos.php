@@ -12,12 +12,12 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $statement = db()->prepare(
         'SELECT c.id, c.state, c.equipment_id, c.started_at, c.finished_at,
                 r.number AS romaneio_number, rt.plate, e.equipment_code,
-                COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_items ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity,
+                COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity,
                 (SELECT COUNT(*) FROM leituras l WHERE l.carregamento_id = c.id AND l.result = "VALIDO") AS valid_readings
          FROM carregamentos c
          JOIN romaneios r ON r.id = c.romaneio_id
-         JOIN romaneio_trucks rt ON rt.id = c.truck_id
-         JOIN equipments e ON e.id = c.equipment_id
+         JOIN romaneio_caminhoes rt ON rt.id = c.truck_id
+         JOIN equipamentos e ON e.id = c.equipment_id
          WHERE c.company_id = :company_id
          ORDER BY c.id DESC',
     );
@@ -58,8 +58,8 @@ $pdo = db();
 $statement = $pdo->prepare(
     'SELECT r.id AS romaneio_id, rt.id AS truck_id, e.id AS equipment_id
      FROM romaneios r
-     JOIN romaneio_trucks rt ON rt.romaneio_id = r.id
-     JOIN equipments e ON e.id = :equipment_id AND e.company_id = r.company_id
+     JOIN romaneio_caminhoes rt ON rt.romaneio_id = r.id
+     JOIN equipamentos e ON e.id = :equipment_id AND e.company_id = r.company_id
      WHERE r.id = :romaneio_id AND rt.id = :truck_id AND r.company_id = :company_id LIMIT 1',
 );
 $statement->execute([

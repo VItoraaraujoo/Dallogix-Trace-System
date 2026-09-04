@@ -31,12 +31,12 @@ final class ServicoGatewayClp
         $this->connection->beginTransaction();
         try {
             $expired = $this->connection->prepare(
-                "UPDATE plc_command_requests SET status = 'ERRO', completed_at = NOW(3), response_message = 'Tempo de confirmação do gateway expirado.' WHERE equipment_id = :equipment_id AND status = 'PROCESSANDO' AND expires_at < NOW(3)",
+                "UPDATE solicitacoes_comandos_clp SET status = 'ERRO', completed_at = NOW(3), response_message = 'Tempo de confirmação do gateway expirado.' WHERE equipment_id = :equipment_id AND status = 'PROCESSANDO' AND expires_at < NOW(3)",
             );
             $expired->execute(["equipment_id" => $equipmentId]);
             $statement = $this->connection
                 ->prepare("SELECT id, company_id, equipment_id, carregamento_id, command, requested_at
-                FROM plc_command_requests
+                FROM solicitacoes_comandos_clp
                 WHERE equipment_id = :equipment_id AND status = 'PENDENTE'
                 ORDER BY requested_at, id
                 LIMIT 1 FOR UPDATE SKIP LOCKED");
@@ -47,7 +47,7 @@ final class ServicoGatewayClp
                 return null;
             }
             $update = $this->connection->prepare(
-                "UPDATE plc_command_requests SET status = 'PROCESSANDO', claimed_at = NOW(3), expires_at = DATE_ADD(NOW(3), INTERVAL 2 MINUTE) WHERE id = :id",
+                "UPDATE solicitacoes_comandos_clp SET status = 'PROCESSANDO', claimed_at = NOW(3), expires_at = DATE_ADD(NOW(3), INTERVAL 2 MINUTE) WHERE id = :id",
             );
             $update->execute(["id" => $request["id"]]);
             $this->connection->commit();
@@ -86,7 +86,7 @@ final class ServicoGatewayClp
         }
 
         $statement = $this->connection->prepare(
-            "SELECT id, command FROM plc_command_requests WHERE id = :id AND status = 'PROCESSANDO' AND (expires_at IS NULL OR expires_at >= NOW(3)) LIMIT 1",
+            "SELECT id, command FROM solicitacoes_comandos_clp WHERE id = :id AND status = 'PROCESSANDO' AND (expires_at IS NULL OR expires_at >= NOW(3)) LIMIT 1",
         );
         $statement->execute(["id" => $requestId]);
         $request = $statement->fetch();
@@ -98,7 +98,7 @@ final class ServicoGatewayClp
         }
 
         $update = $this->connection->prepare(
-            "UPDATE plc_command_requests SET status = :status, completed_at = NOW(3), response_message = :message WHERE id = :id",
+            "UPDATE solicitacoes_comandos_clp SET status = :status, completed_at = NOW(3), response_message = :message WHERE id = :id",
         );
         $update->execute([
             "status" => $status,

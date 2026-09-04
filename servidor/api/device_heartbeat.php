@@ -33,7 +33,7 @@ if (
     );
 }
 $pdo = db();
-$exists = $pdo->prepare("SELECT id FROM equipments WHERE id = :id LIMIT 1");
+$exists = $pdo->prepare("SELECT id FROM equipamentos WHERE id = :id LIMIT 1");
 $exists->execute(["id" => $equipmentId]);
 if (!$exists->fetch()) {
     json_response(["error" => "Equipamento não encontrado."], 404);
@@ -45,7 +45,7 @@ $details = isset($payload["details"])
     )
     : null;
 $upsert = $pdo->prepare(
-    "INSERT INTO device_status (equipment_id, device_type, status, last_seen_at, details) VALUES (:equipment_id, :device_type, :status, NOW(), :details) ON DUPLICATE KEY UPDATE status = VALUES(status), last_seen_at = VALUES(last_seen_at), details = VALUES(details)",
+    "INSERT INTO status_dispositivos (equipment_id, device_type, status, last_seen_at, details) VALUES (:equipment_id, :device_type, :status, NOW(), :details) ON DUPLICATE KEY UPDATE status = VALUES(status), last_seen_at = VALUES(last_seen_at), details = VALUES(details)",
 );
 $upsert->execute([
     "equipment_id" => $equipmentId,

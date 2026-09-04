@@ -15,9 +15,9 @@ if ($user["company_id"] === null || !$romaneioId) {
 $pdo = db();
 $manifest = $pdo->prepare("SELECT r.id, r.number, r.status, r.scheduled_date, r.expedidor,
     c.name AS company_name,
-    (SELECT rt.plate FROM romaneio_trucks rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS plate,
-    (SELECT rt.driver_name FROM romaneio_trucks rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS driver_name
-    FROM romaneios r JOIN companies c ON c.id = r.company_id
+    (SELECT rt.plate FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS plate,
+    (SELECT rt.driver_name FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS driver_name
+    FROM romaneios r JOIN empresas c ON c.id = r.company_id
     WHERE r.id = :id AND r.company_id = :company_id LIMIT 1");
 $manifest->execute(["id" => $romaneioId, "company_id" => $user["company_id"]]);
 $romaneio = $manifest->fetch();
@@ -35,7 +35,7 @@ if ($romaneio["status"] !== "FINALIZADO") {
 }
 
 $loads = $pdo->prepare('SELECT c.id, c.state, c.started_at, c.finished_at, e.name AS equipment_name, e.equipment_code
-    FROM carregamentos c JOIN equipments e ON e.id = c.equipment_id WHERE c.romaneio_id = :id ORDER BY c.id');
+    FROM carregamentos c JOIN equipamentos e ON e.id = c.equipment_id WHERE c.romaneio_id = :id ORDER BY c.id');
 $loads->execute(["id" => $romaneioId]);
 $loadRows = $loads->fetchAll();
 $loadIds = array_map(static fn(array $row): int => (int) $row["id"], $loadRows);
@@ -44,8 +44,8 @@ $placeholders = implode(",", array_fill(0, count($loadIds), "?"));
 $items = $pdo->prepare("SELECT p.name, COALESCE(MIN(pc.barcode), p.code, '—') AS barcode, ri.planned_quantity,
     COALESCE((SELECT COUNT(*) FROM leituras l JOIN carregamentos c ON c.id = l.carregamento_id
       WHERE c.romaneio_id = ri.romaneio_id AND l.product_id = ri.product_id AND l.result = 'VALIDO'), 0) AS moved_quantity
-    FROM romaneio_items ri JOIN products p ON p.id = ri.product_id
-    LEFT JOIN product_codes pc ON pc.product_id = p.id
+    FROM romaneio_itens ri JOIN produtos p ON p.id = ri.product_id
+    LEFT JOIN codigos_produtos pc ON pc.product_id = p.id
     WHERE ri.romaneio_id = ? GROUP BY ri.id, p.id ORDER BY ri.id");
 $items->execute([$romaneioId]);
 $itemRows = $items->fetchAll();
@@ -54,7 +54,7 @@ $occurrences = [];
 $incidentImages = [];
 if ($loadIds !== []) {
     $occurrenceQuery = $pdo->prepare("SELECT o.type, o.quantity, o.description, o.created_at, p.name AS product_name
-        FROM ocorrencias o LEFT JOIN products p ON p.id = o.product_id WHERE o.carregamento_id IN ({$placeholders}) ORDER BY o.created_at");
+        FROM ocorrencias o LEFT JOIN produtos p ON p.id = o.product_id WHERE o.carregamento_id IN ({$placeholders}) ORDER BY o.created_at");
     $occurrenceQuery->execute($loadIds);
     $occurrences = $occurrenceQuery->fetchAll();
 

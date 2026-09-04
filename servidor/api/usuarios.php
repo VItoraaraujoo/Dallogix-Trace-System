@@ -34,13 +34,13 @@ $resolveCompanyId = static function (array $input) use (
 $pdo = db();
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $companyId = $resolveCompanyId($_GET);
-    $exists = $pdo->prepare("SELECT id FROM companies WHERE id = :id");
+    $exists = $pdo->prepare("SELECT id FROM empresas WHERE id = :id");
     $exists->execute(["id" => $companyId]);
     if (!$exists->fetch()) {
         json_response(["error" => "Empresa não encontrada."], 404);
     }
     $statement = $pdo->prepare(
-        "SELECT id, name, email, role, active, created_at, updated_at FROM users WHERE company_id = :company_id ORDER BY name",
+        "SELECT id, name, email, role, active, created_at, updated_at FROM usuarios WHERE company_id = :company_id ORDER BY name",
     );
     $statement->execute(["company_id" => $companyId]);
     json_response(["data" => $statement->fetchAll()]);
@@ -79,7 +79,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
         );
     }
     $target = $pdo->prepare(
-        "SELECT id, role, active FROM users WHERE id = :id AND company_id = :company_id LIMIT 1",
+        "SELECT id, role, active FROM usuarios WHERE id = :id AND company_id = :company_id LIMIT 1",
     );
     $target->execute(["id" => $id, "company_id" => $companyId]);
     $existing = $target->fetch();
@@ -95,7 +95,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
             409,
         );
     }
-    $sql = "UPDATE users SET name = :name, role = :role, active = :active";
+    $sql = "UPDATE usuarios SET name = :name, role = :role, active = :active";
     $params = [
         "name" => $name,
         "role" => $role,
@@ -156,14 +156,14 @@ if (
         422,
     );
 }
-$exists = $pdo->prepare("SELECT id FROM companies WHERE id = :id");
+$exists = $pdo->prepare("SELECT id FROM empresas WHERE id = :id");
 $exists->execute(["id" => $companyId]);
 if (!$exists->fetch()) {
     json_response(["error" => "Empresa não encontrada."], 404);
 }
 try {
     $insert = $pdo->prepare(
-        "INSERT INTO users (company_id, name, email, password_hash, role) VALUES (:company_id, :name, :email, :password_hash, :role)",
+        "INSERT INTO usuarios (company_id, name, email, password_hash, role) VALUES (:company_id, :name, :email, :password_hash, :role)",
     );
     $insert->execute([
         "company_id" => $companyId,

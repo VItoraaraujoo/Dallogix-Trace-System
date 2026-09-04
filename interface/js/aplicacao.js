@@ -20,6 +20,7 @@ import {
 } from "./telas/monitoramento.js";
 import { settings } from "./telas/configuracoes.js";
 import { dashboard } from "./telas/painel.js";
+import { errorLogs } from "./telas/logs.js";
 import { dalas, dalaView, dalaEdit, dalaActions } from "./telas/dalas.js";
 import { companies } from "./telas/empresas.js";
 import { company } from "./telas/empresa.js";
@@ -49,9 +50,10 @@ const screens = {
   companies,
   company,
   users,
+  "error-logs": errorLogs,
 };
 const ROLE_PAGES = {
-  ADMIN_DALLOGIX: ["companies", "company", "users"],
+  ADMIN_DALLOGIX: ["companies", "company", "users", "error-logs"],
   ADMIN_EMPRESA: [
     "dashboard",
     "manifests",
@@ -72,6 +74,7 @@ const ROLE_PAGES = {
     "dala-edit",
     "dala-actions",
     "users",
+    "error-logs",
   ],
   SUPERVISOR: [
     "dashboard",
@@ -120,6 +123,7 @@ const NAV_GROUPS = [
     "Sistema",
     [
       ["settings", "Configurações"],
+      ["error-logs", "Logs de erros"],
     ],
   ],
 ];
@@ -648,9 +652,86 @@ function bindActions() {
         await navigate("work");
         return;
       }
+      if (action === "new-dala-action" || action === "edit-dala-action") {
+        const form = document.querySelector("#dala-action-form");
+        const panel = document.querySelector(".dala-action-editor");
+        const selected = action === "edit-dala-action"
+          ? (store.state.dalaActionConfig?.acoes || []).find((item) => String(item.id) === String(node.dataset.id))
+          : null;
+        if (form && panel) {
+          form.reset();
+          form.elements.id.value = selected?.id || "";
+          form.elements.comando.value = selected?.comando || "INICIAR_CARREGAMENTO";
+          form.elements.rotulo.value = selected?.rotulo || "";
+          form.elements.cor.value = selected?.cor || "CINZA";
+          form.elements.modo.value = selected?.modo || "DIRETO";
+          form.elements.visivel.checked = selected ? Boolean(Number(selected.visivel)) : true;
+          panel.hidden = false;
+          panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+        return;
+      }
+      if (action === "cancel-dala-action") {
+        const panel = document.querySelector(".dala-action-editor");
+        if (panel) panel.hidden = true;
+        return;
+      }
+      if (action === "delete-dala-action") {
+        if (!confirm(`Excluir a ação "${node.dataset.name}"?`)) return;
+        try {
+          await store.deleteDalaAction(queryId(), node.dataset.id);
+          render();
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+      if (action === "move-dala-action") {
+        const actions = [...(store.state.dalaActionConfig?.acoes || [])];
+        const index = actions.findIndex((item) => String(item.id) === String(node.dataset.id));
+        const target = index + (node.dataset.direction === "up" ? -1 : 1);
+        if (index < 0 || target < 0 || target >= actions.length) return;
+        [actions[index], actions[target]] = [actions[target], actions[index]];
+        try {
+          await store.reorderDalaActions(queryId(), actions.map((item) => item.id));
+          render();
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+      if (action === "new-dala-trigger" || action === "edit-dala-trigger") {
+        const form = document.querySelector("#dala-trigger-form");
+        const panel = document.querySelector(".dala-trigger-editor");
+        const triggers = store.state.dalaActionConfig?.gatilhos || [];
+        const selected = action === "edit-dala-trigger"
+          ? triggers.find((item) => String(item.id) === String(node.dataset.id))
+          : triggers[0];
+        if (form && panel && selected) {
+          form.elements.trigger_id.value = selected.id;
+          form.elements.acao_id.value = selected.acao_id || "";
+          panel.hidden = false;
+          panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        }
+        return;
+      }
+      if (action === "cancel-dala-trigger") {
+        const panel = document.querySelector(".dala-trigger-editor");
+        if (panel) panel.hidden = true;
+        return;
+      }
       if (action === "reload-dala-diagnostics") {
         try {
           await store.loadDalaCommandHistory(node.dataset.id);
+          render();
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+      if (action === "reload-error-logs") {
+        try {
+          await store.loadErrorLogs();
           render();
         } catch (error) {
           alert(error.message);
@@ -1052,6 +1133,33 @@ function bindForms() {
         alert(error.message);
       }
     });
+  const dalaActionForm = document.querySelector("#dala-action-form");
+  if (dalaActionForm)
+    dalaActionForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const raw = Object.fromEntries(new FormData(dalaActionForm));
+      raw.visivel = dalaActionForm.elements.visivel.checked;
+      try {
+        await store.saveDalaAction(queryId(), raw);
+        document.querySelector(".dala-action-editor")?.setAttribute("hidden", "");
+        render();
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+  const dalaTriggerForm = document.querySelector("#dala-trigger-form");
+  if (dalaTriggerForm)
+    dalaTriggerForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const raw = Object.fromEntries(new FormData(dalaTriggerForm));
+      try {
+        await store.saveDalaTrigger(queryId(), raw);
+        document.querySelector(".dala-trigger-editor")?.setAttribute("hidden", "");
+        render();
+      } catch (error) {
+        alert(error.message);
+      }
+    });
   const manifestForm = document.querySelector("#new-manifest-form");
   if (manifestForm)
     manifestForm.addEventListener("submit", async (event) => {
@@ -1366,7 +1474,8 @@ async function loadPageData(page) {
     dalas: [store.loadEquipments()],
     dala: [store.loadEquipment(queryId()), store.loadMonitoring(), store.loadDalaCommandHistory(queryId())],
     "dala-edit": [store.loadEquipment(queryId())],
-    "dala-actions": [store.loadEquipment(queryId()), store.loadActiveLoading()],
+    "dala-actions": [store.loadEquipment(queryId()), store.loadDalaActionConfig(queryId())],
+    "error-logs": [store.loadErrorLogs()],
     users: [store.loadUsers()],
   };
   if (

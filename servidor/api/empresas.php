@@ -23,13 +23,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     try {
         $pdo = db();
         $existing = $pdo->prepare(
-            "SELECT id FROM companies WHERE name = :name LIMIT 1",
+            "SELECT id FROM empresas WHERE name = :name LIMIT 1",
         );
         $existing->execute(["name" => $name]);
         if ($existing->fetch()) {
             json_response(["error" => "Já existe uma empresa com este nome."], 409);
         }
-        $insert = $pdo->prepare("INSERT INTO companies (name) VALUES (:name)");
+        $insert = $pdo->prepare("INSERT INTO empresas (name) VALUES (:name)");
         $insert->execute(["name" => $name]);
         json_response(
             ["data" => ["id" => (int) $pdo->lastInsertId(), "name" => $name]],
@@ -53,7 +53,7 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
     }
 
     $pdo = db();
-    $find = $pdo->prepare("SELECT id, name FROM companies WHERE id = :id LIMIT 1");
+    $find = $pdo->prepare("SELECT id, name FROM empresas WHERE id = :id LIMIT 1");
     $find->execute(["id" => $id]);
     $company = $find->fetch();
     if (!$company) {
@@ -61,16 +61,16 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
     }
 
     $dependencies = [
-        "users" => "SELECT COUNT(*) FROM users WHERE company_id = :id",
-        "equipamentos" => "SELECT COUNT(*) FROM equipments WHERE company_id = :id",
-        "produtos" => "SELECT COUNT(*) FROM products WHERE company_id = :id",
+        "usuarios" => "SELECT COUNT(*) FROM usuarios WHERE company_id = :id",
+        "equipamentos" => "SELECT COUNT(*) FROM equipamentos WHERE company_id = :id",
+        "produtos" => "SELECT COUNT(*) FROM produtos WHERE company_id = :id",
         "romaneios" => "SELECT COUNT(*) FROM romaneios WHERE company_id = :id",
         "carregamentos" => "SELECT COUNT(*) FROM carregamentos WHERE company_id = :id",
         "ocorrências" => "SELECT COUNT(*) FROM ocorrencias WHERE company_id = :id",
-        "auditoria" => "SELECT COUNT(*) FROM audit_logs WHERE company_id = :id",
-        "configurações" => "SELECT COUNT(*) FROM company_settings WHERE company_id = :id",
-        "licenças" => "SELECT COUNT(*) FROM licenses WHERE company_id = :id",
-        "comandos industriais" => "SELECT COUNT(*) FROM plc_command_requests WHERE company_id = :id",
+        "auditoria" => "SELECT COUNT(*) FROM logs_auditoria WHERE company_id = :id",
+        "configurações" => "SELECT COUNT(*) FROM configuracoes_empresa WHERE company_id = :id",
+        "licenças" => "SELECT COUNT(*) FROM licencas WHERE company_id = :id",
+        "comandos industriais" => "SELECT COUNT(*) FROM solicitacoes_comandos_clp WHERE company_id = :id",
     ];
     $found = [];
     foreach ($dependencies as $label => $query) {
@@ -92,7 +92,7 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
     }
 
     try {
-        $delete = $pdo->prepare("DELETE FROM companies WHERE id = :id");
+        $delete = $pdo->prepare("DELETE FROM empresas WHERE id = :id");
         $delete->execute(["id" => $id]);
         json_response(["data" => ["deleted" => true, "name" => $company["name"]]]);
     } catch (PDOException $exception) {
@@ -133,19 +133,19 @@ $pdo = db();
 $machinesSql = "SELECT e.id, e.equipment_code, e.name,
             d.status AS clp_status, d.last_seen_at,
             c.state AS carregamento_state, r.number AS romaneio_number, rt.plate,
-            COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_items ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity,
+            COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity,
             (SELECT COUNT(*) FROM leituras l WHERE l.carregamento_id = c.id AND l.result = 'VALIDO') AS valid_readings
-     FROM equipments e
-     LEFT JOIN device_status d ON d.equipment_id = e.id AND d.device_type = 'CLP'
+     FROM equipamentos e
+     LEFT JOIN status_dispositivos d ON d.equipment_id = e.id AND d.device_type = 'CLP'
      LEFT JOIN carregamentos c ON c.id = (SELECT c2.id FROM carregamentos c2 WHERE c2.equipment_id = e.id ORDER BY c2.id DESC LIMIT 1)
      LEFT JOIN romaneios r ON r.id = c.romaneio_id
-     LEFT JOIN romaneio_trucks rt ON rt.id = c.truck_id
+     LEFT JOIN romaneio_caminhoes rt ON rt.id = c.truck_id
      WHERE e.company_id = :company_id
      ORDER BY e.equipment_code";
 
 if ($requestedCompanyId !== null) {
     $companyStatement = $pdo->prepare(
-        "SELECT id, name, created_at FROM companies WHERE id = :id LIMIT 1",
+        "SELECT id, name, created_at FROM empresas WHERE id = :id LIMIT 1",
     );
     $companyStatement->execute(["id" => $requestedCompanyId]);
     $company = $companyStatement->fetch();
@@ -153,8 +153,8 @@ if ($requestedCompanyId !== null) {
         json_response(["error" => "Empresa não encontrada."], 404);
     }
 
-    $machines = $pdo->prepare($machinesSql);
-    $machines->execute(["company_id" => $requestedCompanyId]);
+    $maquinas = $pdo->prepare($machinesSql);
+    $maquinas->execute(["company_id" => $requestedCompanyId]);
 
     $occurrences = $pdo->prepare(
         "SELECT type, quantity, description, created_at FROM ocorrencias WHERE company_id = :company_id ORDER BY id DESC LIMIT 10",
@@ -171,7 +171,7 @@ if ($requestedCompanyId !== null) {
     }
 
     $pendingSync = $pdo->prepare(
-        "SELECT COUNT(*) AS total FROM sync_queue q JOIN audit_logs a ON a.entity_type = q.aggregate_type AND a.entity_id = q.aggregate_id WHERE a.company_id = :company_id AND q.status = 'PENDENTE'",
+        "SELECT COUNT(*) AS total FROM fila_sincronizacao q JOIN logs_auditoria a ON a.entity_type = q.aggregate_type AND a.entity_id = q.aggregate_id WHERE a.company_id = :company_id AND q.status = 'PENDENTE'",
     );
     $pendingSync->execute(["company_id" => $requestedCompanyId]);
 
@@ -180,7 +180,7 @@ if ($requestedCompanyId !== null) {
             "id" => (int) $company["id"],
             "name" => $company["name"],
             "created_at" => $company["created_at"],
-            "maquinas" => $machines->fetchAll(),
+            "maquinas" => $maquinas->fetchAll(),
             "ocorrencias_recentes" => $occurrences->fetchAll(),
             "romaneios" => $romaneioSummary,
             "sync_pendente" => (int) ($pendingSync->fetch()["total"] ?? 0),
@@ -188,23 +188,23 @@ if ($requestedCompanyId !== null) {
     ]);
 }
 
-$companies = $pdo->prepare(
+$empresas = $pdo->prepare(
             "SELECT c.id, c.name, c.created_at,
-            (SELECT l.status FROM licenses l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_status,
-            (SELECT l.blocked_reason FROM licenses l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_reason,
+            (SELECT l.status FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_status,
+            (SELECT l.blocked_reason FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_reason,
             COUNT(e.id) AS total_machines,
             COALESCE(SUM(d.status = 'ONLINE'), 0) AS machines_online,
             MAX(d.last_seen_at) AS last_signal_at,
-            (SELECT COUNT(*) FROM users u WHERE u.company_id = c.id) AS total_users,
-            (SELECT COUNT(*) FROM users u WHERE u.company_id = c.id AND u.active = 1) AS active_users,
+            (SELECT COUNT(*) FROM usuarios u WHERE u.company_id = c.id) AS total_users,
+            (SELECT COUNT(*) FROM usuarios u WHERE u.company_id = c.id AND u.active = 1) AS active_users,
             (SELECT COUNT(*) FROM ocorrencias o WHERE o.company_id = c.id AND o.created_at >= DATE_SUB(NOW(), INTERVAL 24 HOUR)) AS ocorrencias_24h
-     FROM companies c
-     LEFT JOIN equipments e ON e.company_id = c.id
-     LEFT JOIN device_status d ON d.equipment_id = e.id AND d.device_type = 'CLP'
+     FROM empresas c
+     LEFT JOIN equipamentos e ON e.company_id = c.id
+     LEFT JOIN status_dispositivos d ON d.equipment_id = e.id AND d.device_type = 'CLP'
      GROUP BY c.id, c.name, c.created_at
      ORDER BY c.name",
 );
-$companies->execute();
+$empresas->execute();
 $rows = array_map(static function (array $row): array {
     $total = (int) $row["total_machines"];
     $online = (int) $row["machines_online"];
@@ -223,6 +223,6 @@ $rows = array_map(static function (array $row): array {
         "license_status" => $licenseStatus,
         "license_reason" => $row["license_reason"],
     ];
-}, $companies->fetchAll());
+}, $empresas->fetchAll());
 
 json_response(["data" => $rows]);

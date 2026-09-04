@@ -30,7 +30,7 @@ if (
         json_response(["error" => "Dala não informada."], 422);
     }
     $statement = $pdo->prepare(
-        "SELECT e.id, e.equipment_code, e.plc_ip, e.plc_port, e.external_port, s.gateway_public_ip FROM equipments e LEFT JOIN company_settings s ON s.company_id = e.company_id WHERE e.id = :id AND e.company_id = :company_id LIMIT 1",
+        "SELECT e.id, e.equipment_code, e.plc_ip, e.plc_port, e.external_port, s.gateway_public_ip FROM equipamentos e LEFT JOIN configuracoes_empresa s ON s.company_id = e.company_id WHERE e.id = :id AND e.company_id = :company_id LIMIT 1",
     );
     $statement->execute(["id" => $id, "company_id" => $user["company_id"]]);
     $dala = $statement->fetch();
@@ -74,7 +74,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $id = filter_var($_GET["id"] ?? null, FILTER_VALIDATE_INT);
     if ($id) {
         $statement = $pdo->prepare(
-            "SELECT id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol, created_at, updated_at FROM equipments WHERE id = :id AND company_id = :company_id LIMIT 1",
+            "SELECT id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol, created_at, updated_at FROM equipamentos WHERE id = :id AND company_id = :company_id LIMIT 1",
         );
         $statement->execute(["id" => $id, "company_id" => $user["company_id"]]);
         $dala = $statement->fetch();
@@ -84,7 +84,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
         json_response(["data" => $dala]);
     }
     $query = $pdo->prepare(
-        "SELECT id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol, created_at, updated_at FROM equipments WHERE company_id = :company_id ORDER BY equipment_code",
+        "SELECT id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol, created_at, updated_at FROM equipamentos WHERE company_id = :company_id ORDER BY equipment_code",
     );
     $query->execute(["company_id" => $user["company_id"]]);
     json_response(["data" => $query->fetchAll()]);
@@ -152,7 +152,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $data = $validatePayload(request_json());
     try {
         $insert = $pdo->prepare(
-            "INSERT INTO equipments (company_id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol) VALUES (:company_id, :equipment_code, :name, :plc_ip, :plc_port, :external_port, :plc_protocol)",
+            "INSERT INTO equipamentos (company_id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol) VALUES (:company_id, :equipment_code, :name, :plc_ip, :plc_port, :external_port, :plc_protocol)",
         );
         $insert->execute([
             "company_id" => $user["company_id"],
@@ -198,7 +198,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
         json_response(["error" => "Dala não informada."], 422);
     }
     $find = $pdo->prepare(
-        "SELECT id FROM equipments WHERE id = :id AND company_id = :company_id LIMIT 1",
+        "SELECT id FROM equipamentos WHERE id = :id AND company_id = :company_id LIMIT 1",
     );
     $find->execute(["id" => $id, "company_id" => $user["company_id"]]);
     if (!$find->fetch()) {
@@ -207,7 +207,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
     $data = $validatePayload($payload);
     try {
         $update = $pdo->prepare(
-            "UPDATE equipments SET equipment_code = :equipment_code, name = :name, plc_ip = :plc_ip, plc_port = :plc_port, external_port = :external_port, plc_protocol = :plc_protocol WHERE id = :id",
+            "UPDATE equipamentos SET equipment_code = :equipment_code, name = :name, plc_ip = :plc_ip, plc_port = :plc_port, external_port = :external_port, plc_protocol = :plc_protocol WHERE id = :id",
         );
         $update->execute([
             "equipment_code" => $data["code"],
@@ -245,7 +245,7 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
         json_response(["error" => "Dala não informada."], 422);
     }
     $find = $pdo->prepare(
-        "SELECT id, equipment_code FROM equipments WHERE id = :id AND company_id = :company_id LIMIT 1",
+        "SELECT id, equipment_code FROM equipamentos WHERE id = :id AND company_id = :company_id LIMIT 1",
     );
     $find->execute(["id" => $id, "company_id" => $user["company_id"]]);
     $dala = $find->fetch();
@@ -255,9 +255,9 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
     try {
         $pdo->beginTransaction();
         $pdo->prepare(
-            "DELETE FROM device_status WHERE equipment_id = :id",
+            "DELETE FROM status_dispositivos WHERE equipment_id = :id",
         )->execute(["id" => $id]);
-        $pdo->prepare("DELETE FROM equipments WHERE id = :id")->execute([
+        $pdo->prepare("DELETE FROM equipamentos WHERE id = :id")->execute([
             "id" => $id,
         ]);
         record_operational_event(

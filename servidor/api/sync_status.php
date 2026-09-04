@@ -14,10 +14,10 @@ if ($user["company_id"] === null) {
 
 $pdo = db();
 $scope =
-    "EXISTS (SELECT 1 FROM audit_logs a WHERE a.company_id = :company_id AND a.entity_type = q.aggregate_type AND a.entity_id = q.aggregate_id)";
+    "EXISTS (SELECT 1 FROM logs_auditoria a WHERE a.company_id = :company_id AND a.entity_type = q.aggregate_type AND a.entity_id = q.aggregate_id)";
 $params = ["company_id" => $user["company_id"]];
 $counts = $pdo->prepare(
-    "SELECT q.status, COUNT(*) AS total FROM sync_queue q WHERE {$scope} GROUP BY q.status",
+    "SELECT q.status, COUNT(*) AS total FROM fila_sincronizacao q WHERE {$scope} GROUP BY q.status",
 );
 $counts->execute($params);
 $summary = ["PENDENTE" => 0, "PROCESSANDO" => 0, "ENVIADO" => 0, "ERRO" => 0];
@@ -26,13 +26,13 @@ foreach ($counts->fetchAll() as $row) {
 }
 
 $recent = $pdo->prepare(
-    "SELECT q.id, q.aggregate_type, q.aggregate_id, q.status, q.attempts, q.last_error, q.available_at, q.created_at FROM sync_queue q WHERE {$scope} AND q.status IN ('PENDENTE', 'ERRO') ORDER BY q.id DESC LIMIT 20",
+    "SELECT q.id, q.aggregate_type, q.aggregate_id, q.status, q.attempts, q.last_error, q.available_at, q.created_at FROM fila_sincronizacao q WHERE {$scope} AND q.status IN ('PENDENTE', 'ERRO') ORDER BY q.id DESC LIMIT 20",
 );
 $recent->execute($params);
 $remoteUrl = trim((string) (getenv("SYNC_REMOTE_URL") ?: ""));
 if ($remoteUrl === "") {
     $settings = $pdo->prepare(
-        "SELECT sync_remote_url FROM company_settings WHERE company_id = :company_id LIMIT 1",
+        "SELECT sync_remote_url FROM configuracoes_empresa WHERE company_id = :company_id LIMIT 1",
     );
     $settings->execute(["company_id" => $user["company_id"]]);
     $remoteUrl = trim((string) ($settings->fetchColumn() ?: ""));

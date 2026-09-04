@@ -6,7 +6,7 @@ DB_PASSWORD="${MYSQL_ROOT_PASSWORD:-change-me-root}"
 MYSQL=(docker compose exec -T mysql mysql -N -B --default-character-set=utf8mb4 -u root "-p${DB_PASSWORD}" "${DB_NAME}")
 
 tables="$(${MYSQL[@]} -e 'SHOW TABLES' 2>/dev/null)"
-required=(companies users equipments products product_codes romaneios romaneio_trucks romaneio_items carregamentos sensor_events leituras ocorrencias retornos imagens device_status audit_logs sync_queue)
+required=(empresas usuarios equipamentos produtos codigos_produtos romaneios romaneio_caminhoes romaneio_itens carregamentos eventos_sensor leituras ocorrencias retornos imagens status_dispositivos logs_auditoria fila_sincronizacao)
 
 for table in "${required[@]}"; do
   if ! printf '%s\n' "$tables" | grep -Fxq "$table"; then
@@ -15,7 +15,7 @@ for table in "${required[@]}"; do
   fi
 done
 
-seed="$(${MYSQL[@]} -e "SELECT COUNT(*) FROM companies WHERE name='Empresa Demonstração'; SELECT COUNT(*) FROM users WHERE email='admin@dallogix.local'; SELECT COUNT(*) FROM equipments WHERE equipment_code='EST-001'; SELECT COUNT(*) FROM products WHERE code='PROD3'; SELECT COUNT(*) FROM product_codes WHERE barcode='7898250782592';" 2>/dev/null | tr '\n' ' ')"
+seed="$(${MYSQL[@]} -e "SELECT COUNT(*) FROM empresas WHERE name='Empresa Demonstração'; SELECT COUNT(*) FROM usuarios WHERE email='admin@dallogix.local'; SELECT COUNT(*) FROM equipamentos WHERE equipment_code='EST-001'; SELECT COUNT(*) FROM produtos WHERE code='PROD3'; SELECT COUNT(*) FROM codigos_produtos WHERE barcode='7898250782592';" 2>/dev/null | tr '\n' ' ')"
 
 if [[ "$seed" != "1 1 1 1 1 " ]]; then
   echo "FAIL: seed local incompleto: $seed"

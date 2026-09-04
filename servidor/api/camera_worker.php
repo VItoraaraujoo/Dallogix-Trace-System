@@ -15,7 +15,7 @@ $pdo = db();
 if ($action === "CLAIM") {
     $pdo->beginTransaction();
     $statement = $pdo->query(
-        "SELECT id, sensor_event_id, carregamento_id, equipment_id, reason FROM camera_capture_requests WHERE status = 'PENDENTE' ORDER BY requested_at, id LIMIT 1 FOR UPDATE SKIP LOCKED",
+        "SELECT id, sensor_event_id, carregamento_id, equipment_id, reason FROM solicitacoes_captura_camera WHERE status = 'PENDENTE' ORDER BY requested_at, id LIMIT 1 FOR UPDATE SKIP LOCKED",
     );
     $request = $statement->fetch();
     if (!$request) {
@@ -23,7 +23,7 @@ if ($action === "CLAIM") {
         json_response(["data" => null], 204);
     }
     $update = $pdo->prepare(
-        "UPDATE camera_capture_requests SET status = 'CAPTURANDO' WHERE id = :id",
+        "UPDATE solicitacoes_captura_camera SET status = 'CAPTURANDO' WHERE id = :id",
     );
     $update->execute(["id" => $request["id"]]);
     $pdo->commit();
@@ -54,7 +54,7 @@ if (
 }
 
 $request = $pdo->prepare(
-    'SELECT id, carregamento_id, equipment_id, reason FROM camera_capture_requests WHERE id = :id AND status = \'CAPTURANDO\' LIMIT 1',
+    'SELECT id, carregamento_id, equipment_id, reason FROM solicitacoes_captura_camera WHERE id = :id AND status = \'CAPTURANDO\' LIMIT 1',
 );
 $request->execute(["id" => $requestId]);
 $capture = $request->fetch();
@@ -66,7 +66,7 @@ if (!$capture) {
 }
 
 $update = $pdo->prepare(
-    "UPDATE camera_capture_requests SET status = 'CAPTURADA', captured_at = NOW(3), image_path = :image_path, error_message = NULL WHERE id = :id",
+    "UPDATE solicitacoes_captura_camera SET status = 'CAPTURADA', captured_at = NOW(3), image_path = :image_path, error_message = NULL WHERE id = :id",
 );
 $update->execute(["image_path" => $imagePath, "id" => $requestId]);
 $image = $pdo->prepare(
