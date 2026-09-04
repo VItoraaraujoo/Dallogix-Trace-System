@@ -70,9 +70,12 @@ if ($remoteUrl === "") {
 }
 
 $updateProcessing = $pdo->prepare(
-    "UPDATE fila_sincronizacao SET status = 'PROCESSANDO', attempts = attempts + 1 WHERE id = :id",
+    "UPDATE fila_sincronizacao SET status = 'PROCESSANDO', attempts = attempts + 1 WHERE id = :id AND status IN ('PENDENTE', 'ERRO') AND (available_at IS NULL OR available_at <= NOW())",
 );
 $updateProcessing->execute(["id" => $queueId]);
+if ($updateProcessing->rowCount() !== 1) {
+    json_response(["error" => "Evento já reservado ou aguardando o próximo horário de tentativa."], 409);
+}
 $requestBody = json_encode(
     [
         "event_uuid" => $event["event_uuid"],

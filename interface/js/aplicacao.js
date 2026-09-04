@@ -1488,51 +1488,50 @@ async function loadPageData(page) {
     return;
   }
   const tasks = {
-    dashboard: [
+    dashboard: () => [
       store.loadDashboard(),
       store.loadMonitoring(),
       store.loadEquipments(),
     ],
-    manifests: [store.loadManifests()],
-    manifest: [store.loadManifest(queryId())],
-    "manifest-edit": [store.loadManifest(queryId()), store.loadProducts()],
-    import: [store.loadProducts()],
-    division: [
+    manifests: () => [store.loadManifests()],
+    manifest: () => [store.loadManifest(queryId())],
+    "manifest-edit": () => [store.loadManifest(queryId()), store.loadProducts()],
+    import: () => [store.loadProducts()],
+    division: () => [
       store.loadManifest(queryId()),
       store.loadEquipments(),
       store.loadActiveLoading(),
     ],
-      work: [
-      store.loadActiveLoading(),
+    work: () => [
+      store.loadActiveLoading().then(() => store.loadPendingReadings()),
       store.loadMonitoring(),
       store.loadEquipments(),
       store.loadManifests(),
-      store.loadPendingReadings(),
-      ],
-    occurrences: [store.loadMonitoring(), store.loadActiveLoading()],
-    summary: [store.loadMonitoring(), store.loadActiveLoading()],
-    history: [store.loadMonitoring(), store.loadReport()],
-    products: [store.loadProducts()],
-    alerts: [
+    ],
+    occurrences: () => [store.loadMonitoring(), store.loadActiveLoading()],
+    summary: () => [store.loadMonitoring(), store.loadActiveLoading()],
+    history: () => [store.loadMonitoring(), store.loadReport()],
+    products: () => [store.loadProducts()],
+    alerts: () => [
       store.loadMonitoring(),
       store.loadEquipments(),
       store.loadSyncStatus(),
     ],
-    emergency: [store.loadActiveLoading(), store.loadMonitoring()],
-    settings: [store.loadConfiguration(), store.loadEquipments(), store.loadSyncStatus()],
-    dalas: [store.loadEquipments()],
-    dala: [loadDalaView(queryId())],
-    "dala-edit": [store.loadEquipment(queryId())],
-    "dala-actions": [store.loadEquipment(queryId()), store.loadDalaActionConfig(queryId())],
-    "error-logs": [store.loadErrorLogs()],
-    users: [store.loadUsers()],
+    emergency: () => [store.loadActiveLoading(), store.loadMonitoring()],
+    settings: () => [store.loadConfiguration(), store.loadEquipments(), store.loadSyncStatus()],
+    dalas: () => [store.loadEquipments()],
+    dala: () => [loadDalaView(queryId())],
+    "dala-edit": () => [store.loadEquipment(queryId())],
+    "dala-actions": () => [store.loadEquipment(queryId()), store.loadDalaActionConfig(queryId())],
+    "error-logs": () => [store.loadErrorLogs()],
+    users: () => [store.loadUsers()],
   };
   if (
     ["manifest", "manifest-edit", "division", "dala", "dala-edit", "dala-actions"].includes(page) &&
     !queryId()
   )
     throw new Error("Registro não informado.");
-  await Promise.all(tasks[page] || []);
+  await Promise.all(tasks[page]?.() || []);
 }
 
 async function loadDalaView(id) {

@@ -11,8 +11,8 @@ export function settings(store) {
   const pending = Number(summary.PENDENTE || 0) + Number(summary.PROCESSANDO || 0);
   const errors = Number(summary.ERRO || 0);
   const syncConfigured = Boolean(sync.remote_configured);
-  const syncTone = !syncConfigured || errors > 0 ? "offline" : "online";
-  const syncLabel = !syncConfigured ? "Não configurado" : errors > 0 ? "Com erros" : "Conectado";
+  const syncTone = errors > 0 ? "offline" : "";
+  const syncLabel = !syncConfigured ? "Não configurado" : errors > 0 ? "Com erros" : "Conexão não verificada";
   const syncDetail = !syncConfigured
     ? "A integração será definida no backend do servidor."
     : `${pending} pendência(s) e ${errors} erro(s) na fila de sincronização.`;

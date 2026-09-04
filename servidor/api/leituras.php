@@ -315,6 +315,7 @@ if (
         "SELECT a.id, a.comando, a.rotulo
          FROM gatilhos_dala g
          JOIN acoes_dala a ON a.id = g.acao_id AND a.visivel = 1
+           AND a.company_id = g.company_id AND a.equipment_id = g.equipment_id
          WHERE g.company_id = :company_id AND g.equipment_id = :equipment_id
            AND g.evento = 'QUANTIDADE_PLANEJADA_ATINGIDA' AND g.ativo = 1
          LIMIT 1",

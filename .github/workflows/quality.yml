@@ -24,3 +24,8 @@ jobs:
         run: |
           bash testes/qualidade.sh
           bash testes/etapa29.sh
+          node testes/navegacao-isolada.mjs
+          php testes/api-permissoes-isoladas.php admin-target
+          php testes/api-permissoes-isoladas.php foreign-action
+          php testes/api-permissoes-isoladas.php created-id
+          php testes/api-permissoes-isoladas.php sync-reserved

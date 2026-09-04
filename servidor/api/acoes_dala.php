@@ -76,8 +76,9 @@ if ($method === "POST") {
     $insert = $pdo->prepare("INSERT INTO acoes_dala (company_id, equipment_id, comando, rotulo, cor, visivel, modo, ordem) VALUES (:company_id, :equipment_id, :comando, :rotulo, :cor, :visivel, :modo, :ordem)");
     try { $insert->execute(["company_id" => $companyId, "equipment_id" => $equipmentId, ...$data, "ordem" => $next]); }
     catch (Throwable) { json_response(["error" => "Já existe uma ação com esse comando nesta Dala."], 409); }
-    record_operational_event($pdo, $user, "ACAO_DALA_CRIADA", "acao_dala", (int) $pdo->lastInsertId(), ["equipment_id" => (int) $equipmentId, "comando" => $data["comando"]]);
-    json_response(["data" => ["id" => (int) $pdo->lastInsertId()]], 201);
+    $createdId = (int) $pdo->lastInsertId();
+    record_operational_event($pdo, $user, "ACAO_DALA_CRIADA", "acao_dala", $createdId, ["equipment_id" => (int) $equipmentId, "comando" => $data["comando"]]);
+    json_response(["data" => ["id" => $createdId]], 201);
 }
 if ($method === "PATCH") {
     $action = (string) ($payload["action"] ?? "update");
@@ -91,6 +92,12 @@ if ($method === "PATCH") {
     if ($action === "trigger") {
         $triggerId = filter_var($payload["trigger_id"] ?? null, FILTER_VALIDATE_INT);
         $actionId = filter_var($payload["acao_id"] ?? null, FILTER_VALIDATE_INT) ?: null;
+        if (!$triggerId) json_response(["error" => "Gatilho inválido."], 422);
+        if ($actionId !== null) {
+            $ownedAction = $pdo->prepare("SELECT id FROM acoes_dala WHERE id = :id AND equipment_id = :equipment_id AND company_id = :company_id");
+            $ownedAction->execute(["id" => $actionId, "equipment_id" => $equipmentId, "company_id" => $companyId]);
+            if (!$ownedAction->fetch()) json_response(["error" => "A ação não pertence a esta Dala."], 422);
+        }
         $update = $pdo->prepare("UPDATE gatilhos_dala SET acao_id = :acao_id, ativo = :ativo WHERE id = :id AND equipment_id = :equipment_id AND company_id = :company_id");
         $update->execute(["acao_id" => $actionId, "ativo" => !empty($payload["ativo"]) ? 1 : 0, "id" => $triggerId, "equipment_id" => $equipmentId, "company_id" => $companyId]);
         json_response(["data" => ["updated" => true]]);

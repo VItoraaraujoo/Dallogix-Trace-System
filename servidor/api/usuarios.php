@@ -89,7 +89,10 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
             404,
         );
     }
-    if ((int) $id === (int) $actor["id"] && !$active) {
+    if (!$isPlatformAdmin && !in_array($existing["role"], ["SUPERVISOR", "USUARIO"], true)) {
+        json_response(["error" => "Somente o Master pode alterar contas administrativas."], 403);
+    }
+    if ((int) $id === (int) $actor["id"] && (!$active || $role !== $existing["role"])) {
         json_response(
             ["error" => "Você não pode desativar o próprio acesso."],
             409,
