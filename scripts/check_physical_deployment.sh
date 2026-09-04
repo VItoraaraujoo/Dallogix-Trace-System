@@ -18,6 +18,13 @@ fi
 if [[ ! -f "$root_dir/.env" ]]; then
   echo "ERRO: crie o arquivo .env a partir de .env.example." >&2
   errors=$((errors + 1))
+else
+  # O Compose lê o .env automaticamente, mas este script também precisa usar
+  # APP_ENV e os segredos para executar a validação correta.
+  set -a
+  # shellcheck disable=SC1091
+  . "$root_dir/.env"
+  set +a
 fi
 if [[ "${APP_ENV:-}" == "production" ]]; then
   if ! (cd "$root_dir" && bash scripts/check_production_env.sh); then

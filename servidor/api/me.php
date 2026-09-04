@@ -1,12 +1,10 @@
 <?php
+
 declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 
-$user = session_user();
-if ($user === null) {
-    json_response(["authenticated" => false], 401);
-}
+$user = require_session_user();
 
 json_response([
     "authenticated" => true,

@@ -1,6 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+root_dir="$(cd "$(dirname "$0")/.." && pwd)"
+if [[ -f "$root_dir/.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  . "$root_dir/.env"
+  set +a
+fi
+
 failures=0
 required=(MYSQL_PASSWORD MYSQL_ROOT_PASSWORD PLC_INTERNAL_TOKEN CAMERA_INTERNAL_TOKEN APP_URL)
 for key in "${required[@]}"; do

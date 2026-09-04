@@ -13,12 +13,19 @@ header("X-Frame-Options: DENY");
 header("Referrer-Policy: no-referrer");
 
 session_name("dallogix_trace_session");
+$sessionOptions = [
+    "use_strict_mode" => 1,
+    "use_only_cookies" => 1,
+];
+foreach ($sessionOptions as $option => $value) {
+    ini_set("session.{$option}", (string) $value);
+}
 $isSecureSession =
     (getenv("APP_ENV") ?: "local") === "production" ||
     filter_var(getenv("SESSION_SECURE") ?: "false", FILTER_VALIDATE_BOOLEAN);
 session_set_cookie_params([
     "httponly" => true,
-    "samesite" => "Lax",
+    "samesite" => "Strict",
     "secure" => $isSecureSession,
 ]);
 session_start();
@@ -114,7 +121,7 @@ function csrf_token(): string
 
 function require_csrf(): void
 {
-    if ((getenv("APP_ENV") ?: "local") !== "production") {
+    if (strtolower(trim((string) (getenv("APP_ENV") ?: ""))) === "local") {
         return;
     }
     $provided = (string) ($_SERVER["HTTP_X_CSRF_TOKEN"] ?? "");
@@ -125,7 +132,7 @@ function require_csrf(): void
 
 function enforce_login_rate_limit(string $identity): void
 {
-    if ((getenv("APP_ENV") ?: "local") !== "production") {
+    if (strtolower(trim((string) (getenv("APP_ENV") ?: ""))) === "local") {
         return;
     }
     $key = hash(
@@ -135,7 +142,10 @@ function enforce_login_rate_limit(string $identity): void
     $file = sys_get_temp_dir() . "/dallogix-login-" . $key . ".json";
     $handle = fopen($file, "c+");
     if ($handle === false) {
-        return;
+        json_response(
+            ["error" => "Não foi possível validar o limite de tentativas."],
+            503,
+        );
     }
     flock($handle, LOCK_EX);
     $content = stream_get_contents($handle);
@@ -181,7 +191,19 @@ function require_session_user(): array
     if ($user === null) {
         json_response(["error" => "Autenticação necessária."], 401);
     }
-    return $user;
+    $statement = db()->prepare(
+        "SELECT id, company_id, name, email, role, active FROM usuarios WHERE id = :id LIMIT 1",
+    );
+    $statement->execute(["id" => (int) ($user["id"] ?? 0)]);
+    $current = $statement->fetch();
+    if (!$current || !(bool) $current["active"]) {
+        $_SESSION = [];
+        session_destroy();
+        json_response(["error" => "Sessão expirada ou acesso desativado."], 401);
+    }
+    $currentUser = public_user($current);
+    $_SESSION["user"] = $currentUser;
+    return $currentUser;
 }
 
 function require_role(array $allowedRoles): array
