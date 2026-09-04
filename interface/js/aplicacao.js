@@ -1523,7 +1523,7 @@ async function loadPageData(page) {
     emergency: [store.loadActiveLoading(), store.loadMonitoring()],
     settings: [store.loadConfiguration(), store.loadEquipments()],
     dalas: [store.loadEquipments()],
-    dala: [store.loadEquipment(queryId()), store.loadMonitoring(), store.loadDalaCommandHistory(queryId())],
+    dala: [loadDalaView(queryId())],
     "dala-edit": [store.loadEquipment(queryId())],
     "dala-actions": [store.loadEquipment(queryId()), store.loadDalaActionConfig(queryId())],
     "error-logs": [store.loadErrorLogs()],
@@ -1535,6 +1535,19 @@ async function loadPageData(page) {
   )
     throw new Error("Registro não informado.");
   await Promise.all(tasks[page] || []);
+}
+
+async function loadDalaView(id) {
+  await store.loadEquipment(id);
+  const results = await Promise.allSettled([
+    store.loadMonitoring(),
+    store.loadDalaCommandHistory(id),
+  ]);
+  results.forEach((result) => {
+    if (result.status === "rejected") {
+      console.warn("Consulta auxiliar da Dala indisponível:", result.reason);
+    }
+  });
 }
 
 async function renderPage() {
@@ -1558,7 +1571,7 @@ async function renderPage() {
   } catch (error) {
     if (requestId !== renderRequestId) return;
     console.error(error);
-    if (["manifest", "manifest-edit", "dala", "dala-edit", "company"].includes(currentPage)) {
+    if (["manifest", "manifest-edit", "dala-edit", "company"].includes(currentPage)) {
       await navigate(
         ["manifest", "manifest-edit"].includes(currentPage)
           ? "manifests"
