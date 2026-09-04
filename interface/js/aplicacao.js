@@ -389,7 +389,10 @@ function bindActions() {
     node.dataset.actionBound = "1";
     node.addEventListener("click", async () => {
       const action = node.dataset.action;
-      if (node.classList.contains("page-back")) {
+      // Botões com uma ação declarada precisam seguir sua rota contextual
+      // (por exemplo, Dala aberta pelo dashboard volta ao dashboard). O
+      // fallback de histórico fica reservado para botões sem rota própria.
+      if (node.classList.contains("page-back") && !action) {
         if (window.history.length > 1) window.history.back();
         else await navigate(defaultPage(), "", { replace: true });
         return;
