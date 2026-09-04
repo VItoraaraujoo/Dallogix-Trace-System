@@ -1,29 +1,29 @@
-import { el, esc } from "./funcoes/html.js";
-import { apiUrl } from "./configuracao.js";
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js";
 import { FORM_ACTIONS } from "./constantes/acoes.js";
-import {
-  manifests,
-  importScreen,
-  division,
-  work,
-  manifestView,
-  manifestEdit,
-} from "./telas/operacoes.js";
-import {
-  occurrences,
-  summary,
-  history,
-  products,
-  alerts,
-  emergency,
-} from "./telas/monitoramento.js";
+import { el, esc } from "./funcoes/html.js";
 import { settings } from "./telas/configuracoes.js";
-import { dashboard } from "./telas/painel.js";
-import { errorLogs } from "./telas/logs.js";
-import { dalas, dalaView, dalaEdit, dalaActions } from "./telas/dalas.js";
-import { companies } from "./telas/empresas.js";
+import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js";
 import { company } from "./telas/empresa.js";
+import { companies } from "./telas/empresas.js";
+import { errorLogs } from "./telas/logs.js";
+import { masterHome } from "./telas/master.js";
+import {
+    alerts,
+    emergency,
+    history,
+    occurrences,
+    products,
+    summary,
+} from "./telas/monitoramento.js";
+import {
+    division,
+    importScreen,
+    manifestEdit,
+    manifests,
+    manifestView,
+    work,
+} from "./telas/operacoes.js";
+import { dashboard } from "./telas/painel.js";
 import { users } from "./telas/usuarios.js";
 
 const store = new ArmazenamentoTrace();
@@ -48,12 +48,19 @@ const screens = {
   manifest: manifestView,
   "manifest-edit": manifestEdit,
   companies,
+  "master-home": masterHome,
   company,
   users,
   "error-logs": errorLogs,
 };
+const ROLE_LABELS = {
+  ADMIN_DALLOGIX: "Master Dallogix",
+  ADMIN_EMPRESA: "Administrador da empresa",
+  SUPERVISOR: "Supervisor",
+  USUARIO: "Operador",
+};
 const ROLE_PAGES = {
-  ADMIN_DALLOGIX: ["companies", "company", "users", "error-logs"],
+  ADMIN_DALLOGIX: ["master-home", "companies", "company", "users", "error-logs"],
   ADMIN_EMPRESA: [
     "dashboard",
     "manifests",
@@ -113,6 +120,13 @@ const NAV_GROUPS = [
     ],
   ],
   [
+    "Administração",
+    [
+      ["master-home", "Visão geral"],
+      ["companies", "Empresas"],
+    ],
+  ],
+  [
     "Cadastros",
     [
       ["products", "Produtos"],
@@ -143,18 +157,24 @@ function sidebarCollapsed() {
     return false;
   }
 }
+function normalizeRole(role) {
+  return typeof role === "string" ? role.toUpperCase() : "";
+}
 function allowedPages() {
-  return ROLE_PAGES[authenticatedUser?.role] || [];
+  return ROLE_PAGES[normalizeRole(authenticatedUser?.role)] || [];
 }
 function defaultPage() {
-  return authenticatedUser?.role === "ADMIN_DALLOGIX"
-    ? "companies"
-    : allowedPages().includes("dashboard")
-      ? "dashboard"
-      : "manifests";
+  const normalizedRole = normalizeRole(authenticatedUser?.role);
+  if (normalizedRole === "ADMIN_DALLOGIX") return "master-home";
+  const permittedPages = allowedPages();
+  return permittedPages.includes("dashboard") ? "dashboard" : permittedPages[0] || "manifests";
 }
 function isAllowedPage(page) {
-  return allowedPages().includes(page);
+  return typeof page === "string" && allowedPages().includes(page);
+}
+function resolveAuthorizedPage(page, fallbackPage = defaultPage()) {
+  if (typeof page !== "string" || !isAllowedPage(page)) return fallbackPage;
+  return page;
 }
 function pagePath(page, query = "") {
   return `${page}.html${query}`;
@@ -164,7 +184,9 @@ function pageFromPath(pathname = window.location.pathname) {
   return file === "index.html" ? "login" : file.replace(/\.html$/, "");
 }
 async function navigate(page, query = "", { replace = false } = {}) {
-  if (!screens[page] || !isAllowedPage(page)) {
+  const safePage = resolveAuthorizedPage(page, defaultPage());
+  page = safePage;
+  if (!screens[page]) {
     page = defaultPage();
     query = "";
   }
@@ -181,7 +203,9 @@ function queryId() {
 }
 function queryReturnPage() {
   const page = new URLSearchParams(window.location.search).get("from");
-  return ["dashboard", "dalas"].includes(page || "") ? page : "dalas";
+  return ["dashboard", "dalas", "master-home", "companies"].includes(page || "")
+    ? page
+    : "dalas";
 }
 
 function navigationIcon(page) {
@@ -207,6 +231,8 @@ function navigationIcon(page) {
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>',
     companies:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5l8-3 8 3v16M4 10h16M8 7h.01M12 7h.01M16 7h.01M8 14h.01M12 14h.01M16 14h.01"/></svg>',
+    "master-home":
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V5h16v15M8 9h8M8 13h4M8 17h8"/><path d="M16 13h3v4h-3z"/></svg>',
     users:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2"/><path d="M3 20c.7-4 10.3-4 12 0M15 15c3.2-.4 5.3 1.1 6 3.2"/></svg>',
   };
@@ -232,11 +258,12 @@ function hydrateChrome() {
       if (!permitted.length) return "";
       return `<span class="nav-label">${esc(group)}</span>${permitted.map(([page, label]) => `<a class="nav-item${page === currentPage ? " active" : ""}${["dashboard", "dalas"].includes(page) ? " nav-section-end" : ""}" data-page="${page}" data-label="${esc(label)}" href="${pagePath(page)}"><span class="nav-icon">${navigationIcon(page)}</span><span class="nav-text">${esc(label)}</span></a>`).join("")}`;
     }).join("");
-  el("#user-avatar").textContent = (authenticatedUser.name || "A")
+  const userRole = normalizeRole(authenticatedUser?.role);
+  el("#user-avatar").textContent = (authenticatedUser?.name || "A")
     .slice(0, 1)
     .toUpperCase();
-  el("#user-name").textContent = authenticatedUser.name || "";
-  el("#user-role").textContent = authenticatedUser.role || "";
+  el("#user-name").textContent = authenticatedUser?.name || "";
+  el("#user-role").textContent = ROLE_LABELS[userRole] || (authenticatedUser?.role || "");
 }
 function render() {
   hydrateChrome();
@@ -421,7 +448,7 @@ function bindActions() {
         return;
       }
       if (action === "open-company") {
-        navigate("company", `?id=${node.dataset.id}`);
+        navigate("company", `?id=${node.dataset.id}&from=${currentPage}`);
         return;
       }
       if (action === "delete-company") {
@@ -460,7 +487,8 @@ function bindActions() {
         return;
       }
       if (action === "back-companies") {
-        navigate("companies");
+        const from = new URLSearchParams(window.location.search).get("from");
+        navigate(["master-home", "companies"].includes(from || "") ? from : "companies");
         return;
       }
       if (action === "back-settings") {
@@ -561,6 +589,23 @@ function bindActions() {
       }
       if (action === "goto-dalas") {
         navigate("dalas");
+        return;
+      }
+      if (action === "goto-companies") {
+        navigate("companies");
+        return;
+      }
+      if (action === "goto-error-logs") {
+        navigate("error-logs");
+        return;
+      }
+      if (action === "reload-master-home") {
+        try {
+          await Promise.all([store.loadCompanies(), store.loadErrorLogs()]);
+          render();
+        } catch (error) {
+          alert(error.message || "Não foi possível atualizar a visão geral.");
+        }
         return;
       }
       if (action === "new-manifest") {
@@ -1427,6 +1472,9 @@ function bindForms() {
 async function loadPageData(page) {
   if (authenticatedUser.role === "ADMIN_DALLOGIX") {
     await store.loadCompanies();
+    if (["master-home", "error-logs"].includes(page)) {
+      await store.loadErrorLogs();
+    }
     if (page === "company") {
       const id = queryId();
       if (!id) throw new Error("Empresa não informada.");
@@ -1565,8 +1613,10 @@ async function bootstrap() {
   authenticatedUser = result.user;
   store.setUser(authenticatedUser);
   store.setCsrfToken(result.csrf_token);
-  if (!isAllowedPage(currentPage)) {
-    window.location.replace(pagePath(defaultPage()));
+  const requestedPage = resolveAuthorizedPage(currentPage, defaultPage());
+  if (requestedPage !== currentPage) {
+    currentPage = requestedPage;
+    window.location.replace(pagePath(currentPage));
     return;
   }
   await renderPage();
