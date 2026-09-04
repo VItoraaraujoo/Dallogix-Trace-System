@@ -41,7 +41,10 @@ for migration in banco-de-dados/migrations/020_nomenclatura_portugues.sql banco-
   [[ -f "$migration" ]] || continue
   marker="armazenamento/.migration-$(basename "$migration").done"
   [[ -f "$marker" ]] && continue
-  docker compose exec -T mysql mysql -uroot -p"${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD não configurada}" "${MYSQL_DATABASE:?MYSQL_DATABASE não configurado}" < "$migration"
+  # MYSQL_USER e MYSQL_PASSWORD vivem somente no contêiner. Usar a conta da
+  # aplicação (com privilégios de migração) torna o deploy independente da
+  # senha root e evita vazar credenciais para o host ou para os logs.
+  docker compose exec -T mysql sh -lc 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < "$migration"
   touch "$marker"
 done
 # O Nginx resolve o nome do PHP ao iniciar. Recriar todos os serviços evita que

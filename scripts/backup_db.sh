@@ -7,14 +7,9 @@ mkdir -p "$output_dir"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 output_file="$output_dir/trace_local_${timestamp}.sql"
 
-docker compose exec -T mysql mysqldump \
-  --single-transaction \
-  --routines \
-  --events \
-  --triggers \
-  --no-tablespaces \
-  -utrace -p"${MYSQL_PASSWORD:-change-me-local}" \
-  "${MYSQL_DATABASE:-trace_local}" > "$output_file"
+# As credenciais pertencem ao contêiner MySQL. Executar a expansão lá evita
+# depender de variáveis existentes no host do servidor e não expõe a senha.
+docker compose exec -T mysql sh -lc 'mysqldump --single-transaction --routines --events --triggers --no-tablespaces -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' > "$output_file"
 
 test -s "$output_file"
 if command -v sha256sum >/dev/null 2>&1; then
