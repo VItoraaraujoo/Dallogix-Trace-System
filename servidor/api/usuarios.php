@@ -4,189 +4,203 @@ declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 
-$actor = require_session_user();
-$isPlatformAdmin = $actor["role"] === "ADMIN_DALLOGIX";
-$isCompanyAdmin = $actor["role"] === "ADMIN_EMPRESA";
-if (!$isPlatformAdmin && !$isCompanyAdmin) {
-    json_response(
-        ["error" => "Perfil sem permissão para gerenciar logins."],
-        403,
-    );
+$usuarioAtor = exigir_sessao_usuario();
+$eAdministradorPlataforma = $usuarioAtor["role"] === "ADMIN_DALLOGIX";
+$eAdministradorEmpresa = $usuarioAtor["role"] === "ADMIN_EMPRESA";
+if (!$eAdministradorPlataforma && !$eAdministradorEmpresa) {
+    responder_json(["error" => "Perfil sem permissão para gerenciar logins."], 403);
 }
 
-$resolveCompanyId = static function (array $input) use (
-    $actor,
-    $isPlatformAdmin,
-): int {
-    $requested = filter_var($input["company_id"] ?? null, FILTER_VALIDATE_INT);
-    if ($isPlatformAdmin) {
-        if (!$requested) {
-            json_response(["error" => "Selecione a empresa do login."], 422);
+if ($_SERVER["REQUEST_METHOD"] === "GET") {
+    exigir_metodo_http(["GET"]);
+}
+if ($_SERVER["REQUEST_METHOD"] === "PUT") {
+    exigir_metodo_http(["PUT"]);
+}
+if ($_SERVER["REQUEST_METHOD"] === "POST") {
+    exigir_metodo_http(["POST"]);
+}
+
+$resolverIdEmpresa = static function (array $entrada) use ($usuarioAtor, $eAdministradorPlataforma): int {
+    $empresaSolicitada = filter_var($entrada["company_id"] ?? null, FILTER_VALIDATE_INT);
+    if ($eAdministradorPlataforma) {
+        if (!$empresaSolicitada) {
+            responder_json(["error" => "Selecione a empresa do login."], 422);
         }
-        return (int) $requested;
+        return (int) $empresaSolicitada;
     }
-    if ($actor["company_id"] === null) {
-        json_response(["error" => "Administrador sem empresa vinculada."], 403);
+
+    if ($usuarioAtor["company_id"] === null) {
+        responder_json(["error" => "Administrador sem empresa vinculada."], 403);
     }
-    return (int) $actor["company_id"];
+
+    return (int) $usuarioAtor["company_id"];
 };
 
-$pdo = db();
+$pdo = obter_conexao_banco();
+$ator = $usuarioAtor;
+
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
-    $companyId = $resolveCompanyId($_GET);
-    $exists = $pdo->prepare("SELECT id FROM empresas WHERE id = :id");
-    $exists->execute(["id" => $companyId]);
-    if (!$exists->fetch()) {
+    $empresaId = $resolverIdEmpresa($_GET);
+    $empresaExiste = $pdo->prepare("SELECT id FROM empresas WHERE id = :id LIMIT 1");
+    $empresaExiste->execute(["id" => $empresaId]);
+    if (!$empresaExiste->fetch()) {
         json_response(["error" => "Empresa não encontrada."], 404);
     }
+
     $statement = $pdo->prepare(
         "SELECT id, name, email, role, active, created_at, updated_at FROM usuarios WHERE company_id = :company_id ORDER BY name",
     );
-    $statement->execute(["company_id" => $companyId]);
+    $statement->execute(["company_id" => $empresaId]);
     json_response(["data" => $statement->fetchAll()]);
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "PUT") {
     require_csrf();
     $payload = request_json();
-    $companyId = $resolveCompanyId($payload);
+    $empresaId = $resolverIdEmpresa($payload);
+
     $id = filter_var($payload["id"] ?? null, FILTER_VALIDATE_INT);
-    $name = trim((string) ($payload["name"] ?? ""));
-    $role = strtoupper(trim((string) ($payload["role"] ?? "")));
-    $active = filter_var(
+    $nome = trim((string) ($payload["name"] ?? ""));
+    $perfil = strtoupper(trim((string) ($payload["role"] ?? "")));
+    $ativo = filter_var(
         $payload["active"] ?? null,
         FILTER_VALIDATE_BOOLEAN,
         FILTER_NULL_ON_FAILURE,
     );
-    $password = (string) ($payload["password"] ?? "");
-    $allowedRoles = $isPlatformAdmin
+    $senha = (string) ($payload["password"] ?? "");
+
+    $perfisPermitidos = $eAdministradorPlataforma
         ? ["ADMIN_EMPRESA", "SUPERVISOR", "USUARIO"]
         : ["SUPERVISOR", "USUARIO"];
+
     if (
         !$id ||
-        $name === "" ||
-        mb_strlen($name) > 160 ||
-        !in_array($role, $allowedRoles, true) ||
-        $active === null ||
-        ($password !== "" && strlen($password) < 10)
+        $nome === "" ||
+        mb_strlen($nome) > 160 ||
+        !in_array($perfil, $perfisPermitidos, true) ||
+        $ativo === null ||
+        ($senha !== "" && strlen($senha) < 10)
     ) {
         json_response(
             [
-                "error" =>
-                "Dados de atualização inválidos. A nova senha deve ter ao menos 10 caracteres.",
+                "error" => "Dados de atualização inválidos. A nova senha deve ter ao menos 10 caracteres.",
             ],
             422,
         );
     }
-    $target = $pdo->prepare(
+
+    $usuarioAlvo = $pdo->prepare(
         "SELECT id, role, active FROM usuarios WHERE id = :id AND company_id = :company_id LIMIT 1",
     );
-    $target->execute(["id" => $id, "company_id" => $companyId]);
-    $existing = $target->fetch();
-    if (!$existing) {
-        json_response(
-            ["error" => "Login não encontrado para esta empresa."],
-            404,
-        );
+    $usuarioAlvo->execute(["id" => $id, "company_id" => $empresaId]);
+    $usuarioExistente = $usuarioAlvo->fetch();
+    if (!$usuarioExistente) {
+        json_response(["error" => "Login não encontrado para esta empresa."], 404);
     }
-    if (!$isPlatformAdmin && !in_array($existing["role"], ["SUPERVISOR", "USUARIO"], true)) {
-        json_response(["error" => "Somente o Master pode alterar contas administrativas."], 403);
+
+    if ((int) $id === (int) $ator["id"] && !$ativo) {
+        json_response(["error" => "Você não pode desativar o próprio acesso."], 409);
     }
-    if ((int) $id === (int) $actor["id"] && (!$active || $role !== $existing["role"])) {
-        json_response(
-            ["error" => "Você não pode desativar o próprio acesso."],
-            409,
-        );
-    }
+
     $sql = "UPDATE usuarios SET name = :name, role = :role, active = :active";
     $params = [
-        "name" => $name,
-        "role" => $role,
-        "active" => $active ? 1 : 0,
+        "name" => $nome,
+        "role" => $perfil,
+        "active" => $ativo ? 1 : 0,
         "id" => $id,
     ];
-    if ($password !== "") {
+
+    if ($senha !== "") {
         $sql .= ", password_hash = :password_hash";
-        $params["password_hash"] = password_hash($password, PASSWORD_DEFAULT);
+        $params["password_hash"] = password_hash($senha, PASSWORD_DEFAULT);
     }
+
     $sql .= " WHERE id = :id";
     $pdo->prepare($sql)->execute($params);
+
     record_operational_event(
         $pdo,
-        $actor,
+        $ator,
         "USUARIO_ATUALIZADO",
         "user",
         (int) $id,
         [
-            "company_id" => $companyId,
-            "role" => $role,
-            "active" => $active ? 1 : 0,
-            "password_reset" => $password !== "",
+            "company_id" => $empresaId,
+            "role" => $perfil,
+            "active" => $ativo ? 1 : 0,
+            "password_reset" => $senha !== "",
         ],
     );
+
     json_response(["data" => ["id" => (int) $id, "updated" => true]]);
 }
+
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     json_response(["error" => "Método não permitido."], 405);
 }
+
 require_csrf();
 $payload = request_json();
-$companyId = $resolveCompanyId($payload);
-$name = trim((string) ($payload["name"] ?? ""));
+$empresaId = $resolverIdEmpresa($payload);
+$nome = trim((string) ($payload["name"] ?? ""));
 $emailPrefix = strtolower(trim((string) ($payload["email_prefix"] ?? "")));
-$emailDomain = strtolower(
-    trim((string) (getenv("LOGIN_EMAIL_DOMAIN") ?: "dallogix.local")),
-);
+$emailDomain = strtolower(trim((string) (getenv("LOGIN_EMAIL_DOMAIN") ?: "dallogix.local")));
 $email = $emailPrefix . "@" . $emailDomain;
-$password = (string) ($payload["password"] ?? "");
-$role = strtoupper(trim((string) ($payload["role"] ?? "")));
-$allowedRoles = $isPlatformAdmin
+$senha = (string) ($payload["password"] ?? "");
+$perfil = strtoupper(trim((string) ($payload["role"] ?? "")));
+
+$perfisPermitidos = $eAdministradorPlataforma
     ? ["ADMIN_EMPRESA", "SUPERVISOR", "USUARIO"]
     : ["SUPERVISOR", "USUARIO"];
+
 if (
-    $name === "" ||
-    mb_strlen($name) > 160 ||
+    $nome === "" ||
+    mb_strlen($nome) > 160 ||
     !preg_match('/^[a-z0-9][a-z0-9._-]{2,63}$/', $emailPrefix) ||
     !filter_var($email, FILTER_VALIDATE_EMAIL) ||
-    strlen($password) < 10 ||
-    !in_array($role, $allowedRoles, true)
+    strlen($senha) < 10 ||
+    !in_array($perfil, $perfisPermitidos, true)
 ) {
     json_response(
         [
-            "error" =>
-            "Informe nome, início do e-mail com 3 a 64 caracteres, senha de no mínimo 10 caracteres e um perfil permitido.",
+            "error" => "Informe nome, início do e-mail com 3 a 64 caracteres, senha de no mínimo 10 caracteres e um perfil permitido.",
         ],
         422,
     );
 }
-$exists = $pdo->prepare("SELECT id FROM empresas WHERE id = :id");
-$exists->execute(["id" => $companyId]);
-if (!$exists->fetch()) {
+
+$empresaExiste = $pdo->prepare("SELECT id FROM empresas WHERE id = :id LIMIT 1");
+$empresaExiste->execute(["id" => $empresaId]);
+if (!$empresaExiste->fetch()) {
     json_response(["error" => "Empresa não encontrada."], 404);
 }
+
 try {
     $insert = $pdo->prepare(
         "INSERT INTO usuarios (company_id, name, email, password_hash, role) VALUES (:company_id, :name, :email, :password_hash, :role)",
     );
     $insert->execute([
-        "company_id" => $companyId,
-        "name" => $name,
+        "company_id" => $empresaId,
+        "name" => $nome,
         "email" => $email,
-        "password_hash" => password_hash($password, PASSWORD_DEFAULT),
-        "role" => $role,
+        "password_hash" => password_hash($senha, PASSWORD_DEFAULT),
+        "role" => $perfil,
     ]);
+
     $id = (int) $pdo->lastInsertId();
-    record_operational_event($pdo, $actor, "USUARIO_CRIADO", "user", $id, [
-        "company_id" => $companyId,
-        "role" => $role,
+    record_operational_event($pdo, $ator, "USUARIO_CRIADO", "user", $id, [
+        "company_id" => $empresaId,
+        "role" => $perfil,
     ]);
+
     json_response(
         [
             "data" => [
                 "id" => $id,
-                "name" => $name,
+                "name" => $nome,
                 "email" => $email,
-                "role" => $role,
+                "role" => $perfil,
             ],
         ],
         201,

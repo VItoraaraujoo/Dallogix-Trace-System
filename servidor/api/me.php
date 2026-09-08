@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 
-$user = require_session_user();
+exigir_metodo_http(["GET"]);
 
-json_response([
+$usuario = obter_usuario_sessao();
+if ($usuario === null) {
+    responder_json(["authenticated" => false], 401);
+}
+
+responder_json([
     "authenticated" => true,
-    "user" => $user,
-    "csrf_token" => csrf_token(),
+    "user" => $usuario,
+    "csrf_token" => gerar_token_csrf(),
 ]);

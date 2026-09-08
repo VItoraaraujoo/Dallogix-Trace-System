@@ -1,19 +1,20 @@
 <?php
+
 declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 
-$user = require_session_user();
-if ($user["company_id"] === null) {
-    json_response(["error" => "Usuário sem empresa vinculada."], 403);
+$usuarioAtor = exigir_sessao_usuario();
+if ($usuarioAtor["company_id"] === null) {
+    responder_json(["error" => "Usuário sem empresa vinculada."], 403);
 }
 
-$canManage = in_array(
-    $user["role"],
+$podeGerenciar = in_array(
+    $usuarioAtor["role"],
     ["ADMIN_DALLOGIX", "ADMIN_EMPRESA", "SUPERVISOR"],
     true,
 );
-$pdo = db();
+$pdo = obter_conexao_banco();
 
 $productResponse = static function (array $product): array {
     return [
@@ -231,7 +232,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
             json_response(
                 [
                     "error" =>
-                        "SKU ou código de barras já usado por outro produto.",
+                    "SKU ou código de barras já usado por outro produto.",
                 ],
                 409,
             );
@@ -303,7 +304,7 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
                     "deleted" => false,
                     "deactivated" => true,
                     "message" =>
-                        "Produto possui histórico vinculado e foi desativado.",
+                    "Produto possui histórico vinculado e foi desativado.",
                 ],
             ]);
         }

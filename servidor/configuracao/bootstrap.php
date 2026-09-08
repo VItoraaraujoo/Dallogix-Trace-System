@@ -1,38 +1,73 @@
 <?php
+
 declare(strict_types=1);
 
-// Ponto único de entrada: cada responsabilidade de infraestrutura fica em um
-// módulo pequeno, mas as rotas continuam importando somente este arquivo.
-require_once __DIR__ . "/ambiente.php";
-require_once __DIR__ . "/http.php";
-require_once __DIR__ . "/acesso.php";
-require_once __DIR__ . "/observabilidade.php";
-
-function json_response(array $payload, int $status = 200): never
+function ambiente_atual(): string
 {
-    header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
-    header("Pragma: no-cache");
+    return strtolower(trim((string) (getenv("APP_ENV") ?: "local")));
+}
+
+$configuredTimezone = trim((string) (getenv("TZ") ?: "America/Sao_Paulo"));
+if ($configuredTimezone !== "") {
+    date_default_timezone_set($configuredTimezone);
+}
+
+header("Content-Type: application/json; charset=utf-8");
+header("X-Content-Type-Options: nosniff");
+header("X-Frame-Options: DENY");
+header("Referrer-Policy: no-referrer");
+
+if (function_exists("ini_set")) {
+    ini_set("session.use_strict_mode", "1");
+    ini_set("session.cookie_httponly", "1");
+    ini_set("session.cookie_samesite", "Lax");
+}
+
+session_name("dallogix_trace_session");
+$isSecureSession =
+    ambiente_atual() === "production" ||
+    filter_var(getenv("SESSION_SECURE") ?: "false", FILTER_VALIDATE_BOOLEAN);
+session_set_cookie_params([
+    "lifetime" => 0,
+    "path" => "/",
+    "domain" => "",
+    "secure" => $isSecureSession,
+    "httponly" => true,
+    "samesite" => "Lax",
+]);
+session_start();
+
+function responder_json(array $dados, int $status = 200): never
+{
     http_response_code($status);
-    echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    echo json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit();
 }
 
-function db(): PDO
+function json_response(array $payload, int $status = 200): never
+{
+    responder_json($payload, $status);
+}
+
+function obter_conexao_banco(): PDO
 {
     static $connection;
     if ($connection instanceof PDO) {
         return $connection;
     }
+
     $host = getenv("DB_HOST") ?: "mysql";
     $name = getenv("DB_NAME") ?: "trace_local";
     $user = getenv("DB_USER") ?: "trace";
     $password = getenv("DB_PASSWORD") ?: "change-me-local";
+
     if (
-        (getenv("APP_ENV") ?: "local") === "production" &&
+        ambiente_atual() === "production" &&
         in_array($password, ["", "change-me-local", "change-me-root"], true)
     ) {
         throw new RuntimeException("DB_PASSWORD de produção não configurado.");
     }
+
     $connection = new PDO(
         "mysql:host={$host};dbname={$name};charset=utf8mb4",
         $user,
@@ -40,44 +75,80 @@ function db(): PDO
         [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            PDO::ATTR_EMULATE_PREPARES => false,
         ],
     );
     $connection->exec("SET NAMES utf8mb4 COLLATE utf8mb4_unicode_ci");
     return $connection;
 }
 
-function request_json(): array
+function db(): PDO
 {
-    $raw = file_get_contents("php://input");
-    if ($raw === false || trim($raw) === "") {
+    return obter_conexao_banco();
+}
+
+function exigir_metodo_http(array $metodosPermitidos): void
+{
+    $metodoAtual = strtoupper((string) ($_SERVER["REQUEST_METHOD"] ?? "GET"));
+    if (!in_array($metodoAtual, array_map('strtoupper', $metodosPermitidos), true)) {
+        responder_json(["error" => "Método de requisição não permitido."], 405);
+    }
+}
+
+function ler_json_da_requisicao(bool $exigirTipoJson = true): array
+{
+    $metodo = strtoupper((string) ($_SERVER["REQUEST_METHOD"] ?? "GET"));
+    if (in_array($metodo, ["GET", "HEAD"], true)) {
         return [];
     }
-    if (strlen($raw) > 1024 * 1024) {
-        json_response(["error" => "Requisição excede o limite permitido."], 413);
+
+    if ($exigirTipoJson) {
+        $contentType = strtolower((string) ($_SERVER["CONTENT_TYPE"] ?? ""));
+        if ($contentType !== "" && !str_contains($contentType, "application/json")) {
+            responder_json(["error" => "Content-Type inválido. Envie JSON."], 415);
+        }
     }
-    $payload = json_decode($raw, true);
-    if (json_last_error() !== JSON_ERROR_NONE || !is_array($payload)) {
-        json_response(["error" => "JSON inválido."], 400);
+
+    $rawBody = file_get_contents("php://input");
+    if ($rawBody === false || trim($rawBody) === "") {
+        responder_json(["error" => "Corpo da requisição inválido."], 400);
     }
-    return is_array($payload) ? $payload : [];
+
+    $payload = json_decode($rawBody, true);
+    if (!is_array($payload)) {
+        responder_json(["error" => "JSON da requisição inválido."], 400);
+    }
+
+    return $payload;
+}
+
+function request_json(): array
+{
+    return ler_json_da_requisicao();
+}
+
+function exigir_token_interno(string $environmentKey, string $developmentDefault): void
+{
+    $expected = trim((string) (getenv($environmentKey) ?: ""));
+    if (
+        ambiente_atual() === "production" &&
+        ($expected === "" || $expected === $developmentDefault)
+    ) {
+        responder_json(["error" => "Token interno não configurado."], 503);
+    }
+
+    $provided = trim((string) ($_SERVER["HTTP_X_INTERNAL_TOKEN"] ?? ""));
+    if ($expected === "" || !hash_equals($expected, $provided)) {
+        responder_json(["error" => "Token interno inválido."], 401);
+    }
 }
 
 function require_internal_token(string $environmentKey, string $developmentDefault): void
 {
-    $expected = trim((string) (getenv($environmentKey) ?: ""));
-    if (
-        (getenv("APP_ENV") ?: "local") === "production" &&
-        ($expected === "" || $expected === $developmentDefault)
-    ) {
-        json_response(["error" => "Token interno não configurado."], 503);
-    }
-    $provided = trim((string) ($_SERVER["HTTP_X_INTERNAL_TOKEN"] ?? ""));
-    if ($expected === "" || !hash_equals($expected, $provided)) {
-        json_response(["error" => "Token interno inválido."], 401);
-    }
+    exigir_token_interno($environmentKey, $developmentDefault);
 }
 
-function require_active_license(PDO $pdo, int $companyId): array
+function validar_licenca_ativa(PDO $pdo, int $companyId): array
 {
     $statement = $pdo->prepare(
         "SELECT id, status, blocked_reason
@@ -85,11 +156,13 @@ function require_active_license(PDO $pdo, int $companyId): array
     );
     $statement->execute(["company_id" => $companyId]);
     $license = $statement->fetch();
+
     if (!$license) {
-        json_response(["error" => "Empresa sem licença configurada."], 402);
+        responder_json(["error" => "Empresa sem licença configurada."], 402);
     }
+
     if ($license["status"] !== "ATIVA") {
-        json_response(
+        responder_json(
             [
                 "error" => "Licença da empresa bloqueada.",
                 "license_status" => $license["status"],
@@ -98,10 +171,16 @@ function require_active_license(PDO $pdo, int $companyId): array
             402,
         );
     }
+
     return $license;
 }
 
-function csrf_token(): string
+function require_active_license(PDO $pdo, int $companyId): array
+{
+    return validar_licenca_ativa($pdo, $companyId);
+}
+
+function gerar_token_csrf(): string
 {
     if (empty($_SESSION["csrf_token"])) {
         $_SESSION["csrf_token"] = bin2hex(random_bytes(32));
@@ -109,138 +188,161 @@ function csrf_token(): string
     return (string) $_SESSION["csrf_token"];
 }
 
-function require_csrf(): void
+function csrf_token(): string
 {
-    if (strtolower(trim((string) (getenv("APP_ENV") ?: ""))) === "local") {
+    return gerar_token_csrf();
+}
+
+function exigir_csrf(): void
+{
+    if (ambiente_atual() !== "production") {
         return;
     }
+
     $provided = (string) ($_SERVER["HTTP_X_CSRF_TOKEN"] ?? "");
-    if ($provided === "" || !hash_equals(csrf_token(), $provided)) {
-        json_response(["error" => "Token CSRF inválido ou ausente."], 419);
+    if ($provided === "" || !hash_equals(gerar_token_csrf(), $provided)) {
+        responder_json(["error" => "Token CSRF inválido ou ausente."], 419);
     }
 }
 
-function enforce_login_rate_limit(string $identity): void
+function require_csrf(): void
 {
-    if (strtolower(trim((string) (getenv("APP_ENV") ?: ""))) === "local") {
+    exigir_csrf();
+}
+
+function verificar_taxa_de_login(string $identidade): void
+{
+    if (ambiente_atual() !== "production") {
         return;
     }
-    $key = hash(
+
+    $chave = hash(
         "sha256",
-        ($_SERVER["REMOTE_ADDR"] ?? "unknown") . "|" . strtolower($identity),
+        ($_SERVER["REMOTE_ADDR"] ?? "unknown") . "|" . strtolower($identidade),
     );
-    $file = sys_get_temp_dir() . "/dallogix-login-" . $key . ".json";
-    $handle = fopen($file, "c+");
+    $arquivo = sys_get_temp_dir() . "/dallogix-login-" . $chave . ".json";
+    $handle = fopen($arquivo, "c+");
     if ($handle === false) {
-        json_response(
-            ["error" => "Não foi possível validar o limite de tentativas."],
-            503,
-        );
+        return;
     }
+
     flock($handle, LOCK_EX);
-    $content = stream_get_contents($handle);
-    $attempts = json_decode($content ?: "[]", true);
-    if (!is_array($attempts)) {
-        $attempts = [];
+    $conteudo = stream_get_contents($handle);
+    $tentativas = json_decode($conteudo ?: "[]", true);
+    if (!is_array($tentativas)) {
+        $tentativas = [];
     }
-    $now = time();
-    $attempts = array_values(
+
+    $agora = time();
+    $tentativas = array_values(
         array_filter(
-            $attempts,
-            static fn($timestamp) => is_int($timestamp) &&
-                $timestamp > $now - 60,
+            $tentativas,
+            static fn($timestamp): bool => is_int($timestamp) && $timestamp > $agora - 60,
         ),
     );
-    if (count($attempts) >= 10) {
+
+    if (count($tentativas) >= 10) {
         flock($handle, LOCK_UN);
         fclose($handle);
-        json_response(
-            ["error" => "Muitas tentativas. Aguarde um minuto."],
-            429,
-        );
+        responder_json(["error" => "Muitas tentativas. Aguarde um minuto."], 429);
     }
-    $attempts[] = $now;
+
+    $tentativas[] = $agora;
     ftruncate($handle, 0);
     rewind($handle);
-    fwrite($handle, json_encode($attempts));
+    fwrite($handle, json_encode($tentativas));
     fflush($handle);
     flock($handle, LOCK_UN);
     fclose($handle);
 }
 
-function session_user(): ?array
+function enforce_login_rate_limit(string $identity): void
+{
+    verificar_taxa_de_login($identity);
+}
+
+function obter_usuario_sessao(): ?array
 {
     return isset($_SESSION["user"]) && is_array($_SESSION["user"])
         ? $_SESSION["user"]
         : null;
 }
 
+function session_user(): ?array
+{
+    return obter_usuario_sessao();
+}
+
+function exigir_sessao_usuario(): array
+{
+    $usuario = obter_usuario_sessao();
+    if ($usuario === null) {
+        responder_json(["error" => "Autenticação necessária."], 401);
+    }
+    return $usuario;
+}
+
 function require_session_user(): array
 {
-    $user = session_user();
-    if ($user === null) {
-        json_response(["error" => "Autenticação necessária."], 401);
+    return exigir_sessao_usuario();
+}
+
+function exigir_perfil(array $perfisPermitidos): array
+{
+    $usuario = exigir_sessao_usuario();
+    if (!in_array($usuario["role"], $perfisPermitidos, true)) {
+        responder_json(["error" => "Perfil sem permissão para esta ação."], 403);
     }
-    $statement = db()->prepare(
-        "SELECT id, company_id, name, email, role, active FROM usuarios WHERE id = :id LIMIT 1",
-    );
-    $statement->execute(["id" => (int) ($user["id"] ?? 0)]);
-    $current = $statement->fetch();
-    if (!$current || !(bool) $current["active"]) {
-        $_SESSION = [];
-        session_destroy();
-        json_response(["error" => "Sessão expirada ou acesso desativado."], 401);
-    }
-    $currentUser = public_user($current);
-    $_SESSION["user"] = $currentUser;
-    return $currentUser;
+    return $usuario;
 }
 
 function require_role(array $allowedRoles): array
 {
-    $user = require_session_user();
-    if (!in_array($user["role"], $allowedRoles, true)) {
-        json_response(["error" => "Perfil sem permissão para esta ação."], 403);
-    }
-    return $user;
+    return exigir_perfil($allowedRoles);
+}
+
+function usuario_publico(array $usuario): array
+{
+    return [
+        "id" => (int) $usuario["id"],
+        "name" => $usuario["name"],
+        "email" => $usuario["email"],
+        "role" => $usuario["role"],
+        "company_id" => $usuario["company_id"] === null ? null : (int) $usuario["company_id"],
+    ];
 }
 
 function public_user(array $user): array
 {
-    return [
-        "id" => (int) $user["id"],
-        "name" => $user["name"],
-        "email" => $user["email"],
-        "role" => $user["role"],
-        "company_id" =>
-        $user["company_id"] === null ? null : (int) $user["company_id"],
-    ];
+    return usuario_publico($user);
 }
 
-function record_operational_event(
-    PDO $connection,
-    array $user,
-    string $action,
-    string $entityType,
-    int $entityId,
+function registrar_evento_operacional(
+    PDO $conexao,
+    array $usuario,
+    string $acao,
+    string $tipoEntidade,
+    int $entidadeId,
     array $payload = [],
 ): void {
-    $metadata =
-        json_encode(
+    try {
+        $metadata = json_encode(
             $payload,
             JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
-        ) ?:
-        "{}";
-    try {
-        $audit = $connection->prepare(
+        );
+        if ($metadata === false) {
+            $metadata = "{}";
+        }
+
+        $auditoria = $conexao->prepare(
             "INSERT INTO logs_auditoria (company_id, user_id, action, entity_type, entity_id, metadata) VALUES (:company_id, :user_id, :action, :entity_type, :entity_id, :metadata)",
         );
-        $audit->execute([
-            "company_id" => $user["company_id"],
-            "user_id" => $user["id"],
-            "action" => $action,
-            "entity_type" => $entityType,
-            "entity_id" => $entityId,
+        $auditoria->execute([
+            "company_id" => $usuario["company_id"] ?? null,
+            "user_id" => $usuario["id"] ?? null,
+            "action" => $acao,
+            "entity_type" => $tipoEntidade,
+            "entity_id" => $entidadeId,
             "metadata" => $metadata,
         ]);
 
@@ -252,62 +354,75 @@ function record_operational_event(
             bin2hex(random_bytes(2)),
             bin2hex(random_bytes(6)),
         );
-        $syncPayload =
-            json_encode(
-                [
-                    "action" => $action,
-                    "entity_type" => $entityType,
-                    "entity_id" => $entityId,
-                    "data" => $payload,
-                ],
-                JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
-            ) ?:
-            "{}";
-        $queue = $connection->prepare(
+
+        $payloadSincronizacao = json_encode(
+            [
+                "action" => $acao,
+                "entity_type" => $tipoEntidade,
+                "entity_id" => $entidadeId,
+                "data" => $payload,
+            ],
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+        );
+        if ($payloadSincronizacao === false) {
+            $payloadSincronizacao = "{}";
+        }
+
+        $fila = $conexao->prepare(
             "INSERT INTO fila_sincronizacao (event_uuid, aggregate_type, aggregate_id, payload) VALUES (:event_uuid, :aggregate_type, :aggregate_id, :payload)",
         );
-        $queue->execute([
+        $fila->execute([
             "event_uuid" => $eventUuid,
-            "aggregate_type" => $entityType,
-            "aggregate_id" => $entityId,
-            "payload" => $syncPayload,
+            "aggregate_type" => $tipoEntidade,
+            "aggregate_id" => $entidadeId,
+            "payload" => $payloadSincronizacao,
         ]);
     } catch (Throwable $exception) {
-        error_log(
-            "Operational event could not be recorded: " .
-                $exception->getMessage(),
-        );
+        error_log("Operational event could not be recorded: " . $exception->getMessage());
     }
 }
 
-/** Registra somente falhas inesperadas; campos sensíveis nunca entram no contexto. */
+function record_operational_event(
+    PDO $connection,
+    array $user,
+    string $action,
+    string $entityType,
+    int $entityId,
+    array $payload = [],
+): void {
+    registrar_evento_operacional($connection, $user, $action, $entityType, $entityId, $payload);
+}
+
 function registrar_log_erro(Throwable $exception, string $origem = "api"): void
 {
-    $user = session_user();
-    $message = mb_substr(trim($exception->getMessage()) ?: "Falha inesperada.", 0, 1000);
-    $message = preg_replace(
-        '/((?:password|senha|token|secret|authorization)[^:=]*[:=]\s*)[^,;\s]+/iu',
-        '$1[REDACTED]',
-        $message,
-    ) ?: "Falha inesperada.";
-    error_log("Dallogix Trace [{$origem}]: {$message}");
+    $usuario = obter_usuario_sessao();
+    $mensagem = mb_substr(trim($exception->getMessage()) ?: "Falha inesperada.", 0, 1000);
+    error_log("Dallogix Trace [{$origem}]: {$mensagem}");
+
     try {
-        $context = json_encode([
-            "tipo" => get_class($exception),
-            "arquivo" => basename($exception->getFile()),
-            "linha" => $exception->getLine(),
-            "metodo" => $_SERVER["REQUEST_METHOD"] ?? "CLI",
-            "rota" => strtok($_SERVER["REQUEST_URI"] ?? "", "?"),
-        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: "{}";
+        $contexto = json_encode(
+            [
+                "tipo" => get_class($exception),
+                "arquivo" => basename($exception->getFile()),
+                "linha" => $exception->getLine(),
+                "metodo" => $_SERVER["REQUEST_METHOD"] ?? "CLI",
+                "rota" => strtok($_SERVER["REQUEST_URI"] ?? "", "?"),
+            ],
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+        );
+        if ($contexto === false) {
+            $contexto = "{}";
+        }
+
         $statement = db()->prepare(
             "INSERT INTO logs_erros (company_id, user_id, origem, mensagem, contexto) VALUES (:company_id, :user_id, :origem, :mensagem, :contexto)",
         );
         $statement->execute([
-            "company_id" => $user["company_id"] ?? null,
-            "user_id" => $user["id"] ?? null,
+            "company_id" => $usuario["company_id"] ?? null,
+            "user_id" => $usuario["id"] ?? null,
             "origem" => mb_substr($origem, 0, 120),
-            "mensagem" => $message,
-            "contexto" => $context,
+            "mensagem" => $mensagem,
+            "contexto" => $contexto,
         ]);
     } catch (Throwable $ignored) {
         error_log("Dallogix Trace: não foi possível persistir o log de erro.");
@@ -317,6 +432,6 @@ function registrar_log_erro(Throwable $exception, string $origem = "api"): void
 set_exception_handler(static function (Throwable $exception): void {
     registrar_log_erro($exception, "erro_nao_tratado");
     if (!headers_sent()) {
-        json_response(["error" => "Ocorreu um erro inesperado. Consulte os logs do sistema."], 500);
+        responder_json(["error" => "Ocorreu um erro inesperado. Consulte os logs do sistema."], 500);
     }
 });
