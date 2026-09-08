@@ -25,6 +25,7 @@ import {
 } from "./telas/operacoes.js";
 import { dashboard } from "./telas/painel.js";
 import { users } from "./telas/usuarios.js";
+import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 
 const store = new ArmazenamentoTrace();
 let renderRequestId = 0;
@@ -94,6 +95,7 @@ const ROLE_PAGES = {
     "occurrences",
     "summary",
     "history",
+    "products",
     "alerts",
     "emergency",
     "dala",
@@ -274,7 +276,7 @@ function render() {
     .forEach((field) => field.removeAttribute("placeholder"));
   bindActions();
   bindForms();
-  if (["dalas", "dala"].includes(currentPage)) checkDalaStatuses();
+  if (["dalas", "dala"].includes(currentPage)) atualizarStatusDasDalas(store);
   if (currentPage === "work") startWorkPolling();
   else stopWorkPolling();
 }
@@ -375,10 +377,6 @@ function timedCommandConfirmation({
       .querySelector('[data-confirm="no"]')
       .addEventListener("click", () => finish(false));
   });
-}
-function itemRowHtml(selectedId = "", quantity = 1) {
-  const products = store.state.products || [];
-  return `<tr class="manifest-item"><td><select name="item_product"><option value="">Selecionar produto…</option>${products.map((product) => `<option value="${product.id}"${String(product.id) === String(selectedId) ? " selected" : ""}>${esc(product.name)}${product.code ? ` (${esc(product.code)})` : ""}</option>`).join("")}</select></td><td><input name="item_quantity" type="number" min="1" value="${Number(quantity) || 1}" /></td><td><button class="button ghost" data-action="remove-item" type="button">Remover</button></td></tr>`;
 }
 // Consulta o status Modbus de cada dala exibida e atualiza a célula/painel correspondente.
 async function checkDalaStatuses() {
@@ -895,7 +893,7 @@ function bindActions() {
       }
       if (action === "add-item") {
         const tbody = document.querySelector("#manifest-items tbody");
-        if (tbody) tbody.insertAdjacentHTML("beforeend", itemRowHtml());
+        if (tbody) tbody.insertAdjacentHTML("beforeend", linhaItemRomaneio(store));
         return;
       }
       if (action === "remove-item") {
@@ -1307,7 +1305,7 @@ function bindForms() {
             tbody.innerHTML = "";
             tbody.insertAdjacentHTML(
               "beforeend",
-              itemRowHtml(data.product.id, fields.quantidade_numero),
+              linhaItemRomaneio(store, data.product.id, fields.quantidade_numero),
             );
           }
         }

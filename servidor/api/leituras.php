@@ -2,6 +2,9 @@
 declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
+require_once __DIR__ . "/../src/Aplicacao/ServicoLeituras.php";
+
+use App\Aplicacao\ServicoLeituras;
 
 $user = require_session_user();
 if ($user["company_id"] === null) {
@@ -10,9 +13,8 @@ if ($user["company_id"] === null) {
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $loadingId = filter_var($_GET["carregamento_id"] ?? null, FILTER_VALIDATE_INT);
     if (!$loadingId) json_response(["error" => "Carregamento obrigatório."], 422);
-    $pending = db()->prepare("SELECT l.id, l.carregamento_id, l.read_at, l.result FROM leituras l JOIN carregamentos c ON c.id = l.carregamento_id WHERE l.carregamento_id = :loading_id AND c.company_id = :company_id AND l.result = 'SEM_LEITURA' ORDER BY l.id DESC LIMIT 20");
-    $pending->execute(["loading_id" => $loadingId, "company_id" => $user["company_id"]]);
-    json_response(["data" => $pending->fetchAll()]);
+    $data = (new ServicoLeituras(db()))->listarPendentes((int) $user["company_id"], (int) $loadingId);
+    json_response(["data" => $data]);
 }
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     json_response(["error" => "Método não permitido."], 405);

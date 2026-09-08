@@ -1,34 +1,12 @@
 <?php
-
 declare(strict_types=1);
 
-$configuredTimezone = trim((string) (getenv("TZ") ?: "America/Sao_Paulo"));
-if ($configuredTimezone !== "") {
-    date_default_timezone_set($configuredTimezone);
-}
-
-header("Content-Type: application/json; charset=utf-8");
-header("X-Content-Type-Options: nosniff");
-header("X-Frame-Options: DENY");
-header("Referrer-Policy: no-referrer");
-
-session_name("dallogix_trace_session");
-$sessionOptions = [
-    "use_strict_mode" => 1,
-    "use_only_cookies" => 1,
-];
-foreach ($sessionOptions as $option => $value) {
-    ini_set("session.{$option}", (string) $value);
-}
-$isSecureSession =
-    (getenv("APP_ENV") ?: "local") === "production" ||
-    filter_var(getenv("SESSION_SECURE") ?: "false", FILTER_VALIDATE_BOOLEAN);
-session_set_cookie_params([
-    "httponly" => true,
-    "samesite" => "Strict",
-    "secure" => $isSecureSession,
-]);
-session_start();
+// Ponto único de entrada: cada responsabilidade de infraestrutura fica em um
+// módulo pequeno, mas as rotas continuam importando somente este arquivo.
+require_once __DIR__ . "/ambiente.php";
+require_once __DIR__ . "/http.php";
+require_once __DIR__ . "/acesso.php";
+require_once __DIR__ . "/observabilidade.php";
 
 function json_response(array $payload, int $status = 200): never
 {

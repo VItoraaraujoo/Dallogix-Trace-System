@@ -11,8 +11,8 @@ O sistema fica preparado para extrair, quando houver necessidade real de escala,
 | Camada       | Responsabilidade                                                    | Local atual                                                                   |
 | ------------ | ------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
 | Apresentação | Telas, componentes visuais e coleta de ações do usuário             | `interface/` e `interface/js/telas/`                                            |
-| Controle     | Navegação, eventos de tela, autenticação e composição das respostas | `interface/js/aplicacao.js` e `servidor/api/`                                      |
-| Aplicação    | Regras de carregamento, permissões, auditoria, filas e validações   | `servidor/src/Aplicacao/` e funções comuns em `servidor/configuracao/bootstrap.php` |
+| Controle     | Navegação, eventos de tela, autenticação e composição das respostas | `interface/js/aplicacao.js`, `interface/js/controladores/` e `servidor/api/`      |
+| Aplicação    | Regras de carregamento, permissões, auditoria, filas e validações   | `servidor/src/Aplicacao/` e `servidor/configuracao/`                              |
 | Dados        | Migrations, consultas preparadas e persistência local               | `banco-de-dados/` e MySQL                                                           |
 | Integração   | CLP, scanner, câmera e sincronização remota por filas autenticadas  | `integracoes/`, `plc_gateway.php`, `camera_worker.php` e `sync_queue.php`     |
 
@@ -24,6 +24,8 @@ O sistema fica preparado para extrair, quando houver necessidade real de escala,
 4. Comandos ao CLP e à câmera entram em fila; a interface nunca escreve diretamente no equipamento.
 5. Toda alteração operacional relevante gera auditoria e evento de sincronização.
 6. Antes de integrar uma função, execute `bash testes/qualidade.sh` e o teste de etapa correspondente.
+7. Ações de interface por assunto devem ficar em `interface/js/controladores/`; `aplicacao.js` fica responsável por compor a tela, navegar e ligar os controladores.
+8. Novos testes devem ter nomes descritivos por funcionalidade. As etapas históricas e seu uso estão documentados em `testes/README.md`.
 
 ## Primeiro recorte em camadas
 

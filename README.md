@@ -102,6 +102,12 @@ Atualizações remotas seguras, com manifesto assinado, bloqueio durante operaç
 
 Antes de uma implantação física, carregue o `.env` no ambiente e execute `bash scripts/check_production_env.sh` para validar os requisitos mínimos sem revelar segredos.
 
+## Convenção de nomenclatura
+
+Para manter o sistema consistente em português na camada funcional, o projeto prioriza nomes em português para módulos de negócio, telas, operações, relatórios e regras. Nomes de infraestrutura e tecnologias continuam em inglês ou no padrão das ferramentas, para preservar compatibilidade com Docker, Nginx, PHP, MySQL e Node-RED.
+
+A regra completa está em [documentacao/arquitetura/convensao-nomenclatura.md](documentacao/arquitetura/convensao-nomenclatura.md).
+
 ## Qualidade e arquitetura
 
 O padrão de camadas e as regras para novas alterações estão em [documentacao/arquitetura/padrao-desenvolvimento.md](documentacao/arquitetura/padrao-desenvolvimento.md). Antes de alterar o sistema, execute:
