@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
+require_once __DIR__ . "/../src/Aplicacao/ServicoLeituras.php";
+
+use App\Aplicacao\ServicoLeituras;
 
 $usuarioAtor = exigir_sessao_usuario();
 if ($usuarioAtor["company_id"] === null) {
@@ -11,9 +14,11 @@ if ($usuarioAtor["company_id"] === null) {
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $loadingId = filter_var($_GET["carregamento_id"] ?? null, FILTER_VALIDATE_INT);
     if (!$loadingId) responder_json(["error" => "Carregamento obrigatório."], 422);
-    $pendencias = obter_conexao_banco()->prepare("SELECT l.id, l.carregamento_id, l.read_at, l.result FROM leituras l JOIN carregamentos c ON c.id = l.carregamento_id WHERE l.carregamento_id = :loading_id AND c.company_id = :company_id AND l.result = 'SEM_LEITURA' ORDER BY l.id DESC LIMIT 20");
-    $pendencias->execute(["loading_id" => $loadingId, "company_id" => $usuarioAtor["company_id"]]);
-    responder_json(["data" => $pendencias->fetchAll()]);
+    $pendencias = (new ServicoLeituras(obter_conexao_banco()))->listarPendentes(
+        (int) $usuarioAtor["company_id"],
+        (int) $loadingId,
+    );
+    responder_json(["data" => $pendencias]);
 }
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     responder_json(["error" => "Método não permitido."], 405);
@@ -199,11 +204,11 @@ if ($result === "SEM_LEITURA") {
         'INSERT INTO ocorrencias (company_id, carregamento_id, type, quantity, description, created_by) VALUES (:company_id, :carregamento_id, \'FALHA_SEM_LEITURA\', 1, :description, :created_by)',
     );
     $occurrence->execute([
-        "company_id" => $user["company_id"],
+        "company_id" => $usuarioAtor["company_id"],
         "carregamento_id" => $loadingId,
         "description" =>
         "Saco detectado pelo sensor sem código de barras válido.",
-        "created_by" => $user["id"],
+        "created_by" => $usuarioAtor["id"],
     ]);
     $occurrenceId = (int) $pdo->lastInsertId();
     record_operational_event(
@@ -221,10 +226,10 @@ if ($result === "PRODUTO_INCORRETO") {
         'INSERT INTO ocorrencias (company_id, carregamento_id, type, quantity, description, created_by) VALUES (:company_id, :carregamento_id, \'PRODUTO_INCORRETO\', 1, :description, :created_by)',
     );
     $occurrence->execute([
-        "company_id" => $user["company_id"],
+        "company_id" => $usuarioAtor["company_id"],
         "carregamento_id" => $loadingId,
         "description" => "Produto lido não está previsto para o carregamento.",
-        "created_by" => $user["id"],
+        "created_by" => $usuarioAtor["id"],
     ]);
     $occurrenceId = (int) $pdo->lastInsertId();
     record_operational_event(
@@ -242,11 +247,11 @@ if ($result === "EXCESSO") {
         'INSERT INTO ocorrencias (company_id, carregamento_id, product_id, type, quantity, description, created_by) VALUES (:company_id, :carregamento_id, :product_id, \'EXCESSO\', 1, :description, :created_by)',
     );
     $occurrence->execute([
-        "company_id" => $user["company_id"],
+        "company_id" => $usuarioAtor["company_id"],
         "carregamento_id" => $loadingId,
         "product_id" => $productId,
         "description" => "Unidade excedente detectada após atingir a quantidade planejada.",
-        "created_by" => $user["id"],
+        "created_by" => $usuarioAtor["id"],
     ]);
     $occurrenceId = (int) $pdo->lastInsertId();
     record_operational_event(
@@ -316,6 +321,7 @@ if (
         "SELECT a.id, a.comando, a.rotulo
          FROM gatilhos_dala g
          JOIN acoes_dala a ON a.id = g.acao_id AND a.visivel = 1
+           AND a.company_id = g.company_id AND a.equipment_id = g.equipment_id
          WHERE g.company_id = :company_id AND g.equipment_id = :equipment_id
            AND g.evento = 'QUANTIDADE_PLANEJADA_ATINGIDA' AND g.ativo = 1
          LIMIT 1",
@@ -335,11 +341,11 @@ if (
              VALUES (:company_id, :equipment_id, :carregamento_id, :command, :requested_by)",
         );
         $queue->execute([
-            "company_id" => $user["company_id"],
+            "company_id" => $usuarioAtor["company_id"],
             "equipment_id" => $loading["equipment_id"],
             "carregamento_id" => $loadingId,
             "command" => $configuredAction["comando"],
-            "requested_by" => $user["id"],
+            "requested_by" => $usuarioAtor["id"],
         ]);
         record_operational_event(
             $pdo,

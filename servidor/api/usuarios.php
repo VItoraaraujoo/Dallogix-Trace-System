@@ -98,8 +98,11 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
     if (!$usuarioExistente) {
         json_response(["error" => "Login não encontrado para esta empresa."], 404);
     }
+    if (!$eAdministradorPlataforma && !in_array($usuarioExistente["role"], ["SUPERVISOR", "USUARIO"], true)) {
+        json_response(["error" => "Somente o Master pode alterar contas administrativas."], 403);
+    }
 
-    if ((int) $id === (int) $ator["id"] && !$ativo) {
+    if ((int) $id === (int) $ator["id"] && (!$ativo || $perfil !== $usuarioExistente["role"])) {
         json_response(["error" => "Você não pode desativar o próprio acesso."], 409);
     }
 

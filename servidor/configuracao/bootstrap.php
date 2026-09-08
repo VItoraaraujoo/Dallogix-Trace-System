@@ -20,7 +20,7 @@ header("Referrer-Policy: no-referrer");
 if (function_exists("ini_set")) {
     ini_set("session.use_strict_mode", "1");
     ini_set("session.cookie_httponly", "1");
-    ini_set("session.cookie_samesite", "Lax");
+    ini_set("session.cookie_samesite", "Strict");
 }
 
 session_name("dallogix_trace_session");
@@ -33,12 +33,14 @@ session_set_cookie_params([
     "domain" => "",
     "secure" => $isSecureSession,
     "httponly" => true,
-    "samesite" => "Lax",
+    "samesite" => "Strict",
 ]);
 session_start();
 
 function responder_json(array $dados, int $status = 200): never
 {
+    header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+    header("Pragma: no-cache");
     http_response_code($status);
     echo json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit();
@@ -279,7 +281,19 @@ function exigir_sessao_usuario(): array
     if ($usuario === null) {
         responder_json(["error" => "Autenticação necessária."], 401);
     }
-    return $usuario;
+    $consulta = obter_conexao_banco()->prepare(
+        "SELECT id, company_id, name, email, role, active FROM usuarios WHERE id = :id LIMIT 1",
+    );
+    $consulta->execute(["id" => (int) ($usuario["id"] ?? 0)]);
+    $usuarioAtual = $consulta->fetch();
+    if (!$usuarioAtual || !(bool) $usuarioAtual["active"]) {
+        $_SESSION = [];
+        session_destroy();
+        responder_json(["error" => "Sessão expirada ou acesso desativado."], 401);
+    }
+    $usuarioPublico = usuario_publico($usuarioAtual);
+    $_SESSION["user"] = $usuarioPublico;
+    return $usuarioPublico;
 }
 
 function require_session_user(): array
