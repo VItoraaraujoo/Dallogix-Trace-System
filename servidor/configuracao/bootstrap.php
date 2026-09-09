@@ -17,6 +17,15 @@ header("X-Content-Type-Options: nosniff");
 header("X-Frame-Options: DENY");
 header("Referrer-Policy: no-referrer");
 
+// Converte avisos do PHP em exceções para que nenhuma resposta de API receba
+// HTML misturado ao JSON esperado pelo navegador.
+set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
+    if (!(error_reporting() & $severity)) {
+        return false;
+    }
+    throw new ErrorException($message, 0, $severity, $file, $line);
+});
+
 if (function_exists("ini_set")) {
     ini_set("session.use_strict_mode", "1");
     ini_set("session.cookie_httponly", "1");
