@@ -159,24 +159,39 @@ function sidebarCollapsed() {
     return false;
   }
 }
-function applyTheme() {
-  let theme = "light";
-  try { theme = localStorage.getItem("trace-theme") === "dark" ? "dark" : "light"; }
-  catch (error) { /* modo privado */ }
-  document.documentElement.dataset.theme = theme;
-  return theme;
+function currentTheme() {
+  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+}
+function updateThemeControls() {
+  const dark = currentTheme() === "dark";
+  document.querySelectorAll('[data-action="toggle-theme"]').forEach((button) => {
+    button.setAttribute("aria-pressed", String(dark));
+    button.setAttribute("aria-label", dark ? "Ativar modo claro" : "Ativar modo noturno");
+    const icon = button.querySelector(".theme-icon");
+    const label = button.querySelector(".theme-label");
+    if (icon) icon.textContent = dark ? "☀" : "☾";
+    if (label) label.textContent = dark ? "Modo claro" : "Modo noturno";
+  });
+}
+function applyTheme(theme) {
+  document.documentElement.dataset.theme = theme === "dark" ? "dark" : "light";
+  updateThemeControls();
+}
+function restoreTheme() {
+  try {
+    applyTheme(localStorage.getItem("trace-theme") || "light");
+  } catch (error) {
+    applyTheme("light");
+  }
 }
 function toggleTheme() {
-  const next = applyTheme() === "dark" ? "light" : "dark";
-  document.documentElement.dataset.theme = next;
-  try { localStorage.setItem("trace-theme", next); } catch (error) { /* modo privado */ }
-  document.querySelectorAll(".theme-toggle").forEach((button) => {
-    button.setAttribute("aria-label", next === "dark" ? "Ativar modo claro" : "Ativar modo noturno");
-    const label = button.querySelector(".theme-label");
-    const icon = button.querySelector(".theme-icon");
-    if (label) label.textContent = next === "dark" ? "Modo claro" : "Modo noturno";
-    if (icon) icon.textContent = next === "dark" ? "☀" : "☾";
-  });
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  applyTheme(next);
+  try {
+    localStorage.setItem("trace-theme", next);
+  } catch (error) {
+    /* modo privado: a troca vale até a próxima abertura */
+  }
 }
 function normalizeRole(role) {
   return typeof role === "string" ? role.toUpperCase() : "";
@@ -270,7 +285,6 @@ function renderLogin(message = "") {
   }
 }
 function hydrateChrome() {
-  applyTheme();
   const shell = document.getElementById("shell");
   if (shell && sidebarCollapsed()) shell.classList.add("sidebar-collapsed");
   const menuButton = document.querySelector('[data-action="toggle-menu"]');
@@ -287,29 +301,22 @@ function hydrateChrome() {
       if (!permitted.length) return "";
       return `<span class="nav-label">${esc(group)}</span>${permitted.map(([page, label]) => `<a class="nav-item${page === currentPage ? " active" : ""}${["dashboard", "dalas"].includes(page) ? " nav-section-end" : ""}" data-page="${page}" data-label="${esc(label)}" href="${pagePath(page)}"><span class="nav-icon">${navigationIcon(page)}</span><span class="nav-text">${esc(label)}</span></a>`).join("")}`;
     }).join("");
-  const topbar = document.querySelector(".topbar");
-  if (topbar && !topbar.querySelector(".theme-toggle")) {
-    const button = document.createElement("button");
-    button.className = "theme-toggle";
-    button.dataset.action = "toggle-theme";
-    button.type = "button";
-    button.innerHTML = '<span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Modo noturno</span>';
-    topbar.append(button);
-  }
-  const theme = applyTheme();
-  document.querySelectorAll(".theme-toggle").forEach((button) => {
-    button.setAttribute("aria-label", theme === "dark" ? "Ativar modo claro" : "Ativar modo noturno");
-    const label = button.querySelector(".theme-label");
-    const icon = button.querySelector(".theme-icon");
-    if (label) label.textContent = theme === "dark" ? "Modo claro" : "Modo noturno";
-    if (icon) icon.textContent = theme === "dark" ? "☀" : "☾";
-  });
   const userRole = normalizeRole(authenticatedUser?.role);
   el("#user-avatar").textContent = (authenticatedUser?.name || "A")
     .slice(0, 1)
     .toUpperCase();
   el("#user-name").textContent = authenticatedUser?.name || "";
   el("#user-role").textContent = ROLE_LABELS[userRole] || (authenticatedUser?.role || "");
+  const topbar = document.querySelector(".topbar");
+  if (topbar && !topbar.querySelector('[data-action="toggle-theme"]')) {
+    const themeButton = document.createElement("button");
+    themeButton.className = "theme-toggle";
+    themeButton.type = "button";
+    themeButton.dataset.action = "toggle-theme";
+    themeButton.innerHTML = '<span class="theme-icon" aria-hidden="true"></span><span class="theme-label"></span>';
+    topbar.appendChild(themeButton);
+  }
+  updateThemeControls();
 }
 function render() {
   hydrateChrome();
@@ -487,6 +494,10 @@ function bindActions() {
       }
       if (action === "reload-page") {
         await renderPage();
+        return;
+      }
+      if (action === "toggle-theme") {
+        toggleTheme();
         return;
       }
       if (action === "toggle-menu") {
@@ -1665,7 +1676,7 @@ async function renderPage() {
 
 async function bootstrap() {
   installInteractionGuards();
-  applyTheme();
+  restoreTheme();
   currentPage = initialPage || pageFromPath();
   if (currentPage === "login") {
     if (window.location.search)
@@ -1686,6 +1697,7 @@ async function bootstrap() {
     }
     renderLogin();
     bindActions();
+    updateThemeControls();
     bindLoginForm();
     return;
   }
