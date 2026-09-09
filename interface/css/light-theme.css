@@ -2408,10 +2408,10 @@ textarea {
 }
 .nav-item[data-page="dalas"] .nav-icon svg { visibility: hidden; }
 .sidebar-toggle {
-  width: 56px;
-  height: 56px;
-  font-size: 29px;
-  border-radius: 12px;
+  width: 64px;
+  height: 64px;
+  font-size: 32px;
+  border-radius: 14px;
 }
 .login-brand {
   min-height: 128px;
