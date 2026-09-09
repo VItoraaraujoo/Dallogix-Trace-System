@@ -25,13 +25,14 @@ fi
 command -v curl >/dev/null || { echo "curl é necessário." >&2; exit 5; }
 command -v openssl >/dev/null || { echo "openssl é necessário para verificar a assinatura." >&2; exit 6; }
 command -v python3 >/dev/null || { echo "python3 é necessário para validar o manifesto." >&2; exit 7; }
+command -v rsync >/dev/null || { echo "rsync é necessário para uma instalação segura." >&2; exit 8; }
 
 state_dir="$root_dir/armazenamento/updates"
 mkdir -p "$state_dir/releases" "$state_dir/backups"
 lock_dir="$state_dir/.install.lock"
 if ! mkdir "$lock_dir" 2>/dev/null; then
   echo "Já existe uma atualização em execução." >&2
-  exit 8
+  exit 9
 fi
 cleanup() {
   rmdir "$lock_dir" 2>/dev/null || true
@@ -64,20 +65,28 @@ print(data["signature"])
 PY
 )
 version="${fields[0]}"; artifact_url="${fields[1]}"; expected_sha="${fields[2]}"; signature_b64="${fields[3]}"
-[[ "$version" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Versão inválida." >&2; exit 9; }
+[[ "$version" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Versão inválida." >&2; exit 10; }
 printf '%s\n%s\n%s\n' "$version" "$artifact_url" "$expected_sha" > "$work_dir/payload"
 python3 - "$signature_b64" "$work_dir/signature.bin" <<'PY'
 import base64, pathlib, sys
 pathlib.Path(sys.argv[2]).write_bytes(base64.b64decode(sys.argv[1], validate=True))
 PY
 openssl dgst -sha256 -verify "$public_key" -signature "$work_dir/signature.bin" "$work_dir/payload" >/dev/null || {
-  echo "Assinatura do pacote rejeitada." >&2; exit 10;
+  echo "Assinatura do pacote rejeitada." >&2; exit 11;
 }
 
-active="$(docker compose exec -T mysql mysql -N -B -utrace -p"${MYSQL_PASSWORD:-change-me-local}" "${MYSQL_DATABASE:-trace_local}" -e "SELECT COUNT(*) FROM carregamentos WHERE state IN ('PREPARANDO','CARREGANDO','PAUSADO','FINALIZANDO','EMERGENCIA');" 2>/dev/null | tr -d '[:space:]' || true)"
-if [[ "${active:-0}" != "0" ]]; then
+mysql_user="${MYSQL_USER:-trace}"
+active="$(docker compose exec -T mysql mysql -N -B -u"$mysql_user" -p"${MYSQL_PASSWORD:-change-me-local}" "${MYSQL_DATABASE:-trace_local}" -e "SELECT COUNT(*) FROM carregamentos WHERE state IN ('PREPARANDO','CARREGANDO','PAUSADO','FINALIZANDO','EMERGENCIA');" 2>/dev/null | tr -d '[:space:]')" || {
+  echo "Não foi possível verificar o estado do carregamento; atualização cancelada por segurança." >&2
+  exit 12
+}
+[[ "$active" =~ ^[0-9]+$ ]] || {
+  echo "Resposta inválida ao verificar o estado do carregamento; atualização cancelada por segurança." >&2
+  exit 13
+}
+if [[ "$active" != "0" ]]; then
   echo "Atualização adiada: existe carregamento ativo ou em estado de intervenção." >&2
-  exit 11
+  exit 14
 fi
 
 if [[ -f "$state_dir/current_version" && "$(cat "$state_dir/current_version")" == "$version" ]]; then
@@ -92,8 +101,8 @@ if command -v sha256sum >/dev/null; then
 else
   actual_sha="$(shasum -a 256 "$artifact" | awk '{print tolower($1)}')"
 fi
-[[ "$actual_sha" == "$expected_sha" ]] || { echo "Integridade do pacote rejeitada." >&2; exit 12; }
-tar -tzf "$artifact" >/dev/null
+[[ "$actual_sha" == "$expected_sha" ]] || { echo "Integridade do pacote rejeitada." >&2; exit 15; }
+tar -tzf "$artifact" >/dev/null || { echo "Pacote inválido." >&2; exit 16; }
 if [[ "$dry_run" == "1" ]]; then
   echo "Manifesto, assinatura e integridade válidos para $version (simulação; nada foi alterado)."
   exit 0
@@ -108,27 +117,50 @@ mkdir -p "$release_dir"
 tar -xzf "$artifact" -C "$release_dir" --no-same-owner
 source_dir="$release_dir"
 if [[ -d "$release_dir/trace" && -f "$release_dir/trace/docker-compose.yml" ]]; then source_dir="$release_dir/trace"; fi
-[[ -f "$source_dir/docker-compose.yml" ]] || { echo "Pacote sem docker-compose.yml." >&2; exit 13; }
+[[ -f "$source_dir/docker-compose.yml" ]] || { echo "Pacote sem docker-compose.yml." >&2; exit 17; }
+
+rollback() {
+  echo "Restaurando a versão anterior." >&2
+  docker compose stop >/dev/null 2>&1 || true
+  if ! tar -xzf "$backup" -C "$root_dir" --no-same-owner; then
+    echo "Não foi possível restaurar os arquivos da versão anterior." >&2
+    return 1
+  fi
+  if ! docker compose up -d --build >/dev/null; then
+    echo "Não foi possível iniciar a versão anterior." >&2
+    return 1
+  fi
+  rollback_healthy=0
+  for _ in $(seq 1 "${HEALTHCHECK_ATTEMPTS:-30}"); do
+    if curl --fail --silent --max-time 3 "http://127.0.0.1:${PHP_PORT:-8080}/api/health.php" >/dev/null; then rollback_healthy=1; break; fi
+    sleep 2
+  done
+  if [[ "$rollback_healthy" != "1" ]]; then
+    echo "Rollback concluído, mas o healthcheck da versão anterior também falhou." >&2
+    return 1
+  fi
+}
 
 docker compose stop >/dev/null
-if command -v rsync >/dev/null; then
-  rsync -a --delete --exclude='.env' --exclude='armazenamento/' --exclude='.git/' "$source_dir/" "$root_dir/"
-else
-  echo "rsync é necessário para uma instalação segura." >&2
-  exit 14
+if ! rsync -a --delete --exclude='.env' --exclude='armazenamento/' --exclude='.git/' "$source_dir/" "$root_dir/"; then
+  echo "Não foi possível instalar os arquivos da nova versão." >&2
+  rollback || true
+  exit 18
 fi
-docker compose up -d --build >/dev/null
+if ! docker compose up -d --build >/dev/null; then
+  echo "A nova versão não conseguiu iniciar; iniciando rollback." >&2
+  rollback || true
+  exit 19
+fi
 healthy=0
-for _ in $(seq 1 30); do
-  if curl --fail --silent --max-time 3 http://127.0.0.1:${PHP_PORT:-8080}/api/health.php >/dev/null; then healthy=1; break; fi
+for _ in $(seq 1 "${HEALTHCHECK_ATTEMPTS:-30}"); do
+  if curl --fail --silent --max-time 3 "http://127.0.0.1:${PHP_PORT:-8080}/api/health.php" >/dev/null; then healthy=1; break; fi
   sleep 2
 done
 if [[ "$healthy" != "1" ]]; then
   echo "A versão $version não passou no healthcheck; iniciando rollback." >&2
-  docker compose stop >/dev/null || true
-  tar -xzf "$backup" -C "$root_dir" --no-same-owner
-  docker compose up -d --build >/dev/null
-  exit 15
+  rollback || true
+  exit 20
 fi
 printf '%s\n' "$version" > "$state_dir/current_version"
 echo "Trace atualizado com sucesso para $version. Backup: $backup"

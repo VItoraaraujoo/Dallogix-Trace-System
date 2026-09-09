@@ -51,6 +51,29 @@ Instale os serviços `dallogix-trace-update.service` e `dallogix-trace-update.ti
 TRACE_UPDATE_DRY_RUN=1 bash scripts/update_trace.sh
 ```
 
+## Publicação pelo GitHub
+
+O workflow `.github/workflows/release-production.yml` publica uma versão de produção quando uma tag SemVer (`v1.2.3`, por exemplo) é enviada ao GitHub. Antes de criar a release, ele confirma que a tag aponta para um commit da `master`, executa as validações de qualidade e segurança, monta um pacote somente com arquivos rastreados e publica o manifesto assinado junto com o artefato.
+
+Configure no ambiente protegido `production-release` do GitHub o segredo `UPDATE_SIGNING_PRIVATE_KEY`. A chave privada nunca deve entrar no repositório. Instale somente a chave pública na máquina industrial e configure o `.env` da Dala para consultar o manifesto da última release estável:
+
+```dotenv
+UPDATE_MANIFEST_URL=https://github.com/VItoraaraujoo/Dallogix-Trace-System/releases/latest/download/manifest.json
+UPDATE_PUBLIC_KEY_FILE=/opt/dallogix-trace/armazenamento/updates/trace-update-public.pem
+UPDATE_CHANNEL=stable
+```
+
+O procedimento de publicação é:
+
+```bash
+git checkout master
+git pull --ff-only origin master
+git tag -a v1.2.3 -m "Dallogix Trace v1.2.3"
+git push origin v1.2.3
+```
+
+O envio de um commit comum não atualiza a produção. A Dala só instala uma tag publicada, dentro da janela configurada no timer, depois de verificar assinatura, integridade, backup, ausência de carregamento ativo e healthcheck. O ambiente `production-release` deve exigir aprovação da equipe técnica antes de cada publicação.
+
 ## Windows industrial
 
 O mesmo contrato pode ser executado pelo atualizador do Windows dentro da janela de manutenção. O launcher continuará abrindo o Trace em quiosque após a atualização. A conta do operador não deve ter permissão para executar o atualizador; a tarefa agendada deve rodar com a conta técnica do equipamento.
