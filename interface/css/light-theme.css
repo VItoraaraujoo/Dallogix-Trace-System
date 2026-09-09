@@ -2318,6 +2318,72 @@ textarea {
 .shell.sidebar-collapsed .sidebar footer { padding: 20px 0 24px; text-align: center; }
 .shell.sidebar-collapsed .user-avatar { float: none; margin: 0 auto 18px; }
 
+/* Ações de navegação mais fáceis de identificar. */
+.nav-item[data-page="dalas"]::before {
+  content: "";
+  width: 30px;
+  height: 22px;
+  flex: 0 0 30px;
+  margin-right: 12px;
+  background: url("../assets/esteira-dala.png") center / contain no-repeat;
+}
+
+.logout-link {
+  width: 100%;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+  padding: 9px 12px;
+  border: 1px solid #b9d7e2;
+  border-radius: 9px;
+  background: #f2fbfd;
+  color: #075b78;
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+  transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+}
+
+.logout-link::before {
+  content: "↪";
+  font-size: 19px;
+  line-height: 1;
+}
+
+.logout-link:hover {
+  border-color: #74bccc;
+  background: #dff3f7;
+  color: #064b65;
+}
+
+.logout-link:focus-visible {
+  outline: 3px solid rgba(13, 108, 145, 0.3);
+  outline-offset: 2px;
+}
+
+.shell.sidebar-collapsed .logout-link {
+  width: 52px;
+  min-height: 48px;
+  display: inline-flex;
+  margin: 0;
+  padding: 0;
+  font-size: 0;
+}
+
+.shell.sidebar-collapsed .logout-link::before {
+  font-size: 23px;
+}
+
+.shell.sidebar-collapsed .nav-item[data-page="dalas"]::before {
+  width: 44px;
+  height: 32px;
+  flex-basis: 44px;
+  margin: 0;
+}
+
 /* Contraste dos botões secundários azul-claros */
 .button.secondary {
   background: #cfeaf2;
