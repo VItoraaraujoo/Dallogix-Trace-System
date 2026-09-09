@@ -2332,6 +2332,21 @@ textarea {
 .shell.sidebar-collapsed .sidebar footer { padding: 20px 0 24px; text-align: center; }
 .shell.sidebar-collapsed .user-avatar { float: none; margin: 0 auto 18px; }
 
+/* Marca Dallogix no rodapé, acima do perfil e da saída. */
+.sidebar footer::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 48px;
+  margin: 0 auto 14px;
+  background: url("../assets/dallogix-marca.png") center / contain no-repeat;
+}
+.shell.sidebar-collapsed .sidebar footer::before {
+  width: 78px;
+  height: 27px;
+  margin: 0 auto 12px;
+}
+
 /* Marca compacta para o menu lateral recolhido. */
 .shell.sidebar-collapsed .brand {
   height: 76px;
