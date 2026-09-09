@@ -33,9 +33,15 @@ $database = new TestDatabase();
 $queries = [];
 function db(): PDO { return $GLOBALS['database']; }
 function require_session_user(): array { return ['id' => 1, 'role' => 'ADMIN_EMPRESA', 'company_id' => 1]; }
+function exigir_sessao_usuario(): array { return require_session_user(); }
 function require_csrf(): void {}
+function exigir_csrf(): void {}
 function request_json(): array { return $GLOBALS['input']; }
+function ler_json_da_requisicao(): array { return request_json(); }
 function json_response(array $payload, int $status = 200): never { throw new Result($payload, $status); }
+function responder_json(array $payload, int $status = 200): never { json_response($payload, $status); }
+function obter_conexao_banco(): PDO { return db(); }
+function exigir_metodo_http(array $metodosPermitidos): void {}
 function record_operational_event(mixed ...$args): void { $GLOBALS['database']->insertId = '999'; }
 
 if ($scenario === 'admin-target') {

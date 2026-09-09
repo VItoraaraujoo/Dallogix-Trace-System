@@ -195,13 +195,13 @@ export class ArmazenamentoTrace {
   }
   async loadEquipment(id) {
     const response = await fetch(`/api/equipamentos.php?id=${id}`);
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Dala não encontrada.");
     this.state.equipmentDetail = result.data;
   }
   async checkEquipmentStatus(id) {
     const response = await fetch(`/api/equipamentos.php?id=${id}&check=status`);
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
     if (!response.ok)
       return {
         status: "DESCONHECIDO",
@@ -527,8 +527,15 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async loadProducts() {
-    const response = await fetch("/api/produtos.php");
-    if (response.ok) this.state.products = (await response.json()).data;
+    let response;
+    try {
+      response = await fetch("/api/produtos.php");
+    } catch (error) {
+      throw new Error("Servidor indisponível. Verifique se o serviço no Oracle está ligado e tente novamente.");
+    }
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível carregar os produtos.");
+    this.state.products = result.data || [];
   }
   async loadConfiguration() {
     const response = await fetch("/api/configuracoes.php");

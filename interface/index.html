@@ -22,9 +22,12 @@
       </button>
       <section class="login-card">
         <div class="brand login-brand">
-          <strong>TRACE</strong><small>PLATFORM</small>
+          <div class="login-brands" aria-label="Trace Platform e Dallogix">
+            <img src="assets/trace-platform.png" alt="Trace Platform" />
+            <img src="assets/dallogix-marca.png" alt="Dallogix" />
+          </div>
         </div>
-        <p class="kicker">Acesso local</p>
+        <button class="theme-toggle login-theme-toggle" data-action="toggle-theme" type="button" aria-label="Ativar modo noturno"><span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Modo noturno</span></button>
         <h1>Dallogix Trace</h1>
         <p class="login-description">
           Acesse a operação local e acompanhe os carregamentos em tempo real.
@@ -50,9 +53,6 @@
             Entrar no sistema
           </button>
         </form>
-        <small class="login-hint"
-          >Ambiente local • sem dependência de internet</small
-        >
       </section>
     </main>
     <script type="module" src="js/aplicacao.js?v=27" data-page="login"></script>

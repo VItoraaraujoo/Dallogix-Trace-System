@@ -1,22 +1,24 @@
 <?php
+
 declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
-require_csrf();
+
+exigir_csrf();
 
 $_SESSION = [];
 if (ini_get("session.use_cookies")) {
-    $params = session_get_cookie_params();
+    $configuracoes = session_get_cookie_params();
     setcookie(
         session_name(),
         "",
         time() - 42000,
-        $params["path"],
-        $params["domain"],
-        (bool) $params["secure"],
-        (bool) $params["httponly"],
+        $configuracoes["path"],
+        $configuracoes["domain"],
+        (bool) $configuracoes["secure"],
+        (bool) $configuracoes["httponly"],
     );
 }
 session_destroy();
 
-json_response(["authenticated" => false]);
+responder_json(["authenticated" => false]);

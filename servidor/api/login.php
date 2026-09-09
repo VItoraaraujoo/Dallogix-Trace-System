@@ -1,47 +1,62 @@
 <?php
+
 declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 
-$payload = request_json();
+exigir_metodo_http(["POST"]);
+
+$payload = ler_json_da_requisicao();
 $email = strtolower(trim((string) ($payload["email"] ?? "")));
 $password = (string) ($payload["password"] ?? "");
 
 if ($email === "" || $password === "") {
-    json_response(["error" => "Informe e-mail e senha."], 422);
+    usleep(150000);
+    responder_json(["error" => "Credenciais inválidas."], 401);
 }
-enforce_login_rate_limit($email);
 
-$statement = db()->prepare(
+if (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($email) > 254) {
+    usleep(150000);
+    responder_json(["error" => "Credenciais inválidas."], 401);
+}
+
+if (mb_strlen($password) < 6 || mb_strlen($password) > 128) {
+    usleep(150000);
+    responder_json(["error" => "Credenciais inválidas."], 401);
+}
+
+verificar_taxa_de_login($email);
+
+$statement = obter_conexao_banco()->prepare(
     "SELECT id, company_id, name, email, password_hash, role, active FROM usuarios WHERE email = :email LIMIT 1",
 );
 $statement->execute(["email" => $email]);
-$user = $statement->fetch();
+$usuario = $statement->fetch();
 
 if (
-    !$user ||
-    !(bool) $user["active"] ||
-    !password_verify($password, $user["password_hash"])
+    !$usuario ||
+    !(bool) $usuario["active"] ||
+    !password_verify($password, $usuario["password_hash"])
 ) {
-    usleep(150000);
-    json_response(["error" => "E-mail ou senha inválidos."], 401);
+    usleep(200000);
+    responder_json(["error" => "Credenciais inválidas."], 401);
 }
 
-if (password_needs_rehash($user["password_hash"], PASSWORD_DEFAULT)) {
+if (password_needs_rehash($usuario["password_hash"], PASSWORD_DEFAULT)) {
     $rehash = db()->prepare(
         "UPDATE usuarios SET password_hash = :password_hash WHERE id = :id",
     );
     $rehash->execute([
         "password_hash" => password_hash($password, PASSWORD_DEFAULT),
-        "id" => $user["id"],
+        "id" => $usuario["id"],
     ]);
 }
 
 session_regenerate_id(true);
-$_SESSION["user"] = public_user($user);
+$_SESSION["user"] = usuario_publico($usuario);
 
-json_response([
+responder_json([
     "authenticated" => true,
     "user" => $_SESSION["user"],
-    "csrf_token" => csrf_token(),
+    "csrf_token" => gerar_token_csrf(),
 ]);

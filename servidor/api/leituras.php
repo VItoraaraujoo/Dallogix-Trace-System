@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
@@ -6,22 +7,25 @@ require_once __DIR__ . "/../src/Aplicacao/ServicoLeituras.php";
 
 use App\Aplicacao\ServicoLeituras;
 
-$user = require_session_user();
-if ($user["company_id"] === null) {
-    json_response(["error" => "Usuário sem empresa vinculada."], 403);
+$usuarioAtor = exigir_sessao_usuario();
+if ($usuarioAtor["company_id"] === null) {
+    responder_json(["error" => "Usuário sem empresa vinculada."], 403);
 }
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $loadingId = filter_var($_GET["carregamento_id"] ?? null, FILTER_VALIDATE_INT);
-    if (!$loadingId) json_response(["error" => "Carregamento obrigatório."], 422);
-    $data = (new ServicoLeituras(db()))->listarPendentes((int) $user["company_id"], (int) $loadingId);
-    json_response(["data" => $data]);
+    if (!$loadingId) responder_json(["error" => "Carregamento obrigatório."], 422);
+    $pendencias = (new ServicoLeituras(obter_conexao_banco()))->listarPendentes(
+        (int) $usuarioAtor["company_id"],
+        (int) $loadingId,
+    );
+    responder_json(["data" => $pendencias]);
 }
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-    json_response(["error" => "Método não permitido."], 405);
+    responder_json(["error" => "Método não permitido."], 405);
 }
-require_csrf();
+exigir_csrf();
 
-$payload = request_json();
+$payload = ler_json_da_requisicao();
 $loadingId = filter_var(
     $payload["carregamento_id"] ?? null,
     FILTER_VALIDATE_INT,
@@ -53,26 +57,26 @@ $loadingStatement = $pdo->prepare(
 );
 $loadingStatement->execute([
     "id" => $loadingId,
-    "company_id" => $user["company_id"],
+    "company_id" => $usuarioAtor["company_id"],
 ]);
 $loading = $loadingStatement->fetch();
 if (!$loading) {
-    json_response(
+    responder_json(
         ["error" => "Carregamento não encontrado para esta empresa."],
         404,
     );
 }
 if ($loading["state"] === "EMERGENCIA") {
-    json_response(
+    responder_json(
         [
             "error" =>
-                "Contagem bloqueada: a máquina está em emergência. Libere a máquina antes de registrar leituras.",
+            "Contagem bloqueada: a máquina está em emergência. Libere a máquina antes de registrar leituras.",
         ],
         423,
     );
 }
 if ($loading["state"] !== "CARREGANDO") {
-    json_response(
+    responder_json(
         ["error" => "Leitura ignorada: a esteira está em {$loading["state"]}."],
         409,
     );
@@ -101,7 +105,7 @@ if ($sensorEventId) {
         "equipment_id" => $loading["equipment_id"],
     ]);
     if (!$sensorStatement->fetch()) {
-        json_response(
+        responder_json(
             ["error" => "Evento de sensor não pertence ao carregamento."],
             422,
         );
@@ -118,7 +122,7 @@ if ($barcode !== "") {
          WHERE pc.barcode = :barcode AND p.active = 1 LIMIT 1',
     );
     $productStatement->execute([
-        "company_id" => $user["company_id"],
+        "company_id" => $usuarioAtor["company_id"],
         "barcode" => $barcode,
     ]);
     $product = $productStatement->fetch();
@@ -164,7 +168,7 @@ try {
         );
         $existing->execute(["sensor_event_id" => $sensorEventId]);
         $reading = $existing->fetch();
-        json_response(
+        responder_json(
             [
                 "data" => [
                     "id" => (int) $reading["id"],
@@ -182,7 +186,7 @@ try {
 $readingId = (int) $pdo->lastInsertId();
 record_operational_event(
     $pdo,
-    $user,
+    $usuarioAtor,
     "LEITURA_REGISTRADA",
     "leitura",
     $readingId,
@@ -200,16 +204,16 @@ if ($result === "SEM_LEITURA") {
         'INSERT INTO ocorrencias (company_id, carregamento_id, type, quantity, description, created_by) VALUES (:company_id, :carregamento_id, \'FALHA_SEM_LEITURA\', 1, :description, :created_by)',
     );
     $occurrence->execute([
-        "company_id" => $user["company_id"],
+        "company_id" => $usuarioAtor["company_id"],
         "carregamento_id" => $loadingId,
         "description" =>
-            "Saco detectado pelo sensor sem código de barras válido.",
-        "created_by" => $user["id"],
+        "Saco detectado pelo sensor sem código de barras válido.",
+        "created_by" => $usuarioAtor["id"],
     ]);
     $occurrenceId = (int) $pdo->lastInsertId();
     record_operational_event(
         $pdo,
-        $user,
+        $usuarioAtor,
         "FALHA_SEM_LEITURA",
         "ocorrencia",
         $occurrenceId,
@@ -222,15 +226,15 @@ if ($result === "PRODUTO_INCORRETO") {
         'INSERT INTO ocorrencias (company_id, carregamento_id, type, quantity, description, created_by) VALUES (:company_id, :carregamento_id, \'PRODUTO_INCORRETO\', 1, :description, :created_by)',
     );
     $occurrence->execute([
-        "company_id" => $user["company_id"],
+        "company_id" => $usuarioAtor["company_id"],
         "carregamento_id" => $loadingId,
         "description" => "Produto lido não está previsto para o carregamento.",
-        "created_by" => $user["id"],
+        "created_by" => $usuarioAtor["id"],
     ]);
     $occurrenceId = (int) $pdo->lastInsertId();
     record_operational_event(
         $pdo,
-        $user,
+        $usuarioAtor,
         "PRODUTO_INCORRETO",
         "ocorrencia",
         $occurrenceId,
@@ -243,16 +247,16 @@ if ($result === "EXCESSO") {
         'INSERT INTO ocorrencias (company_id, carregamento_id, product_id, type, quantity, description, created_by) VALUES (:company_id, :carregamento_id, :product_id, \'EXCESSO\', 1, :description, :created_by)',
     );
     $occurrence->execute([
-        "company_id" => $user["company_id"],
+        "company_id" => $usuarioAtor["company_id"],
         "carregamento_id" => $loadingId,
         "product_id" => $productId,
         "description" => "Unidade excedente detectada após atingir a quantidade planejada.",
-        "created_by" => $user["id"],
+        "created_by" => $usuarioAtor["id"],
     ]);
     $occurrenceId = (int) $pdo->lastInsertId();
     record_operational_event(
         $pdo,
-        $user,
+        $usuarioAtor,
         "EXCESSO_DETECTADO",
         "ocorrencia",
         $occurrenceId,
@@ -274,7 +278,7 @@ if (in_array($result, ["PRODUTO_INCORRETO", "EXCESSO"], true)) {
     ]);
     record_operational_event(
         $pdo,
-        $user,
+        $usuarioAtor,
         "ESTEIRA_PAUSADA_AUTOMATICAMENTE",
         "carregamento",
         (int) $loadingId,
@@ -299,7 +303,7 @@ if (
     $cameraRequestId = (int) $pdo->lastInsertId();
     record_operational_event(
         $pdo,
-        $user,
+        $usuarioAtor,
         "CAMERA_CAPTURA_SOLICITADA",
         "camera_request",
         $cameraRequestId,
@@ -323,7 +327,7 @@ if (
          LIMIT 1",
     );
     $trigger->execute([
-        "company_id" => $user["company_id"],
+        "company_id" => $usuarioAtor["company_id"],
         "equipment_id" => $loading["equipment_id"],
     ]);
     $configuredAction = $trigger->fetch();
@@ -337,15 +341,15 @@ if (
              VALUES (:company_id, :equipment_id, :carregamento_id, :command, :requested_by)",
         );
         $queue->execute([
-            "company_id" => $user["company_id"],
+            "company_id" => $usuarioAtor["company_id"],
             "equipment_id" => $loading["equipment_id"],
             "carregamento_id" => $loadingId,
             "command" => $configuredAction["comando"],
-            "requested_by" => $user["id"],
+            "requested_by" => $usuarioAtor["id"],
         ]);
         record_operational_event(
             $pdo,
-            $user,
+            $usuarioAtor,
             "GATILHO_DALA_DISPARADO",
             "solicitacao_comando_clp",
             (int) $pdo->lastInsertId(),
@@ -360,7 +364,7 @@ if (
     }
     record_operational_event(
         $pdo,
-        $user,
+        $usuarioAtor,
         "QUANTIDADE_PLANEJADA_ATINGIDA",
         "carregamento",
         (int) $loadingId,
@@ -372,7 +376,7 @@ if (
     );
     $loadStatus = "COMPLETO";
 }
-json_response(
+responder_json(
     [
         "data" => [
             "id" => $readingId,

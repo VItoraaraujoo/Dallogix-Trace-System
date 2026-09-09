@@ -1,15 +1,16 @@
 <?php
+
 declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 
-$user = require_session_user();
-if ($user["company_id"] === null) {
-    json_response(["error" => "Usuário sem empresa vinculada."], 403);
+$usuarioAtor = exigir_sessao_usuario();
+if ($usuarioAtor["company_id"] === null) {
+    responder_json(["error" => "Usuário sem empresa vinculada."], 403);
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
-    $statement = db()->prepare(
+    $statement = obter_conexao_banco()->prepare(
         'SELECT c.id, c.state, c.equipment_id, c.started_at, c.finished_at,
                 r.number AS romaneio_number, rt.plate, e.equipment_code,
                 COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity,
@@ -21,26 +22,26 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
          WHERE c.company_id = :company_id
          ORDER BY c.id DESC',
     );
-    $statement->execute(["company_id" => $user["company_id"]]);
-    json_response(["data" => $statement->fetchAll()]);
+    $statement->execute(["company_id" => $usuarioAtor["company_id"]]);
+    responder_json(["data" => $statement->fetchAll()]);
 }
 
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-    json_response(["error" => "Método não permitido."], 405);
+    responder_json(["error" => "Método não permitido."], 405);
 }
-require_csrf();
-if (!in_array($user["role"], ["ADMIN_EMPRESA", "SUPERVISOR"], true)) {
-    json_response(
+exigir_csrf();
+if (!in_array($usuarioAtor["role"], ["ADMIN_EMPRESA", "SUPERVISOR"], true)) {
+    responder_json(
         [
             "error" =>
-                "A preparação do carregamento é permitida somente para administração ou supervisão.",
+            "A preparação do carregamento é permitida somente para administração ou supervisão.",
         ],
         403,
     );
 }
-require_active_license(db(), (int) $user["company_id"]);
+validar_licenca_ativa(obter_conexao_banco(), (int) $usuarioAtor["company_id"]);
 
-$payload = request_json();
+$payload = ler_json_da_requisicao();
 $romaneioId = filter_var($payload["romaneio_id"] ?? null, FILTER_VALIDATE_INT);
 $truckId = filter_var($payload["truck_id"] ?? null, FILTER_VALIDATE_INT);
 $equipmentId = filter_var(
@@ -48,13 +49,13 @@ $equipmentId = filter_var(
     FILTER_VALIDATE_INT,
 );
 if (!$romaneioId || !$truckId || !$equipmentId) {
-    json_response(
+    responder_json(
         ["error" => "Romaneio, caminhão e esteira são obrigatórios."],
         422,
     );
 }
 
-$pdo = db();
+$pdo = obter_conexao_banco();
 $statement = $pdo->prepare(
     'SELECT r.id AS romaneio_id, rt.id AS truck_id, e.id AS equipment_id
      FROM romaneios r
@@ -66,14 +67,14 @@ $statement->execute([
     "equipment_id" => $equipmentId,
     "romaneio_id" => $romaneioId,
     "truck_id" => $truckId,
-    "company_id" => $user["company_id"],
+    "company_id" => $usuarioAtor["company_id"],
 ]);
 $valid = $statement->fetch();
 if (!$valid) {
-    json_response(
+    responder_json(
         [
             "error" =>
-                "Romaneio, caminhão ou equipamento não pertence à empresa.",
+            "Romaneio, caminhão ou equipamento não pertence à empresa.",
         ],
         422,
     );
@@ -88,7 +89,7 @@ try {
     );
     $available->execute([
         "romaneio_id" => $romaneioId,
-        "company_id" => $user["company_id"],
+        "company_id" => $usuarioAtor["company_id"],
     ]);
     $romaneio = $available->fetch();
     if (
@@ -96,10 +97,10 @@ try {
         in_array($romaneio["status"], ["FINALIZADO", "CANCELADO"], true)
     ) {
         $pdo->rollBack();
-        json_response(
+        responder_json(
             [
                 "error" =>
-                    "Este romaneio não está disponível para novo carregamento.",
+                "Este romaneio não está disponível para novo carregamento.",
             ],
             409,
         );
@@ -111,17 +112,17 @@ try {
          LIMIT 1 FOR UPDATE",
     );
     $conflict->execute([
-        "company_id" => $user["company_id"],
+        "company_id" => $usuarioAtor["company_id"],
         "equipment_id" => $equipmentId,
         "romaneio_id" => $romaneioId,
         "truck_id" => $truckId,
     ]);
     if ($conflict->fetch()) {
         $pdo->rollBack();
-        json_response(
+        responder_json(
             [
                 "error" =>
-                    "A Dala ou este caminhão já possui um carregamento em andamento.",
+                "A Dala ou este caminhão já possui um carregamento em andamento.",
             ],
             409,
         );
@@ -130,7 +131,7 @@ try {
         'INSERT INTO carregamentos (company_id, equipment_id, romaneio_id, truck_id, state, started_at) VALUES (:company_id, :equipment_id, :romaneio_id, :truck_id, \'PREPARANDO\', NOW())',
     );
     $insert->execute([
-        "company_id" => $user["company_id"],
+        "company_id" => $usuarioAtor["company_id"],
         "equipment_id" => $equipmentId,
         "romaneio_id" => $romaneioId,
         "truck_id" => $truckId,
@@ -141,7 +142,7 @@ try {
     )->execute(["id" => $romaneioId]);
     record_operational_event(
         $pdo,
-        $user,
+        $usuarioAtor,
         "CARREGAMENTO_PREPARADO",
         "carregamento",
         $loadingId,
@@ -152,7 +153,7 @@ try {
         ],
     );
     $pdo->commit();
-    json_response(
+    responder_json(
         ["data" => ["id" => $loadingId, "state" => "PREPARANDO"]],
         201,
     );
@@ -161,7 +162,7 @@ try {
         $pdo->rollBack();
     }
     error_log("Loading preparation failed: " . $exception->getMessage());
-    json_response(
+    responder_json(
         ["error" => "Não foi possível preparar o carregamento."],
         500,
     );

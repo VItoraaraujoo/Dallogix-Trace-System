@@ -1,5 +1,6 @@
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js";
 import { FORM_ACTIONS } from "./constantes/acoes.js";
+import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { el, esc } from "./funcoes/html.js";
 import { settings } from "./telas/configuracoes.js";
 import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js";
@@ -25,7 +26,6 @@ import {
 } from "./telas/operacoes.js";
 import { dashboard } from "./telas/painel.js";
 import { users } from "./telas/usuarios.js";
-import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 
 const store = new ArmazenamentoTrace();
 let renderRequestId = 0;
@@ -247,30 +247,30 @@ function queryReturnPage() {
 function navigationIcon(page) {
   const icons = {
     manifests:
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="4" width="12" height="16" rx="2"/><path d="M9 4.5h6M9 10h6M9 14h4"/></svg>',
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h10l4 4V20H5z"/><path d="M15 4.5V9h4M8 12h8M8 16h5"/><path d="m8 8 1.4 1.4L12 6.8"/></svg>',
     dashboard:
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></svg>',
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>',
     products:
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4.5 7.8 7.5 4.3 7.5-4.3M12 12v9"/></svg>',
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4.5 7.8 7.5 4.3 7.5-4.3M12 12v9"/><path d="M9 5.2 16.5 9"/></svg>',
     dalas:
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h10v9H3zM13 10h4l3 3v3h-7z"/><circle cx="7" cy="18" r="2"/><circle cx="17" cy="18" r="2"/></svg>',
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7h12v9H3zM15 10h3l3 3v3h-6z"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/><path d="M6 10h6M6 13h4"/></svg>',
     settings:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.1 2.1-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.55v.1h-3v-.1A1.7 1.7 0 0 0 10.7 18.6a1.7 1.7 0 0 0-1.88.34l-.06.06-2.1-2.1.06-.06A1.7 1.7 0 0 0 7.06 15a1.7 1.7 0 0 0-1.55-1.03h-.1v-3h.1A1.7 1.7 0 0 0 7.06 9.94 1.7 1.7 0 0 0 6.72 8.06L6.66 8l2.1-2.1.06.06a1.7 1.7 0 0 0 1.88.34 1.7 1.7 0 0 0 1.03-1.55v-.1h3v.1A1.7 1.7 0 0 0 15.76 6.3a1.7 1.7 0 0 0 1.88-.34l.06-.06 2.1 2.1-.06.06a1.7 1.7 0 0 0-.34 1.88 1.7 1.7 0 0 0 1.55 1.03h.1v3h-.1A1.7 1.7 0 0 0 19.4 15Z"/></svg>',
-    work: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h18v8H3zM7 8V5h10v3M7 16v3h10v-3"/><path d="M8 12h8"/></svg>',
+    work: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="18" height="12" rx="2"/><path d="M8 7V5h8v2M3 12h18M10 12v2h4v-2"/></svg>',
     occurrences:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg>',
     history:
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5M12 7v5l3 2"/></svg>',
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12a8 8 0 1 0 2.3-5.7"/><path d="M4 4v5h5M12 7v5l3 2"/><path d="M17 4h3v3"/></svg>',
     summary:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
     alerts:
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg>',
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 9a6 6 0 0 0-12 0c0 6-3 7-3 9h18c0-2-3-3-3-9M10 21h4"/><path d="M19 4v3M17.5 5.5h3"/></svg>',
     companies:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 21V5l8-3 8 3v16M4 10h16M8 7h.01M12 7h.01M16 7h.01M8 14h.01M12 14h.01M16 14h.01"/></svg>',
     "master-home":
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20V5h16v15M8 9h8M8 13h4M8 17h8"/><path d="M16 13h3v4h-3z"/></svg>',
     users:
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2"/><path d="M3 20c.7-4 10.3-4 12 0M15 15c3.2-.4 5.3 1.1 6 3.2"/></svg>',
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="9" r="2"/><path d="M3 20c.7-4 10.3-4 12 0M15 15c3.2-.4 5.3 1.1 6 3.2"/><path d="M19 14v4M17 16h4"/></svg>',
   };
   return icons[page] || icons.dashboard;
 }
@@ -287,6 +287,13 @@ function renderLogin(message = "") {
 function hydrateChrome() {
   const shell = document.getElementById("shell");
   if (shell && sidebarCollapsed()) shell.classList.add("sidebar-collapsed");
+  const menuButton = document.querySelector('[data-action="toggle-menu"]');
+  if (menuButton && shell) {
+    menuButton.setAttribute(
+      "aria-expanded",
+      String(!shell.classList.contains("sidebar-collapsed")),
+    );
+  }
   const nav = document.querySelector(".sidebar nav");
   if (nav)
     nav.innerHTML = NAV_GROUPS.map(([group, items]) => {
@@ -353,6 +360,21 @@ function startWorkPolling() {
   }, 2000);
 }
 function installInteractionGuards() {
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !window.matchMedia("(max-width: 620px)").matches)
+      return;
+    const shell = document.querySelector(".shell");
+    if (!shell || shell.classList.contains("sidebar-collapsed")) return;
+    shell.classList.add("sidebar-collapsed");
+    try {
+      localStorage.setItem("trace-sidebar-collapsed", "1");
+    } catch (storageError) {
+      /* modo privado */
+    }
+    const menuButton = document.querySelector('[data-action="toggle-menu"]');
+    menuButton?.setAttribute("aria-expanded", "false");
+    menuButton?.focus();
+  });
   document.addEventListener("dragstart", (event) => {
     if (event.target.closest("a, button, img, svg, [data-action]"))
       event.preventDefault();
@@ -483,6 +505,7 @@ function bindActions() {
         const collapsed = shell
           ? shell.classList.toggle("sidebar-collapsed")
           : false;
+        node.setAttribute("aria-expanded", String(!collapsed));
         try {
           localStorage.setItem(
             "trace-sidebar-collapsed",
@@ -491,6 +514,10 @@ function bindActions() {
         } catch (storageError) {
           /* modo privado */
         }
+        return;
+      }
+      if (action === "toggle-theme") {
+        toggleTheme();
         return;
       }
       if (action === "open-company") {
@@ -1063,6 +1090,13 @@ function bindActions() {
         return;
       event.preventDefault();
       navigate(item.dataset.page);
+      if (window.matchMedia("(max-width: 620px)").matches) {
+        const shell = document.querySelector(".shell");
+        shell?.classList.add("sidebar-collapsed");
+        document
+          .querySelector('[data-action="toggle-menu"]')
+          ?.setAttribute("aria-expanded", "false");
+      }
     });
   });
   document.querySelectorAll('input[data-action="open-users"]').forEach((node) => {
@@ -1371,21 +1405,29 @@ function bindForms() {
   if (csvForm)
     csvForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const response = await fetch("/api/importar_csv.php", {
-        method: "POST",
-        headers: store.csrfToken ? { "X-CSRF-Token": store.csrfToken } : {},
-        body: new FormData(csvForm),
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        alert(result.error || "Falha ao importar CSV.");
-        return;
+      const submit = csvForm.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      try {
+        const response = await fetch("/api/importar_csv.php", {
+          method: "POST",
+          headers: store.csrfToken ? { "X-CSRF-Token": store.csrfToken } : {},
+          body: new FormData(csvForm),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          alert(result.error || "Falha ao importar CSV.");
+          return;
+        }
+        await store.loadManifests();
+        alert(
+          `${result.data?.romaneios || 0} romaneio(s), ${result.data?.items || 0} item(ns) consolidados em ${result.data?.linhas || 0} linha(s) importada(s).`,
+        );
+        navigate("manifests");
+      } catch (error) {
+        alert(error.message || "Não foi possível importar o CSV.");
+      } finally {
+        if (submit) submit.disabled = false;
       }
-      await store.loadManifests();
-      alert(
-        `${result.data.romaneios} romaneio(s), ${result.data.items} item(ns) consolidados em ${result.data.linhas} linha(s) importada(s).`,
-      );
-      navigate("manifests");
     });
   const prepareLoadingForm = document.querySelector("#prepare-loading-form");
   if (prepareLoadingForm)
@@ -1654,9 +1696,7 @@ async function bootstrap() {
       return;
     }
     renderLogin();
-    const loginThemeToggle = document.querySelector('[data-action="toggle-theme"]');
-    if (loginThemeToggle)
-      loginThemeToggle.addEventListener("click", toggleTheme, { once: false });
+    bindActions();
     updateThemeControls();
     bindLoginForm();
     return;

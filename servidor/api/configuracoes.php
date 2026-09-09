@@ -1,13 +1,14 @@
 <?php
+
 declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 
-$user = require_session_user();
-if ($user["company_id"] === null) {
-    json_response(["error" => "Usuário sem empresa vinculada."], 403);
+$usuarioAtor = exigir_sessao_usuario();
+if ($usuarioAtor["company_id"] === null) {
+    responder_json(["error" => "Usuário sem empresa vinculada."], 403);
 }
-$pdo = db();
+$pdo = obter_conexao_banco();
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $settings = $pdo->prepare(
@@ -36,17 +37,17 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
 }
 
 if ($_SERVER["REQUEST_METHOD"] !== "PUT") {
-    json_response(["error" => "Método não permitido."], 405);
+    responder_json(["error" => "Método não permitido."], 405);
 }
-require_csrf();
-if (!in_array($user["role"], ["ADMIN_DALLOGIX", "ADMIN_EMPRESA"], true)) {
-    json_response(
+exigir_csrf();
+if (!in_array($usuarioAtor["role"], ["ADMIN_DALLOGIX", "ADMIN_EMPRESA"], true)) {
+    responder_json(
         ["error" => "Perfil sem permissão para alterar configurações."],
         403,
     );
 }
 
-$payload = request_json();
+$payload = ler_json_da_requisicao();
 $gatewayIp = trim((string) ($payload["gateway_public_ip"] ?? ""));
 if (array_key_exists("sync_remote_url", $payload)) {
     json_response(
