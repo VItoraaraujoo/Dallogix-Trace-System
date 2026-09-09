@@ -5,7 +5,6 @@ export const FORM_ACTIONS = new Set([
   "save-dala-edit",
   "submit-product",
   "submit-manifest",
-  "submit-manifest-edit",
   "import-pdf",
   "import-csv",
   "save-occurrence",
