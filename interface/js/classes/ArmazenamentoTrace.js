@@ -195,13 +195,13 @@ export class ArmazenamentoTrace {
   }
   async loadEquipment(id) {
     const response = await fetch(`/api/equipamentos.php?id=${id}`);
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Dala não encontrada.");
     this.state.equipmentDetail = result.data;
   }
   async checkEquipmentStatus(id) {
     const response = await fetch(`/api/equipamentos.php?id=${id}&check=status`);
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
     if (!response.ok)
       return {
         status: "DESCONHECIDO",
