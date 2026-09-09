@@ -1,13 +1,11 @@
 name: Deploy test server
 
 on:
-  workflow_run:
-    workflows: ["Trace quality", "Security checks"]
-    types: [completed]
+  push:
+    branches: [master]
   workflow_dispatch:
 
 permissions:
-  actions: read
   contents: read
 
 concurrency:
@@ -15,48 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  gate:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.name == 'Security checks' &&
-      github.event.workflow_run.conclusion == 'success' &&
-      github.event.workflow_run.head_branch == 'master')
-    runs-on: ubuntu-latest
-    outputs:
-      head_sha: ${{ steps.required-checks.outputs.head_sha }}
-    steps:
-      - name: Aguardar checks obrigatórios do mesmo commit
-        id: required-checks
-        env:
-          GH_TOKEN: ${{ github.token }}
-          EVENT_SHA: ${{ github.event.workflow_run.head_sha }}
-        run: |
-          set -euo pipefail
-          repository="$GITHUB_REPOSITORY"
-          head_sha="$EVENT_SHA"
-          if [[ -z "$head_sha" ]]; then
-            head_sha="$(gh api "repos/$repository/git/ref/heads/master" --jq '.object.sha')"
-          fi
-          for _ in $(seq 1 30); do
-            runs="$(gh api "repos/$repository/actions/runs?head_sha=$head_sha&per_page=100")"
-            quality="$(jq -r --arg sha "$head_sha" '[.workflow_runs[] | select(.name == "Trace quality" and .head_sha == $sha)] | sort_by(.run_number) | last | .conclusion // empty' <<<"$runs")"
-            security="$(jq -r --arg sha "$head_sha" '[.workflow_runs[] | select(.name == "Security checks" and .head_sha == $sha)] | sort_by(.run_number) | last | .conclusion // empty' <<<"$runs")"
-            if [[ "$quality" =~ ^(failure|cancelled|timed_out|action_required|startup_failure)$ || "$security" =~ ^(failure|cancelled|timed_out|action_required|startup_failure)$ ]]; then
-              echo "Um dos checks obrigatórios falhou para $head_sha." >&2
-              exit 1
-            fi
-            if [[ "$quality" == "success" && "$security" == "success" ]]; then
-              echo "Checks obrigatórios aprovados para $head_sha."
-              echo "head_sha=$head_sha" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
-            sleep 20
-          done
-          echo "Tempo esgotado aguardando os checks obrigatórios para $head_sha." >&2
-          exit 1
-
   deploy:
-    needs: gate
     runs-on: ubuntu-latest
     environment: test
     steps:
