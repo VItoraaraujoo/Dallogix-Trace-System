@@ -2315,6 +2315,20 @@ textarea {
 .shell.sidebar-collapsed .nav-label, .shell.sidebar-collapsed .nav-text, .shell.sidebar-collapsed .user-name, .shell.sidebar-collapsed footer b, .shell.sidebar-collapsed .logout-link { display: none; }
 .shell.sidebar-collapsed .nav-item { width: 78px; height: 78px; min-height: 78px; padding: 0; margin: 6px auto; display: grid !important; place-items: center; justify-content: center; }
 .shell.sidebar-collapsed .nav-item .nav-icon, .shell.sidebar-collapsed .nav-item .nav-icon svg { width: 36px; height: 36px; }
+
+/* Ícones do menu: traços mais expressivos e sem duplicar o desenho da Dalas. */
+.nav-icon svg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.nav-item[data-page="dalas"]::before,
+.shell.sidebar-collapsed .nav-item[data-page="dalas"]::before {
+  display: none;
+  content: none;
+}
 .shell.sidebar-collapsed .sidebar footer { padding: 20px 0 24px; text-align: center; }
 .shell.sidebar-collapsed .user-avatar { float: none; margin: 0 auto 18px; }
 
