@@ -5,11 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Acesso ao sistema • Dallogix Trace</title>
     <link rel="stylesheet" href="css/styles.css" />
-    <link rel="stylesheet" href="css/light-theme.css?v=4" />
+    <link rel="stylesheet" href="css/light-theme.css?v=5" />
     <link rel="stylesheet" href="css/auth.css" />
   </head>
   <body>
     <main class="login-page">
+      <button
+        class="theme-toggle login-theme-toggle"
+        data-action="toggle-theme"
+        type="button"
+        aria-label="Ativar modo noturno"
+        aria-pressed="false"
+      >
+        <span class="theme-icon" aria-hidden="true">☾</span>
+        <span class="theme-label">Modo noturno</span>
+      </button>
       <section class="login-card">
         <div class="brand login-brand">
           <strong>TRACE</strong><small>PLATFORM</small>
@@ -45,6 +55,6 @@
         >
       </section>
     </main>
-    <script type="module" src="js/aplicacao.js?v=24" data-page="login"></script>
+    <script type="module" src="js/aplicacao.js?v=27" data-page="login"></script>
   </body>
 </html>

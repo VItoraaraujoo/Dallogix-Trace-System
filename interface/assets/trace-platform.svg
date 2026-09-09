@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 300 84" role="img" aria-label="Trace Platform">
+  <text x="150" y="48" text-anchor="middle" fill="#f8fbff" font-family="Arial Black, Arial, sans-serif" font-size="45" font-style="italic" font-weight="900" letter-spacing="-3">TRACE</text>
+  <path d="M35 64h54M211 64h54" stroke="#75d8ee" stroke-width="3" stroke-linecap="round"/>
+  <text x="150" y="72" text-anchor="middle" fill="#dcebf5" font-family="Arial, sans-serif" font-size="13" font-weight="700" letter-spacing="7">PLATFORM</text>
+</svg>
