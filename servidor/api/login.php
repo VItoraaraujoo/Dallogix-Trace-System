@@ -42,13 +42,13 @@ if (
     responder_json(["error" => "Credenciais inválidas."], 401);
 }
 
-if (password_needs_rehash($user["password_hash"], PASSWORD_DEFAULT)) {
+if (password_needs_rehash($usuario["password_hash"], PASSWORD_DEFAULT)) {
     $rehash = db()->prepare(
         "UPDATE usuarios SET password_hash = :password_hash WHERE id = :id",
     );
     $rehash->execute([
         "password_hash" => password_hash($password, PASSWORD_DEFAULT),
-        "id" => $user["id"],
+        "id" => $usuario["id"],
     ]);
 }
 
