@@ -22,6 +22,7 @@ export class ArmazenamentoTrace {
       report: null,
       reportCsvRows: [],
       products: [],
+      productsLoaded: false,
       users: [],
       userRole: null,
       configuration: null,
@@ -524,8 +525,30 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async loadProducts() {
-    const response = await fetch("/api/produtos.php");
-    if (response.ok) this.state.products = (await response.json()).data;
+    if (this.productsRequest) return this.productsRequest;
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 10000);
+    this.productsRequest = fetch("/api/produtos.php", { signal: controller.signal })
+      .then(async (response) => {
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(result.error || "Não foi possível carregar os produtos.");
+        }
+        this.state.products = Array.isArray(result.data) ? result.data : [];
+        this.state.productsLoaded = true;
+        return this.state.products;
+      })
+      .catch((error) => {
+        if (error.name === "AbortError") {
+          throw new Error("O carregamento dos produtos demorou. Tente novamente.");
+        }
+        throw error;
+      })
+      .finally(() => {
+        window.clearTimeout(timeout);
+        this.productsRequest = null;
+      });
+    return this.productsRequest;
   }
   async loadConfiguration() {
     const response = await fetch("/api/configuracoes.php");

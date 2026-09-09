@@ -55,7 +55,7 @@ export function history(store) {
 export function products(store) {
   const search = (store.state.productSearch || "").toLowerCase();
   const all = store.state.products || [];
-  const products = search
+const products = search
     ? all.filter((product) =>
         `${product.name} ${product.code} ${product.category || ""} ${product.barcodes || ""}`
           .toLowerCase()
@@ -78,9 +78,11 @@ export function products(store) {
     : "";
   return `<div class="title-row with-actions"><div><h2>Produtos</h2></div>${button(open ? "Fechar formulário" : "+ Novo produto", "toggle-product-form")}</div>
 ${form}
-<section class="panel"><div class="search-row"><input id="product-search" placeholder="Buscar por nome…" aria-label="Buscar por nome" value="${esc(store.state.productSearch || "")}" /></div>
+<section class="panel product-catalog-panel"><div class="search-row"><label class="product-search-label" for="product-search">Buscar produto<input id="product-search" placeholder="Nome, código ou categoria" aria-label="Buscar por nome, código ou categoria" value="${esc(store.state.productSearch || "")}" /></label></div>
 <div class="table-wrap"><table><thead><tr><th>Nome</th><th>Código de Barras</th><th>SKU</th><th>Categoria</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>${
-    products.length
+    !store.state.productsLoaded
+      ? '<tr><td colspan="6" class="empty-cell">Carregando produtos…</td></tr>'
+      : products.length
       ? products
           .map(
             (product) => `<tr>
