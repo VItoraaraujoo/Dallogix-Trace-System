@@ -159,6 +159,24 @@ function sidebarCollapsed() {
     return false;
   }
 }
+function applyTheme() {
+  let theme = "light";
+  try { theme = localStorage.getItem("trace-theme") === "dark" ? "dark" : "light"; }
+  catch (error) { /* modo privado */ }
+  document.documentElement.dataset.theme = theme;
+  return theme;
+}
+function toggleTheme() {
+  const next = applyTheme() === "dark" ? "light" : "dark";
+  document.documentElement.dataset.theme = next;
+  try { localStorage.setItem("trace-theme", next); } catch (error) { /* modo privado */ }
+  document.querySelectorAll(".theme-toggle").forEach((button) => {
+    button.setAttribute("aria-label", next === "dark" ? "Ativar modo claro" : "Ativar modo noturno");
+    const label = button.querySelector("span");
+    if (label) label.textContent = next === "dark" ? "Modo claro" : "Modo noturno";
+    button.firstChild.textContent = next === "dark" ? "☀ " : "☾ ";
+  });
+}
 function normalizeRole(role) {
   return typeof role === "string" ? role.toUpperCase() : "";
 }
@@ -251,6 +269,7 @@ function renderLogin(message = "") {
   }
 }
 function hydrateChrome() {
+  applyTheme();
   const shell = document.getElementById("shell");
   if (shell && sidebarCollapsed()) shell.classList.add("sidebar-collapsed");
   const nav = document.querySelector(".sidebar nav");
@@ -260,6 +279,23 @@ function hydrateChrome() {
       if (!permitted.length) return "";
       return `<span class="nav-label">${esc(group)}</span>${permitted.map(([page, label]) => `<a class="nav-item${page === currentPage ? " active" : ""}${["dashboard", "dalas"].includes(page) ? " nav-section-end" : ""}" data-page="${page}" data-label="${esc(label)}" href="${pagePath(page)}"><span class="nav-icon">${navigationIcon(page)}</span><span class="nav-text">${esc(label)}</span></a>`).join("")}`;
     }).join("");
+  const topbar = document.querySelector(".topbar");
+  if (topbar && !topbar.querySelector(".theme-toggle")) {
+    const button = document.createElement("button");
+    button.className = "theme-toggle";
+    button.dataset.action = "toggle-theme";
+    button.type = "button";
+    button.innerHTML = '<span>Modo noturno</span>';
+    topbar.append(button);
+  }
+  const theme = applyTheme();
+  document.querySelectorAll(".theme-toggle").forEach((button) => {
+    button.setAttribute("aria-label", theme === "dark" ? "Ativar modo claro" : "Ativar modo noturno");
+    const label = button.querySelector("span");
+    if (label) label.textContent = theme === "dark" ? "Modo claro" : "Modo noturno";
+    if (button.firstChild?.nodeType === Node.TEXT_NODE) button.firstChild.textContent = theme === "dark" ? "☀ " : "☾ ";
+    else button.insertBefore(document.createTextNode(theme === "dark" ? "☀ " : "☾ "), label || null);
+  });
   const userRole = normalizeRole(authenticatedUser?.role);
   el("#user-avatar").textContent = (authenticatedUser?.name || "A")
     .slice(0, 1)
@@ -443,6 +479,10 @@ function bindActions() {
         } catch (storageError) {
           /* modo privado */
         }
+        return;
+      }
+      if (action === "toggle-theme") {
+        toggleTheme();
         return;
       }
       if (action === "open-company") {
@@ -1586,6 +1626,7 @@ async function renderPage() {
 
 async function bootstrap() {
   installInteractionGuards();
+  applyTheme();
   currentPage = initialPage || pageFromPath();
   if (currentPage === "login") {
     if (window.location.search)
@@ -1605,6 +1646,7 @@ async function bootstrap() {
       return;
     }
     renderLogin();
+    bindActions();
     bindLoginForm();
     return;
   }

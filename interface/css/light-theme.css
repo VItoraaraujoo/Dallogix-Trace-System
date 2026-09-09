@@ -2332,6 +2332,55 @@ textarea {
 .shell.sidebar-collapsed .sidebar footer { padding: 20px 0 24px; text-align: center; }
 .shell.sidebar-collapsed .user-avatar { float: none; margin: 0 auto 18px; }
 
+/* Modo noturno: mantém a leitura confortável em todas as telas. */
+html[data-theme="dark"] {
+  color-scheme: dark;
+  --ink: #e8eef5;
+  --muted: #aab8c6;
+  --line: #34465a;
+  --bg: #0f1724;
+  --nav: #172337;
+  --blue: #4ba8d6;
+  --green: #59c58a;
+  --red: #f17878;
+  --yellow: #e8b34f;
+}
+html[data-theme="dark"] body,
+html[data-theme="dark"] .main { background: #0f1724; color: var(--ink); }
+html[data-theme="dark"] .topbar,
+html[data-theme="dark"] .sidebar { background: #172337; border-color: #34465a; color: var(--ink); }
+html[data-theme="dark"] .brand strong,
+html[data-theme="dark"] .user-name,
+html[data-theme="dark"] .sidebar footer b,
+html[data-theme="dark"] .topbar h1 { color: #eef4fa; }
+html[data-theme="dark"] .brand small,
+html[data-theme="dark"] .nav-label,
+html[data-theme="dark"] .sidebar footer,
+html[data-theme="dark"] .topbar h1 small,
+html[data-theme="dark"] .title-row p,
+html[data-theme="dark"] .panel p,
+html[data-theme="dark"] .metric small,
+html[data-theme="dark"] .progress-label,
+html[data-theme="dark"] li small { color: #aab8c6; }
+html[data-theme="dark"] .nav-item { color: #c8d4e0; }
+html[data-theme="dark"] .nav-item:hover,
+html[data-theme="dark"] .nav-item.active { background: #24364e; color: #fff; }
+html[data-theme="dark"] .panel,
+html[data-theme="dark"] .status span,
+html[data-theme="dark"] th { background: #19283d; border-color: #34465a; color: var(--ink); }
+html[data-theme="dark"] th { background: #22344b; color: #b9c8d7; }
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea { background: #111d2e; color: #e8eef5; border-color: #3a5069; }
+html[data-theme="dark"] .secondary,
+html[data-theme="dark"] .ghost { background: #263b54; color: #e2edf7; border-color: #3d5873; }
+html[data-theme="dark"] .login-card { background: #19283d; color: #e8eef5; box-shadow: 0 18px 55px rgba(0,0,0,.5); }
+html[data-theme="dark"] .login-page { background: linear-gradient(135deg, #08111c, #12344a); }
+html[data-theme="dark"] .login-brands { background: linear-gradient(145deg, #050b13, #172f44); box-shadow: 0 10px 24px rgba(0,0,0,.55), inset 0 1px rgba(255,255,255,.16); }
+html[data-theme="dark"] .theme-toggle { color: #b9c8d7; border-color: #405872; }
+html[data-theme="dark"] .theme-toggle:hover,
+html[data-theme="dark"] .theme-toggle:focus-visible { color: #fff; border-color: #68b8e0; }
+
 /* Marca Dallogix no rodapé, acima do perfil e da saída. */
 .sidebar footer::before {
   content: "";
