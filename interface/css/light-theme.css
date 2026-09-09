@@ -2332,6 +2332,28 @@ textarea {
 .shell.sidebar-collapsed .sidebar footer { padding: 20px 0 24px; text-align: center; }
 .shell.sidebar-collapsed .user-avatar { float: none; margin: 0 auto 18px; }
 
+/* Marca compacta para o menu lateral recolhido. */
+.shell.sidebar-collapsed .brand {
+  height: 76px;
+  margin: 0 0 22px;
+  padding: 10px 4px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-bottom: 1px solid #dce5eb;
+}
+.shell.sidebar-collapsed .brand::before {
+  content: "";
+  display: block;
+  width: 100%;
+  height: 54px;
+  background: url("../assets/trace-platform.png") center / contain no-repeat;
+}
+.shell.sidebar-collapsed .brand strong,
+.shell.sidebar-collapsed .brand small {
+  display: none;
+}
+
 /* Ações de navegação mais fáceis de identificar. */
 .nav-item[data-page="dalas"]::before {
   content: "";
