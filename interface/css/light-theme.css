@@ -3448,6 +3448,35 @@ textarea {
   }
 }
 
+/* Tipografia original: leitura neutra e proporções estáveis em todas as telas. */
+:root,
+html[data-theme="dark"] {
+  --trace-font: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --trace-display-font: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+html,
+body,
+button,
+input,
+select,
+textarea,
+h1,
+h2,
+h3,
+.title-row h2,
+.brand {
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif !important;
+}
+
+h1,
+h2,
+h3,
+.title-row h2 {
+  font-weight: 700 !important;
+  letter-spacing: 0 !important;
+}
+
 /* Controle de tema compartilhado pelo login e pelas telas internas. */
 .theme-toggle {
   display: inline-flex;
