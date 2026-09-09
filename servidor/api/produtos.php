@@ -65,7 +65,7 @@ $syncBarcode = static function (PDO $pdo, int $productId, string $barcode) use (
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $search = trim((string) ($_GET["search"] ?? ""));
     $conditions = ["p.company_id = :company_id"];
-    $params = ["company_id" => $user["company_id"]];
+    $params = ["company_id" => $usuarioAtor["company_id"]];
     if ($search !== "") {
         $conditions[] =
             "(p.name LIKE :search OR p.code LIKE :search OR p.category LIKE :search OR EXISTS (SELECT 1 FROM codigos_produtos pc WHERE pc.product_id = p.id AND pc.barcode LIKE :search))";
@@ -87,7 +87,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     require_csrf();
-    if (!$canManage) {
+    if (!$podeGerenciar) {
         json_response(
             ["error" => "Perfil sem permissão para cadastrar produto."],
             403,
@@ -115,7 +115,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             "INSERT INTO produtos (company_id, code, name, category) VALUES (:company_id, :code, :name, :category)",
         );
         $insert->execute([
-            "company_id" => $user["company_id"],
+            "company_id" => $usuarioAtor["company_id"],
             "code" => $temporaryCode,
             "name" => $name,
             "category" => $category !== "" ? $category : null,
@@ -134,7 +134,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $syncBarcode($pdo, $productId, $barcode);
         record_operational_event(
             $pdo,
-            $user,
+            $usuarioAtor,
             "PRODUTO_CADASTRADO",
             "produto",
             $productId,
@@ -170,7 +170,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
 if ($_SERVER["REQUEST_METHOD"] === "PUT") {
     require_csrf();
-    if (!$canManage) {
+    if (!$podeGerenciar) {
         json_response(
             ["error" => "Perfil sem permissão para editar produto."],
             403,
@@ -184,7 +184,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
     $find = $pdo->prepare(
         "SELECT id FROM produtos WHERE id = :id AND company_id = :company_id LIMIT 1",
     );
-    $find->execute(["id" => $productId, "company_id" => $user["company_id"]]);
+    $find->execute(["id" => $productId, "company_id" => $usuarioAtor["company_id"]]);
     if (!$find->fetch()) {
         json_response(["error" => "Produto não encontrado."], 404);
     }
@@ -217,7 +217,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
         }
         record_operational_event(
             $pdo,
-            $user,
+            $usuarioAtor,
             "PRODUTO_ATUALIZADO",
             "produto",
             $productId,
@@ -247,7 +247,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
 
 if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
     require_csrf();
-    if (!$canManage) {
+    if (!$podeGerenciar) {
         json_response(
             ["error" => "Perfil sem permissão para excluir produto."],
             403,
@@ -260,7 +260,7 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
     $find = $pdo->prepare(
         "SELECT id FROM produtos WHERE id = :id AND company_id = :company_id LIMIT 1",
     );
-    $find->execute(["id" => $productId, "company_id" => $user["company_id"]]);
+    $find->execute(["id" => $productId, "company_id" => $usuarioAtor["company_id"]]);
     if (!$find->fetch()) {
         json_response(["error" => "Produto não encontrado."], 404);
     }
@@ -274,7 +274,7 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
         ]);
         record_operational_event(
             $pdo,
-            $user,
+            $usuarioAtor,
             "PRODUTO_EXCLUIDO",
             "produto",
             $productId,
@@ -293,7 +293,7 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
             )->execute(["id" => $productId]);
             record_operational_event(
                 $pdo,
-                $user,
+                $usuarioAtor,
                 "PRODUTO_DESATIVADO",
                 "produto",
                 $productId,
