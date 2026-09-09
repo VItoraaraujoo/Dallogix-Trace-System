@@ -2545,3 +2545,22 @@ textarea {
   .shell.sidebar-collapsed .sidebar nav,
   .shell.sidebar-collapsed .sidebar footer { display: none; }
 }
+@media (min-width: 761px) and (max-width: 1100px) {
+  .sidebar,
+  .shell.sidebar-collapsed .sidebar {
+    width: 220px;
+    flex-basis: 220px;
+    padding: 20px 14px;
+  }
+  .main,
+  .shell.sidebar-collapsed .main { margin-left: 220px; }
+  .brand { min-height: 82px; }
+  .brand img { width: 142px; }
+  .content { padding: 24px; }
+  .grid.three,
+  .grid.four { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .filter-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .topbar { padding: 14px 22px; }
+  .title-row h2 { font-size: 28px; }
+  .panel { padding: 18px; }
+}
