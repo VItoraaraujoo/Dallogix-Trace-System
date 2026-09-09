@@ -15,6 +15,36 @@
 .login-brand {
   margin: 0 0 42px;
 }
+.login-brands {
+  display: grid;
+  gap: 12px;
+  padding: 18px 22px;
+  border-radius: 14px;
+  background: linear-gradient(145deg, #142735, #244d62);
+  box-shadow: 0 10px 24px rgba(7, 21, 31, 0.32), inset 0 1px rgba(255, 255, 255, 0.18);
+}
+.login-brands img {
+  display: block;
+  width: 100%;
+  max-height: 74px;
+  object-fit: contain;
+}
+.login-brands img + img {
+  max-height: 42px;
+}
+.theme-toggle {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  padding: 8px 12px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+.theme-toggle:hover,
+.theme-toggle:focus-visible { color: var(--ink); border-color: var(--blue); }
+.login-theme-toggle { float: right; margin-top: -30px; }
 .login-card h1 {
   font-size: 30px;
   margin: 8px 0;
