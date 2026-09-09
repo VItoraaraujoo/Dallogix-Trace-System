@@ -3448,6 +3448,117 @@ textarea {
   }
 }
 
+/* Controle de tema compartilhado pelo login e pelas telas internas. */
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 38px;
+  border: 1px solid #c6d6e0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, #f7fbfd, #e8f2f6);
+  color: #315066;
+  padding: 4px 13px 4px 5px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.01em;
+  box-shadow: 0 4px 12px rgba(29, 75, 99, 0.12), inset 0 1px rgba(255, 255, 255, 0.8);
+  transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.theme-toggle:hover { transform: translateY(-1px); }
+.theme-toggle:focus-visible {
+  color: #163b52;
+  border-color: #2388b3;
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(35, 136, 179, 0.2), 0 6px 16px rgba(29, 75, 99, 0.16);
+}
+.theme-icon {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: #176fa5;
+  color: #fff;
+  font-size: 15px;
+  line-height: 1;
+  box-shadow: 0 3px 8px rgba(23, 111, 165, 0.3);
+}
+.theme-label { white-space: nowrap; }
+
+/* Contraste tipográfico e estados de interação no modo noturno. */
+html[data-theme="dark"] .theme-toggle {
+  border-color: #405872;
+  background: linear-gradient(135deg, #1b2d43, #223d57);
+  color: #e8f1f8;
+  box-shadow: 0 5px 16px rgba(0, 0, 0, .25), inset 0 1px rgba(255, 255, 255, .08);
+}
+html[data-theme="dark"] .theme-toggle:hover,
+html[data-theme="dark"] .theme-toggle:focus-visible {
+  border-color: #68b8e0;
+  color: #fff;
+}
+html[data-theme="dark"] .theme-icon {
+  background: #4ba8d6;
+  color: #08111c;
+  box-shadow: 0 3px 9px rgba(75, 168, 214, .32);
+}
+html[data-theme="dark"] label,
+html[data-theme="dark"] .panel h3,
+html[data-theme="dark"] .panel h4,
+html[data-theme="dark"] .panel-heading h3,
+html[data-theme="dark"] .title-row h2,
+html[data-theme="dark"] .section-title,
+html[data-theme="dark"] .metric strong,
+html[data-theme="dark"] td,
+html[data-theme="dark"] code,
+html[data-theme="dark"] .dala-action-editor h4,
+html[data-theme="dark"] .dala-trigger-editor h4,
+html[data-theme="dark"] .dala-album-info strong,
+html[data-theme="dark"] .dala-selection-card strong {
+  color: #edf4fa;
+}
+html[data-theme="dark"] .text-link,
+html[data-theme="dark"] .album-label {
+  color: #72c7ee;
+}
+html[data-theme="dark"] .text-link:hover,
+html[data-theme="dark"] .text-link:focus-visible {
+  color: #b7e8fa;
+}
+html[data-theme="dark"] .kicker,
+html[data-theme="dark"] .empty-cell {
+  color: #73c5e8;
+}
+html[data-theme="dark"] .quick,
+html[data-theme="dark"] .dala-album-card,
+html[data-theme="dark"] .dashboard-readonly,
+html[data-theme="dark"] .dala-selection-card,
+html[data-theme="dark"] .alert-box {
+  background: #1b2c42;
+  border-color: #3b526b;
+  color: #e8eef5;
+}
+html[data-theme="dark"] .dala-album-card code {
+  color: #b9cddd;
+}
+html[data-theme="dark"] .login-error {
+  background: #42252d;
+  color: #ffb2b5;
+  border: 1px solid #8c4651;
+}
+html[data-theme="dark"] .button.primary {
+  background: #287fc0;
+  border-color: #55afe0;
+  color: #fff;
+}
+html[data-theme="dark"] .button.primary:hover,
+html[data-theme="dark"] .button.primary:focus-visible {
+  background: #3798d0;
+}
+
 /* Override final para celular e tablet. */
 @media (max-width: 900px) {
   .content {

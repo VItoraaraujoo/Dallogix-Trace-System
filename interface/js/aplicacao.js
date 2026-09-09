@@ -172,9 +172,10 @@ function toggleTheme() {
   try { localStorage.setItem("trace-theme", next); } catch (error) { /* modo privado */ }
   document.querySelectorAll(".theme-toggle").forEach((button) => {
     button.setAttribute("aria-label", next === "dark" ? "Ativar modo claro" : "Ativar modo noturno");
-    const label = button.querySelector("span");
+    const label = button.querySelector(".theme-label");
+    const icon = button.querySelector(".theme-icon");
     if (label) label.textContent = next === "dark" ? "Modo claro" : "Modo noturno";
-    button.firstChild.textContent = next === "dark" ? "☀ " : "☾ ";
+    if (icon) icon.textContent = next === "dark" ? "☀" : "☾";
   });
 }
 function normalizeRole(role) {
@@ -292,16 +293,16 @@ function hydrateChrome() {
     button.className = "theme-toggle";
     button.dataset.action = "toggle-theme";
     button.type = "button";
-    button.innerHTML = '<span>Modo noturno</span>';
+    button.innerHTML = '<span class="theme-icon" aria-hidden="true">☾</span><span class="theme-label">Modo noturno</span>';
     topbar.append(button);
   }
   const theme = applyTheme();
   document.querySelectorAll(".theme-toggle").forEach((button) => {
     button.setAttribute("aria-label", theme === "dark" ? "Ativar modo claro" : "Ativar modo noturno");
-    const label = button.querySelector("span");
+    const label = button.querySelector(".theme-label");
+    const icon = button.querySelector(".theme-icon");
     if (label) label.textContent = theme === "dark" ? "Modo claro" : "Modo noturno";
-    if (button.firstChild?.nodeType === Node.TEXT_NODE) button.firstChild.textContent = theme === "dark" ? "☀ " : "☾ ";
-    else button.insertBefore(document.createTextNode(theme === "dark" ? "☀ " : "☾ "), label || null);
+    if (icon) icon.textContent = theme === "dark" ? "☀" : "☾";
   });
   const userRole = normalizeRole(authenticatedUser?.role);
   el("#user-avatar").textContent = (authenticatedUser?.name || "A")
