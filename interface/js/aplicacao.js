@@ -215,7 +215,7 @@ function navigationIcon(page) {
     manifests:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 4.5h10l4 4V20H5z"/><path d="M15 4.5V9h4M8 12h8M8 16h5"/><path d="m8 8 1.4 1.4L12 6.8"/></svg>',
     dashboard:
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 16v-3M12 16V9M16 16v-6"/><path d="M7 7h.01"/></svg>',
+      '<svg viewBox="0 0 24 24" aria-hidden="true"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg>',
     products:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4.5 7.8 7.5 4.3 7.5-4.3M12 12v9"/><path d="M9 5.2 16.5 9"/></svg>',
     dalas:
