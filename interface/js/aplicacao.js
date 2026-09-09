@@ -1,5 +1,6 @@
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js";
 import { FORM_ACTIONS } from "./constantes/acoes.js";
+import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { el, esc } from "./funcoes/html.js";
 import { settings } from "./telas/configuracoes.js";
 import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js";
@@ -25,7 +26,6 @@ import {
 } from "./telas/operacoes.js";
 import { dashboard } from "./telas/painel.js";
 import { users } from "./telas/usuarios.js";
-import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 
 const store = new ArmazenamentoTrace();
 let renderRequestId = 0;
@@ -272,6 +272,13 @@ function hydrateChrome() {
   applyTheme();
   const shell = document.getElementById("shell");
   if (shell && sidebarCollapsed()) shell.classList.add("sidebar-collapsed");
+  const menuButton = document.querySelector('[data-action="toggle-menu"]');
+  if (menuButton && shell) {
+    menuButton.setAttribute(
+      "aria-expanded",
+      String(!shell.classList.contains("sidebar-collapsed")),
+    );
+  }
   const nav = document.querySelector(".sidebar nav");
   if (nav)
     nav.innerHTML = NAV_GROUPS.map(([group, items]) => {
@@ -345,6 +352,21 @@ function startWorkPolling() {
   }, 2000);
 }
 function installInteractionGuards() {
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape" || !window.matchMedia("(max-width: 620px)").matches)
+      return;
+    const shell = document.querySelector(".shell");
+    if (!shell || shell.classList.contains("sidebar-collapsed")) return;
+    shell.classList.add("sidebar-collapsed");
+    try {
+      localStorage.setItem("trace-sidebar-collapsed", "1");
+    } catch (storageError) {
+      /* modo privado */
+    }
+    const menuButton = document.querySelector('[data-action="toggle-menu"]');
+    menuButton?.setAttribute("aria-expanded", "false");
+    menuButton?.focus();
+  });
   document.addEventListener("dragstart", (event) => {
     if (event.target.closest("a, button, img, svg, [data-action]"))
       event.preventDefault();
@@ -471,6 +493,7 @@ function bindActions() {
         const collapsed = shell
           ? shell.classList.toggle("sidebar-collapsed")
           : false;
+        node.setAttribute("aria-expanded", String(!collapsed));
         try {
           localStorage.setItem(
             "trace-sidebar-collapsed",
@@ -1055,6 +1078,13 @@ function bindActions() {
         return;
       event.preventDefault();
       navigate(item.dataset.page);
+      if (window.matchMedia("(max-width: 620px)").matches) {
+        const shell = document.querySelector(".shell");
+        shell?.classList.add("sidebar-collapsed");
+        document
+          .querySelector('[data-action="toggle-menu"]')
+          ?.setAttribute("aria-expanded", "false");
+      }
     });
   });
   document.querySelectorAll('input[data-action="open-users"]').forEach((node) => {
@@ -1363,21 +1393,29 @@ function bindForms() {
   if (csvForm)
     csvForm.addEventListener("submit", async (event) => {
       event.preventDefault();
-      const response = await fetch("/api/importar_csv.php", {
-        method: "POST",
-        headers: store.csrfToken ? { "X-CSRF-Token": store.csrfToken } : {},
-        body: new FormData(csvForm),
-      });
-      const result = await response.json();
-      if (!response.ok) {
-        alert(result.error || "Falha ao importar CSV.");
-        return;
+      const submit = csvForm.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      try {
+        const response = await fetch("/api/importar_csv.php", {
+          method: "POST",
+          headers: store.csrfToken ? { "X-CSRF-Token": store.csrfToken } : {},
+          body: new FormData(csvForm),
+        });
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          alert(result.error || "Falha ao importar CSV.");
+          return;
+        }
+        await store.loadManifests();
+        alert(
+          `${result.data?.romaneios || 0} romaneio(s), ${result.data?.items || 0} item(ns) consolidados em ${result.data?.linhas || 0} linha(s) importada(s).`,
+        );
+        navigate("manifests");
+      } catch (error) {
+        alert(error.message || "Não foi possível importar o CSV.");
+      } finally {
+        if (submit) submit.disabled = false;
       }
-      await store.loadManifests();
-      alert(
-        `${result.data.romaneios} romaneio(s), ${result.data.items} item(ns) consolidados em ${result.data.linhas} linha(s) importada(s).`,
-      );
-      navigate("manifests");
     });
   const prepareLoadingForm = document.querySelector("#prepare-loading-form");
   if (prepareLoadingForm)
