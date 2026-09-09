@@ -442,10 +442,7 @@ export class ArmazenamentoTrace {
       );
     }
     await this.loadActiveLoading();
-    this.state.operationalState = result.data.state;
-    this.state.running = false;
-    this.state.emergency = false;
-    this.state.returnMode = false;
+    this.state.plcCommand = result.data;
     return result.data;
   }
   async finishLoading(justification = "") {
