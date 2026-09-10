@@ -2642,6 +2642,20 @@ textarea {
   gap: 20px;
 }
 .title-row h2 { margin: 0; }
+.title-row.has-back {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+}
+.title-row.has-back > div:not(.actions) { order: 1; }
+.title-row.has-back > .page-back {
+  order: 2;
+  margin: 0 0 0 auto;
+}
+.title-row.has-back > .actions {
+  order: 3;
+  margin-top: 0;
+}
 .panel { padding: 24px; }
 .panel + .panel { margin-top: 20px; }
 label {
@@ -2660,6 +2674,9 @@ textarea {
   margin-top: 24px;
   gap: 12px;
 }
+.panel-heading .actions,
+.table-wrap .actions,
+td .actions { margin-top: 0; }
 .button {
   min-width: 112px;
   min-height: 46px;
@@ -2699,4 +2716,5 @@ textarea {
   .grid.four,
   .grid.five { grid-template-columns: 1fr; }
   .actions .button { min-width: 0; }
+  .title-row.has-back > .page-back { margin-left: 0; }
 }
