@@ -423,7 +423,11 @@ function bindActions() {
         return;
       }
       if (FORM_ACTIONS.has(action)) {
-        node.closest("form")?.requestSubmit();
+        // Botões `submit` já disparam o evento do formulário. Chamar
+        // requestSubmit() novamente aqui duplicava cadastros e comandos.
+        if (node.getAttribute("type") !== "submit") {
+          node.closest("form")?.requestSubmit();
+        }
         return;
       }
       if (action === "reload-page") {
@@ -1138,6 +1142,11 @@ function bindForms() {
   if (productForm)
     productForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (productForm.dataset.submitting === "1") return;
+      productForm.dataset.submitting = "1";
+      productForm.querySelectorAll("button").forEach((button) => {
+        button.disabled = true;
+      });
       const raw = Object.fromEntries(new FormData(productForm));
       const editingId = productForm.dataset.editing;
       try {
@@ -1162,6 +1171,11 @@ function bindForms() {
           return;
         }
         alert(error.message);
+      } finally {
+        productForm.dataset.submitting = "0";
+        productForm.querySelectorAll("button").forEach((button) => {
+          button.disabled = false;
+        });
       }
     });
   const dalaCreateForm = document.querySelector("#dala-create-form");
