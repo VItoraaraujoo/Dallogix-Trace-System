@@ -2570,3 +2570,47 @@ textarea {
   margin: 0 0 18px;
 }
 .work-back-row .button { margin: 0; }
+.title-row.has-back {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  column-gap: 20px;
+}
+.title-row.has-back > div:not(.actions) {
+  min-width: 0;
+}
+.title-row.has-back .page-back {
+  grid-column: 1;
+  grid-row: 1;
+  margin: 0;
+}
+.title-row.has-back .actions {
+  grid-column: 3;
+  grid-row: 1;
+  margin: 0;
+}
+.title-row.has-back > div:not(.actions) {
+  grid-column: 2;
+  grid-row: 1;
+}
+.dala-view-header > div {
+  position: static;
+  left: auto;
+  transform: none;
+  text-align: left;
+}
+@media (max-width: 760px) {
+  .title-row.has-back {
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 12px;
+  }
+  .title-row.has-back .actions {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    width: 100%;
+  }
+  .title-row.has-back .actions .button { width: 100%; margin: 4px 0; }
+  .title-row.has-back > div:not(.actions) { grid-column: 2; }
+  .title-row.has-back:not(.with-actions) > div:not(.actions) { grid-column: 2; }
+  .title-row.has-back .page-back { width: auto; }
+}
