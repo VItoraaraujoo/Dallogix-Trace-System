@@ -2759,38 +2759,38 @@ table { font-size: 14px; }
 }
 
 /* Ampliação adicional solicitada para leitura à distância. */
-body { font-size: 21px; }
-.nav-item { font-size: 20px; }
-.nav-label { font-size: 16px; }
-.topbar h1 { font-size: 25px; }
-.local { font-size: 18px; }
+body { font-size: 19px; }
+.nav-item { font-size: 18px; }
+.nav-label { font-size: 14px; }
+.topbar h1 { font-size: 23px; }
+.local { font-size: 16px; }
 .title-row p,
 .panel p,
 .compact-help,
-.empty-cell { font-size: 20px; }
-label { font-size: 19px; }
+.empty-cell { font-size: 18px; }
+label { font-size: 17px; }
 input,
 select,
-textarea { font-size: 20px; }
-table { font-size: 19px; }
-.button { font-size: 19px; }
-.button.small { font-size: 18px; }
+textarea { font-size: 18px; }
+table { font-size: 17px; }
+.button { font-size: 17px; }
+.button.small { font-size: 16px; }
 
 @media (max-width: 760px) {
-  body { font-size: 18px; }
-  .nav-item { font-size: 17px; }
-  .topbar h1 { font-size: 21px; }
-  .local { font-size: 15px; }
+  body { font-size: 16px; }
+  .nav-item { font-size: 15px; }
+  .topbar h1 { font-size: 19px; }
+  .local { font-size: 13px; }
   .title-row p,
   .panel p,
   .compact-help,
-  .empty-cell { font-size: 17px; }
-  label { font-size: 16px; }
+  .empty-cell { font-size: 15px; }
+  label { font-size: 14px; }
   input,
   select,
-  textarea { font-size: 17px; }
-  table { font-size: 16px; }
-  .button { font-size: 16px; }
+  textarea { font-size: 15px; }
+  table { font-size: 14px; }
+  .button { font-size: 14px; }
 }
 
 .pdf-import-card {
