@@ -2787,6 +2787,17 @@ table { font-size: 17px; }
 .dala-album-card footer > span { font-size: 14px; }
 .dashboard-card-links .button { font-size: 16px; }
 
+/* Elementos auxiliares usam a mesma escala em todas as telas. */
+small,
+.kicker,
+.badge,
+.status span,
+.progress-label,
+.metric small,
+li small,
+th { font-size: 14px; }
+code { font-size: 16px; }
+
 @media (max-width: 760px) {
   body { font-size: 16px; }
   .nav-item { font-size: 15px; }
@@ -2811,6 +2822,15 @@ table { font-size: 17px; }
   .album-progress small,
   .dala-album-card footer > span { font-size: 13px; }
   .dashboard-card-links .button { font-size: 14px; }
+  small,
+  .kicker,
+  .badge,
+  .status span,
+  .progress-label,
+  .metric small,
+  li small,
+  th { font-size: 13px; }
+  code { font-size: 14px; }
 }
 
 .pdf-import-card {
