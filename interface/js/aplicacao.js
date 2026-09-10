@@ -639,6 +639,20 @@ function bindActions() {
         }
         return;
       }
+      if (action === "cancel-manifest-progress") {
+        const reason = prompt("Informe o motivo do cancelamento da operação:") || "";
+        if (!reason.trim()) return;
+        if (!confirm("Confirma o cancelamento? A operação precisa estar pausada ou em emergência.")) return;
+        try {
+          await store.cancelManifest(node.dataset.id || queryId(), reason.trim());
+          alert("Operação cancelada e registrada na auditoria.");
+          await navigate("manifests");
+          render();
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
       if (action === "back-manifest") {
         navigate("manifest", `?id=${queryId()}`);
         return;

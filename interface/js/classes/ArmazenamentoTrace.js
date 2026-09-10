@@ -481,11 +481,11 @@ export class ArmazenamentoTrace {
     await this.loadPendingReadings();
     return result.data;
   }
-  async cancelManifest(manifestId) {
+  async cancelManifest(manifestId, justification = "") {
     const response = await fetch("/api/romaneios.php", {
       method: "PATCH",
       headers: this.jsonHeaders(),
-      body: JSON.stringify({ romaneio_id: manifestId }),
+      body: JSON.stringify({ romaneio_id: manifestId, ...(justification ? { action: "cancel", justification } : {}) }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Não foi possível cancelar o romaneio.");

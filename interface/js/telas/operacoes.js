@@ -52,9 +52,10 @@ export function manifestView(store) {
       ? `<a class="button secondary" href="/api/relatorio_auditoria.php?romaneio_id=${encodeURIComponent(manifest.id)}">Baixar relatório de auditoria (PDF)</a>`
       : "";
   const canCancel = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(store.state.userRole) && ["IMPORTADO", "AGUARDANDO"].includes(manifest.status);
+  const canCancelInProgress = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(store.state.userRole) && manifest.status === "EM_ANDAMENTO" && manifest.active_loading_id;
   const formatDate = (value) =>
     value ? String(value).split("-").reverse().join("/") : "—";
-  return `<div class="title-row with-actions has-back"><button class="button secondary page-back" data-action="goto-manifests" type="button">← Voltar</button><div><h2>Romaneio ${esc(manifest.number)}</h2></div><div class="actions">${auditReport}${canPrepare ? `<button class="button primary" data-action="prepare-manifest" data-id="${manifest.id}" type="button">Preparar carregamento</button>` : ""}</div></div>
+  return `<div class="title-row with-actions has-back"><button class="button secondary page-back" data-action="goto-manifests" type="button">← Voltar</button><div><h2>Romaneio ${esc(manifest.number)}</h2></div><div class="actions">${auditReport}${canPrepare ? `<button class="button primary" data-action="prepare-manifest" data-id="${manifest.id}" type="button">Preparar carregamento</button>` : ""}${canCancelInProgress ? `<button class="button danger" data-action="cancel-manifest-progress" data-id="${manifest.id}" type="button">Cancelar operação</button>` : ""}</div></div>
 <div class="grid two detail-cards">
 <div class="panel detail-card"><small>Data do carregamento</small><strong>${formatDate(manifest.scheduled_date)}</strong></div>
 <div class="panel detail-card"><small>Expedidor</small><strong>${esc(manifest.expedidor || "—")}</strong></div>

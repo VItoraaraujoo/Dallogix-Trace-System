@@ -23,7 +23,8 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
                     (SELECT rt.plate FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS plate,
                     (SELECT rt.driver_name FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS driver_name,
                     COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = r.id), 0) AS planned_quantity,
-                    COALESCE((SELECT COUNT(*) FROM leituras l JOIN carregamentos c2 ON c2.id = l.carregamento_id WHERE c2.romaneio_id = r.id AND l.result = 'VALIDO'), 0) AS loaded_quantity
+                    COALESCE((SELECT COUNT(*) FROM leituras l JOIN carregamentos c2 ON c2.id = l.carregamento_id WHERE c2.romaneio_id = r.id AND l.result = 'VALIDO'), 0) AS loaded_quantity,
+                    (SELECT c3.id FROM carregamentos c3 WHERE c3.romaneio_id = r.id AND c3.state <> 'FINALIZADO' ORDER BY c3.id DESC LIMIT 1) AS active_loading_id
              FROM romaneios r WHERE r.id = :id AND r.company_id = :company_id LIMIT 1",
         );
         $header->execute(["id" => $detailId, "company_id" => $companyId]);
@@ -140,6 +141,38 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
     }
 
     $payload = ler_json_da_requisicao();
+
+    if (($payload["action"] ?? "") === "cancel") {
+        $romaneioId = filter_var($payload["romaneio_id"] ?? null, FILTER_VALIDATE_INT);
+        $reason = trim((string) ($payload["justification"] ?? ""));
+        if (!$romaneioId || $reason === "") {
+            responder_json(["error" => "Romaneio e justificativa são obrigatórios para cancelar uma operação."], 422);
+        }
+        try {
+            $pdo->beginTransaction();
+            $lock = $pdo->prepare("SELECT r.id, r.status, c.id AS loading_id, c.state AS loading_state FROM romaneios r LEFT JOIN carregamentos c ON c.romaneio_id = r.id AND c.state <> 'FINALIZADO' WHERE r.id = :id AND r.company_id = :company_id ORDER BY c.id DESC LIMIT 1 FOR UPDATE");
+            $lock->execute(["id" => $romaneioId, "company_id" => $companyId]);
+            $current = $lock->fetch();
+            if (!$current) { $pdo->rollBack(); responder_json(["error" => "Romaneio não encontrado."], 404); }
+            if (in_array($current["status"], ["FINALIZADO", "CANCELADO"], true)) { $pdo->rollBack(); responder_json(["error" => "Este romaneio já foi encerrado."], 409); }
+            if ($current["loading_id"] && !in_array($current["loading_state"], ["PREPARANDO", "PAUSADO", "EMERGENCIA"], true)) {
+                $pdo->rollBack(); responder_json(["error" => "Antes de cancelar, coloque a Dala em pausa ou emergência."], 409);
+            }
+            if ($current["loading_id"]) {
+                $updateLoading = $pdo->prepare("UPDATE carregamentos SET state = 'FINALIZADO', finished_at = NOW(), finish_justification = :reason WHERE id = :id AND state <> 'FINALIZADO'");
+                $updateLoading->execute(["id" => $current["loading_id"], "reason" => "ROMANEIO CANCELADO: " . $reason]);
+                record_operational_event($pdo, $usuarioAtor, "CARREGAMENTO_CANCELADO", "carregamento", (int) $current["loading_id"], ["romaneio_id" => (int) $romaneioId, "justification" => $reason]);
+            }
+            $pdo->prepare("UPDATE romaneios SET status = 'CANCELADO' WHERE id = :id")->execute(["id" => $romaneioId]);
+            record_operational_event($pdo, $usuarioAtor, "ROMANEIO_CANCELADO", "romaneio", (int) $romaneioId, ["justification" => $reason, "in_progress" => (bool) $current["loading_id"]]);
+            $pdo->commit();
+            responder_json(["data" => ["id" => (int) $romaneioId, "status" => "CANCELADO"]]);
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            error_log("Manifest cancellation failed: " . $exception->getMessage());
+            responder_json(["error" => "Não foi possível cancelar o romaneio."], 500);
+        }
+    }
 
     if (($payload["action"] ?? "") === "update") {
         $romaneioId = filter_var($payload["romaneio_id"] ?? null, FILTER_VALIDATE_INT);
