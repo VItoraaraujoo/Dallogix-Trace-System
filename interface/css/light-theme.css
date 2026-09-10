@@ -2730,6 +2730,34 @@ td .actions { margin-top: 0; }
 /* A tela de login usa apenas a marca principal no cabeçalho. */
 .login-card::after { display: none; }
 
+/* Escala de leitura ampliada para operação em monitores e tablets. */
+body { font-size: 16px; line-height: 1.5; }
+.nav-item { font-size: 15px; }
+.nav-label { font-size: 11px; }
+.topbar h1 { font-size: 20px; }
+.local { font-size: 13px; }
+.title-row p,
+.panel p,
+.compact-help,
+.empty-cell { font-size: 15px; }
+label { font-size: 14px; }
+input,
+select,
+textarea { font-size: 15px; }
+table { font-size: 14px; }
+.button { font-size: 14px; }
+.button.small { font-size: 13px; }
+
+@media (max-width: 760px) {
+  body { font-size: 15px; }
+  .topbar h1 { font-size: 18px; }
+  .local { font-size: 12px; }
+  .title-row p,
+  .panel p,
+  .compact-help,
+  .empty-cell { font-size: 14px; }
+}
+
 .pdf-import-card {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr);
