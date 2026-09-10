@@ -1078,6 +1078,15 @@ function bindForms() {
         );
         render();
       } catch (error) {
+        if (error.status === 401) {
+          try {
+            sessionStorage.setItem("trace-login-message", error.message);
+          } catch (storageError) {
+            /* armazenamento indisponível */
+          }
+          window.location.replace("index.html");
+          return;
+        }
         alert(error.message);
       }
     });
@@ -1143,6 +1152,15 @@ function bindForms() {
         store.state.editingProductId = null;
         render();
       } catch (error) {
+        if (error.status === 401) {
+          try {
+            sessionStorage.setItem("trace-login-message", error.message);
+          } catch (storageError) {
+            /* armazenamento indisponível */
+          }
+          window.location.replace("index.html");
+          return;
+        }
         alert(error.message);
       }
     });
@@ -1604,7 +1622,14 @@ async function bootstrap() {
       window.location.replace(pagePath(defaultPage()));
       return;
     }
-    renderLogin();
+    let loginMessage = "";
+    try {
+      loginMessage = sessionStorage.getItem("trace-login-message") || "";
+      sessionStorage.removeItem("trace-login-message");
+    } catch (storageError) {
+      /* armazenamento indisponível */
+    }
+    renderLogin(loginMessage);
     bindLoginForm();
     return;
   }

@@ -704,9 +704,16 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify(data),
     });
-    const result = await response.json();
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível cadastrar o produto.");
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      const error = new Error(
+        response.status === 401
+          ? "Sua sessão expirou. Entre novamente para cadastrar o produto."
+          : result.error || "Não foi possível cadastrar o produto.",
+      );
+      error.status = response.status;
+      throw error;
+    }
     await this.loadProducts();
   }
   activateEmergency() {
