@@ -2763,8 +2763,6 @@ table { font-size: 14px; }
   grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr);
   gap: 28px;
   align-items: center;
-  background: linear-gradient(135deg, #fafdff, #eef7fb);
-  border-color: #c8e0ea;
 }
 .pdf-import-copy h3 { margin: 6px 0 8px; }
 .pdf-import-copy p { margin: 0; max-width: 560px; }
