@@ -184,9 +184,6 @@ function workControls(store) {
   const canReverse = ["ADMIN_EMPRESA", "SUPERVISOR", "USUARIO"].includes(
     store.state.userRole,
   );
-  const canChooseDala = ["ADMIN_EMPRESA", "SUPERVISOR", "USUARIO"].includes(
-    store.state.userRole,
-  );
   const clpDisponivel = store.clpDisponivel();
   const bloqueioComando = clpDisponivel && store.state.loadingId
     ? ""
@@ -198,7 +195,7 @@ function workControls(store) {
     REJEITADO: "Rejeitado pelo gateway",
     ERRO: "Erro no gateway",
   };
-  const loadingPicker = `<section class="panel work-loading-picker"><div class="panel-heading"><div class="work-loading-summary"><span class="kicker">Dala em operação</span><strong>${esc(equipmentLabel(store))}</strong><p>Romaneio ${esc(store.state.romaneio)} · Caminhão ${esc(store.state.truck)}</p></div>${canChooseDala ? button("← Trocar Dala", "change-loading", "secondary") : ""}</div></section>`;
+  const loadingPicker = `<div class="work-back-row"><button class="button secondary" data-action="goto-manifests" type="button">← Voltar</button></div>`;
   const pendingReadings = store.state.pendingReadings || [];
   const manualIdentification = pendingReadings.length
     ? `<section class="panel alert-box"><h3>Leituras sem código</h3><p>Identifique manualmente cada saca após conferência física.</p>${pendingReadings.map((reading) => `<form class="manual-reading-form" data-reading-id="${reading.id}"><label>Leitura #${reading.id}<input name="barcode" required maxlength="80" /></label>${button("Identificar leitura", "identify-reading", "secondary")}</form>`).join("")}</section>`
