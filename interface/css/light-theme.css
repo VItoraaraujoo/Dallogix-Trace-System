@@ -2798,6 +2798,26 @@ li small,
 th { font-size: 14px; }
 code { font-size: 16px; }
 
+/* Base único de tipografia e posicionamento para componentes equivalentes. */
+h1, h2, h3, h4 {
+  color: var(--ink);
+  line-height: 1.2;
+}
+h3 { margin: 0 0 12px; }
+h4 { margin: 0 0 8px; }
+p { line-height: 1.5; }
+.muted,
+.field-help,
+.login-description { color: var(--muted); }
+.text-link { font-size: 16px; line-height: 1.3; }
+.table-actions { gap: 8px; }
+.panel-heading { align-items: flex-start; }
+.panel-heading > .actions { align-self: center; }
+.metric { display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+.metric strong { line-height: 1.15; }
+.status { gap: 12px; }
+.status span { line-height: 1.35; }
+
 @media (max-width: 760px) {
   body { font-size: 16px; }
   .nav-item { font-size: 15px; }
@@ -2831,6 +2851,9 @@ code { font-size: 16px; }
   li small,
   th { font-size: 13px; }
   code { font-size: 14px; }
+  .text-link { font-size: 14px; }
+  .panel-heading { flex-direction: column; align-items: stretch; }
+  .panel-heading > .actions { align-self: stretch; }
 }
 
 .pdf-import-card {
