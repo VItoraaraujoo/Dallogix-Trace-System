@@ -48,7 +48,7 @@ export function manifestView(store) {
     ["ADMIN_EMPRESA", "SUPERVISOR"].includes(store.state.userRole) &&
     !["FINALIZADO", "CANCELADO"].includes(manifest.status);
   const auditReport =
-    manifest.status === "FINALIZADO"
+    ["FINALIZADO", "CANCELADO"].includes(manifest.status)
       ? `<a class="button secondary" href="/api/relatorio_auditoria.php?romaneio_id=${encodeURIComponent(manifest.id)}">Baixar relatório de auditoria (PDF)</a>`
       : "";
   const canCancel = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(store.state.userRole) && ["IMPORTADO", "AGUARDANDO"].includes(manifest.status);
@@ -87,8 +87,8 @@ export function importScreen(store) {
   const products = store.state.products || [];
   const today = industrialPcDate();
   return `<div class="title-row has-back"><button class="button secondary page-back" data-action="goto-manifests" type="button">← Voltar</button><div><h2>Novo romaneio</h2></div></div>
-<section class="panel"><p>Selecione o arquivo PDF do romaneio para preencher os campos automaticamente. Confira os dados e salve.</p>
-<form id="pdf-form"><div class="actions"><input name="file" type="file" accept=".pdf,application/pdf" required />${button("Importar PDF", "import-pdf")}</div></form></section><br>
+<section class="panel pdf-import-card"><div class="pdf-import-copy"><span class="kicker">Importação rápida</span><h3>Preencha o romaneio a partir de um PDF</h3><p>Selecione o arquivo PDF e o sistema preencherá os campos automaticamente. Revise os dados antes de salvar.</p></div>
+<form id="pdf-form"><label class="pdf-file-field"><span>Arquivo do romaneio</span><input name="file" type="file" accept=".pdf,application/pdf" required /><small>Formato PDF • máximo conforme a configuração do servidor</small></label><div class="actions"><button class="button primary" data-action="import-pdf" type="submit">Importar PDF</button></div></form></section><br>
 <div class="divider"><span>ou cadastre manualmente</span></div>
 <p>Preencha os dados do romaneio e adicione os itens com produto e quantidade.</p>
 <form id="new-manifest-form">

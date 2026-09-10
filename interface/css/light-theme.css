@@ -2729,3 +2729,25 @@ td .actions { margin-top: 0; }
 
 /* A tela de login usa apenas a marca principal no cabeçalho. */
 .login-card::after { display: none; }
+
+.pdf-import-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 1fr);
+  gap: 28px;
+  align-items: center;
+  background: linear-gradient(135deg, #fafdff, #eef7fb);
+  border-color: #c8e0ea;
+}
+.pdf-import-copy h3 { margin: 6px 0 8px; }
+.pdf-import-copy p { margin: 0; max-width: 560px; }
+.pdf-file-field { margin: 0; color: var(--ink); font-weight: 750; }
+.pdf-file-field > span { display: block; }
+.pdf-file-field input { padding: 10px; background: #fff; }
+.pdf-file-field small { display: block; margin-top: 7px; color: var(--muted); font-weight: 500; }
+.pdf-import-card .actions { margin-top: 16px; justify-content: flex-end; }
+.pdf-import-card .actions .button { min-width: 150px; }
+@media (max-width: 760px) {
+  .pdf-import-card { grid-template-columns: 1fr; gap: 18px; }
+  .pdf-import-card .actions { justify-content: stretch; }
+  .pdf-import-card .actions .button { width: 100%; }
+}

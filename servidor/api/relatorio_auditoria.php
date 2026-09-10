@@ -24,11 +24,11 @@ $romaneio = $manifest->fetch();
 if (!$romaneio) {
     json_response(["error" => "Romaneio não encontrado."], 404);
 }
-if ($romaneio["status"] !== "FINALIZADO") {
+if (!in_array($romaneio["status"], ["FINALIZADO", "CANCELADO"], true)) {
     json_response(
         [
             "error" =>
-                "O relatório de auditoria fica disponível após a finalização do romaneio.",
+                "O relatório fica disponível após a finalização ou cancelamento do romaneio.",
         ],
         409,
     );
@@ -73,7 +73,7 @@ $report->paragraph(
 );
 $report->summaryCards([
     "Romaneio" => $romaneio["number"],
-    "Status" => "Finalizado",
+    "Status" => $romaneio["status"] === "CANCELADO" ? "Cancelado" : "Finalizado",
     "Data programada" => $romaneio["scheduled_date"] ?: "—",
     "Expedidor" => $romaneio["expedidor"] ?: "—",
     "Placa" => $romaneio["plate"] ?: "—",
@@ -93,6 +93,9 @@ $report->summaryCards([
     "Início" => $loadRows[0]["started_at"] ?? "—",
     "Fim" => $loadRows[array_key_last($loadRows)]["finished_at"] ?? "—",
 ]);
+if ($romaneio["status"] === "CANCELADO") {
+    $report->paragraph("Este romaneio foi cancelado. Os dados abaixo representam o carregamento parcial e os eventos registrados até o cancelamento.");
+}
 $report->heading("Conferência dos itens");
 $report->table(
     ["Produto", "Código", "Previsto", "Movido", "Status"],
