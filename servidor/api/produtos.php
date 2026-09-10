@@ -37,7 +37,7 @@ $barcodeError = static function (PDOException $exception): never {
     throw $exception;
 };
 
-$syncBarcode = static function (PDO $pdo, int $productId, string $barcode) use (
+$syncBarcode = static function (PDO $pdo, int $companyId, int $productId, string $barcode) use (
     $barcodeError,
 ): void {
     $existing = $pdo->prepare(
@@ -54,9 +54,9 @@ $syncBarcode = static function (PDO $pdo, int $productId, string $barcode) use (
             return;
         }
         $insert = $pdo->prepare(
-            "INSERT INTO codigos_produtos (product_id, barcode) VALUES (:product_id, :barcode)",
+            "INSERT INTO codigos_produtos (company_id, product_id, barcode) VALUES (:company_id, :product_id, :barcode)",
         );
-        $insert->execute(["product_id" => $productId, "barcode" => $barcode]);
+        $insert->execute(["company_id" => $companyId, "product_id" => $productId, "barcode" => $barcode]);
     } catch (PDOException $exception) {
         $barcodeError($exception);
     }
@@ -131,7 +131,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             ]);
             $code = "SKU" . $productId;
         }
-        $syncBarcode($pdo, $productId, $barcode);
+        $syncBarcode($pdo, (int) $usuarioAtor["company_id"], $productId, $barcode);
         record_operational_event(
             $pdo,
             $usuarioAtor,
@@ -213,7 +213,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
             (string) ($payload["barcode"] ?? ($payload["barcodes"] ?? "")),
         );
         if ($barcode !== "") {
-            $syncBarcode($pdo, $productId, $barcode);
+            $syncBarcode($pdo, (int) $usuarioAtor["company_id"], $productId, $barcode);
         }
         record_operational_event(
             $pdo,
