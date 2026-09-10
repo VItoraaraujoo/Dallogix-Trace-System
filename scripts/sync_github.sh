@@ -37,7 +37,7 @@ git merge --ff-only "$remote_name/$branch"
 # impede que o código novo suba usando uma estrutura antiga.
 mkdir -p armazenamento/backups
 bash scripts/backup_db.sh
-for migration in banco-de-dados/migrations/020_nomenclatura_portugues.sql banco-de-dados/migrations/021_acoes_dala_e_logs_erros.sql; do
+for migration in banco-de-dados/migrations/020_nomenclatura_portugues.sql banco-de-dados/migrations/021_acoes_dala_e_logs_erros.sql banco-de-dados/migrations/022_produtos_empresa_demonstracao.sql; do
   [[ -f "$migration" ]] || continue
   marker="armazenamento/.migration-$(basename "$migration").done"
   [[ -f "$marker" ]] && continue
