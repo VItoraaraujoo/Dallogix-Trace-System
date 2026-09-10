@@ -2776,6 +2776,17 @@ table { font-size: 17px; }
 .button { font-size: 17px; }
 .button.small { font-size: 16px; }
 
+/* Textos internos dos cartões do dashboard acompanham a escala principal. */
+.dala-album-card .album-label { font-size: 14px; }
+.dala-album-card h3 { font-size: 22px; }
+.dala-album-card code { font-size: 16px; }
+.dala-album-card .badge { font-size: 14px; }
+.dala-album-info small { font-size: 13px; }
+.dala-album-info strong { font-size: 17px; }
+.album-progress small { font-size: 14px; }
+.dala-album-card footer > span { font-size: 14px; }
+.dashboard-card-links .button { font-size: 16px; }
+
 @media (max-width: 760px) {
   body { font-size: 16px; }
   .nav-item { font-size: 15px; }
@@ -2791,6 +2802,15 @@ table { font-size: 17px; }
   textarea { font-size: 15px; }
   table { font-size: 14px; }
   .button { font-size: 14px; }
+  .dala-album-card .album-label { font-size: 13px; }
+  .dala-album-card h3 { font-size: 19px; }
+  .dala-album-card code { font-size: 14px; }
+  .dala-album-card .badge { font-size: 13px; }
+  .dala-album-info small { font-size: 12px; }
+  .dala-album-info strong { font-size: 15px; }
+  .album-progress small,
+  .dala-album-card footer > span { font-size: 13px; }
+  .dashboard-card-links .button { font-size: 14px; }
 }
 
 .pdf-import-card {
