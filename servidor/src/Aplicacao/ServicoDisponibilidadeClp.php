@@ -4,17 +4,7 @@ declare(strict_types=1);
 namespace App\Aplicacao;
 
 use PDO;
-use RuntimeException;
-
-final class ExcecaoDisponibilidadeClp extends RuntimeException
-{
-    public function __construct(
-        string $message,
-        public readonly int $httpStatus,
-    ) {
-        parent::__construct($message);
-    }
-}
+require_once __DIR__ . "/ExcecaoDisponibilidadeClp.php";
 
 /**
  * Centraliza a regra de disponibilidade do CLP para comandos operacionais.

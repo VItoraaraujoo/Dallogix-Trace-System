@@ -1,3 +1,5 @@
+import { OfflineOperationBuffer } from "./OfflineOperationBuffer.js?v=202609160900";
+
 export class ArmazenamentoTrace {
   constructor() {
     this.state = {
@@ -55,9 +57,11 @@ export class ArmazenamentoTrace {
       productSearch: "",
       loadErrors: [],
       pendingReadings: [],
+      offlineQueueSize: 0,
     };
     this.csrfToken = "";
     this.manifests = [];
+    this.offlineBuffer = new OfflineOperationBuffer();
   }
   navigate(page) {
     this.state.page = page;
@@ -74,6 +78,48 @@ export class ArmazenamentoTrace {
       "Content-Type": "application/json",
       ...(this.csrfToken ? { "X-CSRF-Token": this.csrfToken } : {}),
     };
+  }
+  canQueueOffline(url, options = {}) {
+    const method = String(options.method || "GET").toUpperCase();
+    return ["POST", "PUT", "PATCH"].includes(method) &&
+      ["/api/identificar_leitura.php", "/api/retornos.php"].some((path) => url.startsWith(path)) &&
+      typeof options.body === "string";
+  }
+  async requestWithOfflineQueue(url, options = {}) {
+    try {
+      return await fetch(url, options);
+    } catch (error) {
+      if (!this.canQueueOffline(url, options)) throw error;
+      const id = await this.offlineBuffer.enqueue({
+        url,
+        method: options.method || "POST",
+        headers: options.headers || {},
+        body: options.body,
+      });
+      this.state.offlineQueueSize = (await this.offlineBuffer.all()).length;
+      return new Response(JSON.stringify({
+        data: { queued: true, offline_id: id },
+        message: "Operação guardada e será enviada quando a conexão voltar.",
+      }), { status: 202, headers: { "Content-Type": "application/json" } });
+    }
+  }
+  async flushOfflineOperations() {
+    const result = await this.offlineBuffer.flush();
+    this.state.offlineQueueSize = result.pending;
+    return result;
+  }
+  subscribeOperationalEvents(onData, onError) {
+    if (typeof EventSource === "undefined") return null;
+    const source = new EventSource("/api/eventos_carregamento.php?period_days=30", { withCredentials: true });
+    source.addEventListener("carregamento", (event) => {
+      try {
+        onData?.(JSON.parse(event.data));
+      } catch (error) {
+        onError?.(error);
+      }
+    });
+    source.onerror = (error) => onError?.(error);
+    return source;
   }
   async loadManifests() {
     const params = new URLSearchParams();
@@ -380,6 +426,42 @@ export class ArmazenamentoTrace {
     this.state.equipmentId = Number(loading.equipment_id) || null;
     await this.loadPlcCommandStatus(this.state.loadingId);
   }
+  applyActiveLoadingSnapshot(loadings, selectedId = this.state.selectedLoadingId) {
+    const activeLoadings = (Array.isArray(loadings) ? loadings : []).filter(
+      (item) => item.state !== "FINALIZADO",
+    );
+    this.state.activeLoadings = activeLoadings;
+    const requestedId = Number(selectedId) || null;
+    const loading = activeLoadings.find((item) => Number(item.id) === requestedId) ||
+      (activeLoadings.length === 1 ? activeLoadings[0] : null);
+    if (!loading) {
+      this.state.loadingId = null;
+      this.state.selectedLoadingId = null;
+      this.state.returnMode = false;
+      this.state.loaded = 0;
+      this.state.planned = 0;
+      this.state.running = false;
+      this.state.emergency = false;
+      this.state.operationalState = "AGUARDANDO";
+      this.state.truck = "—";
+      this.state.romaneio = "—";
+      this.state.equipmentCode = "—";
+      this.state.equipmentId = null;
+      return null;
+    }
+    this.state.loadingId = Number(loading.id);
+    this.state.selectedLoadingId = Number(loading.id);
+    this.state.operationalState = loading.state;
+    this.state.emergency = loading.state === "EMERGENCIA";
+    this.state.running = ["CARREGANDO", "FINALIZANDO"].includes(loading.state);
+    this.state.planned = Number(loading.planned_quantity) || 0;
+    this.state.loaded = Number(loading.valid_readings) || 0;
+    this.state.truck = loading.plate || "—";
+    this.state.romaneio = loading.romaneio_number || "—";
+    this.state.equipmentCode = loading.equipment_code || "—";
+    this.state.equipmentId = Number(loading.equipment_id) || null;
+    return loading;
+  }
   clpDaDalaAtual() {
     const devices = this.state.monitoring?.dispositivos || [];
     return devices.find(
@@ -503,9 +585,10 @@ export class ArmazenamentoTrace {
     return this.state.pendingReadings;
   }
   async identifyReading(readingId, barcode) {
-    const response = await fetch("/api/identificar_leitura.php", { method: "POST", headers: this.jsonHeaders(), body: JSON.stringify({ leitura_id: readingId, barcode }) });
+    const response = await this.requestWithOfflineQueue("/api/identificar_leitura.php", { method: "POST", headers: this.jsonHeaders(), body: JSON.stringify({ leitura_id: readingId, barcode }) });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Não foi possível identificar a leitura.");
+    if (result.data?.queued) return result.data;
     await this.loadPendingReadings();
     return result.data;
   }
@@ -521,9 +604,10 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async registerReturn(readingId, reason) {
-    const response = await fetch("/api/retornos.php", { method: "POST", headers: this.jsonHeaders(), body: JSON.stringify({ carregamento_id: this.state.loadingId, leitura_id: readingId, reason }) });
+    const response = await this.requestWithOfflineQueue("/api/retornos.php", { method: "POST", headers: this.jsonHeaders(), body: JSON.stringify({ carregamento_id: this.state.loadingId, leitura_id: readingId, reason }) });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Não foi possível registrar o retorno.");
+    if (result.data?.queued) return result.data;
     await this.loadActiveLoading(this.state.loadingId);
     return result.data;
   }

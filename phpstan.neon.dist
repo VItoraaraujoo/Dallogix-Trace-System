@@ -1,0 +1,8 @@
+parameters:
+    level: 1
+    bootstrapFiles:
+        - servidor/configuracao/bootstrap.php
+    paths:
+        - servidor/src
+    tmpDir: var/phpstan
+    treatPhpDocTypesAsCertain: false

@@ -518,14 +518,17 @@ function registrar_evento_operacional(
         throw new RuntimeException("Evento operacional sem empresa vinculada.");
     }
 
-    $eventUuid = sprintf(
-        "%s-%s-%s-%s-%s",
-        bin2hex(random_bytes(4)),
-        bin2hex(random_bytes(2)),
-        bin2hex(random_bytes(2)),
-        bin2hex(random_bytes(2)),
-        bin2hex(random_bytes(6)),
-    );
+    $providedEventUuid = trim((string) ($payload["event_uuid"] ?? ""));
+    $eventUuid = preg_match('/^[a-f0-9-]{16,80}$/i', $providedEventUuid)
+        ? $providedEventUuid
+        : sprintf(
+            "%s-%s-%s-%s-%s",
+            bin2hex(random_bytes(4)),
+            bin2hex(random_bytes(2)),
+            bin2hex(random_bytes(2)),
+            bin2hex(random_bytes(2)),
+            bin2hex(random_bytes(6)),
+        );
 
     $metadata = json_encode(
         $payload,

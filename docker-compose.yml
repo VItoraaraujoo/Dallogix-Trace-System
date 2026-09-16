@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: nginx:1.27-alpine
+    image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
@@ -81,7 +81,7 @@ services:
       retries: 10
 
   mysql:
-    image: mysql:8.4
+    image: mysql:8.4@sha256:85b9bf2e29cf836ecb8c2a15a935d4ba0c606631dff1dd79531a11983c638f2a
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-trace_local}
@@ -104,7 +104,7 @@ services:
 
   node-red:
     profiles: ["industrial"]
-    image: nodered/node-red:3.1.9
+    image: nodered/node-red:3.1.9@sha256:4872f67418a36ac2adf9f2793cfab1e3130796dd0c874acce7eddaca2e2e96e6
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]

@@ -1,4 +1,4 @@
-FROM php:8.3-fpm-alpine
+FROM php:8.3-fpm-alpine@sha256:ab8d86895157617b398008797fab928db029dd05000996916d2e1526d22ce83b
 
 RUN docker-php-ext-install pdo_mysql \
     && { \

@@ -30,9 +30,31 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
+          # CodeQL não possui extrator PHP oficial; o job php-quality abaixo
+          # cobre o código PHP com Composer, PHPUnit e PHPStan.
           languages: javascript
       - name: Analyze JavaScript
         uses: github/codeql-action/analyze@v4
+
+  php-quality:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Configure PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist
+      - name: Validate Composer manifest
+        run: composer validate --no-check-publish
+      - name: Run PHPUnit
+        run: composer test
+      - name: Run PHPStan
+        run: composer analyse -- --no-progress
 
   dependencies-and-config:
     runs-on: ubuntu-latest

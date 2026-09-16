@@ -4,6 +4,7 @@ $ErrorActionPreference = "Stop"
 # conta restrita do operador.
 $InstallRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))
 $StateRoot = Join-Path $InstallRoot "armazenamento\updates"
+$BackupRoot = Join-Path $StateRoot "backups"
 $MaintenanceFile = Join-Path $InstallRoot "armazenamento\.maintenance"
 $EnvPath = Join-Path $InstallRoot ".env"
 if (Test-Path $EnvPath) {
@@ -22,10 +23,13 @@ if (-not (Get-Command docker.exe -ErrorAction SilentlyContinue)) { throw "Docker
 if (-not (Get-Command openssl.exe -ErrorAction SilentlyContinue)) { throw "openssl.exe é necessário para validar a assinatura." }
 if (-not (Get-Command tar.exe -ErrorAction SilentlyContinue)) { throw "tar.exe é necessário para extrair o pacote." }
 
-New-Item -ItemType Directory -Force -Path (Join-Path $StateRoot "releases"), (Join-Path $StateRoot "backups") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $StateRoot "releases"), $BackupRoot | Out-Null
 $Lock = Join-Path $StateRoot ".install.lock"
 try { New-Item -ItemType Directory -Path $Lock -ErrorAction Stop | Out-Null } catch { throw "Já existe uma atualização em execução." }
 try {
+    $rollbackRequired = $false
+    $previousArchive = $null
+    $databaseBackup = $null
     $headers = @{}
     if ($env:UPDATE_MANIFEST_TOKEN) { $headers.Authorization = "Bearer $($env:UPDATE_MANIFEST_TOKEN)" }
     $manifest = Invoke-RestMethod -Uri $ManifestUrl -Headers $headers -TimeoutSec 20
@@ -60,23 +64,75 @@ try {
     if ((Get-FileHash $artifact -Algorithm SHA256).Hash.ToLower() -ne $manifest.sha256.ToLower()) { throw "Integridade do pacote rejeitada." }
     $release = Join-Path $StateRoot ("releases\" + $manifest.version)
     if (Test-Path $release) { Remove-Item $release -Recurse -Force }
+    New-Item -ItemType Directory -Force -Path $release | Out-Null
     & tar.exe -xzf $artifact -C $release
     if ($LASTEXITCODE -ne 0) { throw "Não foi possível extrair o pacote." }
     $source = if (Test-Path (Join-Path $release "trace\docker-compose.yml")) { Join-Path $release "trace" } else { $release }
     if (-not (Test-Path (Join-Path $source "docker-compose.yml"))) { throw "Pacote sem docker-compose.yml." }
 
-    $backup = Join-Path $StateRoot ("backups\pre-" + $manifest.version + "-" + (Get-Date -Format "yyyyMMdd-HHmmss") + ".sql")
+    $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
+    $databaseBackup = Join-Path $BackupRoot ("pre-" + $manifest.version + "-" + $stamp + ".sql")
+    $previousArchive = Join-Path $BackupRoot ("pre-" + $manifest.version + "-" + $stamp + ".tar.gz")
     $dbArgs = @("compose", "exec", "-T", "mysql", "mysqldump", "--single-transaction", "--routines", "--events", "--triggers", "--no-tablespaces", "-utrace", "-p$($env:MYSQL_PASSWORD)", "$($env:MYSQL_DATABASE)")
-    $proc = Start-Process docker.exe -ArgumentList $dbArgs -WorkingDirectory $InstallRoot -NoNewWindow -PassThru -RedirectStandardOutput $backup
+    $proc = Start-Process docker.exe -ArgumentList $dbArgs -WorkingDirectory $InstallRoot -NoNewWindow -PassThru -RedirectStandardOutput $databaseBackup
     $proc.WaitForExit(); if ($proc.ExitCode -ne 0) { throw "Backup do banco falhou." }
+    $previousNames = @(Get-ChildItem -Path $InstallRoot -Force | Where-Object { $_.Name -notin @(".env", "armazenamento", ".git") } | ForEach-Object { $_.Name })
+    if ($previousNames.Count -gt 0) {
+        & tar.exe -czf $previousArchive -C $InstallRoot @previousNames
+        if ($LASTEXITCODE -ne 0) { throw "Backup dos arquivos atuais falhou." }
+    }
     & docker.exe compose stop | Out-Null
+    $rollbackRequired = $true
     Get-ChildItem $source -Force | Where-Object { $_.Name -notin @(".env", "armazenamento", ".git") } | Copy-Item -Destination $InstallRoot -Recurse -Force
     & docker.exe compose up -d --build | Out-Null
     $healthy = $false
     1..30 | ForEach-Object { if (-not $healthy) { try { $r = Invoke-WebRequest "http://127.0.0.1:8080/api/health.php" -TimeoutSec 3; if ($r.StatusCode -eq 200) { $healthy = $true } } catch { Start-Sleep -Seconds 2 } } }
-    if (-not $healthy) { throw "A nova versão não passou no healthcheck. Mantenha a máquina fora de operação e acione a equipe técnica para rollback." }
+    if (-not $healthy) { throw "A nova versão não passou no healthcheck." }
     Set-Content -Path $current -Value $manifest.version -NoNewline
-    Write-Output "Trace atualizado com sucesso para $($manifest.version). Backup: $backup"
+    $rollbackRequired = $false
+    Write-Output "Trace atualizado com sucesso para $($manifest.version). Backup: $databaseBackup"
+} catch {
+    if ($rollbackRequired -and $previousArchive) {
+        try {
+            Write-Warning "A atualização falhou; iniciando rollback automático."
+            Set-Location $InstallRoot
+            & docker.exe compose down --remove-orphans | Out-Null
+            $restoreRoot = Join-Path $StateRoot (".rollback-" + [guid]::NewGuid().ToString("N"))
+            New-Item -ItemType Directory -Force -Path $restoreRoot | Out-Null
+            & tar.exe -xzf $previousArchive -C $restoreRoot
+            if ($LASTEXITCODE -ne 0) { throw "Não foi possível extrair o backup anterior." }
+            Get-ChildItem $restoreRoot -Force | Copy-Item -Destination $InstallRoot -Recurse -Force
+            & docker.exe compose up -d mysql | Out-Null
+            $mysqlReady = $false
+            1..30 | ForEach-Object {
+                if (-not $mysqlReady) {
+                    try {
+                        & docker.exe compose exec -T mysql mysql -N -B -utrace "-p$($env:MYSQL_PASSWORD)" "$($env:MYSQL_DATABASE)" -e "SELECT 1" | Out-Null
+                        if ($LASTEXITCODE -eq 0) { $mysqlReady = $true }
+                    } catch { Start-Sleep -Seconds 2 }
+                }
+            }
+            if (-not $mysqlReady) { throw "O banco não ficou disponível para o rollback." }
+            Get-Content $databaseBackup | & docker.exe compose exec -T mysql mysql -utrace "-p$($env:MYSQL_PASSWORD)" "$($env:MYSQL_DATABASE)"
+            if ($LASTEXITCODE -ne 0) { throw "Não foi possível restaurar o backup do banco." }
+            & docker.exe compose up -d --build | Out-Null
+            $rollbackHealthy = $false
+            1..30 | ForEach-Object {
+                if (-not $rollbackHealthy) {
+                    try {
+                        $health = Invoke-WebRequest "http://127.0.0.1:8080/api/health.php" -TimeoutSec 3
+                        if ($health.StatusCode -eq 200) { $rollbackHealthy = $true }
+                    } catch { Start-Sleep -Seconds 2 }
+                }
+            }
+            if (-not $rollbackHealthy) { throw "O rollback não passou no healthcheck." }
+            Remove-Item $restoreRoot -Recurse -Force -ErrorAction SilentlyContinue
+            Write-Warning "Rollback automático concluído; a versão anterior foi restaurada."
+        } catch {
+            Write-Error "Rollback automático falhou: $($_.Exception.Message)"
+        }
+    }
+    throw
 } finally {
     if (Test-Path $Lock) { Remove-Item $Lock -Recurse -Force }
     if (Test-Path $MaintenanceFile) { Remove-Item $MaintenanceFile -Force }

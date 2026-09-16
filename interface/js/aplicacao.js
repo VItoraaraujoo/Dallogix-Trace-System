@@ -1,6 +1,7 @@
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609150500";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609160900";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
+import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609160900";
 import { numero } from "./funcoes/formato.js";
 import { el, esc } from "./funcoes/html.js";
 import { rotuloEstado } from "./funcoes/rotulos.js";
@@ -177,10 +178,16 @@ const initialPage =
   document.querySelector("script[data-page]")?.dataset.page || "";
 let currentPage = initialPage;
 let authenticatedUser = null;
-let workTimer = null;
-let workPolling = false;
 let localHealthTimer = null;
 let localHealthRequest = false;
+const workRealtime = createOperationalRealtimeController({
+  store,
+  getPage: () => currentPage,
+  render: () => render(),
+  refreshWorkLiveView: () => refreshWorkLiveView(),
+  workStructureSignature: () => workStructureSignature(),
+  getViewSignature: () => workViewSignature,
+});
 
 function sidebarCollapsed() {
   try {
@@ -313,7 +320,14 @@ async function refreshLocalIndicator() {
 
 function installLocalIndicator() {
   if (localHealthTimer) return;
-  window.addEventListener("online", refreshLocalIndicator);
+  window.addEventListener("online", () => {
+    refreshLocalIndicator();
+    store.flushOfflineOperations().then(() => {
+      if (currentPage === "work") render();
+    }).catch(() => {
+      /* a fila permanece armazenada para a próxima tentativa */
+    });
+  });
   window.addEventListener("offline", refreshLocalIndicator);
   refreshLocalIndicator();
   localHealthTimer = window.setInterval(refreshLocalIndicator, 30000);
@@ -321,7 +335,7 @@ function installLocalIndicator() {
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202609160600").catch(() => {
+  navigator.serviceWorker.register("/service-worker.js?v=202609160900").catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }
@@ -443,37 +457,10 @@ function render() {
   else stopWorkPolling();
 }
 function stopWorkPolling() {
-  if (workTimer) {
-    window.clearInterval(workTimer);
-    workTimer = null;
-  }
+  workRealtime.stop();
 }
 function startWorkPolling() {
-  if (workTimer) return;
-  workTimer = window.setInterval(async () => {
-    if (currentPage !== "work") {
-      stopWorkPolling();
-      return;
-    }
-    if (workPolling) return;
-    workPolling = true;
-    try {
-      await Promise.all([
-        store.loadActiveLoading(store.state.selectedLoadingId),
-        store.loadMonitoring(),
-      ]);
-      const nextSignature = workStructureSignature();
-      if (nextSignature !== workViewSignature) {
-        render();
-      } else {
-        refreshWorkLiveView();
-      }
-    } catch (error) {
-      /* mantém o último estado visível */
-    } finally {
-      workPolling = false;
-    }
-  }, 2000);
+  workRealtime.start();
 }
 function workStructureSignature() {
   const pending = (store.state.pendingReadings || []).map((reading) => reading.id).join(",");

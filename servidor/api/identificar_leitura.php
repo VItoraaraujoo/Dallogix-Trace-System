@@ -9,6 +9,14 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
 }
 require_csrf();
 $payload = request_json();
+$offlineEventId = trim((string) ($_SERVER["HTTP_X_TRACE_OFFLINE_ID"] ?? ""));
+if (preg_match('/^[a-f0-9-]{16,80}$/i', $offlineEventId)) {
+    $duplicate = db()->prepare("SELECT entity_id FROM logs_auditoria WHERE event_uuid = :event_uuid AND company_id = :company_id LIMIT 1");
+    $duplicate->execute(["event_uuid" => $offlineEventId, "company_id" => $user["company_id"]]);
+    if ($duplicate->fetch()) {
+        json_response(["data" => ["queued" => true, "duplicate" => true]]);
+    }
+}
 $readingId = filter_var($payload["leitura_id"] ?? null, FILTER_VALIDATE_INT);
 $barcode = trim((string) ($payload["barcode"] ?? ""));
 $productId = filter_var($payload["product_id"] ?? null, FILTER_VALIDATE_INT);
@@ -67,7 +75,7 @@ if ($result === "VALIDO") {
     $counter = $pdo->prepare("UPDATE carregamentos SET leituras_validas = leituras_validas + 1 WHERE id = :id");
     $counter->execute(["id" => (int) $current["carregamento_id"]]);
 }
-record_operational_event($pdo, $user, "LEITURA_IDENTIFICADA_MANUALMENTE", "leitura", (int) $readingId, ["product_id" => (int) $selected["id"], "result" => $result]);
+record_operational_event($pdo, $user, "LEITURA_IDENTIFICADA_MANUALMENTE", "leitura", (int) $readingId, ["product_id" => (int) $selected["id"], "result" => $result, ...(preg_match('/^[a-f0-9-]{16,80}$/i', $offlineEventId) ? ["event_uuid" => $offlineEventId] : [])]);
 $pdo->commit();
 json_response(["data" => ["id" => (int) $readingId, "result" => $result, "product_id" => (int) $selected["id"], "product_name" => $selected["name"]]]);
 } catch (Throwable $exception) {
