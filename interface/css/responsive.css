@@ -1477,3 +1477,129 @@ button.button {
     padding-block: 18px;
   }
 }
+
+@media (max-width: 760px) {
+
+  html,
+  body {
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .main,
+  .content,
+  #screen-root {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .topbar,
+  .shell .topbar {
+    grid-template-columns: 42px minmax(0, 1fr) 30px;
+    gap: 6px;
+    padding-inline: 10px;
+  }
+
+  .topbar>h1,
+  .shell .topbar>h1 {
+    min-width: 0;
+    font-size: 14px;
+    line-height: 1.1;
+  }
+
+  .sidebar-toggle,
+  .shell .sidebar-toggle {
+    width: 42px;
+    height: 42px;
+  }
+
+  .content {
+    padding: 18px 12px 32px !important;
+  }
+
+  .title-row,
+  .title-row.with-actions,
+  .title-row.has-back,
+  .dala-page-header,
+  .dalas-header-v2 {
+    width: 100%;
+    gap: 10px;
+    margin-bottom: 16px;
+  }
+
+  .title-row h2,
+  .dalas-header-v2 h2,
+  .dalas-reference-header h2 {
+    font-size: 24px;
+  }
+
+  .panel {
+    width: 100%;
+    padding: 16px;
+    border-radius: 10px;
+  }
+
+  .actions,
+  .title-row .actions,
+  .panel-heading>.actions {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .actions>.button,
+  .actions>a.button,
+  .title-row .actions .button,
+  .title-row .actions a.button,
+  .panel-heading>.actions .button {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .table-wrap {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .table-wrap table:not(.mobile-card-table) {
+    min-width: 640px;
+  }
+
+  .mobile-card-table {
+    width: 100%;
+  }
+
+  .table-pagination,
+  .filter-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .table-pagination .actions,
+  .filter-toolbar .button,
+  .filter-toolbar .filter-toggle {
+    width: 100%;
+  }
+
+  .file-picker {
+    align-items: stretch;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .file-picker-button,
+  .file-name {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .dashboard-card-links,
+  .work-routine-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .command-confirm-actions {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+}
