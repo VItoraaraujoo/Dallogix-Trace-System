@@ -884,6 +884,7 @@ table {
 
 /* Mantém a marca alinhada ao cabeçalho e remove o quadro decorativo. */
 .sidebar .brand {
+  width: 100% !important;
   height: var(--trace-topbar) !important;
   min-height: var(--trace-topbar) !important;
   margin: 0 !important;
@@ -902,7 +903,12 @@ table {
 }
 
 @media (min-width: 761px) {
+  .shell.sidebar-collapsed .sidebar {
+    padding: 0 !important;
+  }
+
   .shell.sidebar-collapsed .sidebar .brand {
+    width: 100% !important;
     height: var(--trace-topbar) !important;
     min-height: var(--trace-topbar) !important;
     margin: 0 !important;
