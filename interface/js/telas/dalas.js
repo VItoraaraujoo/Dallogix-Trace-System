@@ -22,7 +22,6 @@ function dalaReferenceActions(equipment, canManage, canDelete) {
 
 export function dalas(store) {
   const rows = store.state.equipments || [];
-  const loading = !store.state.equipmentsLoaded;
   const loadError = store.state.equipmentsError;
   const loading = !store.state.equipmentsLoaded || store.state.equipmentsLoading;
   const open = store.state.dalaFormOpen;
