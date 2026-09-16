@@ -61,6 +61,10 @@ jobs:
               printf 'TRACE_VERSION=%s\\nTRACE_COMMIT=%s\\n' '$GITHUB_SHA' '$GITHUB_SHA' >> .env && \
               printf '{\"version\":\"%s\",\"commit\":\"%s\"}\\n' '$GITHUB_SHA' '$GITHUB_SHA' > .release.json.tmp && \
               mv -f .release.json.tmp servidor/.release.json && \
+              bash scripts/docker_compose.sh up -d mysql && \
+              mkdir -p armazenamento/backups && \
+              bash scripts/backup_db.sh && \
+              bash scripts/migrate.sh && \
               bash scripts/docker_compose.sh up -d --no-build --no-recreate && \
               bash scripts/docker_compose.sh exec -T nginx nginx -s reload"
           ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" \
