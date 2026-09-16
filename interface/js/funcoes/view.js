@@ -75,17 +75,21 @@ export function manifestsTable(rows) {
         .map((r) => {
           const viewAction = button("Visualizar", "view-manifest", "secondary", `data-id="${r.id}"`);
           const actions = `<div class="manifest-row-actions">${viewAction}</div>`;
+          const operation = r.active_loading_id
+            ? button("Retomar", "resume-loading", "primary", `data-loading-id="${r.active_loading_id}"`)
+            : "—";
           return `<tr>
           <td data-label="Data do carregamento">${data(r.scheduled_date)}</td>
           <td data-label="Código do romaneio"><strong>${esc(r.number)}</strong></td>
           <td data-label="Expedidor">${esc(r.expedidor || "—")}</td>
           <td data-label="Status">${manifestStatusBadge(r)}</td>
           <td data-label="Ações">${actions}</td>
+          <td data-label="Operação">${operation}</td>
         </tr>`;
         })
         .join("")
-    : '<tr><td colspan="5" class="empty-cell">Nenhum romaneio encontrado.</td></tr>';
-  return `<div class="panel table-wrap"><table class="manifests-table mobile-card-table"><thead><tr><th>Data do carregamento</th><th>Código do romaneio</th><th>Expedidor</th><th>Status</th><th>Ações</th></tr></thead><tbody>${body}</tbody></table></div>`;
+    : '<tr><td colspan="6" class="empty-cell">Nenhum romaneio encontrado.</td></tr>';
+  return `<div class="panel table-wrap"><table class="manifests-table mobile-card-table"><thead><tr><th>Data do carregamento</th><th>Código do romaneio</th><th>Expedidor</th><th>Status</th><th>Ações</th><th>Operação</th></tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 export function deviceBadge(value) {

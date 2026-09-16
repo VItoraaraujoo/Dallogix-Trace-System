@@ -7,7 +7,7 @@ import {
   emergencyPanel,
   progress,
   statuses,
-} from "../funcoes/view.js?v=202609151955";
+} from "../funcoes/view.js?v=202609161900";
 
 const STATUS_OPTIONS = [
   ["", "Todos os status"],
@@ -179,6 +179,9 @@ function loadingSelection(store) {
 }
 function workControls(store) {
   const left = Math.max(0, store.state.planned - store.state.loaded);
+  const loadingItems = Array.isArray(store.state.loadingItems)
+    ? store.state.loadingItems
+    : [];
   const canUnlock = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(
     store.state.userRole,
   );
@@ -226,10 +229,17 @@ function workControls(store) {
   const avisoClp = clpDisponivel
     ? ""
     : `<div class="alert-box" role="alert"><strong>Comandos bloqueados.</strong> ${esc(store.mensagemClpIndisponivel())}</div>`;
+  const itemBreakdown = `<section class="panel work-items-panel"><div class="panel-heading"><div><span class="kicker">Conferência do romaneio</span><h3>Itens carregados por produto</h3></div><small>${numero(loadingItems.length)} produto(s)</small></div><div class="table-wrap"><table class="mobile-card-table"><thead><tr><th>Produto</th><th>Código</th><th>Carregado</th><th>Planejado</th><th>Faltam</th><th>Situação</th></tr></thead><tbody>${loadingItems.length ? loadingItems.map((item) => {
+    const loaded = Number(item.loaded_quantity) || 0;
+    const planned = Number(item.planned_quantity) || 0;
+    const remaining = Math.max(0, Number(item.remaining_quantity) || planned - loaded);
+    const status = loaded >= planned ? ["Concluído", "green"] : loaded > 0 ? ["Em andamento", "blue"] : ["Pendente", "yellow"];
+    return `<tr><td data-label="Produto"><strong>${esc(item.name || "Produto")}</strong></td><td data-label="Código"><code>${esc(item.code || "—")}</code></td><td data-label="Carregado">${numero(loaded)}</td><td data-label="Planejado">${numero(planned)}</td><td data-label="Faltam"><strong>${numero(remaining)}</strong></td><td data-label="Situação"><span class="badge ${status[1]}">${status[0]}</span></td></tr>`;
+  }).join("") : '<tr><td colspan="6" class="empty-cell">Nenhum item detalhado para este carregamento.</td></tr>'}</tbody></table></div></section>`;
   const workTitle = store.state.romaneio && store.state.romaneio !== "—"
     ? `Romaneio #${store.state.romaneio} · ${equipmentLabel(store)}`
     : "Operação";
-  return `${pageHeader(`Operação / ${equipmentLabel(store)}`, workTitle, `Caminhão ${store.state.truck}.`, badge)}${loadingPicker}${statuses(store)}${avisoClp}${manualIdentification}${store.state.emergency ? activeEmergencyPanel : `<div class="grid two"><section class="panel"><span class="kicker">Produto atual</span><h3>Contagem do romaneio</h3><p>Leituras vinculadas ao carregamento atual</p><div class="grid three"><div class="metric"><small>Programado</small><strong data-live="planned">${numero(store.state.planned)}</strong></div><div class="metric work-critical-metric"><small>Carregado</small><strong data-live="loaded">${numero(store.state.loaded)}</strong></div><div class="metric work-critical-metric"><small>Faltam</small><strong data-live="remaining">${numero(left)}</strong></div></div>${progress(store)}${left <= 5 && left > 0 ? '<div class="alert-box">Faltam 5 sacas ou menos. Reduza o envio.</div>' : ""}<div class="actions">${controls}</div></section><aside class="panel"><h3>Estado atual</h3><ul><li>Estado <small data-live="operational-state">${esc(rotuloEstado(store.state.operationalState))}</small></li>${commandPanel}<li>Leituras válidas <small data-live="loaded-secondary">${numero(store.state.loaded)}</small></li><li>Carregamento #${store.state.loadingId || "—"}</li></ul>${summaryAction ? `<div class="actions work-summary-action">${summaryAction}</div>` : ""}</aside></div>`}`;
+  return `${pageHeader(`Operação / ${equipmentLabel(store)}`, workTitle, `Caminhão ${store.state.truck}.`, badge)}${loadingPicker}${statuses(store)}${avisoClp}${manualIdentification}${store.state.emergency ? activeEmergencyPanel : `<div class="grid two"><section class="panel"><span class="kicker">Produto atual</span><h3>Contagem do romaneio</h3><p>Leituras vinculadas ao carregamento atual</p><div class="grid three"><div class="metric"><small>Programado</small><strong data-live="planned">${numero(store.state.planned)}</strong></div><div class="metric work-critical-metric"><small>Carregado</small><strong data-live="loaded">${numero(store.state.loaded)}</strong></div><div class="metric work-critical-metric"><small>Faltam</small><strong data-live="remaining">${numero(left)}</strong></div></div>${progress(store)}${left <= 5 && left > 0 ? '<div class="alert-box">Faltam 5 sacas ou menos. Reduza o envio.</div>' : ""}<div class="actions">${controls}</div></section><aside class="panel"><h3>Estado atual</h3><ul><li>Estado <small data-live="operational-state">${esc(rotuloEstado(store.state.operationalState))}</small></li>${commandPanel}<li>Leituras válidas <small data-live="loaded-secondary">${numero(store.state.loaded)}</small></li><li>Carregamento #${store.state.loadingId || "—"}</li></ul>${summaryAction ? `<div class="actions work-summary-action">${summaryAction}</div>` : ""}</aside></div>`}${itemBreakdown}`;
 }
 export function work(store) {
   if (

@@ -23,7 +23,62 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
          ORDER BY c.id DESC',
     );
     $statement->execute(["company_id" => $usuarioAtor["company_id"]]);
-    responder_json(["data" => $statement->fetchAll()]);
+    $rows = $statement->fetchAll();
+    foreach ($rows as &$row) {
+        $row["items"] = [];
+    }
+    unset($row);
+
+    if ($rows) {
+        $loadingIds = array_values(array_unique(array_map(
+            static fn (array $row): int => (int) $row["id"],
+            $rows,
+        )));
+        $placeholders = [];
+        $params = ["company_id" => (int) $usuarioAtor["company_id"]];
+        foreach ($loadingIds as $index => $loadingId) {
+            $name = "loading_id_{$index}";
+            $placeholders[] = ":{$name}";
+            $params[$name] = $loadingId;
+        }
+        $itemsStatement = $pdo->prepare(
+            "SELECT c.id AS loading_id, ri.product_id, p.name, p.code,
+                    SUM(ri.planned_quantity) AS planned_quantity,
+                    (SELECT COUNT(*)
+                     FROM leituras l
+                     WHERE l.carregamento_id = c.id
+                       AND l.product_id = ri.product_id
+                       AND l.result = 'VALIDO') AS loaded_quantity
+             FROM carregamentos c
+             JOIN romaneio_itens ri
+               ON ri.romaneio_id = c.romaneio_id
+              AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)
+             JOIN produtos p ON p.id = ri.product_id
+             WHERE c.company_id = :company_id
+               AND c.id IN (" . implode(", ", $placeholders) . ")
+             GROUP BY c.id, ri.product_id, p.name, p.code
+             ORDER BY c.id DESC, ri.product_id",
+        );
+        $itemsStatement->execute($params);
+        $itemsByLoading = [];
+        foreach ($itemsStatement->fetchAll() as $item) {
+            $planned = (int) $item["planned_quantity"];
+            $loaded = (int) $item["loaded_quantity"];
+            $itemsByLoading[(int) $item["loading_id"]][] = [
+                "product_id" => (int) $item["product_id"],
+                "name" => $item["name"],
+                "code" => $item["code"],
+                "planned_quantity" => $planned,
+                "loaded_quantity" => $loaded,
+                "remaining_quantity" => max(0, $planned - $loaded),
+            ];
+        }
+        foreach ($rows as &$row) {
+            $row["items"] = $itemsByLoading[(int) $row["id"]] ?? [];
+        }
+        unset($row);
+    }
+    responder_json(["data" => $rows]);
 }
 
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {

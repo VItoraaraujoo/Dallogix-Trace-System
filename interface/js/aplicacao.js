@@ -1,4 +1,4 @@
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609160900";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609161900";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609160900";
@@ -26,7 +26,7 @@ import {
     manifests,
     manifestView,
     work,
-} from "./telas/operacoes.js?v=202609150500";
+} from "./telas/operacoes.js?v=202609161900";
 import { dashboard } from "./telas/painel.js?v=202609150300";
 import { users } from "./telas/usuarios.js";
 
@@ -335,7 +335,7 @@ function installLocalIndicator() {
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202609161845").catch(() => {
+  navigator.serviceWorker.register("/service-worker.js?v=202609161900").catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }
@@ -476,6 +476,11 @@ function startWorkPolling() {
 }
 function workStructureSignature() {
   const pending = (store.state.pendingReadings || []).map((reading) => reading.id).join(",");
+  const loadingItems = (store.state.loadingItems || []).map((item) => [
+    item.product_id,
+    item.loaded_quantity,
+    item.planned_quantity,
+  ]);
   const command = store.state.plcCommand;
   return JSON.stringify([
     store.state.selectedLoadingId || null,
@@ -485,6 +490,7 @@ function workStructureSignature() {
     command?.status || null,
     command?.response_message || null,
     store.clpDisponivel(),
+    loadingItems,
   ]);
 }
 function refreshWorkLiveView() {
@@ -770,11 +776,11 @@ function bindActions() {
       }
       if (action === "reset-user-password") {
         const password = prompt(
-          `Nova senha para ${node.dataset.name} (mínimo 10 caracteres):`,
+          `Nova senha para ${node.dataset.name} (mínimo 6 caracteres):`,
         );
         if (password === null) return;
-        if (password.length < 10) {
-          alert("A senha deve ter pelo menos 10 caracteres.");
+        if (password.length < 6) {
+          alert("A senha deve ter pelo menos 6 caracteres.");
           return;
         }
         try {
@@ -1335,15 +1341,15 @@ function bindLoginForm() {
       }
       if (result.password_change_required) {
         const newPassword = prompt(
-          "Esta senha é temporária. Informe uma nova senha (mínimo 10 caracteres):",
+          "Esta senha é temporária. Informe uma nova senha (mínimo 6 caracteres):",
         );
         if (newPassword === null) {
           renderLogin("Troque a senha temporária antes de continuar.");
           return;
         }
         const confirmation = prompt("Confirme a nova senha:");
-        if (newPassword.length < 10 || newPassword !== confirmation) {
-          renderLogin("As senhas não coincidem ou têm menos de 10 caracteres.");
+        if (newPassword.length < 6 || newPassword !== confirmation) {
+          renderLogin("As senhas não coincidem ou têm menos de 6 caracteres.");
           return;
         }
         const passwordResponse = await fetch("/api/trocar_senha.php", {

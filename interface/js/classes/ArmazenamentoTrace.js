@@ -12,6 +12,7 @@ export class ArmazenamentoTrace {
       loadingId: null,
       selectedLoadingId: null,
       activeLoadings: [],
+      loadingItems: [],
       operationalState: "AGUARDANDO",
       truck: "—",
       romaneio: "—",
@@ -411,6 +412,7 @@ export class ArmazenamentoTrace {
       this.state.equipmentCode = "—";
       this.state.equipmentId = null;
       this.state.plcCommand = null;
+      this.state.loadingItems = [];
       return;
     }
     this.state.loadingId = Number(loading.id);
@@ -424,6 +426,7 @@ export class ArmazenamentoTrace {
     this.state.romaneio = loading.romaneio_number || "—";
     this.state.equipmentCode = loading.equipment_code || "—";
     this.state.equipmentId = Number(loading.equipment_id) || null;
+    this.state.loadingItems = Array.isArray(loading.items) ? loading.items : [];
     await this.loadPlcCommandStatus(this.state.loadingId);
   }
   applyActiveLoadingSnapshot(loadings, selectedId = this.state.selectedLoadingId) {
@@ -447,6 +450,7 @@ export class ArmazenamentoTrace {
       this.state.romaneio = "—";
       this.state.equipmentCode = "—";
       this.state.equipmentId = null;
+      this.state.loadingItems = [];
       return null;
     }
     this.state.loadingId = Number(loading.id);
@@ -460,6 +464,7 @@ export class ArmazenamentoTrace {
     this.state.romaneio = loading.romaneio_number || "—";
     this.state.equipmentCode = loading.equipment_code || "—";
     this.state.equipmentId = Number(loading.equipment_id) || null;
+    this.state.loadingItems = Array.isArray(loading.items) ? loading.items : [];
     return loading;
   }
   clpDaDalaAtual() {

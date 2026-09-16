@@ -11,11 +11,11 @@ $senhaAtual = (string) ($payload["current_password"] ?? "");
 $novaSenha = (string) ($payload["new_password"] ?? "");
 if (
     $senhaAtual === "" ||
-    strlen($novaSenha) < 10 ||
+    strlen($novaSenha) < 6 ||
     strlen($novaSenha) > 128 ||
     hash_equals($senhaAtual, $novaSenha)
 ) {
-    json_response(["error" => "Informe uma nova senha diferente, com pelo menos 10 caracteres."], 422);
+    json_response(["error" => "Informe uma nova senha diferente, com pelo menos 6 caracteres."], 422);
 }
 
 $pdo = db();

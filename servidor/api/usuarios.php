@@ -80,11 +80,11 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
         mb_strlen($nome) > 160 ||
         !in_array($perfil, $perfisPermitidos, true) ||
         $ativo === null ||
-        ($senha !== "" && strlen($senha) < 10)
+        ($senha !== "" && strlen($senha) < 6)
     ) {
         json_response(
             [
-                "error" => "Dados de atualização inválidos. A nova senha deve ter ao menos 10 caracteres.",
+                "error" => "Dados de atualização inválidos. A nova senha deve ter ao menos 6 caracteres.",
             ],
             422,
         );
@@ -170,12 +170,12 @@ if (
     mb_strlen($nome) > 160 ||
     !preg_match('/^[a-z0-9][a-z0-9._-]{2,63}$/', $emailPrefix) ||
     !filter_var($email, FILTER_VALIDATE_EMAIL) ||
-    strlen($senha) < 10 ||
+    strlen($senha) < 6 ||
     !in_array($perfil, $perfisPermitidos, true)
 ) {
     json_response(
         [
-            "error" => "Informe nome, início do e-mail com 3 a 64 caracteres, senha de no mínimo 10 caracteres e um perfil permitido.",
+            "error" => "Informe nome, início do e-mail com 3 a 64 caracteres, senha de no mínimo 6 caracteres e um perfil permitido.",
         ],
         422,
     );

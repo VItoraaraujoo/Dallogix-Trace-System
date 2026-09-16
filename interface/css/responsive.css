@@ -827,27 +827,32 @@ table {
 
 .manifests-table th:nth-child(1),
 .manifests-table td:nth-child(1) {
-  width: 18%;
+  width: 16%;
 }
 
 .manifests-table th:nth-child(2),
 .manifests-table td:nth-child(2) {
-  width: 20%;
+  width: 18%;
 }
 
 .manifests-table th:nth-child(3),
 .manifests-table td:nth-child(3) {
-  width: 22%;
+  width: 19%;
 }
 
 .manifests-table th:nth-child(4),
 .manifests-table td:nth-child(4) {
-  width: 20%;
+  width: 18%;
 }
 
 .manifests-table th:nth-child(5),
 .manifests-table td:nth-child(5) {
-  width: 20%;
+  width: 14%;
+}
+
+.manifests-table th:nth-child(6),
+.manifests-table td:nth-child(6) {
+  width: 15%;
 }
 
 .manifests-table td:nth-child(1) {

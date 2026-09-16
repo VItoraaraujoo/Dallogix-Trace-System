@@ -20,6 +20,11 @@ if ! printf '%s' "$login" | grep -q '"authenticated":true'; then
   echo "Falha no login do simulador: $login"
   exit 1
 fi
+csrf_token="$(printf '%s' "$login" | sed -n 's/.*"csrf_token":"\([^"]*\)".*/\1/p')"
+if [[ -z "$csrf_token" ]]; then
+  echo "Falha ao obter o token da sessão do simulador: $login"
+  exit 1
+fi
 
 loading_json="$(curl -sS -b "$cookie_file" "$base_url/api/carregamentos.php")"
 if [[ -z "$loading_id" ]]; then
@@ -29,6 +34,7 @@ if [[ -z "$loading_id" ]]; then
   loading_id="$(printf '%s' "$loading_json" | sed -n 's/.*"id":\([0-9][0-9]*\),"state":"PREPARANDO".*/\1/p' | head -n 1)"
   if [[ -n "$loading_id" ]]; then
     promoted="$(curl -sS -b "$cookie_file" -X PATCH -H 'Content-Type: application/json' \
+      -H "X-CSRF-Token: ${csrf_token}" \
       -d "{\"carregamento_id\":${loading_id},\"state\":\"CARREGANDO\"}" \
       "$base_url/api/estado_carregamento.php")"
     if ! printf '%s' "$promoted" | grep -q '"state":"CARREGANDO"'; then
@@ -57,11 +63,15 @@ if ! printf '%s' "$heartbeat" | grep -q '"status":"ONLINE"'; then
 fi
 echo "Heartbeat local: CLP ONLINE"
 
-state="$(curl -sS -b "$cookie_file" -X PATCH -H 'Content-Type: application/json' -d "{\"carregamento_id\":${loading_id},\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php")"
+state="$(curl -sS -b "$cookie_file" -X PATCH -H 'Content-Type: application/json' \
+  -H "X-CSRF-Token: ${csrf_token}" \
+  -d "{\"carregamento_id\":${loading_id},\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php")"
 echo "CLP estado: $state"
 
 sleep 1
-event="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":${loading_id},\"equipment_id\":${equipment_id},\"event_uuid\":\"${event_uuid}\"}" "$base_url/api/sensor_eventos.php")"
+event="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' \
+  -H "X-CSRF-Token: ${csrf_token}" \
+  -d "{\"carregamento_id\":${loading_id},\"equipment_id\":${equipment_id},\"event_uuid\":\"${event_uuid}\"}" "$base_url/api/sensor_eventos.php")"
 event_id="$(printf '%s' "$event" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
 if [[ -z "$event_id" ]]; then
   echo "Falha no sensor simulado: $event"
@@ -70,9 +80,13 @@ fi
 echo "Sensor detectou saco: evento ${event_id}"
 
 if [[ "$barcode" == "SEM_LEITURA" ]]; then
-  reading="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":${loading_id},\"sensor_event_id\":${event_id}}" "$base_url/api/leituras.php")"
+  reading="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' \
+    -H "X-CSRF-Token: ${csrf_token}" \
+    -d "{\"carregamento_id\":${loading_id},\"sensor_event_id\":${event_id}}" "$base_url/api/leituras.php")"
 else
-  reading="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":${loading_id},\"sensor_event_id\":${event_id},\"barcode\":\"${barcode}\"}" "$base_url/api/leituras.php")"
+  reading="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' \
+    -H "X-CSRF-Token: ${csrf_token}" \
+    -d "{\"carregamento_id\":${loading_id},\"sensor_event_id\":${event_id},\"barcode\":\"${barcode}\"}" "$base_url/api/leituras.php")"
 fi
 echo "Scanner simulado: $reading"
 echo "Simulação concluída."
