@@ -884,6 +884,16 @@ table {
     text-align: left;
   }
 
+  .manifests-table tbody td {
+    width: 100% !important;
+    align-items: start;
+    white-space: normal !important;
+  }
+
+  .manifests-table tbody td[data-label]::before {
+    align-self: start;
+  }
+
   .manifests-table .manifest-row-actions {
     justify-content: flex-start;
   }
