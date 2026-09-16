@@ -928,6 +928,37 @@ table {
   line-height: 1.15;
 }
 
+.title-row.with-actions>.actions,
+.title-row.has-back>.actions,
+.panel-heading>.actions {
+  margin-left: auto;
+  justify-content: flex-end;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.panel-heading>h3,
+.panel-heading>div:first-child {
+  min-width: 0;
+}
+
+.table-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.table-actions .text-link {
+  white-space: nowrap;
+}
+
 .panel {
   border-radius: var(--trace-panel-radius);
   padding: 22px;
@@ -1166,6 +1197,20 @@ button.button {
   .dalas-header-v2 {
     gap: 12px;
     margin-bottom: 18px;
+  }
+
+  .title-row.with-actions>.actions,
+  .title-row.has-back>.actions,
+  .panel-heading>.actions {
+    width: 100%;
+    margin-left: 0;
+    justify-content: stretch;
+  }
+
+  .title-row.with-actions>.actions .button,
+  .title-row.has-back>.actions .button,
+  .panel-heading>.actions .button {
+    flex: 1 1 150px;
   }
 
   .panel {
