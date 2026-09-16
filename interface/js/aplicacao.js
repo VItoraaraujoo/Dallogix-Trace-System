@@ -6,7 +6,7 @@ import { numero } from "./funcoes/formato.js";
 import { el, esc } from "./funcoes/html.js";
 import { rotuloEstado } from "./funcoes/rotulos.js";
 import { settings } from "./telas/configuracoes.js?v=202609140210";
-import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609161405";
+import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609161430";
 import { company } from "./telas/empresa.js";
 import { companies } from "./telas/empresas.js";
 import { errorLogs } from "./telas/logs.js";
@@ -18,7 +18,7 @@ import {
     occurrences,
     products,
     summary,
-} from "./telas/monitoramento.js?v=202609161405";
+} from "./telas/monitoramento.js?v=202609161430";
 import {
     division,
     importScreen,
@@ -335,7 +335,7 @@ function installLocalIndicator() {
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202609161405").catch(() => {
+  navigator.serviceWorker.register("/service-worker.js?v=202609161430").catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }
@@ -358,7 +358,7 @@ function waitForDocumentStyles() {
 // inicial não é recarregado, então os estilos exclusivos de Dalas precisam ser
 // adicionados quando a rota muda a partir de outra tela.
 const DALA_PAGES = new Set(["dalas", "dala", "dala-edit", "dala-actions"]);
-const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609161405";
+const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609161430";
 async function ensureDalaScreenStyles(page) {
   if (!DALA_PAGES.has(page)) return;
   const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
@@ -1936,19 +1936,31 @@ async function renderPage() {
     render();
   } catch (error) {
     if (requestId !== renderRequestId) return;
-    console.error(error);
-    if (["manifest", "manifest-edit", "dala-edit", "company"].includes(currentPage)) {
-      await navigate(
-        ["manifest", "manifest-edit"].includes(currentPage)
+    const missingRecord = error?.message === "Registro não informado.";
+    const returnPage = missingRecord
+      ? ["manifest", "manifest-edit", "division"].includes(currentPage)
+        ? "manifests"
+        : ["dala", "dala-edit", "dala-actions"].includes(currentPage)
+          ? "dalas"
+          : currentPage === "company"
+            ? "companies"
+            : null
+      : ["manifest", "manifest-edit", "dala-edit", "company"].includes(currentPage)
+        ? ["manifest", "manifest-edit"].includes(currentPage)
           ? "manifests"
           : currentPage === "company"
             ? "companies"
-            : "dalas",
+            : "dalas"
+        : null;
+    if (returnPage) {
+      await navigate(
+        returnPage,
         "",
         { replace: true },
       );
       return;
     }
+    console.error(error);
     if (root)
       root.innerHTML = `<div class="panel page-error"><h2>Não foi possível atualizar esta tela</h2><p>${esc(error.message || "Verifique a conexão local e tente novamente.")}</p><button class="button primary" data-action="reload-page" type="button">Tentar novamente</button></div>`;
     bindActions();
