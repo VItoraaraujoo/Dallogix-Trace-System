@@ -2438,6 +2438,7 @@ textarea {
 
 .company-grid {
   grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  align-items: start;
 }
 
 .company-card {
@@ -2448,7 +2449,7 @@ textarea {
   display: flex;
   flex-direction: column;
   gap: 16px;
-  min-height: 215px;
+  min-height: 0;
   box-shadow: 0 3px 12px rgba(23, 33, 43, 0.06);
   transition:
     transform 0.15s ease,
@@ -2461,20 +2462,57 @@ textarea {
 }
 
 .company-card header {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   justify-content: space-between;
   align-items: flex-start;
   gap: 10px;
 }
 
+.company-card-identity,
+.company-card-statuses {
+  min-width: 0;
+}
+
 .company-card header strong {
   font-size: 17px;
   display: block;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
 }
 
 .company-card header small {
+  display: block;
   color: var(--muted);
   font-size: 11px;
+  line-height: 1.45;
+  margin-top: 7px;
+  overflow-wrap: anywhere;
+}
+
+.company-card header code {
+  display: block;
+  margin-top: 8px;
+  color: #126882;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.company-card-statuses {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: flex-start;
+  gap: 6px;
+  max-width: 170px;
+}
+
+.company-card-statuses .badge {
+  white-space: nowrap;
+  font-size: 11px;
+  line-height: 1.2;
+  padding: 6px 9px;
 }
 
 .company-card-metrics {
@@ -2502,11 +2540,51 @@ textarea {
 }
 
 .company-card footer {
-  margin-top: auto;
+  margin-top: 0;
+  padding-top: 12px;
+  border-top: 1px solid #edf1f3;
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-end;
   gap: 10px;
+}
+
+.company-card footer > .kicker {
+  min-width: 0;
+  flex: 1 1 auto;
+  font-size: 11px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.company-card footer .button {
+  flex: 0 0 auto;
+  margin: 0;
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .company-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .company-card header {
+    grid-template-columns: 1fr;
+  }
+
+  .company-card-statuses {
+    justify-content: flex-start;
+    max-width: none;
+  }
+
+  .company-card footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .company-card footer .button {
+    width: 100%;
+  }
 }
 
 .master-section-heading p {

@@ -159,7 +159,7 @@ export function companyCard(company, { compact = false } = {}) {
   const licenseTone = licenseStatus === "ATIVA" ? "green" : "red";
   const licenseAction = licenseStatus === "ATIVA" ? "Bloquear licença" : "Ativar licença";
   return `<article class="company-card">
-    <header><div><strong>${esc(company.name)}</strong><small>${total} máquina(s) • último sinal ${company.last_signal_at ? esc(company.last_signal_at) : "—"}</small><small>Login: @${esc(company.login_domain || "—")}</small></div><div>${connection}<span class="badge ${licenseTone}">${esc(licenseLabel)}</span></div></header>
+    <header><div class="company-card-identity"><strong>${esc(company.name)}</strong><small>${total} máquina(s) • último sinal ${company.last_signal_at ? esc(company.last_signal_at) : "—"}</small><code>Login: @${esc(company.login_domain || "—")}</code></div><div class="company-card-statuses">${connection}<span class="badge ${licenseTone}">${esc(licenseLabel)}</span></div></header>
     <div class="company-card-metrics">
       <div><b>${total}</b><small>Máquinas</small></div>
       <div><b class="metric-green">${online}</b><small>Online</small></div>
