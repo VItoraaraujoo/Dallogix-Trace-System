@@ -2351,6 +2351,10 @@ textarea {
   height: 100%;
 }
 
+.dashboard-metrics > .panel + .panel {
+  margin-top: 0;
+}
+
 .dashboard-dalas {
   margin-top: 10px;
 }
