@@ -2021,6 +2021,96 @@ button.button {
     text-align: center;
   }
 
+  /* No mobile, cada Dala vira um cartão para evitar sete colunas estreitas. */
+  .dalas-screen-v2 .dalas-header-v2 {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .dalas-screen-v2 .dalas-header-v2 .button {
+    width: 100%;
+  }
+
+  .dalas-screen-v2 .dalas-grid-v2 {
+    display: grid !important;
+    gap: 14px;
+    border: 0;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .dalas-screen-v2 .dala-grid-head-v2 {
+    display: none !important;
+  }
+
+  .dalas-screen-v2 .dala-grid-row-v2 {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--dala-line, #dce7ec);
+    border-radius: 12px;
+    background: #fff;
+    box-shadow: 0 5px 16px rgba(20, 35, 50, 0.05);
+  }
+
+  .dalas-screen-v2 .dala-grid-cell-v2 {
+    display: flex !important;
+    min-width: 0;
+    min-height: 0;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--dala-line, #dce7ec);
+    text-align: left !important;
+    overflow-wrap: anywhere;
+  }
+
+  .dalas-screen-v2 .dala-grid-cell-v2::before {
+    display: block;
+    margin-bottom: 4px;
+    color: #69808f;
+    content: attr(data-label);
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    line-height: 1.2;
+    text-transform: uppercase;
+  }
+
+  .dalas-screen-v2 .dala-grid-cell-v2:nth-child(6),
+  .dalas-screen-v2 .dala-grid-cell-v2:nth-child(7) {
+    grid-column: 1 / -1;
+  }
+
+  .dalas-screen-v2 .dala-grid-cell-v2:nth-child(7) {
+    border-bottom: 0;
+  }
+
+  .dalas-screen-v2 .dala-grid-cell-v2 code {
+    max-width: 100%;
+  }
+
+  .dalas-screen-v2 .dala-grid-cell-v2 .dala-status {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .dalas-screen-v2 .dala-actions-v2 {
+    display: flex;
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: stretch;
+    gap: 8px;
+  }
+
+  .dalas-screen-v2 .dala-action-v2 {
+    flex: 1 1 calc(50% - 8px);
+    min-width: 0;
+  }
+
   .shell .sidebar-toggle {
     width: 44px !important;
     height: 44px !important;
