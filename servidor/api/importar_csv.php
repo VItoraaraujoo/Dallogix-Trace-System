@@ -3,6 +3,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 
+final class ExcecaoValidacaoImportacaoCsv extends RuntimeException
+{
+}
+
 $user = require_session_user();
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     json_response(["error" => "Método não permitido."], 405);
@@ -112,12 +116,12 @@ try {
             $quantity < 1 ||
             !$date
         ) {
-            throw new RuntimeException(
+            throw new ExcecaoValidacaoImportacaoCsv(
                 "Linha {$lineNumber} inválida. Informe romaneio, data (AAAA-MM-DD ou DD/MM/AAAA), placa Mercosul, produto e quantidade maior que zero.",
             );
         }
         if (mb_strlen($driverName) > 160 || mb_strlen($shipper) > 160) {
-            throw new RuntimeException(
+            throw new ExcecaoValidacaoImportacaoCsv(
                 "Linha {$lineNumber} possui motorista ou expedidor acima de 160 caracteres.",
             );
         }
@@ -131,7 +135,7 @@ try {
         ]);
         $product = $productStatement->fetch();
         if (!$product) {
-            throw new RuntimeException(
+            throw new ExcecaoValidacaoImportacaoCsv(
                 "Produto {$productCode} não encontrado na linha {$lineNumber}.",
             );
         }
@@ -217,5 +221,12 @@ try {
             409,
         );
     }
-    json_response(["error" => $exception->getMessage()], 422);
+    if ($exception instanceof ExcecaoValidacaoImportacaoCsv) {
+        json_response(["error" => $exception->getMessage()], 422);
+    }
+    error_log("CSV import failed: " . $exception->getMessage());
+    json_response(
+        ["error" => "Não foi possível concluir a importação do CSV. Tente novamente."],
+        500,
+    );
 }

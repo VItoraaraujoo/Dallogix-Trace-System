@@ -1,0 +1,24 @@
+name: Teste periódico de backup e restauração
+
+on:
+  schedule:
+    - cron: '17 3 1 * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backup-restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Preparar homologação isolada
+        run: python3 scripts/production_test.py
+      - name: Criar e restaurar backup
+        run: python3 testes/production_backup.py
+      - name: Encerrar ambiente isolado
+        if: always()
+        run: |
+          docker compose --env-file .env.production-test -f docker-compose.production-test.yml down -v --remove-orphans || true

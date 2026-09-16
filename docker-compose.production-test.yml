@@ -31,6 +31,8 @@ services:
       DB_PASSWORD: ${MYSQL_PASSWORD:?}
       TRACE_DEVICE_TOKEN: ${TRACE_DEVICE_TOKEN:?}
       CAMERA_DEVICE_TOKEN: ${CAMERA_DEVICE_TOKEN:?}
+      TRACE_VERSION: ${TRACE_VERSION:-production-test}
+      TRACE_COMMIT: ${TRACE_COMMIT:-unknown}
       LOGIN_EMAIL_DOMAIN: ${LOGIN_EMAIL_DOMAIN:-dallogix.local}
     depends_on:
       mysql:

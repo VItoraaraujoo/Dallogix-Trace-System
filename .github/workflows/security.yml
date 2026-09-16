@@ -30,9 +30,24 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v4
         with:
-          languages: javascript
-      - name: Analyze JavaScript
+          languages: javascript, php
+      - name: Analyze JavaScript and PHP
         uses: github/codeql-action/analyze@v4
+
+  dependencies-and-config:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Scan dependencies and configuration
+        uses: aquasecurity/trivy-action@a9c7b0f06e461e9d4b4d1711f154ee024b8d7ab8 # v0.36.0
+        with:
+          scan-type: fs
+          scan-ref: .
+          scanners: vuln,misconfig
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          exit-code: '1'
 
   sbom:
     runs-on: ubuntu-latest

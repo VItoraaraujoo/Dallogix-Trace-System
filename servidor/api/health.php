@@ -13,12 +13,20 @@ try {
         "status" => "ok",
         "php" => true,
         "mysql" => true,
+        "version" => trim((string) (getenv("TRACE_VERSION") ?: "development")),
+        "commit" => trim((string) (getenv("TRACE_COMMIT") ?: "unknown")),
         "checked_at" => date("c"),
     ]);
 } catch (Throwable $error) {
     error_log("Healthcheck banco-de-dados failure: " . $error->getMessage());
     responder_json(
-        ["status" => "degraded", "php" => true, "mysql" => false],
+        [
+            "status" => "degraded",
+            "php" => true,
+            "mysql" => false,
+            "version" => trim((string) (getenv("TRACE_VERSION") ?: "development")),
+            "commit" => trim((string) (getenv("TRACE_COMMIT") ?: "unknown")),
+        ],
         503,
     );
 }

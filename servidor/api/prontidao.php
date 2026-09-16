@@ -64,6 +64,7 @@ try {
         ],
         "schema_migrations" => $schemaMigrations,
         "version" => trim((string) (getenv("TRACE_VERSION") ?: "development")),
+        "commit" => trim((string) (getenv("TRACE_COMMIT") ?: "unknown")),
     ];
     $diskCritical = $diskFreePercent !== null && $diskFreePercent < $minDiskPercent;
     $queueStale = $oldestAge !== null && $oldestAge > $maxQueueAgeSeconds;
@@ -82,6 +83,8 @@ try {
         "status" => "not_ready",
         "php" => true,
         "mysql" => $mysqlConnected,
+        "version" => trim((string) (getenv("TRACE_VERSION") ?: "development")),
+        "commit" => trim((string) (getenv("TRACE_COMMIT") ?: "unknown")),
         "error_code" => $mysqlConnected ? "SCHEMA_INCOMPLETO" : "BANCO_INDISPONIVEL",
         "message" => $mysqlConnected
             ? "O banco responde, mas o schema operacional não está pronto. Execute as migrations."

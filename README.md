@@ -58,9 +58,9 @@ Não existe uma tela remota no PC industrial. Todo gerenciamento fora da máquin
 
 O serviço `sync-worker` reserva eventos em lotes, envia com timeout e backoff e recupera reservas abandonadas. Quando `SYNC_REMOTE_BATCH_URL` é configurada, o worker usa o contrato HTTP de lote; sem ela, mantém compatibilidade com o endpoint individual `SYNC_REMOTE_URL`. O serviço `image-retention` executa diariamente a limpeza de imagens e a retenção segura de leituras, eventos de sensor, auditoria confirmada, fila enviada e logs de erro. Os prazos podem ser ajustados no `.env`; registros de auditoria só são removidos quando existe entrega confirmada e nenhuma tentativa pendente.
 
-`/api/health.php` informa versão, profundidade/idade da fila, heartbeats, comandos travados e espaço livre. Fila pendente sem erro pode ser normal quando a sincronização remota está desabilitada; o healthcheck degrada quando há erro, atraso acima do limite ou risco operacional.
+`/api/health.php` informa a versão e o SHA implantados. `/api/prontidao.php` informa profundidade/idade da fila, heartbeats, comandos travados, schema e espaço livre. Fila pendente sem erro pode ser normal quando a sincronização remota está desabilitada; o healthcheck degrada quando há erro, atraso acima do limite ou risco operacional.
 
-O deploy automático do servidor de teste ocorre pelo workflow [`.github/workflows/deploy-test.yml`](.github/workflows/deploy-test.yml) depois que os checks de qualidade e segurança aprovam o mesmo commit da `master`, usando SSH e healthcheck. Os segredos de acesso ficam somente no ambiente protegido `test` do GitHub. A publicação de produção ocorre somente por tags de versão no workflow [`.github/workflows/release-production.yml`](.github/workflows/release-production.yml).
+O deploy automático do servidor de teste ocorre pelo workflow [`.github/workflows/deploy-test.yml`](.github/workflows/deploy-test.yml) depois que os checks de qualidade e segurança aprovam o mesmo commit da `master`, usando SSH e healthcheck. A `master` é a fonte de verdade da aplicação operacional; a `main` não deve ser usada para deploy. O healthcheck retorna a versão e o SHA do commit implantado, e o workflow valida esse SHA após a subida. Os segredos de acesso ficam somente no ambiente protegido `test` do GitHub. A publicação de produção ocorre somente por tags de versão no workflow [`.github/workflows/release-production.yml`](.github/workflows/release-production.yml).
 
 Credencial local inicial: `admin@dallogix.local` / `password`; no primeiro acesso a troca de senha é obrigatória.
 
@@ -115,6 +115,8 @@ Atualizações remotas seguras, com manifesto assinado, bloqueio durante operaç
 O timer systemd de atualização automática fica desabilitado por padrão. Só deve ser habilitado após criar conscientemente `/etc/dallogix-trace/enable-auto-update` e configurar manifesto, chave pública e janela de manutenção. O caminho legado `scripts/sync_github_archive.sh` agora apenas encaminha para `scripts/update_trace.sh`.
 
 Antes de uma implantação física, carregue o `.env` no ambiente e execute `bash scripts/check_production_env.sh` para validar os requisitos mínimos sem revelar segredos.
+
+Para subir uma instalação de produção, use `bash scripts/deploy_production.sh .env up -d --build --remove-orphans`. Esse comando valida o ambiente antes de iniciar os serviços e usa `docker-compose.production.yml`, que exige senhas, tokens, HTTPS e bind definidos explicitamente. O `docker-compose.yml` sem o overlay continua reservado ao desenvolvimento local.
 
 ## Convenção de nomenclatura
 
