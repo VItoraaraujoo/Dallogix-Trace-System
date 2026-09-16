@@ -6,7 +6,7 @@ import { numero } from "./funcoes/formato.js";
 import { el, esc } from "./funcoes/html.js";
 import { rotuloEstado } from "./funcoes/rotulos.js";
 import { settings } from "./telas/configuracoes.js?v=202609140210";
-import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609160300";
+import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609161030";
 import { company } from "./telas/empresa.js";
 import { companies } from "./telas/empresas.js";
 import { errorLogs } from "./telas/logs.js";

@@ -906,6 +906,23 @@ table {
   .manifests-table .manifest-row-actions {
     justify-content: flex-start;
   }
+
+  .reference-table-panel .mobile-card-table tbody td {
+    width: 100% !important;
+    min-width: 0 !important;
+    align-items: start;
+    white-space: normal;
+  }
+
+  .reference-table-panel .mobile-card-table tbody td[data-label]::before {
+    align-self: start;
+  }
+
+  .reference-table-panel .mobile-card-table .table-actions,
+  .reference-table-panel .mobile-card-table .action-order {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
 }
 
 /* Identificadores longos não podem aumentar o cartão além da viewport. */
