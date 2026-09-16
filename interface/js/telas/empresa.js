@@ -16,7 +16,7 @@ export function company(store) {
   const romaneios = detail.romaneios || {};
   const openRomaneios =
     (romaneios.AGUARDANDO || 0) + (romaneios.EM_ANDAMENTO || 0);
-  return `<div class="title-row with-actions has-back"><button class="button secondary page-back" data-action="back-companies" type="button">← Voltar</button><div><span class="kicker">Dallogix / gerenciamento</span><h2>${esc(detail.name)}</h2><p>Dashboard operacional da empresa: máquinas, carregamentos e ocorrências.</p></div><div class="actions">${button("Logins", "open-users", "secondary", `data-company-id="${detail.id}"`)}</div></div>
+  return `<div class="title-row with-actions has-back"><button class="button secondary page-back" data-action="back-companies" type="button">← Voltar</button><div><span class="kicker">Dallogix / gerenciamento</span><h2>${esc(detail.name)}</h2><p>Dashboard operacional da empresa: máquinas, carregamentos e ocorrências.</p><p class="kicker">Domínio de acesso: @${esc(detail.login_domain || "—")}</p></div><div class="actions">${button("Logins", "open-users", "secondary", `data-company-id="${detail.id}"`)}</div></div>
     <div class="grid four dashboard-metrics">
       <div class="panel metric"><small>Máquinas</small><strong>${total}</strong></div>
       <div class="panel metric"><small>Online</small><strong class="metric-green">${online}</strong></div>

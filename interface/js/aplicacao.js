@@ -1336,7 +1336,7 @@ function bindLoginForm() {
       });
       const result = await response.json().catch(() => ({}));
       if (!response.ok || result.authenticated !== true) {
-        renderLogin(result.error || "E-mail ou senha inválidos.");
+        renderLogin(result.error || "Login ou senha inválidos.");
         return;
       }
       if (result.password_change_required) {

@@ -66,6 +66,7 @@ services:
       TRACE_TESTING_DISABLE_CSRF: ${TRACE_TESTING_DISABLE_CSRF:-0}
       TRACE_TESTING_DISABLE_LOGIN_RATE_LIMIT: ${TRACE_TESTING_DISABLE_LOGIN_RATE_LIMIT:-0}
       LOGIN_EMAIL_DOMAIN: ${LOGIN_EMAIL_DOMAIN:-dallogix.local}
+      LOGIN_EMAIL_BASE_DOMAIN: ${LOGIN_EMAIL_BASE_DOMAIN:-dallogix}
     volumes:
       - ./servidor:/var/www/servidor:ro
       - ./armazenamento:/var/www/armazenamento

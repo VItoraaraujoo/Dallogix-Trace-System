@@ -26,6 +26,7 @@ export class ArmazenamentoTrace {
       productsLoaded: false,
       users: [],
       userRole: null,
+      companyLoginDomain: null,
       configuration: null,
       equipments: [],
       equipmentsLoaded: false,
@@ -70,6 +71,7 @@ export class ArmazenamentoTrace {
   setUser(user) {
     this.state.userRole = user?.role || null;
     this.state.currentUserId = user?.id || null;
+    this.state.companyLoginDomain = user?.company_login_domain || null;
   }
   setCsrfToken(token) {
     this.csrfToken = token || "";

@@ -38,7 +38,11 @@ if (mb_strlen($password) < 6 || mb_strlen($password) > 128) {
 verificar_taxa_de_login($email);
 
 $statement = obter_conexao_banco()->prepare(
-    "SELECT id, company_id, name, email, password_hash, role, active, must_change_password FROM usuarios WHERE email = :email LIMIT 1",
+    "SELECT u.id, u.company_id, u.name, u.email, u.password_hash, u.role, u.active, u.must_change_password,
+            e.login_domain AS company_login_domain
+     FROM usuarios u
+     LEFT JOIN empresas e ON e.id = u.company_id
+     WHERE u.email = :email LIMIT 1",
 );
 $statement->execute(["email" => $email]);
 $usuario = $statement->fetch();

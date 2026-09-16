@@ -412,6 +412,53 @@ function registrar_login_sucesso(string $identidade): void
     ]);
 }
 
+function dominio_base_login(): string
+{
+    $configurado = strtolower(trim((string) (getenv("LOGIN_EMAIL_BASE_DOMAIN") ?: "dallogix")));
+    $base = preg_replace('/[^a-z0-9.-]+/', '-', $configurado) ?: "dallogix";
+    $base = trim($base, ".-");
+    return $base !== "" ? $base : "dallogix";
+}
+
+function slug_empresa(string $nome): string
+{
+    $ascii = function_exists("iconv")
+        ? @iconv("UTF-8", "ASCII//TRANSLIT//IGNORE", $nome)
+        : false;
+    $origem = $ascii !== false && $ascii !== "" ? $ascii : $nome;
+    $slug = strtolower((string) (preg_replace('/[^a-z0-9]+/i', '-', $origem) ?: ""));
+    $slug = trim($slug, "-");
+    return $slug !== "" ? $slug : "empresa";
+}
+
+function gerar_dominio_login_empresa(PDO $pdo, string $nome): string
+{
+    $prefixo = dominio_base_login() . ".";
+    $slug = substr(slug_empresa($nome), 0, max(1, 120 - strlen($prefixo)));
+    $base = $prefixo . $slug;
+    $candidato = $base;
+    $sufixo = 2;
+    $consulta = $pdo->prepare(
+        "SELECT id FROM empresas WHERE login_domain = :company_login_domain
+         UNION ALL
+         SELECT id FROM usuarios WHERE email LIKE CONCAT('%@', :user_login_domain) LIMIT 1",
+    );
+
+    while (true) {
+        $consulta->execute([
+            "company_login_domain" => $candidato,
+            "user_login_domain" => $candidato,
+        ]);
+        if (!$consulta->fetch()) {
+            return $candidato;
+        }
+
+        $textoSufixo = "-" . $sufixo;
+        $candidato = substr($base, 0, max(1, 120 - strlen($textoSufixo))) . $textoSufixo;
+        $sufixo++;
+    }
+}
+
 function obter_usuario_sessao(): ?array
 {
     return isset($_SESSION["user"]) && is_array($_SESSION["user"])
@@ -440,7 +487,11 @@ function exigir_sessao_usuario(bool $permitirTrocaSenha = false): array
         return $cachedUser;
     }
     $consulta = obter_conexao_banco()->prepare(
-        "SELECT id, company_id, name, email, role, active, must_change_password FROM usuarios WHERE id = :id LIMIT 1",
+        "SELECT u.id, u.company_id, u.name, u.email, u.role, u.active, u.must_change_password,
+                e.login_domain AS company_login_domain
+         FROM usuarios u
+         LEFT JOIN empresas e ON e.id = u.company_id
+         WHERE u.id = :id LIMIT 1",
     );
     $consulta->execute(["id" => (int) ($usuario["id"] ?? 0)]);
     $usuarioAtual = $consulta->fetch();
@@ -493,6 +544,9 @@ function usuario_publico(array $usuario): array
         "email" => $usuario["email"],
         "role" => $usuario["role"],
         "company_id" => $usuario["company_id"] === null ? null : (int) $usuario["company_id"],
+        "company_login_domain" => isset($usuario["company_login_domain"])
+            ? (string) $usuario["company_login_domain"]
+            : null,
         "must_change_password" => (bool) ($usuario["must_change_password"] ?? false),
     ];
 }

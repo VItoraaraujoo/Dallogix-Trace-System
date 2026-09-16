@@ -30,10 +30,12 @@
         <div id="login-error" role="alert" aria-live="assertive" tabindex="-1"></div>
         <form id="login-form" method="post" action="/api/login.php">
           <label
-            >E-mail<input
+            >Login<input
               name="email"
-              type="email"
+              type="text"
+              inputmode="email"
               value=""
+              placeholder="admin@dallogix.empresa-chat"
               autocomplete="username"
               required
           /></label>

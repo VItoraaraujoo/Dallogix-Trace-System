@@ -33,10 +33,19 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             responder_json(["error" => "Já existe uma empresa com este nome."], 409);
         }
 
-        $insercao = $pdo->prepare("INSERT INTO empresas (name) VALUES (:name)");
-        $insercao->execute(["name" => $nomeEmpresa]);
+        $loginDomain = gerar_dominio_login_empresa($pdo, $nomeEmpresa);
+        $insercao = $pdo->prepare(
+            "INSERT INTO empresas (name, login_domain) VALUES (:name, :login_domain)",
+        );
+        $insercao->execute(["name" => $nomeEmpresa, "login_domain" => $loginDomain]);
         responder_json(
-            ["data" => ["id" => (int) $pdo->lastInsertId(), "name" => $nomeEmpresa]],
+            [
+                "data" => [
+                    "id" => (int) $pdo->lastInsertId(),
+                    "name" => $nomeEmpresa,
+                    "login_domain" => $loginDomain,
+                ],
+            ],
             201,
         );
     } catch (PDOException $exception) {
@@ -147,7 +156,7 @@ $machinesSql = "SELECT e.id, e.equipment_code, e.name,
 
 if ($requestedCompanyId !== null) {
     $companyStatement = $pdo->prepare(
-        "SELECT id, name, created_at FROM empresas WHERE id = :id LIMIT 1",
+        "SELECT id, name, login_domain, created_at FROM empresas WHERE id = :id LIMIT 1",
     );
     $companyStatement->execute(["id" => $requestedCompanyId]);
     $empresa = $companyStatement->fetch();
@@ -181,6 +190,7 @@ if ($requestedCompanyId !== null) {
         "data" => [
             "id" => (int) $empresa["id"],
             "name" => $empresa["name"],
+            "login_domain" => $empresa["login_domain"],
             "created_at" => $empresa["created_at"],
             "maquinas" => $maquinas->fetchAll(),
             "ocorrencias_recentes" => $ocorrencias->fetchAll(),
@@ -191,7 +201,7 @@ if ($requestedCompanyId !== null) {
 }
 
 $empresas = $pdo->prepare(
-    "SELECT c.id, c.name, c.created_at,
+    "SELECT c.id, c.name, c.login_domain, c.created_at,
             (SELECT l.status FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_status,
             (SELECT l.blocked_reason FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_reason,
             COUNT(e.id) AS total_machines,
@@ -203,7 +213,7 @@ $empresas = $pdo->prepare(
      FROM empresas c
      LEFT JOIN equipamentos e ON e.company_id = c.id
      LEFT JOIN status_dispositivos d ON d.equipment_id = e.id AND d.device_type = 'CLP'
-     GROUP BY c.id, c.name, c.created_at
+     GROUP BY c.id, c.name, c.login_domain, c.created_at
      ORDER BY c.name",
 );
 $empresas->execute();
@@ -214,6 +224,7 @@ $rows = array_map(static function (array $row): array {
     return [
         "id" => (int) $row["id"],
         "name" => $row["name"],
+        "login_domain" => $row["login_domain"],
         "created_at" => $row["created_at"],
         "total_machines" => $total,
         "machines_online" => $online,

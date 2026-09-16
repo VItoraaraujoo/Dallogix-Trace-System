@@ -156,8 +156,6 @@ $payload = request_json();
 $empresaId = $resolverIdEmpresa($payload);
 $nome = trim((string) ($payload["name"] ?? ""));
 $emailPrefix = strtolower(trim((string) ($payload["email_prefix"] ?? "")));
-$emailDomain = strtolower(trim((string) (getenv("LOGIN_EMAIL_DOMAIN") ?: "dallogix.local")));
-$email = $emailPrefix . "@" . $emailDomain;
 $senha = (string) ($payload["password"] ?? "");
 $perfil = strtoupper(trim((string) ($payload["role"] ?? "")));
 
@@ -169,7 +167,6 @@ if (
     $nome === "" ||
     mb_strlen($nome) > 160 ||
     !preg_match('/^[a-z0-9][a-z0-9._-]{2,63}$/', $emailPrefix) ||
-    !filter_var($email, FILTER_VALIDATE_EMAIL) ||
     strlen($senha) < 6 ||
     !in_array($perfil, $perfisPermitidos, true)
 ) {
@@ -181,10 +178,19 @@ if (
     );
 }
 
-$empresaExiste = $pdo->prepare("SELECT id FROM empresas WHERE id = :id LIMIT 1");
+$empresaExiste = $pdo->prepare("SELECT id, login_domain FROM empresas WHERE id = :id LIMIT 1");
 $empresaExiste->execute(["id" => $empresaId]);
-if (!$empresaExiste->fetch()) {
+$empresa = $empresaExiste->fetch();
+if (!$empresa) {
     json_response(["error" => "Empresa não encontrada."], 404);
+}
+if (!$empresa || trim((string) $empresa["login_domain"]) === "") {
+    json_response(["error" => "Domínio de login da empresa não configurado."], 409);
+}
+$emailDomain = strtolower(trim((string) $empresa["login_domain"]));
+$email = $emailPrefix . "@" . $emailDomain;
+if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+    json_response(["error" => "O identificador informado não gera um login válido."], 422);
 }
 
 try {

@@ -34,6 +34,7 @@ services:
       TRACE_VERSION: ${TRACE_VERSION:-production-test}
       TRACE_COMMIT: ${TRACE_COMMIT:-unknown}
       LOGIN_EMAIL_DOMAIN: ${LOGIN_EMAIL_DOMAIN:-dallogix.local}
+      LOGIN_EMAIL_BASE_DOMAIN: ${LOGIN_EMAIL_BASE_DOMAIN:-dallogix}
     depends_on:
       mysql:
         condition: service_healthy

@@ -21,6 +21,12 @@ O seed cria usuários de demonstração com troca obrigatória de senha no prime
 - `operador@dallogix.local` / `password1234` — operador local.
 - `master@dallogix.local` / `password` — administrador Dallogix.
 
+Novas empresas recebem automaticamente um domínio lógico de acesso, derivado do
+nome cadastrado, como `dallogix.empresa-chat`. O login pode então ser
+`admin@dallogix.empresa-chat`, `joao@dallogix.empresa-chat` ou outro prefixo
+escolhido no gerenciamento de logins. O domínio antigo do seed permanece válido
+para compatibilidade com o ambiente local.
+
 ## Executar
 
 1. Copie `.env.example` para `.env` e ajuste os valores.
