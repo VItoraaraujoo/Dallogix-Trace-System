@@ -2772,7 +2772,7 @@ textarea {
 .login-address {
   display: flex;
   align-items: stretch;
-  min-height: 42px;
+  min-height: 46px;
   border: 1px solid var(--line);
   border-radius: 8px;
   overflow: hidden;
