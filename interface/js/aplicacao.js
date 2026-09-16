@@ -340,6 +340,34 @@ function waitForDocumentStyles() {
   );
 }
 
+// A aplicação navega entre telas usando History API. Nessa navegação o HTML
+// inicial não é recarregado, então os estilos exclusivos de Dalas precisam ser
+// adicionados quando a rota muda a partir de outra tela.
+const DALA_PAGES = new Set(["dalas", "dala", "dala-edit", "dala-actions"]);
+const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609160500";
+async function ensureDalaScreenStyles(page) {
+  if (!DALA_PAGES.has(page)) return;
+  const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
+    (link) => new URL(link.href, window.location.href).pathname === "/css/dalas-screen.css",
+  );
+  if (existing) {
+    if (existing.sheet) return;
+    await new Promise((resolve) => {
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", resolve, { once: true });
+    });
+    return;
+  }
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = DALA_SCREEN_STYLES;
+  document.head.append(link);
+  await new Promise((resolve) => {
+    link.addEventListener("load", resolve, { once: true });
+    link.addEventListener("error", resolve, { once: true });
+  });
+}
+
 function renderLogin(message = "") {
   const box = el("#login-error");
   if (box) {
@@ -1891,6 +1919,8 @@ async function loadDalaView(id) {
 async function renderPage() {
   const root = el("#screen-root");
   const requestId = ++renderRequestId;
+
+  await ensureDalaScreenStyles(currentPage);
 
   // A navegação não fica bloqueada pelas APIs. A tela abre com o estado local
   // disponível e recebe os dados atualizados assim que cada consulta termina.
