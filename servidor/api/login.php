@@ -6,7 +6,17 @@ require_once __DIR__ . "/../configuracao/bootstrap.php";
 
 exigir_metodo_http(["POST"]);
 
-$payload = ler_json_da_requisicao();
+$contentType = strtolower((string) ($_SERVER["CONTENT_TYPE"] ?? ""));
+if (str_contains($contentType, "application/json")) {
+    $payload = ler_json_da_requisicao();
+} else {
+    // Permite o fallback nativo do formulário sem alterar o fluxo JSON usado
+    // pela aplicação JavaScript.
+    $payload = [
+        "email" => $_POST["email"] ?? "",
+        "password" => $_POST["password"] ?? "",
+    ];
+}
 $email = strtolower(trim((string) ($payload["email"] ?? "")));
 $password = (string) ($payload["password"] ?? "");
 
