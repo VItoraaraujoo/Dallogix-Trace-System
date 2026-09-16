@@ -881,3 +881,38 @@ table {
     min-width: 190px;
   }
 }
+
+/* Mantém a marca alinhada ao cabeçalho e remove o quadro decorativo. */
+.sidebar .brand {
+  height: var(--trace-topbar) !important;
+  min-height: var(--trace-topbar) !important;
+  margin: 0 !important;
+  padding: 8px 16px !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: #0b1a29 !important;
+  box-shadow: none !important;
+}
+
+.sidebar .brand img {
+  width: min(100%, 184px) !important;
+  max-height: calc(var(--trace-topbar) - 16px);
+  object-fit: contain;
+  filter: none;
+}
+
+@media (min-width: 761px) {
+  .shell.sidebar-collapsed .sidebar .brand {
+    height: var(--trace-topbar) !important;
+    min-height: var(--trace-topbar) !important;
+    margin: 0 !important;
+    padding: 8px 10px !important;
+    background: #0b1a29 !important;
+    box-shadow: none !important;
+  }
+
+  .shell.sidebar-collapsed .sidebar .brand img {
+    width: 88px !important;
+    max-height: calc(var(--trace-topbar) - 16px);
+  }
+}
