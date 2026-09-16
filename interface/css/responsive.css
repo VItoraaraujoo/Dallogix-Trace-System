@@ -1651,3 +1651,59 @@ button.button {
     grid-template-columns: 1fr;
   }
 }
+
+/* Dalas no celular: cada informação ocupa a largura disponível. Isso evita
+ * identificadores e mensagens de status comprimidos em uma coluna estreita. */
+@media (max-width: 900px) {
+  .dalas-screen-v2 .dala-grid-cell-v2 {
+    display: block;
+    padding: 12px 14px;
+    text-align: left;
+  }
+
+  .dalas-screen-v2 .dala-grid-cell-v2::before {
+    display: block;
+    margin-bottom: 5px;
+  }
+
+  .dalas-screen-v2 .dala-grid-cell-v2 > :not(.dala-actions-v2) {
+    max-width: 100%;
+  }
+
+  .dalas-screen-v2 .dala-grid-cell-v2 .dala-status {
+    display: flex;
+    width: 100%;
+    align-items: flex-start;
+    justify-content: flex-start;
+    gap: 8px;
+    text-align: left;
+  }
+
+  .dalas-screen-v2 .dala-grid-cell-v2 .dala-actions-v2 {
+    display: grid;
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .dalas-screen-v2 .dala-grid-cell-v2 .dala-action-v2 {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .dala-diagnostics-panel .mobile-card-table tbody td {
+    display: block;
+    padding: 12px 14px;
+    text-align: left;
+  }
+
+  .dala-diagnostics-panel .mobile-card-table tbody td[data-label]::before {
+    display: block;
+    margin-bottom: 5px;
+  }
+
+  .dala-diagnostics-panel .mobile-card-table tbody td small {
+    display: block;
+    overflow-wrap: anywhere;
+  }
+}
