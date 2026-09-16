@@ -1707,3 +1707,51 @@ button.button {
     overflow-wrap: anywhere;
   }
 }
+
+/* Em celulares na horizontal há espaço suficiente para um cartão compacto.
+ * Mantemos o menu e os controles acessíveis, sem empilhar todos os campos. */
+@media (orientation: landscape) and (min-width: 600px) and (max-width: 900px) {
+  .dalas-screen-v2 .dalas-header-v2 {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .dalas-screen-v2 .dalas-header-v2 .button {
+    width: auto;
+    min-width: 140px;
+  }
+
+  .dalas-screen-v2 .dala-grid-row-v2 {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dalas-screen-v2 .dala-grid-cell-v2 {
+    min-width: 0;
+    border-right: 1px solid #e5edf1;
+  }
+
+  .dalas-screen-v2 .dala-grid-cell-v2:nth-child(2n) {
+    border-right: 0;
+  }
+
+  .dalas-screen-v2 .dala-grid-cell-v2:nth-child(6),
+  .dalas-screen-v2 .dala-grid-cell-v2:nth-child(7) {
+    grid-column: 1 / -1;
+    border-right: 0;
+  }
+
+  .dala-info-grid,
+  .dala-stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .dala-page-header .actions {
+    width: auto;
+    flex: 0 0 auto;
+  }
+
+  .dala-page-header .actions .button {
+    width: auto;
+  }
+}
