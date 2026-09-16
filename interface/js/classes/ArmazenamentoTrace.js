@@ -303,7 +303,7 @@ export class ArmazenamentoTrace {
     const result = await response.json();
     if (!response.ok)
       throw new Error(result.error || "Não foi possível salvar a Dala.");
-    await this.loadEquipments();
+    await this.loadEquipments({ force: true });
   }
   async deleteEquipment(id) {
     const response = await fetch(`/api/equipamentos.php?id=${id}`, {
@@ -313,7 +313,7 @@ export class ArmazenamentoTrace {
     const result = await response.json();
     if (!response.ok)
       throw new Error(result.error || "Não foi possível excluir a Dala.");
-    await this.loadEquipments();
+    await this.loadEquipments({ force: true });
   }
   updateProduct(data) {
     return this.requestJson("/api/produtos.php", "PUT", data);
@@ -582,7 +582,8 @@ export class ArmazenamentoTrace {
     const response = await fetch("/api/configuracoes.php");
     if (response.ok) this.state.configuration = (await response.json()).data;
   }
-  async loadEquipments() {
+  async loadEquipments({ force = false } = {}) {
+    if (this.state.equipmentsLoaded && !force) return this.state.equipments;
     if (this.state.equipmentsLoading) return this.state.equipments;
     this.state.equipmentsLoading = true;
     this.state.equipmentsError = "";
@@ -720,7 +721,7 @@ export class ArmazenamentoTrace {
     const result = await response.json();
     if (!response.ok)
       throw new Error(result.error || "Não foi possível cadastrar a Dala.");
-    await this.loadEquipments();
+    await this.loadEquipments({ force: true });
     return result.data;
   }
   async createOccurrence(data) {

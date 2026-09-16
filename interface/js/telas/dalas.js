@@ -1,7 +1,7 @@
-import { button, esc } from "../funcoes/html.js";
 import { dataHora, numero } from "../funcoes/formato.js";
-import { pageHeader } from "../funcoes/view.js?v=202609150020";
+import { button, esc } from "../funcoes/html.js";
 import { rotuloComando, rotuloEstado, rotuloEvento, rotuloStatusComando } from "../funcoes/rotulos.js";
+import { pageHeader } from "../funcoes/view.js?v=202609150020";
 
 function dalaStatusCell(equipment) {
   return `<div class="dala-status" data-equipment-id="${equipment.id}"><span class="status-dot"></span>Verificando…</div>`;
@@ -22,6 +22,7 @@ function dalaReferenceActions(equipment, canManage, canDelete) {
 
 export function dalas(store) {
   const rows = store.state.equipments || [];
+  const loading = !store.state.equipmentsLoaded;
   const loadError = store.state.equipmentsError;
   const loading = !store.state.equipmentsLoaded || store.state.equipmentsLoading;
   const open = store.state.dalaFormOpen;
@@ -51,7 +52,7 @@ export function dalas(store) {
 <div class="dala-grid-cell-v2" data-label="Ações" role="cell">${dalaReferenceActions(equipment, canManage, canDelete)}</div>
 </div>`;
   const content = loading
-    ? '<div class="panel page-loading dala-load-state" role="status" aria-live="polite">Carregando Dalas…</div>'
+    ? '<div class="panel page-loading dala-loading" role="status" aria-live="polite"><span class="loading-spinner" aria-hidden="true"></span><span>Carregando Dalas…</span></div>'
     : loadError
     ? `<div class="panel page-error dala-load-error" role="alert"><h3>Não foi possível carregar as Dalas</h3><p>${esc(loadError)}</p><button class="button secondary" data-action="reload-dalas" type="button">Tentar novamente</button></div>`
     : `<div class="dalas-grid-v2" role="table"><div class="dala-grid-head-v2" role="row">${["Nome", "Identificador", "IP do CLP", "Porta do CLP", "Porta Externa", "Status", "Ações"].map((label) => `<div role="columnheader">${label}</div>`).join("")}</div>${rows.length ? rows.map(cells).join("") : '<div class="dala-empty-v2" role="row"><div role="cell">Nenhuma Dala cadastrada.</div></div>'}</div>`;

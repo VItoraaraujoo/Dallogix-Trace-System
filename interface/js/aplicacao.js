@@ -1,7 +1,8 @@
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609150500";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
-import { el, esc } from "./funcoes/html.js";
+import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { numero } from "./funcoes/formato.js";
+import { el, esc } from "./funcoes/html.js";
 import { rotuloEstado } from "./funcoes/rotulos.js";
 import { settings } from "./telas/configuracoes.js?v=202609140210";
 import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609160300";
@@ -27,7 +28,6 @@ import {
 } from "./telas/operacoes.js?v=202609150500";
 import { dashboard } from "./telas/painel.js?v=202609150300";
 import { users } from "./telas/usuarios.js";
-import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 
 const store = new ArmazenamentoTrace();
 let renderRequestId = 0;
@@ -1054,7 +1054,11 @@ function bindActions() {
         return;
       }
       if (action === "reload-dalas") {
+        store.state.equipmentsLoaded = false;
+        store.state.equipmentsError = "";
         render();
+        await store.loadEquipments({ force: true });
+        if (currentPage === "dalas") render();
         return;
       }
       if (action === "toggle-product-form") {

@@ -75,7 +75,7 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(new Request(request, { cache: "no-store" }))
         .then((response) => cacheResponse(request, response))
-        .catch(async () => (await caches.match(request)) || caches.match("/index.html")),
+        .catch(async () => (await caches.match(request, { ignoreSearch: true })) || caches.match("/index.html")),
     );
     return;
   }
@@ -84,13 +84,13 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       fetch(new Request(request, { cache: "no-store" }))
         .then((response) => cacheResponse(request, response))
-        .catch(async () => (await caches.match(request)) || Response.error()),
+        .catch(async () => (await caches.match(request, { ignoreSearch: true })) || Response.error()),
     );
     return;
   }
 
   event.respondWith(
-    caches.match(request).then((cached) => {
+    caches.match(request, { ignoreSearch: true }).then((cached) => {
       const refresh = fetch(request)
         .then((response) => cacheResponse(request, response))
         .catch(() => cached);
