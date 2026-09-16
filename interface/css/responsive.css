@@ -1956,6 +1956,13 @@ button.button {
     background: transparent !important;
   }
 
+  /* A página usa o elemento html como área de rolagem em navegadores móveis. */
+  html.mobile-menu-open,
+  body.mobile-menu-open {
+    overflow: hidden !important;
+    overscroll-behavior: none;
+  }
+
   .shell .sidebar-toggle {
     width: 44px !important;
     height: 44px !important;

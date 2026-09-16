@@ -6,7 +6,7 @@ import { numero } from "./funcoes/formato.js";
 import { el, esc } from "./funcoes/html.js";
 import { rotuloEstado } from "./funcoes/rotulos.js";
 import { settings } from "./telas/configuracoes.js?v=202609140210";
-import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609161645";
+import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609161700";
 import { company } from "./telas/empresa.js";
 import { companies } from "./telas/empresas.js";
 import { errorLogs } from "./telas/logs.js";
@@ -18,7 +18,7 @@ import {
     occurrences,
     products,
     summary,
-} from "./telas/monitoramento.js?v=202609161645";
+} from "./telas/monitoramento.js?v=202609161700";
 import {
     division,
     importScreen,
@@ -335,7 +335,7 @@ function installLocalIndicator() {
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202609161645").catch(() => {
+  navigator.serviceWorker.register("/service-worker.js?v=202609161700").catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }
@@ -358,7 +358,7 @@ function waitForDocumentStyles() {
 // inicial não é recarregado, então os estilos exclusivos de Dalas precisam ser
 // adicionados quando a rota muda a partir de outra tela.
 const DALA_PAGES = new Set(["dalas", "dala", "dala-edit", "dala-actions"]);
-const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609161645";
+const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609161700";
 async function ensureDalaScreenStyles(page) {
   if (!DALA_PAGES.has(page)) return;
   const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
@@ -400,6 +400,11 @@ function isMobileMenuViewport() {
   ).matches;
 }
 
+function setMobileMenuState(open) {
+  document.body.classList.toggle("mobile-menu-open", open);
+  document.documentElement.classList.toggle("mobile-menu-open", open);
+}
+
 function hydrateChrome() {
   const shell = document.getElementById("shell");
   const menuToggle = document.querySelector('[data-action="toggle-menu"]');
@@ -417,7 +422,7 @@ function hydrateChrome() {
         const currentShell = document.querySelector(".shell");
         if (isMobileMenuViewport()) {
           const open = currentShell?.classList.toggle("mobile-menu-open") || false;
-          document.body.classList.toggle("mobile-menu-open", open);
+          setMobileMenuState(open);
           menuToggle.setAttribute("aria-expanded", String(open));
           menuToggle.setAttribute("title", open ? "Fechar menu" : "Abrir menu");
           return;
@@ -605,7 +610,7 @@ function bindActions() {
       const toggle = document.querySelector('[data-action="toggle-menu"]');
       if (!shell?.classList.contains("mobile-menu-open")) return;
       shell.classList.remove("mobile-menu-open");
-      document.body.classList.remove("mobile-menu-open");
+      setMobileMenuState(false);
         toggle?.setAttribute("aria-expanded", "false");
         toggle?.setAttribute("title", "Abrir menu");
       });
@@ -614,7 +619,7 @@ function bindActions() {
         if (!shell?.classList.contains("mobile-menu-open")) return;
         if (event.target.closest(".sidebar, [data-action=\"toggle-menu\"]")) return;
         shell.classList.remove("mobile-menu-open");
-        document.body.classList.remove("mobile-menu-open");
+        setMobileMenuState(false);
         const toggle = document.querySelector('[data-action="toggle-menu"]');
         toggle?.setAttribute("aria-expanded", "false");
         toggle?.setAttribute("title", "Abrir menu");
@@ -649,7 +654,7 @@ function bindActions() {
         const shell = document.querySelector(".shell");
         if (isMobileMenuViewport()) {
           const open = shell?.classList.toggle("mobile-menu-open") || false;
-          document.body.classList.toggle("mobile-menu-open", open);
+          setMobileMenuState(open);
           node.setAttribute("aria-expanded", String(open));
           node.setAttribute("title", open ? "Fechar menu" : "Abrir menu");
           return;
@@ -1287,7 +1292,7 @@ function bindActions() {
       event.preventDefault();
       if (window.matchMedia("(max-width: 760px)").matches) {
         document.querySelector(".shell")?.classList.remove("mobile-menu-open");
-        document.body.classList.remove("mobile-menu-open");
+        setMobileMenuState(false);
         document.querySelector('[data-action="toggle-menu"]')?.setAttribute("aria-expanded", "false");
         document.querySelector('[data-action="toggle-menu"]')?.setAttribute("title", "Abrir menu");
       }
