@@ -2757,8 +2757,16 @@ textarea {
   margin-bottom: 20px;
 }
 
+.users-create-panel #user-create-form .grid.four {
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 2fr)
+    minmax(0, 0.9fr)
+    minmax(0, 1fr);
+}
+
 .login-address-label {
-  min-width: 240px;
+  min-width: 0;
 }
 
 .login-address {
@@ -2807,6 +2815,10 @@ textarea {
 }
 
 @media (max-width: 700px) {
+  .users-create-panel #user-create-form .grid.four {
+    grid-template-columns: 1fr;
+  }
+
   .login-address-label {
     min-width: 0;
   }
@@ -2814,6 +2826,16 @@ textarea {
   .login-address span {
     padding: 0 9px;
     font-size: 0.84rem;
+  }
+}
+
+@media (min-width: 701px) and (max-width: 1100px) {
+  .users-create-panel #user-create-form .grid.four {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .users-create-panel #user-create-form .login-address-label {
+    grid-column: span 2;
   }
 }
 

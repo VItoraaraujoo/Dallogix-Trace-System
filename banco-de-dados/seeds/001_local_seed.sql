@@ -69,7 +69,7 @@ SELECT
   'admin@dallogix.local',
   '$2y$10$ebOT1MqNyajFths8pCaJu.qE7MOSNMWkXYLan9LVzGSXFHIdgxK8C',
   'ADMIN_EMPRESA',
-  1
+  0
 FROM
   empresas c
 WHERE
@@ -91,7 +91,7 @@ SELECT
   'supervisor@dallogix.local',
   '$2y$12$rNW5syuIUQXWmnkzFzzCUOq7APYSVr.0iN9JIkPvCvoT0mfa/Bwm.',
   'SUPERVISOR',
-  1
+  0
 FROM
   empresas c
 WHERE
@@ -108,7 +108,7 @@ SELECT
   'operador@dallogix.local',
   '$2y$12$rNW5syuIUQXWmnkzFzzCUOq7APYSVr.0iN9JIkPvCvoT0mfa/Bwm.',
   'USUARIO',
-  1
+  0
 FROM
   empresas c
 WHERE
@@ -164,7 +164,7 @@ SELECT
   'master@dallogix.local',
   '$2y$10$ebOT1MqNyajFths8pCaJu.qE7MOSNMWkXYLan9LVzGSXFHIdgxK8C',
   'ADMIN_DALLOGIX',
-  1
+  0
 WHERE
   NOT EXISTS (
     SELECT

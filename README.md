@@ -68,7 +68,7 @@ O serviço `sync-worker` reserva eventos em lotes, envia com timeout e backoff e
 
 O deploy automático do servidor de teste ocorre pelo workflow [`.github/workflows/deploy-test.yml`](.github/workflows/deploy-test.yml) depois que os checks de qualidade e segurança aprovam o mesmo commit da `master`, usando SSH e healthcheck. A atualização de arquivos é feita sem parar ou recriar os containers existentes; o Nginx recebe apenas um reload gracioso, e o release é validado pelo SHA publicado. A `master` é a fonte de verdade da aplicação operacional; a `main` não deve ser usada para deploy. Os segredos de acesso ficam somente no ambiente protegido `test` do GitHub. A publicação de produção ocorre somente por tags de versão no workflow [`.github/workflows/release-production.yml`](.github/workflows/release-production.yml).
 
-Credencial local inicial: `admin@dallogix.local` / `password`; no primeiro acesso a troca de senha é obrigatória.
+Credencial local inicial: `admin@dallogix.local` / `password`. A senha definida no cadastro é válida imediatamente e não exige troca no primeiro acesso.
 
 ## Parar e reiniciar
 

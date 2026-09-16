@@ -1345,38 +1345,6 @@ function bindLoginForm() {
         renderLogin(result.error || "Login ou senha inválidos.");
         return;
       }
-      if (result.password_change_required) {
-        const newPassword = prompt(
-          "Esta senha é temporária. Informe uma nova senha (mínimo 6 caracteres):",
-        );
-        if (newPassword === null) {
-          renderLogin("Troque a senha temporária antes de continuar.");
-          return;
-        }
-        const confirmation = prompt("Confirme a nova senha:");
-        if (newPassword.length < 6 || newPassword !== confirmation) {
-          renderLogin("As senhas não coincidem ou têm menos de 6 caracteres.");
-          return;
-        }
-        const passwordResponse = await fetch("/api/trocar_senha.php", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "X-CSRF-Token": result.csrf_token,
-          },
-          body: JSON.stringify({
-            current_password: data.password,
-            new_password: newPassword,
-          }),
-        });
-        const passwordResult = await passwordResponse.json().catch(() => ({}));
-        if (!passwordResponse.ok) {
-          renderLogin(passwordResult.error || "Não foi possível atualizar a senha.");
-          return;
-        }
-        result.user = passwordResult.user;
-        result.csrf_token = passwordResult.csrf_token;
-      }
       authenticatedUser = result.user;
       store.setUser(authenticatedUser);
       store.setCsrfToken(result.csrf_token);

@@ -475,15 +475,6 @@ function exigir_sessao_usuario(bool $permitirTrocaSenha = false): array
     $validatedAt = (int) ($_SESSION["user_validated_at"] ?? 0);
     $cachedUser = $_SESSION["user"];
     if ($validatedAt > time() - 30 && is_array($cachedUser)) {
-        if (!$permitirTrocaSenha && !empty($cachedUser["must_change_password"])) {
-            responder_json(
-                [
-                    "error" => "É necessário trocar a senha antes de continuar.",
-                    "code" => "PASSWORD_CHANGE_REQUIRED",
-                ],
-                428,
-            );
-        }
         return $cachedUser;
     }
     $consulta = obter_conexao_banco()->prepare(
@@ -503,15 +494,6 @@ function exigir_sessao_usuario(bool $permitirTrocaSenha = false): array
     $usuarioPublico = usuario_publico($usuarioAtual);
     $_SESSION["user"] = $usuarioPublico;
     $_SESSION["user_validated_at"] = time();
-    if (!$permitirTrocaSenha && $usuarioPublico["must_change_password"]) {
-        responder_json(
-            [
-                "error" => "É necessário trocar a senha antes de continuar.",
-                "code" => "PASSWORD_CHANGE_REQUIRED",
-            ],
-            428,
-        );
-    }
     return $usuarioPublico;
 }
 

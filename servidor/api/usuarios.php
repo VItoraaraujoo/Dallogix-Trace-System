@@ -115,7 +115,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
     ];
 
     if ($senha !== "") {
-        $sql .= ", password_hash = :password_hash, must_change_password = 1";
+        $sql .= ", password_hash = :password_hash, must_change_password = 0";
         $params["password_hash"] = password_hash($senha, PASSWORD_DEFAULT);
     }
 

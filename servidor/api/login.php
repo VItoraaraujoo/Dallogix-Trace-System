@@ -76,5 +76,5 @@ responder_json([
     "authenticated" => true,
     "user" => $_SESSION["user"],
     "csrf_token" => gerar_token_csrf(),
-    "password_change_required" => (bool) $_SESSION["user"]["must_change_password"],
+    "password_change_required" => false,
 ]);
