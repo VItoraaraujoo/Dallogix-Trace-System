@@ -873,6 +873,15 @@ table {
 }
 
 @media (max-width: 900px) {
+  .dalas-header-v2 {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .dalas-header-v2 h2 {
+    width: 100%;
+  }
+
   .manifests-table {
     table-layout: auto;
     min-width: 0 !important;
@@ -897,6 +906,18 @@ table {
   .manifests-table .manifest-row-actions {
     justify-content: flex-start;
   }
+}
+
+/* Identificadores longos não podem aumentar o cartão além da viewport. */
+.dala-album-card {
+  min-width: 0;
+}
+
+.dala-album-card code {
+  display: block;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 @media (max-width: 480px) {
