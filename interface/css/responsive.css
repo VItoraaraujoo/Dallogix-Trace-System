@@ -1894,3 +1894,24 @@ button.button {
     width: auto;
   }
 }
+
+/* Em telas móveis, o estado recolhido continua sendo um drawer fechado.
+ * Ele não deve reservar espaço no conteúdo nem herdar a largura estreita
+ * usada pelo menu recolhido do desktop. */
+@media (max-width: 760px), (orientation: landscape) and (min-width: 600px) and (max-width: 900px) {
+  .shell.sidebar-collapsed .main {
+    margin-left: 0 !important;
+  }
+
+  .sidebar,
+  .shell.sidebar-collapsed .sidebar {
+    width: min(300px, 88vw) !important;
+    flex-basis: auto !important;
+    padding: 16px !important;
+  }
+
+  .sidebar .brand,
+  .shell.sidebar-collapsed .sidebar .brand {
+    width: 100% !important;
+  }
+}
