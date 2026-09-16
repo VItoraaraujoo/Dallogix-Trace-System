@@ -2466,7 +2466,7 @@ textarea {
 
 .company-grid {
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 360px), 1fr));
-  align-items: start;
+  align-items: stretch;
 }
 
 .company-card {
@@ -2478,6 +2478,8 @@ textarea {
   flex-direction: column;
   gap: 16px;
   min-height: 0;
+  height: 100%;
+  box-sizing: border-box;
   box-shadow: 0 3px 12px rgba(23, 33, 43, 0.06);
   transition:
     transform 0.15s ease,
@@ -2572,10 +2574,10 @@ textarea {
   margin-top: 0;
   padding-top: 12px;
   border-top: 1px solid #edf1f3;
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 10px;
+  display: grid;
+  grid-template-columns: 1fr;
+  align-items: end;
+  gap: 12px;
 }
 
 .company-card footer > .kicker {
@@ -2590,6 +2592,12 @@ textarea {
   flex: 0 0 auto;
   margin: 0;
   white-space: nowrap;
+}
+
+.company-card footer > .actions {
+  justify-content: flex-end;
+  flex-wrap: nowrap;
+  margin-top: 0;
 }
 
 @media (max-width: 600px) {
@@ -2609,6 +2617,11 @@ textarea {
   .company-card footer {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .company-card footer > .actions {
+    justify-content: flex-start;
+    flex-wrap: wrap;
   }
 
   .company-card footer .button {
