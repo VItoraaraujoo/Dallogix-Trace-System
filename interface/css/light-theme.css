@@ -619,6 +619,21 @@ textarea::placeholder {
   padding: 16px 20px;
 }
 
+.selected-company-context {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.selected-company-context strong {
+  color: var(--ink);
+}
+
+.selected-company-context small {
+  color: var(--muted);
+}
+
 .compact-help p,
 .field-help {
   color: var(--muted);

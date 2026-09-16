@@ -742,10 +742,16 @@ function bindActions() {
         navigate("settings");
         return;
       }
+      if (action === "back-company") {
+        navigate("company", `?id=${encodeURIComponent(node.dataset.companyId || "")}&from=companies`);
+        return;
+      }
       if (action === "open-users") {
         navigate(
           "users",
-          node.dataset.companyId ? `?company_id=${node.dataset.companyId}` : "",
+          node.dataset.companyId
+            ? `?company_id=${node.dataset.companyId}&from=company`
+            : "",
         );
         return;
       }
