@@ -2757,12 +2757,16 @@ textarea {
   margin-bottom: 20px;
 }
 
-.users-create-panel #user-create-form .grid.four {
-  grid-template-columns:
-    minmax(0, 1fr)
-    minmax(0, 2fr)
-    minmax(0, 0.9fr)
-    minmax(0, 1fr);
+.users-create-panel #user-create-form .user-create-fields {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.users-create-panel #user-create-form .user-create-fields.has-company-field {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+
+.users-create-panel #user-create-form .login-address-label {
+  grid-column: span 2;
 }
 
 .login-address-label {
@@ -2815,8 +2819,13 @@ textarea {
 }
 
 @media (max-width: 700px) {
-  .users-create-panel #user-create-form .grid.four {
+  .users-create-panel #user-create-form .user-create-fields,
+  .users-create-panel #user-create-form .user-create-fields.has-company-field {
     grid-template-columns: 1fr;
+  }
+
+  .users-create-panel #user-create-form .login-address-label {
+    grid-column: auto;
   }
 
   .login-address-label {
@@ -2830,7 +2839,8 @@ textarea {
 }
 
 @media (min-width: 701px) and (max-width: 1100px) {
-  .users-create-panel #user-create-form .grid.four {
+  .users-create-panel #user-create-form .user-create-fields,
+  .users-create-panel #user-create-form .user-create-fields.has-company-field {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
