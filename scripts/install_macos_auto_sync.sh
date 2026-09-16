@@ -21,6 +21,5 @@ chmod 600 "$plist_path"
 launchctl bootout "gui/$uid/$label" >/dev/null 2>&1 || true
 launchctl bootstrap "gui/$uid" "$plist_path"
 launchctl enable "gui/$uid/$label" >/dev/null 2>&1 || true
-launchctl kickstart -k "gui/$uid/$label" >/dev/null 2>&1 || true
 echo "Atualização automática instalada: $label"
 echo "Verificação: launchctl print gui/$uid/$label"

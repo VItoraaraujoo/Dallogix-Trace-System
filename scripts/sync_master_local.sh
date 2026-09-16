@@ -4,6 +4,7 @@ set -euo pipefail
 # Mantém a instalação local alinhada à master do repositório configurado.
 # Alterações manuais e operações ativas fazem a sincronização ser adiada.
 root_dir="$(cd "$(dirname "$0")/.." && pwd)"
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
 log_dir="$root_dir/armazenamento/logs"
 mkdir -p "$log_dir"
 exec >> "$log_dir/sync-master.log" 2>&1
