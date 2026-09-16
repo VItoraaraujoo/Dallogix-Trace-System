@@ -14,3 +14,4 @@ RUN docker-php-ext-install pdo_mysql \
         echo 'opcache.revalidate_freq=2'; \
     } > "$PHP_INI_DIR/conf.d/zz-security.ini"
 WORKDIR /var/www/servidor
+USER www-data
