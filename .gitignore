@@ -8,6 +8,7 @@ implantacao/windows/machine-config.json
 *.har
 armazenamento/backups/
 armazenamento/updates/
+armazenamento/logs/
 tmp/
 .codegraph/
 

@@ -7,6 +7,7 @@ root_dir="$(cd "$(dirname "$0")/.." && pwd)"
 remote_name="${TRACE_GITHUB_REMOTE:-empresa}"
 branch="${TRACE_GITHUB_BRANCH:-master}"
 dry_run="${TRACE_GITHUB_DRY_RUN:-0}"
+block_active="${TRACE_GITHUB_BLOCK_ACTIVE:-0}"
 
 cd "$root_dir"
 [[ -d .git ]] || { echo "Repositório Git não encontrado: $root_dir" >&2; exit 2; }
@@ -30,6 +31,21 @@ git merge-base --is-ancestor "$local_commit" "$remote_commit" || {
 if [[ "$dry_run" == "1" ]]; then
   echo "Simulação: servidor avançaria de $local_commit para $remote_commit."
   exit 0
+fi
+
+if [[ "$block_active" == "1" ]]; then
+  active="$(docker compose exec -T mysql sh -lc 'mysql -N -B -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "SELECT COUNT(*) FROM carregamentos WHERE state IN ('\''PREPARANDO'\'', '\''CARREGANDO'\'', '\''PAUSADO'\'', '\''FINALIZANDO'\'', '\''EMERGENCIA'\'');"' 2>/dev/null | tr -d '[:space:]')" || {
+    echo "Sincronização interrompida: não foi possível verificar carregamentos ativos." >&2
+    exit 7
+  }
+  [[ "$active" =~ ^[0-9]+$ ]] || {
+    echo "Sincronização interrompida: resposta inválida ao verificar carregamentos ativos." >&2
+    exit 8
+  }
+  if [[ "$active" != "0" ]]; then
+    echo "Sincronização adiada: existe carregamento ativo ou em estado de intervenção." >&2
+    exit 9
+  fi
 fi
 
 git merge --ff-only "$remote_name/$branch"

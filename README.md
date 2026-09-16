@@ -114,6 +114,8 @@ Atualizações remotas seguras, com manifesto assinado, bloqueio durante operaç
 
 O timer systemd de atualização automática fica desabilitado por padrão. Só deve ser habilitado após criar conscientemente `/etc/dallogix-trace/enable-auto-update` e configurar manifesto, chave pública e janela de manutenção. O caminho legado `scripts/sync_github_archive.sh` agora apenas encaminha para `scripts/update_trace.sh`.
 
+No PC local macOS, a sincronização direta da `master` pode ser instalada com `bash scripts/install_macos_auto_sync.sh`. O LaunchAgent consulta o `origin/master` a cada 60 segundos, aplica somente avanços fast-forward, executa migrations, reconstrói os serviços e valida o healthcheck. Alterações locais ou carregamentos ativos fazem a atualização ser adiada; os registros ficam em `armazenamento/logs/sync-master.log`. Essa rotina é para a instalação local de desenvolvimento/homologação; produção continua usando releases assinadas.
+
 Antes de uma implantação física, carregue o `.env` no ambiente e execute `bash scripts/check_production_env.sh` para validar os requisitos mínimos sem revelar segredos.
 
 Para subir uma instalação de produção, use `bash scripts/deploy_production.sh .env up -d --build --remove-orphans`. Esse comando valida o ambiente antes de iniciar os serviços e usa `docker-compose.production.yml`, que exige senhas, tokens, HTTPS e bind definidos explicitamente. O `docker-compose.yml` sem o overlay continua reservado ao desenvolvimento local.
