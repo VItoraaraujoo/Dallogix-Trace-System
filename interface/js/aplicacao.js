@@ -6,7 +6,7 @@ import { numero } from "./funcoes/formato.js";
 import { el, esc } from "./funcoes/html.js";
 import { rotuloEstado } from "./funcoes/rotulos.js";
 import { settings } from "./telas/configuracoes.js?v=202609140210";
-import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609161240";
+import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609161255";
 import { company } from "./telas/empresa.js";
 import { companies } from "./telas/empresas.js";
 import { errorLogs } from "./telas/logs.js";
@@ -335,7 +335,7 @@ function installLocalIndicator() {
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202609161240").catch(() => {
+  navigator.serviceWorker.register("/service-worker.js?v=202609161255").catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }
@@ -358,7 +358,7 @@ function waitForDocumentStyles() {
 // inicial não é recarregado, então os estilos exclusivos de Dalas precisam ser
 // adicionados quando a rota muda a partir de outra tela.
 const DALA_PAGES = new Set(["dalas", "dala", "dala-edit", "dala-actions"]);
-const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609161240";
+const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609161255";
 async function ensureDalaScreenStyles(page) {
   if (!DALA_PAGES.has(page)) return;
   const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
@@ -393,6 +393,13 @@ function renderLogin(message = "") {
     if (message) box.focus();
   }
 }
+
+function isMobileMenuViewport() {
+  return window.matchMedia(
+    "(max-width: 760px), (orientation: landscape) and (max-width: 900px)",
+  ).matches;
+}
+
 function hydrateChrome() {
   const shell = document.getElementById("shell");
   const menuToggle = document.querySelector('[data-action="toggle-menu"]');
@@ -408,7 +415,7 @@ function hydrateChrome() {
       menuToggle.dataset.actionBound = "1";
       menuToggle.addEventListener("click", () => {
         const currentShell = document.querySelector(".shell");
-        if (window.matchMedia("(max-width: 760px)").matches) {
+        if (isMobileMenuViewport()) {
           const open = currentShell?.classList.toggle("mobile-menu-open") || false;
           document.body.classList.toggle("mobile-menu-open", open);
           menuToggle.setAttribute("aria-expanded", String(open));
@@ -640,7 +647,7 @@ function bindActions() {
       }
       if (action === "toggle-menu") {
         const shell = document.querySelector(".shell");
-        if (window.matchMedia("(max-width: 760px)").matches) {
+        if (isMobileMenuViewport()) {
           const open = shell?.classList.toggle("mobile-menu-open") || false;
           document.body.classList.toggle("mobile-menu-open", open);
           node.setAttribute("aria-expanded", String(open));
