@@ -2058,6 +2058,7 @@ button.button {
 
   .dalas-screen-v2 .dala-grid-cell-v2 {
     display: flex !important;
+    flex-direction: column;
     min-width: 0;
     min-height: 0;
     align-items: flex-start;
@@ -2070,6 +2071,7 @@ button.button {
 
   .dalas-screen-v2 .dala-grid-cell-v2::before {
     display: block;
+    width: 100%;
     margin-bottom: 4px;
     color: #69808f;
     content: attr(data-label);
@@ -2077,6 +2079,7 @@ button.button {
     font-weight: 700;
     letter-spacing: .04em;
     line-height: 1.2;
+    white-space: nowrap;
     text-transform: uppercase;
   }
 

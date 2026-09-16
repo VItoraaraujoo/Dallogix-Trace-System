@@ -1,4 +1,4 @@
-const CACHE_NAME = "trace-shell-20260916-26";
+const CACHE_NAME = "trace-shell-20260916-27";
 const SHELL = [
   "/",
   "/index.html",
