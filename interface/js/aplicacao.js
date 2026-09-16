@@ -8,9 +8,9 @@ import { rotuloEstado } from "./funcoes/rotulos.js";
 import { settings } from "./telas/configuracoes.js?v=202609140210";
 import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609161845";
 import { company } from "./telas/empresa.js";
-import { companies } from "./telas/empresas.js?v=202609162120";
+import { companies } from "./telas/empresas.js?v=202609162205";
 import { errorLogs } from "./telas/logs.js";
-import { masterHome } from "./telas/master.js?v=202609150200";
+import { masterHome } from "./telas/master.js?v=202609162205";
 import {
     alerts,
     emergency,
