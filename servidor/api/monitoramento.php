@@ -84,7 +84,11 @@ $devices = $query(
 $maquinas = $query(
     $pdo,
     "SELECT e.id, e.equipment_code, e.name,
-        d.status AS clp_status, d.last_seen_at,
+        CASE
+            WHEN d.status = 'ONLINE' AND d.last_seen_at >= DATE_SUB(NOW(3), INTERVAL {$clpSignalLimit} SECOND) THEN 'ONLINE'
+            WHEN d.status = 'ERRO' THEN 'ERRO'
+            ELSE 'OFFLINE'
+        END AS clp_status, d.last_seen_at,
         c.id AS carregamento_id, c.state AS carregamento_state, r.id AS romaneio_id, r.number AS romaneio_number, rt.plate,
         COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity,
         COALESCE(c.leituras_validas, 0) AS valid_readings

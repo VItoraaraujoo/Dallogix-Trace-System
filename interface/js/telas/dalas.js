@@ -23,6 +23,7 @@ function dalaReferenceActions(equipment, canManage, canDelete) {
 export function dalas(store) {
   const rows = store.state.equipments || [];
   const loadError = store.state.equipmentsError;
+  const loading = !store.state.equipmentsLoaded || store.state.equipmentsLoading;
   const open = store.state.dalaFormOpen;
   const canDelete = ["ADMIN_DALLOGIX", "ADMIN_EMPRESA"].includes(
     store.state.userRole,
@@ -49,7 +50,9 @@ export function dalas(store) {
 <div class="dala-grid-cell-v2" data-label="Status" role="cell">${dalaStatusCell(equipment)}</div>
 <div class="dala-grid-cell-v2" data-label="Ações" role="cell">${dalaReferenceActions(equipment, canManage, canDelete)}</div>
 </div>`;
-  const content = loadError
+  const content = loading
+    ? '<div class="panel page-loading dala-load-state" role="status" aria-live="polite">Carregando Dalas…</div>'
+    : loadError
     ? `<div class="panel page-error dala-load-error" role="alert"><h3>Não foi possível carregar as Dalas</h3><p>${esc(loadError)}</p><button class="button secondary" data-action="reload-dalas" type="button">Tentar novamente</button></div>`
     : `<div class="dalas-grid-v2" role="table"><div class="dala-grid-head-v2" role="row">${["Nome", "Identificador", "IP do CLP", "Porta do CLP", "Porta Externa", "Status", "Ações"].map((label) => `<div role="columnheader">${label}</div>`).join("")}</div>${rows.length ? rows.map(cells).join("") : '<div class="dala-empty-v2" role="row"><div role="cell">Nenhuma Dala cadastrada.</div></div>'}</div>`;
   return `<section class="dalas-screen-v2" aria-labelledby="dalas-title"><div class="dalas-header-v2"><h2 id="dalas-title">Dalas</h2>${canManage ? button("Nova dala", "toggle-dala-form", "primary") : ""}</div>${content}</section>`;
