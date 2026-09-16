@@ -1,4 +1,4 @@
-const CACHE_NAME = "trace-shell-20260916-8";
+const CACHE_NAME = "trace-shell-20260916-9";
 const SHELL = [
   "/",
   "/index.html",
@@ -26,6 +26,23 @@ const SHELL = [
   "/css/auth.css",
   "/css/responsive.css",
   "/js/aplicacao.js",
+  "/js/classes/ArmazenamentoTrace.js",
+  "/js/constantes/acoes.js",
+  "/js/controladores/operacao.js",
+  "/js/funcoes/formato.js",
+  "/js/funcoes/html.js",
+  "/js/funcoes/rotulos.js",
+  "/js/funcoes/view.js",
+  "/js/telas/configuracoes.js",
+  "/js/telas/dalas.js",
+  "/js/telas/empresa.js",
+  "/js/telas/empresas.js",
+  "/js/telas/logs.js",
+  "/js/telas/master.js",
+  "/js/telas/monitoramento.js",
+  "/js/telas/operacoes.js",
+  "/js/telas/painel.js",
+  "/js/telas/usuarios.js",
 ];
 
 async function cacheResponse(request, response) {

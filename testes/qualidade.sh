@@ -22,6 +22,14 @@ while IFS= read -r json_file; do
   node -e 'JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))' "$json_file"
 done < <(find integracoes -type f -name '*.json' | sort)
 
+while IFS= read -r js_file; do
+  cache_path="/${js_file#interface/}"
+  if ! grep -Fq "\"$cache_path\"" interface/service-worker.js; then
+    echo "FAIL: módulo JavaScript fora do precache: $cache_path" >&2
+    exit 1
+  fi
+done < <(find interface/js -type f -name '*.js' | sort)
+
 if grep -Rqs 'TraceRouter' interface/js; then
   echo 'FAIL: referência residual ao TraceRouter removido.' >&2
   exit 1
