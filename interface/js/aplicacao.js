@@ -4,7 +4,7 @@ import { el, esc } from "./funcoes/html.js";
 import { numero } from "./funcoes/formato.js";
 import { rotuloEstado } from "./funcoes/rotulos.js";
 import { settings } from "./telas/configuracoes.js?v=202609140210";
-import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609160010";
+import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609160300";
 import { company } from "./telas/empresa.js";
 import { companies } from "./telas/empresas.js";
 import { errorLogs } from "./telas/logs.js";
@@ -321,7 +321,7 @@ function installLocalIndicator() {
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202609160200").catch(() => {
+  navigator.serviceWorker.register("/service-worker.js?v=202609160300").catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }

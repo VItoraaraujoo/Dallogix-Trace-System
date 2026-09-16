@@ -7,18 +7,6 @@ function dalaStatusCell(equipment) {
   return `<div class="dala-status" data-equipment-id="${equipment.id}"><span class="status-dot"></span>Verificando…</div>`;
 }
 
-const DALA_MOBILE_QUERY = "(max-width: 900px)";
-
-function isMobileDalaViewport() {
-  return typeof window !== "undefined" && typeof window.matchMedia === "function"
-    ? window.matchMedia(DALA_MOBILE_QUERY).matches
-    : false;
-}
-
-function desktopOnlyMessage() {
-  return `<section class="panel dala-desktop-only-notice" role="status"><h2>Dalas</h2><p>Esta tela está disponível apenas em computadores.</p><p>Abra o Trace em uma tela com largura maior para cadastrar e gerenciar Dalas.</p></section>`;
-}
-
 function dalaReferenceActions(equipment, canManage, canDelete) {
   const actions = [
     `<button data-action="view-dala" data-id="${equipment.id}" type="button">Visualizar</button>`,
@@ -33,8 +21,8 @@ function dalaReferenceActions(equipment, canManage, canDelete) {
 }
 
 export function dalas(store) {
-  if (isMobileDalaViewport()) return desktopOnlyMessage();
   const rows = store.state.equipments || [];
+  const loadError = store.state.equipmentsError;
   const open = store.state.dalaFormOpen;
   const canDelete = ["ADMIN_DALLOGIX", "ADMIN_EMPRESA"].includes(
     store.state.userRole,
@@ -61,13 +49,14 @@ export function dalas(store) {
 <div class="dala-grid-cell-v2" data-label="Status" role="cell">${dalaStatusCell(equipment)}</div>
 <div class="dala-grid-cell-v2" data-label="Ações" role="cell">${dalaReferenceActions(equipment, canManage, canDelete)}</div>
 </div>`;
-  return `<section class="dalas-screen-v2" aria-labelledby="dalas-title"><div class="dalas-header-v2"><h2 id="dalas-title">Dalas</h2>${canManage ? button("Nova dala", "toggle-dala-form", "primary") : ""}</div>
-<div class="dalas-grid-v2" role="table"><div class="dala-grid-head-v2" role="row">${["Nome", "Identificador", "IP do CLP", "Porta do CLP", "Porta Externa", "Status", "Ações"].map((label) => `<div role="columnheader">${label}</div>`).join("")}</div>${rows.length ? rows.map(cells).join("") : '<div class="dala-empty-v2" role="row"><div role="cell">Nenhuma Dala cadastrada.</div></div>'}</div></section>`;
+  const content = loadError
+    ? `<div class="panel page-error dala-load-error" role="alert"><h3>Não foi possível carregar as Dalas</h3><p>${esc(loadError)}</p><button class="button secondary" data-action="reload-dalas" type="button">Tentar novamente</button></div>`
+    : `<div class="dalas-grid-v2" role="table"><div class="dala-grid-head-v2" role="row">${["Nome", "Identificador", "IP do CLP", "Porta do CLP", "Porta Externa", "Status", "Ações"].map((label) => `<div role="columnheader">${label}</div>`).join("")}</div>${rows.length ? rows.map(cells).join("") : '<div class="dala-empty-v2" role="row"><div role="cell">Nenhuma Dala cadastrada.</div></div>'}</div>`;
+  return `<section class="dalas-screen-v2" aria-labelledby="dalas-title"><div class="dalas-header-v2"><h2 id="dalas-title">Dalas</h2>${canManage ? button("Nova dala", "toggle-dala-form", "primary") : ""}</div>${content}</section>`;
 }
 
 // Tela Visualizar Dala: cartões com dados cadastrais e status de comunicação.
 export function dalaView(store) {
-  if (isMobileDalaViewport()) return desktopOnlyMessage();
   const dala = store.state.equipmentDetail;
   if (!dala) return `${pageHeader("Cadastros / Dalas", "Dala", "Carregando…")}`;
   const operation = (store.state.monitoring?.maquinas || []).find(
@@ -102,7 +91,6 @@ export function dalaView(store) {
 }
 
 export function dalaActions(store) {
-  if (isMobileDalaViewport()) return desktopOnlyMessage();
   const dala = store.state.equipmentDetail;
   if (!dala) return `${pageHeader("Cadastros / Dalas", "Ações", "Carregando…")}`;
   const config = store.state.dalaActionConfig || { acoes: [], gatilhos: [] };
@@ -126,7 +114,6 @@ export function dalaActions(store) {
 
 // Tela Editar Dala: mesmo formulário da criação, com dados preenchidos.
 export function dalaEdit(store) {
-  if (isMobileDalaViewport()) return desktopOnlyMessage();
   const dala = store.state.equipmentDetail;
   if (!dala)
     return `${pageHeader("Cadastros / Dalas", "Editar Dala", "Carregando…")}`;
