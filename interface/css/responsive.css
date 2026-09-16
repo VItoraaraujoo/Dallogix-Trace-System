@@ -1383,12 +1383,12 @@ button.button {
   align-items: center;
 }
 
-.topbar > .sidebar-toggle {
+.topbar>.sidebar-toggle {
   grid-column: 1;
   justify-self: start;
 }
 
-.topbar > h1 {
+.topbar>h1 {
   grid-column: 2;
   justify-self: center;
   max-width: min(62vw, 760px);
@@ -1401,7 +1401,7 @@ button.button {
   white-space: nowrap;
 }
 
-.topbar > .local {
+.topbar>.local {
   grid-column: 3;
   justify-self: end;
 }
@@ -1437,8 +1437,8 @@ button.button {
     min-height: var(--trace-topbar);
   }
 
-  .topbar > h1,
-  .shell .topbar > h1 {
+  .topbar>h1,
+  .shell .topbar>h1 {
     grid-column: 2;
     max-width: 100%;
     font-size: clamp(1rem, 4.5vw, 1.35rem);
