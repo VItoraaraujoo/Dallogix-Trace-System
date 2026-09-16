@@ -813,6 +813,82 @@ table {
   }
 }
 
+/* Romaneios: mantém cada valor sob o respectivo cabeçalho em telas largas.
+   Em telas estreitas, a mesma tabela continua usando o formato de cartões. */
+.manifests-table {
+  table-layout: fixed;
+}
+
+.manifests-table th,
+.manifests-table td {
+  vertical-align: middle;
+  text-align: center;
+}
+
+.manifests-table th:nth-child(1),
+.manifests-table td:nth-child(1) {
+  width: 18%;
+}
+
+.manifests-table th:nth-child(2),
+.manifests-table td:nth-child(2) {
+  width: 20%;
+}
+
+.manifests-table th:nth-child(3),
+.manifests-table td:nth-child(3) {
+  width: 22%;
+}
+
+.manifests-table th:nth-child(4),
+.manifests-table td:nth-child(4) {
+  width: 20%;
+}
+
+.manifests-table th:nth-child(5),
+.manifests-table td:nth-child(5) {
+  width: 20%;
+}
+
+.manifests-table td:nth-child(1) {
+  white-space: nowrap;
+}
+
+.manifests-table td:nth-child(2),
+.manifests-table td:nth-child(3),
+.manifests-table td:nth-child(4) {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.manifests-table td:nth-child(2) strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.manifests-table .manifest-row-actions {
+  width: 100%;
+  min-width: 0;
+  justify-content: center;
+}
+
+@media (max-width: 900px) {
+  .manifests-table {
+    table-layout: auto;
+    min-width: 0 !important;
+  }
+
+  .manifests-table th,
+  .manifests-table td {
+    width: auto;
+    text-align: left;
+  }
+
+  .manifests-table .manifest-row-actions {
+    justify-content: flex-start;
+  }
+}
+
 @media (max-width: 480px) {
 
   .topbar h1,
