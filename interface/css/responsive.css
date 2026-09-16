@@ -1944,6 +1944,13 @@ button.button {
 
 /* Controle do drawer móvel: área de toque visível e alinhada ao cabeçalho. */
 @media (max-width: 760px), (orientation: landscape) and (min-width: 600px) and (max-width: 900px) {
+  /* O drawer deve ficar acima da camada de proteção; caso contrário,
+   * a navegação inteira recebe o tom azul do fundo ao abrir o menu. */
+  .shell .sidebar,
+  .shell.sidebar-collapsed .sidebar {
+    z-index: 210 !important;
+  }
+
   .shell .sidebar-toggle {
     width: 44px !important;
     height: 44px !important;
