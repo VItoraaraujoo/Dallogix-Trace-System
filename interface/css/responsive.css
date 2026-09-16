@@ -1951,6 +1951,11 @@ button.button {
     z-index: 210 !important;
   }
 
+  /* O clique fora continua fechando o drawer, mas sem tingir o conteúdo. */
+  .shell.mobile-menu-open::after {
+    background: transparent !important;
+  }
+
   .shell .sidebar-toggle {
     width: 44px !important;
     height: 44px !important;
