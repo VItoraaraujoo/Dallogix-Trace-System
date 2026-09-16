@@ -7,6 +7,29 @@ function ambiente_atual(): string
     return strtolower(trim((string) (getenv("APP_ENV") ?: "local")));
 }
 
+function metadados_release(): array
+{
+    $release = [
+        "version" => trim((string) (getenv("TRACE_VERSION") ?: "development")),
+        "commit" => trim((string) (getenv("TRACE_COMMIT") ?: "unknown")),
+    ];
+    $releaseFile = dirname(__DIR__) . "/.release.json";
+    if (!is_file($releaseFile) || !is_readable($releaseFile)) {
+        return $release;
+    }
+    $decoded = json_decode((string) file_get_contents($releaseFile), true);
+    if (!is_array($decoded)) {
+        return $release;
+    }
+    foreach (["version", "commit"] as $field) {
+        $value = trim((string) ($decoded[$field] ?? ""));
+        if ($value !== "" && strlen($value) <= 128) {
+            $release[$field] = $value;
+        }
+    }
+    return $release;
+}
+
 function limite_sinal_clp_segundos(): int
 {
     $configurado = filter_var(

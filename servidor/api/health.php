@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
+$release = metadados_release();
 
 // Liveness check: load balancers must only use PHP and the basic database
 // connection here. Operational readiness belongs to /api/prontidao.php.
@@ -13,8 +14,8 @@ try {
         "status" => "ok",
         "php" => true,
         "mysql" => true,
-        "version" => trim((string) (getenv("TRACE_VERSION") ?: "development")),
-        "commit" => trim((string) (getenv("TRACE_COMMIT") ?: "unknown")),
+        "version" => $release["version"],
+        "commit" => $release["commit"],
         "checked_at" => date("c"),
     ]);
 } catch (Throwable $error) {
@@ -24,8 +25,8 @@ try {
             "status" => "degraded",
             "php" => true,
             "mysql" => false,
-            "version" => trim((string) (getenv("TRACE_VERSION") ?: "development")),
-            "commit" => trim((string) (getenv("TRACE_COMMIT") ?: "unknown")),
+            "version" => $release["version"],
+            "commit" => $release["commit"],
         ],
         503,
     );

@@ -59,6 +59,12 @@ jobs:
               "tar -xf - -C '$SERVER_PATH' && cd '$SERVER_PATH' && \
               if [ -f .env ]; then sed -i '/^TRACE_VERSION=/d;/^TRACE_COMMIT=/d' .env; fi && \
               printf 'TRACE_VERSION=%s\\nTRACE_COMMIT=%s\\n' '$GITHUB_SHA' '$GITHUB_SHA' >> .env && \
-              bash scripts/docker_compose.sh up -d --build --remove-orphans"
+              printf '{\"version\":\"%s\",\"commit\":\"%s\"}\\n' '$GITHUB_SHA' '$GITHUB_SHA' > .release.json.tmp && \
+              mv -f .release.json.tmp servidor/.release.json && \
+              bash scripts/docker_compose.sh up -d --no-build --no-recreate && \
+              bash scripts/docker_compose.sh exec -T nginx nginx -s reload"
           ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" \
-            "curl --fail --silent --show-error --max-time 10 http://127.0.0.1:80/api/prontidao.php | grep -F '\"commit\":\"$GITHUB_SHA\"'"
+            "for attempt in 1 2 3 4 5; do \
+              if curl --fail --silent --show-error --max-time 10 http://127.0.0.1:80/api/prontidao.php | grep -F '\"commit\":\"$GITHUB_SHA\"'; then exit 0; fi; \
+              sleep 2; \
+            done; exit 1"

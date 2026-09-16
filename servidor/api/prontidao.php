@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
+$release = metadados_release();
 
 // Readiness check for deploys and support. It stays separate from health.php
 // so stale devices or a backed-up queue do not remove PHP from the load balancer.
@@ -63,8 +64,8 @@ try {
             "minimum_free_percent" => $minDiskPercent,
         ],
         "schema_migrations" => $schemaMigrations,
-        "version" => trim((string) (getenv("TRACE_VERSION") ?: "development")),
-        "commit" => trim((string) (getenv("TRACE_COMMIT") ?: "unknown")),
+        "version" => $release["version"],
+        "commit" => $release["commit"],
     ];
     $diskCritical = $diskFreePercent !== null && $diskFreePercent < $minDiskPercent;
     $queueStale = $oldestAge !== null && $oldestAge > $maxQueueAgeSeconds;
@@ -83,8 +84,8 @@ try {
         "status" => "not_ready",
         "php" => true,
         "mysql" => $mysqlConnected,
-        "version" => trim((string) (getenv("TRACE_VERSION") ?: "development")),
-        "commit" => trim((string) (getenv("TRACE_COMMIT") ?: "unknown")),
+        "version" => $release["version"],
+        "commit" => $release["commit"],
         "error_code" => $mysqlConnected ? "SCHEMA_INCOMPLETO" : "BANCO_INDISPONIVEL",
         "message" => $mysqlConnected
             ? "O banco responde, mas o schema operacional não está pronto. Execute as migrations."
