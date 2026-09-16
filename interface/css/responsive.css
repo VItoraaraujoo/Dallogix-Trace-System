@@ -1914,4 +1914,30 @@ button.button {
   .shell.sidebar-collapsed .sidebar .brand {
     width: 100% !important;
   }
+
+  .sidebar .nav-item,
+  .shell.sidebar-collapsed .sidebar .nav-item {
+    width: auto !important;
+    height: auto !important;
+    min-height: 48px !important;
+    margin: 4px 0 !important;
+    padding: 10px 12px !important;
+    display: flex !important;
+    place-items: initial;
+    justify-content: flex-start !important;
+  }
+
+  .sidebar .nav-icon,
+  .sidebar .nav-icon svg,
+  .shell.sidebar-collapsed .sidebar .nav-icon,
+  .shell.sidebar-collapsed .sidebar .nav-icon svg {
+    width: 26px !important;
+    height: 26px !important;
+    margin: 0 12px 0 0 !important;
+  }
+
+  .sidebar .nav-text,
+  .shell.sidebar-collapsed .sidebar .nav-text {
+    display: block !important;
+  }
 }
