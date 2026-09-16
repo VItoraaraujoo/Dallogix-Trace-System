@@ -1457,3 +1457,23 @@ button.button {
     max-height: 60px;
   }
 }
+
+/* Mantem a largura do menu e amplia apenas a area de toque dos itens. */
+.sidebar .nav-item {
+  min-height: 60px;
+  padding-block: 16px;
+}
+
+@media (min-width: 761px) {
+  .shell.sidebar-collapsed .sidebar .nav-item {
+    height: 64px !important;
+    min-height: 64px !important;
+  }
+}
+
+@media (max-width: 760px) {
+  .sidebar .nav-item {
+    min-height: 64px;
+    padding-block: 18px;
+  }
+}
