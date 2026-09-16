@@ -2342,6 +2342,15 @@ textarea {
   gap: 24px;
 }
 
+.dashboard-metrics {
+  align-items: stretch;
+  grid-auto-rows: minmax(126px, 1fr);
+}
+
+.dashboard-metrics > .metric {
+  height: 100%;
+}
+
 .dashboard-dalas {
   margin-top: 10px;
 }
@@ -2755,6 +2764,16 @@ textarea {
 .users-create-panel .panel-heading {
   align-items: flex-start;
   margin-bottom: 20px;
+}
+
+.form-feedback {
+  margin: 14px 4px 0;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.form-feedback.is-error {
+  color: var(--red);
 }
 
 .users-create-panel #user-create-form .user-create-fields {

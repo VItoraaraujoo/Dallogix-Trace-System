@@ -1,4 +1,4 @@
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609161900";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609162120";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609160900";
@@ -8,7 +8,7 @@ import { rotuloEstado } from "./funcoes/rotulos.js";
 import { settings } from "./telas/configuracoes.js?v=202609140210";
 import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609161845";
 import { company } from "./telas/empresa.js";
-import { companies } from "./telas/empresas.js";
+import { companies } from "./telas/empresas.js?v=202609162120";
 import { errorLogs } from "./telas/logs.js";
 import { masterHome } from "./telas/master.js?v=202609150200";
 import {
@@ -28,7 +28,7 @@ import {
     work,
 } from "./telas/operacoes.js?v=202609161900";
 import { dashboard } from "./telas/painel.js?v=202609150300";
-import { users } from "./telas/usuarios.js";
+import { users } from "./telas/usuarios.js?v=202609162120";
 
 const store = new ArmazenamentoTrace();
 let renderRequestId = 0;
@@ -1361,6 +1361,14 @@ function bindLoginForm() {
     }
   });
 }
+function setFormFeedback(form, message = "", tone = "") {
+  const feedback = form?.querySelector("[data-form-feedback]");
+  if (!feedback) return;
+  feedback.textContent = message;
+  feedback.hidden = !message;
+  feedback.className = `form-feedback${tone ? ` is-${tone}` : ""}`;
+}
+
 function bindForms() {
   const occurrenceForm = document.querySelector("#occurrence-form");
   if (occurrenceForm)
@@ -1733,6 +1741,11 @@ function bindForms() {
   if (userForm)
     userForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (userForm.dataset.submitting === "1") return;
+      userForm.dataset.submitting = "1";
+      const submit = userForm.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      setFormFeedback(userForm, "");
       try {
         await store.createUser(Object.fromEntries(new FormData(userForm)));
         userForm.reset();
@@ -1740,7 +1753,11 @@ function bindForms() {
         render();
         alert("Login criado.");
       } catch (error) {
+        setFormFeedback(userForm, error.message, "error");
         alert(error.message);
+      } finally {
+        userForm.dataset.submitting = "0";
+        if (submit) submit.disabled = false;
       }
     });
   const companyForm = document.querySelector("#company-create-form");
@@ -1751,6 +1768,7 @@ function bindForms() {
       companyForm.dataset.submitting = "1";
       const submit = companyForm.querySelector('button[type="submit"]');
       if (submit) submit.disabled = true;
+      setFormFeedback(companyForm, "");
       try {
         await store.createCompany(
           Object.fromEntries(new FormData(companyForm)),
@@ -1760,6 +1778,7 @@ function bindForms() {
         render();
         alert("Empresa criada. Agora crie o login de administrador.");
       } catch (error) {
+        setFormFeedback(companyForm, error.message, "error");
         alert(error.message);
       } finally {
         companyForm.dataset.submitting = "0";

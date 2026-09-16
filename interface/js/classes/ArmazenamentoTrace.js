@@ -720,10 +720,18 @@ export class ArmazenamentoTrace {
     this.state.users = result.data || [];
   }
   async createUser(payload) {
+    const requestPayload = { ...(payload || {}) };
+    if (
+      this.state.userRole === "ADMIN_DALLOGIX" &&
+      !requestPayload.company_id &&
+      this.state.selectedCompanyId
+    ) {
+      requestPayload.company_id = this.state.selectedCompanyId;
+    }
     const response = await fetch("/api/usuarios.php", {
       method: "POST",
       headers: this.jsonHeaders(),
-      body: JSON.stringify(payload),
+      body: JSON.stringify(requestPayload),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok)
