@@ -1,7 +1,7 @@
 # Homologação abrangente — Trace
 
 Data: 17/09/2026  
-Versão validada: `v1.0.10` (`32f3a24`)  
+Versão funcional validada: `v1.0.10` (`32f3a24`); o servidor está atualmente no commit `858e903` (documentação adicional, sem mudança funcional).  
 Ambientes: Trace local (`http://127.0.0.1:8080`) e servidor (`https://trace.santocloud.com.br`).
 
 ## Resultado executivo
@@ -77,6 +77,9 @@ acionados indiscriminadamente em empresas de produção.
 - O botão Exportar CSV está presente e o relatório foi gerado; a captura do
   evento de download não foi obtida pelo automatizador de navegador, portanto
   esse download precisa de uma confirmação manual no navegador do usuário.
+- A fila remota terminou a homologação com 20 eventos pendentes, 0 em
+  processamento e 0 erros; o endpoint de prontidão permaneceu `ready` e a
+  idade máxima ficou abaixo do limite configurado de sete dias.
 - A empresa remota `QA Homologacao 2026-09-17C` foi mantida com seus registros
   para inspeção manual do fluxo. A empresa temporária local usada no teste de
   arquivamento foi excluída definitivamente.
