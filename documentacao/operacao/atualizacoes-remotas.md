@@ -55,11 +55,11 @@ TRACE_UPDATE_DRY_RUN=1 bash scripts/update_trace.sh
 
 O workflow `.github/workflows/release-production.yml` publica uma versão de produção quando uma tag SemVer (`v1.2.3`, por exemplo) é enviada ao GitHub. Antes de criar a release, ele confirma que a tag aponta para um commit da `master`, executa as validações de qualidade e segurança, monta um pacote somente com arquivos rastreados e publica o manifesto assinado junto com o artefato.
 
-Configure no ambiente protegido `production-release` do GitHub o segredo `UPDATE_SIGNING_PRIVATE_KEY`. A chave privada nunca deve entrar no repositório. Instale somente a chave pública na máquina industrial e configure o `.env` da Dala para consultar o manifesto da última release estável:
+Configure no ambiente protegido `production-release` do GitHub o segredo `UPDATE_SIGNING_PRIVATE_KEY`. A chave privada nunca deve entrar no repositório. O projeto distribui a chave pública em `servidor/configuracao/trace-update-public.pem`; a instalação industrial deve apontar `UPDATE_PUBLIC_KEY_FILE` para a cópia local desse arquivo e consultar o manifesto da última release estável:
 
 ```dotenv
 UPDATE_MANIFEST_URL=https://github.com/VItoraaraujoo/Dallogix-Trace-System/releases/latest/download/manifest.json
-UPDATE_PUBLIC_KEY_FILE=/opt/dallogix-trace/armazenamento/updates/trace-update-public.pem
+UPDATE_PUBLIC_KEY_FILE=/opt/dallogix-trace/servidor/configuracao/trace-update-public.pem
 UPDATE_CHANNEL=stable
 ```
 
