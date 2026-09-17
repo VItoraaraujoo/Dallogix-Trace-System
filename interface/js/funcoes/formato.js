@@ -18,6 +18,16 @@ function parseDate(value) {
   if (!value) return null;
   if (value instanceof Date) return Number.isNaN(value.getTime()) ? null : value;
   const normalized = String(value).trim().replace(" ", "T");
+  // Datas de calendário não representam um instante UTC. Construí-las com
+  // `new Date("AAAA-MM-DD")` desloca a exibição para o dia anterior em fusos
+  // como o de Brasília. Mantemos a data no fuso local para romaneios,
+  // relatórios e filtros operacionais.
+  const dateOnlyMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    const localDate = new Date(Number(year), Number(month) - 1, Number(day));
+    return Number.isNaN(localDate.getTime()) ? null : localDate;
+  }
   const parsed = new Date(normalized);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }

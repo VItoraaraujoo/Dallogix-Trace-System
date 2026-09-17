@@ -124,6 +124,7 @@ const NAV_GROUPS = [
     [
       ["manifests", "Romaneios"],
       ["dashboard", "Dashboard"],
+      ["history", "Histórico"],
     ],
   ],
   [
