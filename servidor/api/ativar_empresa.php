@@ -93,7 +93,7 @@ $pdo = obter_conexao_banco();
 $pdo->beginTransaction();
 try {
     $companyQuery = $pdo->prepare(
-        "SELECT id, company_id FROM empresas WHERE remote_company_id = :remote_id LIMIT 1",
+        "SELECT id, remote_company_id FROM empresas WHERE remote_company_id = :remote_id LIMIT 1",
     );
     $companyQuery->execute(["remote_id" => $remoteCompany["company_id"]]);
     $localCompany = $companyQuery->fetch();
