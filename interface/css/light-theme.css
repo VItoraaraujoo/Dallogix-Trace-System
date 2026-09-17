@@ -2815,6 +2815,7 @@ textarea {
   width: 100%;
   height: 46px;
   min-height: 46px;
+  margin-top: 8px;
   box-sizing: border-box;
 }
 
