@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 
-exigir_metodo_http(["GET", "POST", "DELETE"]);
+exigir_metodo_http(["GET", "POST", "PUT", "DELETE"]);
 
 $usuarioAtor = exigir_sessao_usuario();
 
@@ -213,6 +213,63 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     } catch (PDOException $exception) {
         responder_json(["error" => "Não foi possível criar a empresa."], 409);
     }
+}
+
+if ($_SERVER["REQUEST_METHOD"] === "PUT") {
+    if ($usuarioAtor["role"] !== "ADMIN_DALLOGIX") {
+        json_response(
+            ["error" => "Somente o Administrador Dallogix pode renomear empresas."],
+            403,
+        );
+    }
+
+    require_csrf();
+    $payload = ler_json_da_requisicao();
+    $id = filter_var($payload["id"] ?? null, FILTER_VALIDATE_INT);
+    $nomeEmpresa = trim((string) ($payload["name"] ?? ""));
+    if (!$id) {
+        json_response(["error" => "Empresa não informada."], 422);
+    }
+    if ($nomeEmpresa === "" || mb_strlen($nomeEmpresa) > 160) {
+        json_response(["error" => "Informe o nome da empresa."], 422);
+    }
+
+    $pdo = db();
+    $empresa = $pdo->prepare("SELECT id, name, login_domain FROM empresas WHERE id = :id LIMIT 1");
+    $empresa->execute(["id" => $id]);
+    $empresaAtual = $empresa->fetch();
+    if (!$empresaAtual) {
+        json_response(["error" => "Empresa não encontrada."], 404);
+    }
+    $duplicada = $pdo->prepare(
+        "SELECT id FROM empresas WHERE name = :name AND id <> :id LIMIT 1",
+    );
+    $duplicada->execute(["name" => $nomeEmpresa, "id" => $id]);
+    if ($duplicada->fetch()) {
+        json_response(["error" => "Já existe uma empresa com este nome."], 409);
+    }
+
+    $atualizacao = $pdo->prepare("UPDATE empresas SET name = :name WHERE id = :id");
+    $atualizacao->execute(["name" => $nomeEmpresa, "id" => $id]);
+    registrar_evento_operacional(
+        $pdo,
+        $usuarioAtor,
+        "EMPRESA_RENOMEADA",
+        "company",
+        (int) $id,
+        [
+            "name_before" => $empresaAtual["name"],
+            "name_after" => $nomeEmpresa,
+            "login_domain" => $empresaAtual["login_domain"],
+        ],
+    );
+    json_response([
+        "data" => [
+            "id" => (int) $id,
+            "name" => $nomeEmpresa,
+            "login_domain" => $empresaAtual["login_domain"],
+        ],
+    ]);
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "DELETE") {

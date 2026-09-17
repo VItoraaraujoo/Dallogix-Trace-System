@@ -775,6 +775,17 @@ export class ArmazenamentoTrace {
     this.state.companyActivation = result.data;
     return result.data;
   }
+  async renameCompany(id, name) {
+    const response = await fetch("/api/empresas.php", {
+      method: "PUT",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({ id: Number(id), name: String(name || "").trim() }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível renomear a empresa.");
+    await this.loadCompanies();
+    return result.data;
+  }
   async loadLocalActivation() {
     const response = await fetch("/api/ativacao_local.php", { cache: "no-store" });
     const result = await response.json().catch(() => ({}));

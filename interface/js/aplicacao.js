@@ -763,11 +763,6 @@ function bindActions() {
       if (action === "delete-company") {
         const name = node.dataset.name || "esta empresa";
         if (!confirm(`Remover a empresa "${name}"? Esta ação não poderá ser desfeita.`)) return;
-        const typed = prompt(`Para confirmar, digite EXCLUIR para remover "${name}".`);
-        if (typed !== "EXCLUIR") {
-          if (typed !== null) alert("Confirmação inválida. A empresa não foi removida.");
-          return;
-        }
         try {
           await store.deleteCompany(node.dataset.id);
           alert("Empresa removida.");
@@ -1877,6 +1872,29 @@ function bindForms() {
         alert(error.message);
       } finally {
         companyForm.dataset.submitting = "0";
+        if (submit) submit.disabled = false;
+      }
+    });
+  const renameCompanyForm = document.querySelector("#company-rename-form");
+  if (renameCompanyForm)
+    renameCompanyForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (renameCompanyForm.dataset.submitting === "1") return;
+      renameCompanyForm.dataset.submitting = "1";
+      const submit = renameCompanyForm.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      setFormFeedback(renameCompanyForm, "");
+      try {
+        const { name } = Object.fromEntries(new FormData(renameCompanyForm));
+        await store.renameCompany(renameCompanyForm.dataset.companyId, name);
+        await store.loadCompanyDetail();
+        render();
+        alert("Empresa renomeada.");
+      } catch (error) {
+        setFormFeedback(renameCompanyForm, error.message, "error");
+        alert(error.message);
+      } finally {
+        renameCompanyForm.dataset.submitting = "0";
         if (submit) submit.disabled = false;
       }
     });
