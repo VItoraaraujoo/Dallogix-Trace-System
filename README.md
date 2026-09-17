@@ -27,6 +27,14 @@ nome cadastrado, como `dallogix.empresa-chat`. O login pode então ser
 escolhido no gerenciamento de logins. O domínio antigo do seed permanece válido
 para compatibilidade com o ambiente local.
 
+No perfil Master, uma empresa pode ser **arquivada** sem perder usuários,
+romaneios, leituras, auditoria ou configurações. Enquanto arquivada, ela não
+aceita login, novos acessos, ativações ou alterações de licença; os dados ficam
+disponíveis para consulta administrativa. A opção **Restaurar** libera o acesso
+novamente. A opção **Excluir definitivamente** só aparece para uma empresa
+arquivada e exige uma confirmação separada; se houver vínculos, a confirmação
+seguinte apaga também os dados relacionados de forma irreversível.
+
 ## Executar
 
 1. Copie `.env.example` para `.env` e ajuste os valores.
@@ -52,7 +60,7 @@ Com os containers ativos, aplique as migrations controladas e o seed:
 docker compose exec -T mysql mysql -u root -pchange-me-root trace_local < banco-de-dados/seeds/001_local_seed.sql
 ```
 
-Em uma instalação já existente, `scripts/migrate.sh` cria o controle de versão e registra o schema legado sem reaplicar migrations históricas. A mais recente é `026_auditoria_sync_lote.sql`, que correlaciona cada auditoria nova com seu evento de sincronização e registra a confirmação de entrega; a migration anterior torna a fila independente da auditoria e preserva filas históricas sem empresa em `fila_sincronizacao_orfas`.
+Em uma instalação já existente, `scripts/migrate.sh` cria o controle de versão e registra o schema legado sem reaplicar migrations históricas. As migrations mais recentes adicionam o código de ativação permanente, o arquivamento separado da exclusão definitiva e o índice composto da listagem de usuários.
 
 O seed cria uma empresa, usuário administrador, máquina, esteira, produto e barcode para desenvolvimento local.
 

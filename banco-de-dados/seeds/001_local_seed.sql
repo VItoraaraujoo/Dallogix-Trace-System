@@ -1,9 +1,10 @@
 SET NAMES utf8mb4;
 
 INSERT INTO
-  empresas (name)
+  empresas (name, login_domain)
 SELECT
-  'Empresa Demonstração'
+  'Empresa Demonstração',
+  'dallogix.empresa-demonstracao'
 WHERE
   NOT EXISTS (
     SELECT

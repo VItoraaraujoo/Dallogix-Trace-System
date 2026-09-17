@@ -15,6 +15,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
          WHERE l.id = (SELECT latest.id FROM licencas latest
                        WHERE latest.company_id = l.company_id
                        ORDER BY latest.id DESC LIMIT 1)
+         AND c.archived_at IS NULL
          ORDER BY c.name",
     );
     json_response(["data" => $statement->fetchAll()]);
@@ -35,9 +36,13 @@ if (!$companyId || !in_array($status, ["ATIVA", "BLOQUEADA"], true)) {
 if ($plan === "" || mb_strlen($plan) > 100 || mb_strlen($reason) > 255) {
     json_response(["error" => "Dados da licença inválidos."], 422);
 }
-$company = $pdo->prepare("SELECT id FROM empresas WHERE id = :id LIMIT 1");
+$company = $pdo->prepare("SELECT id, archived_at FROM empresas WHERE id = :id LIMIT 1");
 $company->execute(["id" => $companyId]);
-if (!$company->fetch()) json_response(["error" => "Empresa não encontrada."], 404);
+$companyRow = $company->fetch();
+if (!$companyRow) json_response(["error" => "Empresa não encontrada."], 404);
+if ($companyRow["archived_at"] !== null) {
+    json_response(["error" => "A empresa está arquivada e não aceita alterações de licença."], 409);
+}
 
 $pdo->beginTransaction();
 try {

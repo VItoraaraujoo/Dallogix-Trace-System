@@ -108,13 +108,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             responder_json(["error" => "Empresa não informada."], 422);
         }
         $company = obter_conexao_banco()->prepare(
-            "SELECT id, name, login_domain, activation_code, activation_code_hash
+            "SELECT id, name, login_domain, activation_code, activation_code_hash, archived_at
              FROM empresas WHERE id = :id LIMIT 1",
         );
         $company->execute(["id" => $companyId]);
         $empresa = $company->fetch();
         if (!$empresa) {
             responder_json(["error" => "Empresa não encontrada."], 404);
+        }
+        if ($empresa["archived_at"] !== null) {
+            responder_json(["error" => "Não é possível gerar ativação para uma empresa arquivada."], 409);
         }
         if (trim((string) ($empresa["activation_code"] ?? "")) !== "") {
             responder_json([
@@ -226,6 +229,56 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
     require_csrf();
     $payload = ler_json_da_requisicao();
     $id = filter_var($payload["id"] ?? null, FILTER_VALIDATE_INT);
+    $action = strtolower(trim((string) ($payload["action"] ?? "rename")));
+    if (in_array($action, ["archive", "restore"], true)) {
+        if (!$id) {
+            json_response(["error" => "Empresa não informada."], 422);
+        }
+        $pdo = db();
+        $empresa = $pdo->prepare(
+            "SELECT id, name, login_domain, archived_at FROM empresas WHERE id = :id LIMIT 1",
+        );
+        $empresa->execute(["id" => $id]);
+        $empresaAtual = $empresa->fetch();
+        if (!$empresaAtual) {
+            json_response(["error" => "Empresa não encontrada."], 404);
+        }
+        $arquivar = $action === "archive";
+        $jaNoEstado = $arquivar
+            ? $empresaAtual["archived_at"] !== null
+            : $empresaAtual["archived_at"] === null;
+        if (!$jaNoEstado) {
+            $atualizacao = $pdo->prepare(
+                "UPDATE empresas SET archived_at = :archived_at WHERE id = :id",
+            );
+            $atualizacao->execute([
+                "archived_at" => $arquivar ? date("Y-m-d H:i:s") : null,
+                "id" => $id,
+            ]);
+            registrar_evento_operacional(
+                $pdo,
+                $usuarioAtor,
+                $arquivar ? "EMPRESA_ARQUIVADA" : "EMPRESA_RESTAURADA",
+                "company",
+                (int) $id,
+                [
+                    "name" => $empresaAtual["name"],
+                    "login_domain" => $empresaAtual["login_domain"],
+                ],
+            );
+        }
+        json_response([
+            "data" => [
+                "id" => (int) $id,
+                "name" => $empresaAtual["name"],
+                "login_domain" => $empresaAtual["login_domain"],
+                "archived_at" => $arquivar
+                    ? ($empresaAtual["archived_at"] ?: date("Y-m-d H:i:s"))
+                    : null,
+                "archived" => $arquivar,
+            ],
+        ]);
+    }
     $nomeEmpresa = trim((string) ($payload["name"] ?? ""));
     if (!$id) {
         json_response(["error" => "Empresa não informada."], 422);
@@ -286,14 +339,24 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
         json_response(["error" => "Empresa não informada."], 422);
     }
 
+    $exclusaoDefinitiva = ($_GET["permanent"] ?? "") === "1";
     $zerarEmpresa = ($_GET["force"] ?? "") === "1";
 
     $pdo = db();
-    $find = $pdo->prepare("SELECT id, name FROM empresas WHERE id = :id LIMIT 1");
+    $find = $pdo->prepare("SELECT id, name, archived_at FROM empresas WHERE id = :id LIMIT 1");
     $find->execute(["id" => $id]);
     $empresa = $find->fetch();
     if (!$empresa) {
         json_response(["error" => "Empresa não encontrada."], 404);
+    }
+    if (!$exclusaoDefinitiva) {
+        json_response(
+            ["error" => "A remoção foi substituída por arquivamento. Arquive a empresa primeiro; a exclusão definitiva é uma ação separada."],
+            409,
+        );
+    }
+    if ($empresa["archived_at"] === null) {
+        json_response(["error" => "Arquive a empresa antes de excluí-la definitivamente."], 409);
     }
 
     $dependencias = [
@@ -350,7 +413,7 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
     try {
         $delete = $pdo->prepare("DELETE FROM empresas WHERE id = :id");
         $delete->execute(["id" => $id]);
-        json_response(["data" => ["deleted" => true, "name" => $empresa["name"]]]);
+        json_response(["data" => ["deleted" => true, "name" => $empresa["name"], "purged" => false]]);
     } catch (PDOException $exception) {
         json_response(["error" => "Não foi possível remover a empresa com segurança."], 409);
     }
@@ -397,7 +460,7 @@ $machinesSql = "SELECT e.id, e.equipment_code, e.name,
 
 if ($requestedCompanyId !== null) {
     $companyStatement = $pdo->prepare(
-        "SELECT id, name, login_domain, activation_code, activation_code_preview, activation_code_created_at, created_at
+        "SELECT id, name, login_domain, activation_code, activation_code_preview, activation_code_created_at, created_at, archived_at
          FROM empresas WHERE id = :id LIMIT 1",
     );
     $companyStatement->execute(["id" => $requestedCompanyId]);
@@ -437,6 +500,8 @@ if ($requestedCompanyId !== null) {
             "activation_code_preview" => $empresa["activation_code_preview"],
             "activation_code_created_at" => $empresa["activation_code_created_at"],
             "created_at" => $empresa["created_at"],
+            "archived_at" => $empresa["archived_at"],
+            "archived" => $empresa["archived_at"] !== null,
             "maquinas" => $maquinas->fetchAll(),
             "ocorrencias_recentes" => $ocorrencias->fetchAll(),
             "romaneios" => $resumoRomaneios,
@@ -445,8 +510,9 @@ if ($requestedCompanyId !== null) {
     ]);
 }
 
+$includeArchived = $isAdminDallogix && ($_GET["include_archived"] ?? "") === "1";
 $empresas = $pdo->prepare(
-    "SELECT c.id, c.name, c.login_domain, c.activation_code_preview, c.activation_code_created_at, c.created_at,
+    "SELECT c.id, c.name, c.login_domain, c.activation_code_preview, c.activation_code_created_at, c.created_at, c.archived_at,
             (SELECT l.status FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_status,
             (SELECT l.blocked_reason FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_reason,
             COUNT(e.id) AS total_machines,
@@ -458,10 +524,11 @@ $empresas = $pdo->prepare(
      FROM empresas c
      LEFT JOIN equipamentos e ON e.company_id = c.id
      LEFT JOIN status_dispositivos d ON d.equipment_id = e.id AND d.device_type = 'CLP'
-     GROUP BY c.id, c.name, c.login_domain, c.created_at
+     WHERE (:include_archived = 1 OR c.archived_at IS NULL)
+     GROUP BY c.id, c.name, c.login_domain, c.created_at, c.archived_at
      ORDER BY c.name",
 );
-$empresas->execute();
+$empresas->execute(["include_archived" => $includeArchived ? 1 : 0]);
 $rows = array_map(static function (array $row): array {
     $total = (int) $row["total_machines"];
     $online = (int) $row["machines_online"];
@@ -473,6 +540,8 @@ $rows = array_map(static function (array $row): array {
         "activation_code_preview" => $row["activation_code_preview"],
         "activation_code_created_at" => $row["activation_code_created_at"],
         "created_at" => $row["created_at"],
+        "archived_at" => $row["archived_at"],
+        "archived" => $row["archived_at"] !== null,
         "total_machines" => $total,
         "machines_online" => $online,
         "machines_offline" => max(0, $total - $online),

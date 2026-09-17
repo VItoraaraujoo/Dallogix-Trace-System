@@ -8,6 +8,7 @@ $usuarioAtor = exigir_sessao_usuario();
 if ($usuarioAtor["company_id"] === null) {
     responder_json(["error" => "Usuário sem empresa vinculada."], 403);
 }
+$pdo = obter_conexao_banco();
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $statement = obter_conexao_banco()->prepare(
@@ -113,7 +114,6 @@ if (!$romaneioId || !$truckId || !$equipmentId) {
     );
 }
 
-$pdo = obter_conexao_banco();
 $statement = $pdo->prepare(
     'SELECT r.id AS romaneio_id, rt.id AS truck_id, e.id AS equipment_id
      FROM romaneios r

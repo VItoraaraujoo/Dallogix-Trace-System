@@ -15,6 +15,7 @@ $statement = obter_conexao_banco()->prepare(
     "SELECT id, name, login_domain
      FROM empresas
      WHERE activation_code_hash = :code_hash
+       AND archived_at IS NULL
      LIMIT 1",
 );
 $statement->execute(["code_hash" => hash("sha256", $normalized)]);

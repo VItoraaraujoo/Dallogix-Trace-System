@@ -39,14 +39,24 @@ $resolverIdEmpresa = static function (array $entrada) use ($usuarioAtor, $eAdmin
 
 $pdo = obter_conexao_banco();
 $ator = $usuarioAtor;
+$exigirEmpresaAtiva = static function (int $empresaId) use ($pdo): array {
+    $empresaExiste = $pdo->prepare(
+        "SELECT id, login_domain, archived_at FROM empresas WHERE id = :id LIMIT 1",
+    );
+    $empresaExiste->execute(["id" => $empresaId]);
+    $empresa = $empresaExiste->fetch();
+    if (!$empresa) {
+        json_response(["error" => "Empresa não encontrada."], 404);
+    }
+    if ($empresa["archived_at"] !== null) {
+        json_response(["error" => "A empresa está arquivada e não aceita novos acessos."], 409);
+    }
+    return $empresa;
+};
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $empresaId = $resolverIdEmpresa($_GET);
-    $empresaExiste = $pdo->prepare("SELECT id FROM empresas WHERE id = :id LIMIT 1");
-    $empresaExiste->execute(["id" => $empresaId]);
-    if (!$empresaExiste->fetch()) {
-        json_response(["error" => "Empresa não encontrada."], 404);
-    }
+    $exigirEmpresaAtiva($empresaId);
 
     $statement = $pdo->prepare(
         "SELECT id, name, email, role, active, created_at, updated_at FROM usuarios WHERE company_id = :company_id ORDER BY name",
@@ -59,6 +69,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
     require_csrf();
     $payload = request_json();
     $empresaId = $resolverIdEmpresa($payload);
+    $exigirEmpresaAtiva($empresaId);
 
     $id = filter_var($payload["id"] ?? null, FILTER_VALIDATE_INT);
     $nome = trim((string) ($payload["name"] ?? ""));
@@ -178,12 +189,7 @@ if (
     );
 }
 
-$empresaExiste = $pdo->prepare("SELECT id, login_domain FROM empresas WHERE id = :id LIMIT 1");
-$empresaExiste->execute(["id" => $empresaId]);
-$empresa = $empresaExiste->fetch();
-if (!$empresa) {
-    json_response(["error" => "Empresa não encontrada."], 404);
-}
+$empresa = $exigirEmpresaAtiva($empresaId);
 if (!$empresa || trim((string) $empresa["login_domain"]) === "") {
     json_response(["error" => "Domínio de login da empresa não configurado."], 409);
 }

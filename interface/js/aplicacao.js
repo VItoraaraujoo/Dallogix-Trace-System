@@ -1,4 +1,4 @@
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609162500";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609170900";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609160900";
@@ -760,22 +760,46 @@ function bindActions() {
         navigate("company", `?id=${node.dataset.id}&from=${currentPage}`);
         return;
       }
-      if (action === "delete-company") {
+      if (action === "archive-company") {
         const name = node.dataset.name || "esta empresa";
-        if (!confirm(`Remover a empresa "${name}"? Esta ação não poderá ser desfeita.`)) return;
+        if (!confirm(`Arquivar a empresa "${name}"? Os dados serão preservados e os logins deixarão de acessar o sistema.`)) return;
         try {
-          await store.deleteCompany(node.dataset.id);
-          alert("Empresa removida.");
+          await store.setCompanyArchiveState(node.dataset.id, true);
+          alert("Empresa arquivada. Os dados foram preservados.");
+          render();
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+      if (action === "restore-company") {
+        const name = node.dataset.name || "esta empresa";
+        if (!confirm(`Restaurar a empresa "${name}" e liberar novamente os acessos?`)) return;
+        try {
+          await store.setCompanyArchiveState(node.dataset.id, false);
+          alert("Empresa restaurada.");
+          render();
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+      if (action === "delete-company-permanently") {
+        const name = node.dataset.name || "esta empresa";
+        if (!confirm(`Excluir definitivamente a empresa "${name}"? Os dados não poderão ser recuperados.`)) return;
+        try {
+          await store.deleteCompany(node.dataset.id, { permanent: true });
+          alert("Empresa excluída definitivamente.");
           render();
         } catch (error) {
           if (error.status === 409) {
             const purge = confirm(
-              `A empresa "${name}" possui dados vinculados. Deseja apagar todos os dados dela e zerar o cadastro? Esta ação não poderá ser desfeita.`,
+              `A empresa "${name}" possui dados vinculados. Deseja apagar também todos os dados arquivados? Esta ação não poderá ser desfeita.`,
             );
             if (!purge) return;
             try {
-              await store.deleteCompany(node.dataset.id, { force: true });
-              alert("Empresa e todos os dados vinculados foram removidos.");
+              await store.deleteCompany(node.dataset.id, { permanent: true, force: true });
+              alert("Empresa e dados vinculados excluídos definitivamente.");
               render();
             } catch (purgeError) {
               alert(purgeError.message);

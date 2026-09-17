@@ -514,7 +514,9 @@ function exigir_sessao_usuario(bool $permitirTrocaSenha = false): array
                 e.login_domain AS company_login_domain
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.company_id
-         WHERE u.id = :id LIMIT 1",
+         WHERE u.id = :id
+           AND (u.company_id IS NULL OR e.archived_at IS NULL)
+         LIMIT 1",
     );
     $consulta->execute(["id" => (int) ($usuario["id"] ?? 0)]);
     $usuarioAtual = $consulta->fetch();

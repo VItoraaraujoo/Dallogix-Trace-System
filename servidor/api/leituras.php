@@ -204,7 +204,7 @@ if ($result === "VALIDO") {
     );
     $validCounter->execute(["id" => $loadingId]);
 }
-enfileirar_evento_sincronizacao(
+record_operational_event(
     $pdo,
     $usuarioAtor,
     "LEITURA_REGISTRADA",

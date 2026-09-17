@@ -42,7 +42,9 @@ $statement = obter_conexao_banco()->prepare(
             e.login_domain AS company_login_domain
      FROM usuarios u
      LEFT JOIN empresas e ON e.id = u.company_id
-     WHERE u.email = :email LIMIT 1",
+     WHERE u.email = :email
+       AND (u.company_id IS NULL OR e.archived_at IS NULL)
+     LIMIT 1",
 );
 $statement->execute(["email" => $email]);
 $usuario = $statement->fetch();

@@ -700,7 +700,8 @@ export class ArmazenamentoTrace {
     }
   }
   async loadCompanies() {
-    const response = await fetch("/api/empresas.php");
+    const query = this.state.userRole === "ADMIN_DALLOGIX" ? "?include_archived=1" : "";
+    const response = await fetch(`/api/empresas.php${query}`);
     const result = await response.json();
     if (!response.ok)
       throw new Error(result.error || "Não foi possível carregar as empresas.");
@@ -786,6 +787,22 @@ export class ArmazenamentoTrace {
     await this.loadCompanies();
     return result.data;
   }
+  async setCompanyArchiveState(id, archived) {
+    const response = await fetch("/api/empresas.php", {
+      method: "PUT",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({
+        id: Number(id),
+        action: archived ? "archive" : "restore",
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result.error || "Não foi possível atualizar o arquivamento da empresa.");
+    }
+    await this.loadCompanies();
+    return result.data;
+  }
   async loadLocalActivation() {
     const response = await fetch("/api/ativacao_local.php", { cache: "no-store" });
     const result = await response.json().catch(() => ({}));
@@ -804,9 +821,10 @@ export class ArmazenamentoTrace {
     this.state.localActivation = result.data || { active: false };
     return this.state.localActivation;
   }
-  async deleteCompany(id, { force = false } = {}) {
+  async deleteCompany(id, { force = false, permanent = false } = {}) {
     const query = new URLSearchParams({ id: String(id) });
     if (force) query.set("force", "1");
+    if (permanent) query.set("permanent", "1");
     const response = await fetch(`/api/empresas.php?${query.toString()}`, {
       method: "DELETE",
       headers: this.jsonHeaders(),
