@@ -28,7 +28,7 @@ import {
     work,
 } from "./telas/operacoes.js?v=202609161900";
 import { dashboard } from "./telas/painel.js?v=202609150300";
-import { users } from "./telas/usuarios.js?v=202609162120";
+import { users } from "./telas/usuarios.js?v=202609162215";
 
 const store = new ArmazenamentoTrace();
 let renderRequestId = 0;
