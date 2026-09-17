@@ -1,3 +1,5 @@
+import { agora } from "./relogio.js?v=202609170015";
+
 const dateOnly = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "2-digit",
@@ -38,7 +40,7 @@ export function numero(value, fallback = "0") {
 export function relativo(value, fallback = "Sem sinal") {
   const parsed = parseDate(value);
   if (!parsed) return fallback;
-  const seconds = Math.max(0, Math.floor((Date.now() - parsed.getTime()) / 1000));
+  const seconds = Math.max(0, Math.floor((agora().getTime() - parsed.getTime()) / 1000));
   if (seconds < 60) return `há ${seconds} s`;
   const minutes = Math.floor(seconds / 60);
   if (minutes < 60) return `há ${minutes} min`;

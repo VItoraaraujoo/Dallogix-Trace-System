@@ -1,5 +1,6 @@
 import { button, esc } from "../funcoes/html.js";
 import { data, numero } from "../funcoes/formato.js";
+import { agora } from "../funcoes/relogio.js?v=202609170015";
 import { rotuloEstado, rotuloStatusComando } from "../funcoes/rotulos.js";
 import {
   pageHeader,
@@ -84,7 +85,7 @@ const itemRow = (products, selectedId = "", quantity = 1) => `<tr class="manifes
 </tr>`;
 
 function industrialPcDate() {
-  const now = new Date();
+  const now = agora();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const day = String(now.getDate()).padStart(2, "0");
   return `${now.getFullYear()}-${month}-${day}`;

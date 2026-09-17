@@ -4,6 +4,7 @@ import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/oper
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609160900";
 import { numero } from "./funcoes/formato.js";
 import { el, esc } from "./funcoes/html.js";
+import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js";
 import { settings } from "./telas/configuracoes.js?v=202609140210";
 import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609162240";
@@ -284,9 +285,10 @@ function setLocalIndicator(state, checkedAt = null) {
     degraded: "Sistema local sem confirmação",
     offline: "Sistema local sem comunicação",
   };
+  const clock = statusRelogio();
   const detail = checkedAt
-    ? `Última verificação: ${new Date(checkedAt).toLocaleTimeString("pt-BR")}`
-    : "Aguardando verificação";
+    ? `Última verificação: ${new Date(checkedAt).toLocaleTimeString("pt-BR")} • Horário: ${clock.label}`
+    : `Horário: ${clock.label}`;
   document.querySelectorAll(".local").forEach((indicator) => {
     indicator.classList.remove("is-online", "is-degraded", "is-offline");
     indicator.classList.add(`is-${state}`);
@@ -299,15 +301,19 @@ function setLocalIndicator(state, checkedAt = null) {
 async function refreshLocalIndicator() {
   if (localHealthRequest) return;
   if (!navigator.onLine) {
+    usarRelogioDoPc();
     setLocalIndicator("offline");
     return;
   }
   localHealthRequest = true;
   try {
-    const response = await fetch(`/api/health.php?ts=${Date.now()}`, {
-      cache: "no-store",
-      headers: { Accept: "application/json" },
-    });
+    const [response] = await Promise.all([
+      fetch(`/api/health.php?ts=${Date.now()}`, {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      }),
+      sincronizarRelogio(),
+    ]);
     const result = await response.json().catch(() => ({}));
     const state = response.ok && result.status === "ok" ? "online" : "degraded";
     setLocalIndicator(state, result.checked_at || Date.now());
@@ -328,14 +334,17 @@ function installLocalIndicator() {
       /* a fila permanece armazenada para a próxima tentativa */
     });
   });
-  window.addEventListener("offline", refreshLocalIndicator);
+  window.addEventListener("offline", () => {
+    usarRelogioDoPc();
+    refreshLocalIndicator();
+  });
   refreshLocalIndicator();
   localHealthTimer = window.setInterval(refreshLocalIndicator, 30000);
 }
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202609161900").catch(() => {
+  navigator.serviceWorker.register("/service-worker.js?v=202609170015").catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }
@@ -1626,7 +1635,7 @@ function bindForms() {
       event.preventDefault();
       const raw = Object.fromEntries(new FormData(manifestForm));
       const scheduledDate = raw.scheduled_date;
-      const today = new Date();
+      const today = agora();
       const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
       if (!scheduledDate || scheduledDate < todayString) {
         alert("Informe uma data igual ou posterior ao dia atual do PC industrial.");
@@ -1662,7 +1671,7 @@ function bindForms() {
     manifestEditForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const raw = Object.fromEntries(new FormData(manifestEditForm));
-      const today = new Date();
+      const today = agora();
       const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
       if (!raw.scheduled_date || raw.scheduled_date < todayString) {
         alert("Informe uma data igual ou posterior ao dia atual do PC industrial.");

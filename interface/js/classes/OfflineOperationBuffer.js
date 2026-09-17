@@ -1,3 +1,5 @@
+import { agora } from "../funcoes/relogio.js?v=202609170015";
+
 /**
  * Fila pequena e idempotente para gravações operacionais feitas sem rede.
  * IndexedDB é usado quando disponível; o fallback em memória mantém a sessão
@@ -34,17 +36,17 @@ export class OfflineOperationBuffer {
     const record = {
       eventId: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
-        : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`,
+        : `${agora().getTime().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`,
       url: operation.url,
       method: operation.method,
       headers: operation.headers || {},
       body: operation.body || null,
-      createdAt: new Date().toISOString(),
+      createdAt: agora().toISOString(),
     };
     try {
       const database = await this.open();
       if (!database) {
-        record.id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        record.id = `${agora().getTime()}-${Math.random().toString(16).slice(2)}`;
         this.memory.push(record);
         return record.id;
       }
@@ -55,7 +57,7 @@ export class OfflineOperationBuffer {
         request.onerror = () => reject(request.error || new Error("Não foi possível guardar a operação."));
       });
     } catch (_) {
-      record.id = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      record.id = `${agora().getTime()}-${Math.random().toString(16).slice(2)}`;
       this.memory.push(record);
       return record.id;
     }
