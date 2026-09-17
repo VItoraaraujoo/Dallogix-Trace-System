@@ -6,6 +6,7 @@ require_once __DIR__ . "/../configuracao/bootstrap.php";
 exigir_metodo_http(["POST"]);
 $payload = ler_json_da_requisicao();
 $code = strtoupper(trim((string) ($payload["activation_code"] ?? "")));
+$normalized = str_replace("-", "", $code);
 if (!preg_match('/^TRC-[A-Z0-9]{4}-[A-Z0-9]{4}$/', $code)) {
     responder_json(["error" => "Código de ativação inválido."], 422);
 }
