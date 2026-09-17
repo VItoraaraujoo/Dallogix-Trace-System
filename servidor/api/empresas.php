@@ -24,12 +24,29 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             responder_json(["error" => "Empresa não informada."], 422);
         }
         $company = obter_conexao_banco()->prepare(
-            "SELECT id, name, login_domain FROM empresas WHERE id = :id LIMIT 1",
+            "SELECT id, name, login_domain, activation_code, activation_code_hash
+             FROM empresas WHERE id = :id LIMIT 1",
         );
         $company->execute(["id" => $companyId]);
         $empresa = $company->fetch();
         if (!$empresa) {
             responder_json(["error" => "Empresa não encontrada."], 404);
+        }
+        if (trim((string) ($empresa["activation_code"] ?? "")) !== "") {
+            responder_json([
+                "data" => [
+                    "id" => (int) $empresa["id"],
+                    "name" => $empresa["name"],
+                    "login_domain" => $empresa["login_domain"],
+                    "activation_code" => $empresa["activation_code"],
+                ],
+            ]);
+        }
+        if (trim((string) ($empresa["activation_code_hash"] ?? "")) !== "") {
+            responder_json(
+                ["error" => "Esta empresa já possui um código permanente, mas ele não está disponível para exibição."],
+                409,
+            );
         }
         $activation = gerar_codigo_ativacao_empresa();
         $update = obter_conexao_banco()->prepare(

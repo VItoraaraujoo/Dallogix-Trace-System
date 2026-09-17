@@ -769,7 +769,6 @@ function bindActions() {
         return;
       }
       if (action === "generate-company-activation") {
-        if (node.textContent.trim() === "Novo código" && !confirm("Gerar um novo código? O código anterior deixará de funcionar.")) return;
         try {
           await store.generateCompanyActivation(node.dataset.id);
           render();
