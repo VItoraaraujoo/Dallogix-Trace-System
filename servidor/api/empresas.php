@@ -8,6 +8,90 @@ exigir_metodo_http(["GET", "POST", "DELETE"]);
 
 $usuarioAtor = exigir_sessao_usuario();
 
+/**
+ * Remove uma empresa e todos os dados operacionais que pertencem a ela.
+ *
+ * A exclusão normal continua bloqueada quando há vínculos. Esta rotina só é
+ * chamada pelo fluxo explícito de "zerar empresa" do Administrador Dallogix.
+ */
+function remover_empresa_com_dados(PDO $pdo, int $companyId): void
+{
+    $companyIdSql = (string) $companyId;
+
+    // Remova primeiro as tabelas que não possuem company_id próprio, mas
+    // apontam para registros operacionais da empresa.
+    $queriesDependentes = [
+        "DELETE FROM solicitacoes_captura_camera
+         WHERE sensor_event_id IN (
+             SELECT id FROM eventos_sensor
+             WHERE carregamento_id IN (SELECT id FROM carregamentos WHERE company_id = {$companyIdSql})
+                OR equipment_id IN (SELECT id FROM equipamentos WHERE company_id = {$companyIdSql})
+         )
+            OR carregamento_id IN (SELECT id FROM carregamentos WHERE company_id = {$companyIdSql})
+            OR equipment_id IN (SELECT id FROM equipamentos WHERE company_id = {$companyIdSql})
+            OR claimed_by_device_id IN (SELECT id FROM dispositivos WHERE company_id = {$companyIdSql})",
+        "DELETE FROM solicitacoes_comandos_clp
+         WHERE carregamento_id IN (SELECT id FROM carregamentos WHERE company_id = {$companyIdSql})
+            OR equipment_id IN (SELECT id FROM equipamentos WHERE company_id = {$companyIdSql})
+            OR requested_by IN (SELECT id FROM usuarios WHERE company_id = {$companyIdSql})
+            OR claimed_by_device_id IN (SELECT id FROM dispositivos WHERE company_id = {$companyIdSql})",
+        "DELETE FROM status_dispositivos
+         WHERE equipment_id IN (SELECT id FROM equipamentos WHERE company_id = {$companyIdSql})
+            OR device_id IN (SELECT id FROM dispositivos WHERE company_id = {$companyIdSql})",
+        "DELETE FROM imagens
+         WHERE company_id = {$companyIdSql}
+            OR carregamento_id IN (SELECT id FROM carregamentos WHERE company_id = {$companyIdSql})
+            OR equipment_id IN (SELECT id FROM equipamentos WHERE company_id = {$companyIdSql})
+            OR reading_id IN (
+                SELECT id FROM leituras
+                WHERE company_id = {$companyIdSql}
+                   OR carregamento_id IN (SELECT id FROM carregamentos WHERE company_id = {$companyIdSql})
+            )",
+        "DELETE FROM retornos
+         WHERE carregamento_id IN (SELECT id FROM carregamentos WHERE company_id = {$companyIdSql})
+            OR leitura_id IN (
+                SELECT id FROM leituras
+                WHERE company_id = {$companyIdSql}
+                   OR carregamento_id IN (SELECT id FROM carregamentos WHERE company_id = {$companyIdSql})
+            )",
+        "DELETE FROM eventos_sensor
+         WHERE carregamento_id IN (SELECT id FROM carregamentos WHERE company_id = {$companyIdSql})
+            OR equipment_id IN (SELECT id FROM equipamentos WHERE company_id = {$companyIdSql})",
+        "DELETE FROM romaneio_itens
+         WHERE romaneio_id IN (SELECT id FROM romaneios WHERE company_id = {$companyIdSql})
+            OR truck_id IN (
+                SELECT id FROM romaneio_caminhoes
+                WHERE romaneio_id IN (SELECT id FROM romaneios WHERE company_id = {$companyIdSql})
+            )",
+        "DELETE FROM romaneio_caminhoes
+         WHERE romaneio_id IN (SELECT id FROM romaneios WHERE company_id = {$companyIdSql})",
+    ];
+
+    foreach ($queriesDependentes as $query) {
+        $pdo->exec($query);
+    }
+
+    // Todas as tabelas com company_id são descobertas no próprio schema para
+    // que o reset continue cobrindo novas tabelas isoladas por empresa.
+    $tables = $pdo->query(
+        "SELECT DISTINCT table_name
+         FROM information_schema.columns
+         WHERE table_schema = DATABASE()
+           AND column_name = 'company_id'
+           AND table_name <> 'empresas'",
+    )->fetchAll(PDO::FETCH_COLUMN);
+
+    foreach ($tables as $table) {
+        if (!is_string($table) || !preg_match('/^[A-Za-z0-9_]+$/', $table)) {
+            continue;
+        }
+        $pdo->exec("DELETE FROM `{$table}` WHERE company_id = {$companyIdSql}");
+    }
+
+    $delete = $pdo->prepare("DELETE FROM empresas WHERE id = :id");
+    $delete->execute(["id" => $companyId]);
+}
+
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     if ($usuarioAtor["role"] !== "ADMIN_DALLOGIX") {
         responder_json(
@@ -145,6 +229,8 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
         json_response(["error" => "Empresa não informada."], 422);
     }
 
+    $zerarEmpresa = ($_GET["force"] ?? "") === "1";
+
     $pdo = db();
     $find = $pdo->prepare("SELECT id, name FROM empresas WHERE id = :id LIMIT 1");
     $find->execute(["id" => $id]);
@@ -176,6 +262,26 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
     }
 
     if ($encontradas) {
+        if ($zerarEmpresa) {
+            try {
+                $pdo->beginTransaction();
+                $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
+                remover_empresa_com_dados($pdo, (int) $id);
+                $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+                $pdo->commit();
+                json_response(["data" => ["deleted" => true, "name" => $empresa["name"], "purged" => true]]);
+            } catch (Throwable $exception) {
+                try {
+                    $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
+                } catch (Throwable $ignored) {
+                }
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                error_log("Falha ao zerar empresa {$id}: " . $exception->getMessage());
+                json_response(["error" => "Não foi possível zerar os dados da empresa."], 409);
+            }
+        }
         json_response(
             [
                 "error" => "A empresa não pode ser removida porque possui dados vinculados: " . implode(", ", $encontradas) . ".",

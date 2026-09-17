@@ -1,4 +1,4 @@
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609162400";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609162500";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609160900";
@@ -764,6 +764,20 @@ function bindActions() {
           alert("Empresa removida.");
           render();
         } catch (error) {
+          if (error.status === 409) {
+            const purge = confirm(
+              `A empresa "${name}" possui dados vinculados. Deseja apagar todos os dados dela e zerar o cadastro? Esta ação não poderá ser desfeita.`,
+            );
+            if (!purge) return;
+            try {
+              await store.deleteCompany(node.dataset.id, { force: true });
+              alert("Empresa e todos os dados vinculados foram removidos.");
+              render();
+            } catch (purgeError) {
+              alert(purgeError.message);
+            }
+            return;
+          }
           alert(error.message);
         }
         return;

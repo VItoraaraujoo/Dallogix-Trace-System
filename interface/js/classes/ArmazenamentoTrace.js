@@ -793,14 +793,19 @@ export class ArmazenamentoTrace {
     this.state.localActivation = result.data || { active: false };
     return this.state.localActivation;
   }
-  async deleteCompany(id) {
-    const response = await fetch(`/api/empresas.php?id=${encodeURIComponent(id)}`, {
+  async deleteCompany(id, { force = false } = {}) {
+    const query = new URLSearchParams({ id: String(id) });
+    if (force) query.set("force", "1");
+    const response = await fetch(`/api/empresas.php?${query.toString()}`, {
       method: "DELETE",
       headers: this.jsonHeaders(),
     });
     const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível remover a empresa.");
+    if (!response.ok) {
+      const error = new Error(result.error || "Não foi possível remover a empresa.");
+      error.status = response.status;
+      throw error;
+    }
     await this.loadCompanies();
     return result.data;
   }
