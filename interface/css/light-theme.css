@@ -2809,6 +2809,15 @@ textarea {
   min-width: 0;
 }
 
+.users-create-panel #user-create-form .user-create-fields > label > input,
+.users-create-panel #user-create-form .user-create-fields > label > select,
+.users-create-panel #user-create-form .login-address {
+  width: 100%;
+  height: 46px;
+  min-height: 46px;
+  box-sizing: border-box;
+}
+
 .login-address {
   display: flex;
   align-items: stretch;
@@ -2830,6 +2839,9 @@ textarea {
 .login-address input {
   min-width: 0;
   flex: 1;
+  height: 44px;
+  min-height: 0;
+  box-sizing: border-box;
   border: 0 !important;
   box-shadow: none !important;
   border-radius: 0 !important;
@@ -2839,6 +2851,9 @@ textarea {
 .login-address span {
   display: flex;
   align-items: center;
+  height: 44px;
+  min-height: 0;
+  box-sizing: border-box;
   padding: 0 12px;
   border-left: 1px solid var(--line);
   background: #eef4ff;
