@@ -223,6 +223,7 @@
   animation: dala-spin 0.8s linear infinite;
 }
 
+
 @keyframes dala-spin {
   to {
     transform: rotate(360deg);
@@ -245,6 +246,7 @@
   .dala-actions-v2 {
     justify-content: flex-start;
   }
+
 }
 
 @media (prefers-reduced-motion: reduce) {

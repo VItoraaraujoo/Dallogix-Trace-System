@@ -7,6 +7,18 @@ function ambiente_atual(): string
     return strtolower(trim((string) (getenv("APP_ENV") ?: "local")));
 }
 
+function trace_e_instalacao_local(): bool
+{
+    $modo = strtolower(trim((string) (getenv("TRACE_INSTALLATION_MODE") ?: "")));
+    if ($modo === "local" || $modo === "industrial") {
+        return true;
+    }
+    if ($modo === "central" || $modo === "remoto" || $modo === "server") {
+        return false;
+    }
+    return ambiente_atual() !== "production";
+}
+
 function metadados_release(): array
 {
     $release = [
@@ -264,6 +276,26 @@ function gerar_token_csrf(): string
         $_SESSION["csrf_token"] = bin2hex(random_bytes(32));
     }
     return (string) $_SESSION["csrf_token"];
+}
+
+/** @return array{code:string,hash:string,preview:string} */
+function gerar_codigo_ativacao_empresa(): array
+{
+    $alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    $part = static function () use ($alphabet): string {
+        $value = "";
+        for ($index = 0; $index < 4; $index++) {
+            $value .= $alphabet[random_int(0, strlen($alphabet) - 1)];
+        }
+        return $value;
+    };
+    $code = "TRC-{$part()}-{$part()}";
+    $normalized = str_replace("-", "", $code);
+    return [
+        "code" => $code,
+        "hash" => hash("sha256", $normalized),
+        "preview" => substr($normalized, -4),
+    ];
 }
 
 function exigir_csrf(): void

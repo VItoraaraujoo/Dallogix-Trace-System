@@ -1,0 +1,193 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . "/../configuracao/bootstrap.php";
+
+exigir_metodo_http(["POST"]);
+if (!trace_e_instalacao_local()) {
+    responder_json(["error" => "A ativação de empresa está disponível somente na instalação local."], 403);
+}
+$payload = ler_json_da_requisicao();
+$code = strtoupper(trim((string) ($payload["activation_code"] ?? "")));
+$email = strtolower(trim((string) ($payload["email"] ?? "")));
+$password = (string) ($payload["password"] ?? "");
+if (!preg_match('/^TRC-[A-Z0-9]{4}-[A-Z0-9]{4}$/', $code)) {
+    responder_json(["error" => "Código de ativação inválido."], 422);
+}
+if (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($password) < 6 || mb_strlen($password) > 128) {
+    responder_json(["error" => "Informe o login e a senha do administrador da empresa."], 422);
+}
+
+$centralUrl = trim((string) (getenv("TRACE_CENTRAL_URL") ?: ""));
+if ($centralUrl === "") {
+    $remoteUrl = trim((string) (getenv("SYNC_REMOTE_BATCH_URL") ?: getenv("SYNC_REMOTE_URL") ?: ""));
+    $parts = parse_url($remoteUrl);
+    if (is_array($parts) && isset($parts["scheme"], $parts["host"])) {
+        $centralUrl = $parts["scheme"] . "://" . $parts["host"] . (isset($parts["port"]) ? ":" . $parts["port"] : "");
+    }
+}
+if (!preg_match('/^https:\/\//i', $centralUrl)) {
+    responder_json(["error" => "Servidor central não configurado para esta instalação."], 503);
+}
+
+$postJson = static function (string $url, array $body): array {
+    $handle = curl_init($url);
+    if ($handle === false) {
+        throw new RuntimeException("Não foi possível iniciar a conexão com o servidor central.");
+    }
+    curl_setopt_array($handle, [
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+        CURLOPT_HTTPHEADER => ["Content-Type: application/json", "Accept: application/json"],
+        CURLOPT_CONNECTTIMEOUT => 5,
+        CURLOPT_TIMEOUT => 15,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_SSL_VERIFYPEER => true,
+        CURLOPT_SSL_VERIFYHOST => 2,
+    ]);
+    $raw = curl_exec($handle);
+    $error = trim((string) curl_error($handle));
+    $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+    curl_close($handle);
+    if ($error !== "") {
+        throw new RuntimeException("Servidor central indisponível.");
+    }
+    $result = json_decode((string) $raw, true);
+    if (!is_array($result)) {
+        throw new RuntimeException("Resposta inválida do servidor central.");
+    }
+    return [$status, $result];
+};
+
+try {
+    [$activationStatus, $activationResult] = $postJson(
+        rtrim($centralUrl, "/") . "/api/validar_ativacao_empresa.php",
+        ["activation_code" => $code],
+    );
+} catch (Throwable $exception) {
+    responder_json(["error" => $exception->getMessage()], 503);
+}
+if ($activationStatus < 200 || $activationStatus >= 300 || !isset($activationResult["data"])) {
+    responder_json(["error" => $activationResult["error"] ?? "Não foi possível validar o código."], 401);
+}
+$remoteCompany = $activationResult["data"];
+
+try {
+    [$loginStatus, $loginResult] = $postJson(
+        rtrim($centralUrl, "/") . "/api/login.php",
+        ["email" => $email, "password" => $password],
+    );
+} catch (Throwable $exception) {
+    responder_json(["error" => $exception->getMessage()], 503);
+}
+if ($loginStatus < 200 || $loginStatus >= 300 || ($loginResult["authenticated"] ?? false) !== true) {
+    responder_json(["error" => "O login informado não foi validado no servidor central."], 401);
+}
+$remoteUser = $loginResult["user"] ?? [];
+if (($remoteUser["role"] ?? "") !== "ADMIN_EMPRESA" || (int) ($remoteUser["company_id"] ?? 0) !== (int) $remoteCompany["company_id"]) {
+    responder_json(["error" => "Use o login de administrador da mesma empresa do código."], 403);
+}
+
+$pdo = obter_conexao_banco();
+$pdo->beginTransaction();
+try {
+    $companyQuery = $pdo->prepare(
+        "SELECT id, company_id FROM empresas WHERE remote_company_id = :remote_id LIMIT 1",
+    );
+    $companyQuery->execute(["remote_id" => $remoteCompany["company_id"]]);
+    $localCompany = $companyQuery->fetch();
+    if (!$localCompany) {
+        $domainQuery = $pdo->prepare("SELECT id, remote_company_id FROM empresas WHERE login_domain = :login_domain LIMIT 1");
+        $domainQuery->execute(["login_domain" => $remoteCompany["login_domain"]]);
+        $localCompany = $domainQuery->fetch();
+        if ($localCompany && $localCompany["remote_company_id"] !== null && (int) $localCompany["remote_company_id"] !== (int) $remoteCompany["company_id"]) {
+            throw new RuntimeException("O domínio da empresa já está associado a outra instalação local.");
+        }
+    }
+    if (!$localCompany) {
+        $insertCompany = $pdo->prepare(
+            "INSERT INTO empresas (name, login_domain, remote_company_id)
+             VALUES (:name, :login_domain, :remote_company_id)",
+        );
+        $insertCompany->execute([
+            "name" => $remoteCompany["name"],
+            "login_domain" => $remoteCompany["login_domain"],
+            "remote_company_id" => $remoteCompany["company_id"],
+        ]);
+        $localCompanyId = (int) $pdo->lastInsertId();
+    } else {
+        $localCompanyId = (int) $localCompany["id"];
+        $updateCompany = $pdo->prepare(
+            "UPDATE empresas SET name = :name, login_domain = :login_domain, remote_company_id = :remote_company_id
+             WHERE id = :id",
+        );
+        $updateCompany->execute([
+            "name" => $remoteCompany["name"],
+            "login_domain" => $remoteCompany["login_domain"],
+            "remote_company_id" => $remoteCompany["company_id"],
+            "id" => $localCompanyId,
+        ]);
+    }
+
+    $userQuery = $pdo->prepare("SELECT id, company_id FROM usuarios WHERE email = :email LIMIT 1");
+    $userQuery->execute(["email" => $email]);
+    $localUser = $userQuery->fetch();
+    if ($localUser && $localUser["company_id"] !== null && (int) $localUser["company_id"] !== $localCompanyId) {
+        throw new RuntimeException("O login informado já pertence a outra empresa local.");
+    }
+    $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+    if ($localUser) {
+        $updateUser = $pdo->prepare(
+            "UPDATE usuarios SET company_id = :company_id, name = :name, password_hash = :password_hash,
+                role = 'ADMIN_EMPRESA', active = 1, must_change_password = 0
+             WHERE id = :id",
+        );
+        $updateUser->execute([
+            "company_id" => $localCompanyId,
+            "name" => $remoteUser["name"] ?? "Administrador da empresa",
+            "password_hash" => $passwordHash,
+            "id" => $localUser["id"],
+        ]);
+    } else {
+        $insertUser = $pdo->prepare(
+            "INSERT INTO usuarios (company_id, name, email, password_hash, role, active, must_change_password)
+             VALUES (:company_id, :name, :email, :password_hash, 'ADMIN_EMPRESA', 1, 0)",
+        );
+        $insertUser->execute([
+            "company_id" => $localCompanyId,
+            "name" => $remoteUser["name"] ?? "Administrador da empresa",
+            "email" => $email,
+            "password_hash" => $passwordHash,
+        ]);
+    }
+
+    $installation = $pdo->prepare(
+        "INSERT INTO instalacoes_locais
+            (id, company_id, remote_company_id, company_name, login_domain, activated_at)
+         VALUES (1, :company_id, :remote_company_id, :company_name, :login_domain, NOW())
+         ON DUPLICATE KEY UPDATE company_id = VALUES(company_id), remote_company_id = VALUES(remote_company_id),
+            company_name = VALUES(company_name), login_domain = VALUES(login_domain), activated_at = VALUES(activated_at)",
+    );
+    $installation->execute([
+        "company_id" => $localCompanyId,
+        "remote_company_id" => $remoteCompany["company_id"],
+        "company_name" => $remoteCompany["name"],
+        "login_domain" => $remoteCompany["login_domain"],
+    ]);
+    $pdo->commit();
+} catch (Throwable $exception) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    responder_json(["error" => $exception->getMessage()], 409);
+}
+
+responder_json([
+    "data" => [
+        "enabled" => true,
+        "active" => true,
+        "company_name" => $remoteCompany["name"],
+        "login_domain" => $remoteCompany["login_domain"],
+    ],
+]);

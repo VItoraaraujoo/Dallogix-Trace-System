@@ -164,7 +164,7 @@ export function companyCard(company, { compact = false } = {}) {
       <div><b class="metric-green">${online}</b><small>Online</small></div>
       <div><b>${activeUsers}/${users}</b><small>Acessos ativos</small></div>
     </div>
-    <footer>${offline > 0 ? `<span class="kicker">${offline} máquina(s) sem sinal</span>` : ""}<div class="actions"><button class="button secondary" data-action="open-company" data-id="${company.id}" type="button">Gerenciar</button>${compact ? "" : `<button class="button ${licenseStatus === "ATIVA" ? "danger" : "primary"} small" data-action="toggle-license" data-id="${company.id}" data-status="${esc(licenseStatus)}" type="button">${licenseAction}</button><button class="button ghost danger-link small" data-action="delete-company" data-id="${company.id}" data-name="${esc(company.name)}" type="button">Remover</button>`}</div></footer>
+    <footer>${offline > 0 ? `<span class="kicker">${offline} máquina(s) sem sinal</span>` : ""}<div class="actions"><button class="button secondary" data-action="open-company" data-id="${company.id}" type="button">Gerenciar</button>${compact ? "" : `<button class="button primary small" data-action="generate-company-activation" data-id="${company.id}" type="button">${company.activation_code_preview ? "Novo código" : "Gerar código"}</button><button class="button ${licenseStatus === "ATIVA" ? "danger" : "primary"} small" data-action="toggle-license" data-id="${company.id}" data-status="${esc(licenseStatus)}" type="button">${licenseAction}</button><button class="button ghost danger-link small" data-action="delete-company" data-id="${company.id}" data-name="${esc(company.name)}" type="button">Remover</button>`}</div></footer>
   </article>`;
 }
 

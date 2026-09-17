@@ -9,7 +9,7 @@ if ($user["company_id"] === null) {
     json_response(["error" => "Usuário sem empresa vinculada."], 403);
 }
 $companyId = (int) $user["company_id"];
-$canManage = in_array($user["role"], ["ADMIN_EMPRESA", "ADMIN_DALLOGIX"], true);
+$canManage = $user["role"] === "ADMIN_EMPRESA";
 $payload = request_json();
 $equipmentId = filter_var($_GET["equipment_id"] ?? $payload["equipment_id"] ?? null, FILTER_VALIDATE_INT);
 if (!$equipmentId) {

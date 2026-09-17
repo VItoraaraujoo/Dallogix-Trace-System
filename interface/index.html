@@ -14,7 +14,7 @@
     <title>Acesso ao sistema • Dallogix Trace</title>
     <link rel="stylesheet" href="css/styles.css?v=27" />
     <link rel="stylesheet" href="css/light-theme.css?v=202609150300" />
-    <link rel="stylesheet" href="css/auth.css?v=202609160002" />
+    <link rel="stylesheet" href="css/auth.css?v=202609162400" />
       <link rel="stylesheet" href="css/responsive.css?v=202609161845" />
   </head>
   <body>
@@ -28,6 +28,19 @@
           Acesse a operação local e acompanhe os carregamentos em tempo real.
         </p>
         <div id="login-error" role="alert" aria-live="assertive" tabindex="-1"></div>
+        <div id="local-license-status" class="local-license-status" role="status" aria-live="polite" hidden></div>
+        <section id="local-activation" class="local-activation-panel" aria-labelledby="local-activation-title" hidden>
+          <span class="login-hint">Primeiro acesso deste PC</span>
+          <h2 id="local-activation-title">Ativar instalação</h2>
+          <p>Informe o código da empresa e o login do administrador criado no servidor central.</p>
+          <form id="local-activation-form">
+            <label>Código da empresa<input name="activation_code" type="text" inputmode="text" autocomplete="one-time-code" placeholder="TRC-XXXX-XXXX" required /></label>
+            <label>Login do administrador<input name="email" type="email" autocomplete="username" placeholder="admin@dallogix.empresa-chat" required /></label>
+            <label>Senha do administrador<input name="password" type="password" autocomplete="current-password" required /></label>
+            <button class="button secondary" type="submit">Ativar este PC</button>
+          </form>
+          <div id="local-activation-error" class="login-error" role="alert" aria-live="assertive" hidden></div>
+        </section>
         <form id="login-form" method="post" action="/api/login.php">
           <label
             >Login<input
@@ -53,6 +66,6 @@
         </form>
       </section>
     </main>
-    <script data-cfasync="false" type="module" src="js/aplicacao.js?v=202609162045" data-page="login"></script>
+    <script data-cfasync="false" type="module" src="js/aplicacao.js?v=202609162400" data-page="login"></script>
   </body>
 </html>

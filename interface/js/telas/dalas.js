@@ -25,12 +25,8 @@ export function dalas(store) {
   const loadError = store.state.equipmentsError;
   const loading = !store.state.equipmentsLoaded || store.state.equipmentsLoading;
   const open = store.state.dalaFormOpen;
-  const canDelete = ["ADMIN_DALLOGIX", "ADMIN_EMPRESA"].includes(
-    store.state.userRole,
-  );
-  const canManage = ["ADMIN_DALLOGIX", "ADMIN_EMPRESA"].includes(
-    store.state.userRole,
-  );
+  const canDelete = store.state.userRole === "ADMIN_EMPRESA";
+  const canManage = store.state.userRole === "ADMIN_EMPRESA";
   if (open) {
     return `<div class="dala-create-screen"><div class="title-row has-back"><button class="button secondary page-back" data-action="toggle-dala-form" type="button">← Voltar</button><div><h2>Nova Dala</h2><p>Cadastre a comunicação da Dala com o CLP e o gateway.</p></div></div>
 <section class="panel dala-create-panel"><form id="dala-create-form"><div class="grid one">

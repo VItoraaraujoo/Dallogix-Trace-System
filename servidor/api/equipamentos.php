@@ -11,8 +11,8 @@ if ($user["company_id"] === null) {
     json_response(["error" => "Usuário sem empresa vinculada."], 403);
 }
 $pdo = db();
-$canManage = in_array($user["role"], ["ADMIN_DALLOGIX", "ADMIN_EMPRESA"], true);
-$canDelete = in_array($user["role"], ["ADMIN_DALLOGIX", "ADMIN_EMPRESA"], true);
+$canManage = $user["role"] === "ADMIN_EMPRESA";
+$canDelete = $user["role"] === "ADMIN_EMPRESA";
 
 // Identificador no padrão da referência: letras minúsculas, números e underscores (máx. 30).
 $validIdentifier = static function (string $code): bool {

@@ -619,6 +619,39 @@ textarea::placeholder {
   padding: 16px 20px;
 }
 
+.company-activation-panel {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 20px 24px;
+  border-color: #b9e3eb;
+  background: #f1fbfd;
+}
+
+.company-activation-panel h3 {
+  margin: 4px 0 5px;
+}
+
+.company-activation-panel p {
+  margin: 0 0 12px;
+  color: var(--muted);
+}
+
+.company-activation-panel small {
+  display: block;
+  color: var(--muted);
+}
+
+.company-activation-code {
+  display: block;
+  margin: 0 0 10px;
+  color: #075f79;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: clamp(21px, 3vw, 30px);
+  letter-spacing: .12em;
+}
+
 .selected-company-context {
   display: flex;
   align-items: baseline;
@@ -2626,6 +2659,11 @@ textarea {
 
   .company-card footer .button {
     width: 100%;
+  }
+
+  .company-activation-panel {
+    align-items: stretch;
+    flex-direction: column;
   }
 }
 

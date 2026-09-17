@@ -16,7 +16,22 @@ export function company(store) {
   const romaneios = detail.romaneios || {};
   const openRomaneios =
     (romaneios.AGUARDANDO || 0) + (romaneios.EM_ANDAMENTO || 0);
+  const activation =
+    store.state.companyActivation?.id === detail.id
+      ? store.state.companyActivation
+      : null;
+  const visibleActivationCode =
+    activation?.activation_code || detail.activation_code || "";
+  const activationButtonLabel =
+    detail.activation_code || detail.activation_code_preview
+    ? "Novo código"
+    : "Gerar código";
+  const activationCodeContent = visibleActivationCode
+    ? `<strong class="company-activation-code">${esc(visibleActivationCode)}</strong><small>Guarde este código para ativar o PC industrial.</small>`
+    : `<p>${detail.activation_code_preview ? `Código já gerado (final ${esc(detail.activation_code_preview)}). Gere um novo código para visualizar o código completo.` : "O código ainda não foi gerado para esta empresa."}</p>`;
+  const activationPanel = `<section class="panel company-activation-panel"><div><span class="kicker">Acesso da instalação</span><h3>Código de ativação da empresa</h3>${activationCodeContent}<small>Domínio: @${esc(detail.login_domain || "—")}</small></div><div class="actions"><button class="button primary" data-action="generate-company-activation" data-id="${detail.id}" type="button">${activationButtonLabel}</button>${visibleActivationCode ? `<button class="button secondary" data-action="copy-company-activation" data-code="${esc(visibleActivationCode)}" type="button">Copiar código</button>` : ""}</div></section><br>`;
   return `<div class="title-row with-actions has-back"><button class="button secondary page-back" data-action="back-companies" type="button">← Voltar</button><div><span class="kicker">Dallogix / gerenciamento</span><h2>${esc(detail.name)}</h2><p>Dashboard operacional da empresa: máquinas, carregamentos e ocorrências.</p><p class="kicker">Domínio de acesso: @${esc(detail.login_domain || "—")}</p></div><div class="actions">${button("Logins", "open-users", "secondary", `data-company-id="${detail.id}"`)}</div></div>
+    ${activationPanel}
     <div class="grid four dashboard-metrics">
       <div class="panel metric"><small>Máquinas</small><strong>${total}</strong></div>
       <div class="panel metric"><small>Online</small><strong class="metric-green">${online}</strong></div>

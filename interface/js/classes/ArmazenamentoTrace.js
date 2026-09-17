@@ -49,6 +49,8 @@ export class ArmazenamentoTrace {
       dashboard: null,
       manifestDetail: null,
       equipmentDetail: null,
+      companyActivation: null,
+      localActivation: null,
       dalaCommands: [],
       dalaActionConfig: { acoes: [], gatilhos: [], can_manage: false },
       errorLogs: [],
@@ -759,7 +761,37 @@ export class ArmazenamentoTrace {
     const result = await response.json().catch(() => ({}));
     if (!response.ok)
       throw new Error(result.error || "Não foi possível criar a empresa.");
+    this.state.companyActivation = result.data;
     return result.data;
+  }
+  async generateCompanyActivation(companyId) {
+    const response = await fetch("/api/empresas.php", {
+      method: "POST",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({ action: "generate_activation_code", company_id: Number(companyId) }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível gerar o código da empresa.");
+    this.state.companyActivation = result.data;
+    return result.data;
+  }
+  async loadLocalActivation() {
+    const response = await fetch("/api/ativacao_local.php", { cache: "no-store" });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível consultar a ativação local.");
+    this.state.localActivation = result.data || { active: false };
+    return this.state.localActivation;
+  }
+  async activateLocalInstallation(payload) {
+    const response = await fetch("/api/ativar_empresa.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível ativar esta instalação.");
+    this.state.localActivation = result.data || { active: false };
+    return this.state.localActivation;
   }
   async deleteCompany(id) {
     const response = await fetch(`/api/empresas.php?id=${encodeURIComponent(id)}`, {

@@ -115,23 +115,24 @@ final class ServicoSincronizacao
         $this->connection->beginTransaction();
         try {
             $where = [
-                "status IN ('PENDENTE', 'ERRO')",
-                "(available_at IS NULL OR available_at <= NOW())",
+                "q.status IN ('PENDENTE', 'ERRO')",
+                "(q.available_at IS NULL OR q.available_at <= NOW())",
             ];
             $params = [];
             if ($companyId !== null) {
-                $where[] = "company_id = :company_id";
+                $where[] = "q.company_id = :company_id";
                 $params["company_id"] = $companyId;
             }
             if ($queueId !== null) {
-                $where[] = "id = :queue_id";
+                $where[] = "q.id = :queue_id";
                 $params["queue_id"] = $queueId;
             }
 
             $statement = $this->connection->prepare(
-                "SELECT id, company_id, event_uuid, aggregate_type, aggregate_id, payload,
+                "SELECT q.id, q.company_id, e.remote_company_id, q.event_uuid, q.aggregate_type, q.aggregate_id, q.payload,
                         status, attempts, last_error, available_at, created_at
-                 FROM fila_sincronizacao
+                 FROM fila_sincronizacao q
+                 LEFT JOIN empresas e ON e.id = q.company_id
                  WHERE " . implode(" AND ", $where) .
                     " ORDER BY id ASC LIMIT {$limit} FOR UPDATE SKIP LOCKED",
             );
@@ -236,7 +237,7 @@ final class ServicoSincronizacao
     {
         $body = json_encode([
             "event_uuid" => $event["event_uuid"],
-            "company_id" => (int) $event["company_id"],
+            "company_id" => $this->remoteCompanyId($event),
             "aggregate_type" => $event["aggregate_type"],
             "aggregate_id" => (int) $event["aggregate_id"],
             "payload" => $this->decodePayload($event),
@@ -252,7 +253,7 @@ final class ServicoSincronizacao
         foreach ($events as $event) {
             $items[] = [
                 "event_uuid" => $event["event_uuid"],
-                "company_id" => (int) $event["company_id"],
+                "company_id" => $this->remoteCompanyId($event),
                 "aggregate_type" => $event["aggregate_type"],
                 "aggregate_id" => (int) $event["aggregate_id"],
                 "payload" => $this->decodePayload($event),
@@ -260,6 +261,14 @@ final class ServicoSincronizacao
         }
         $body = json_encode(["events" => $items], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
         return $this->postJson($remoteUrl, $body);
+    }
+
+    private function remoteCompanyId(array $event): int
+    {
+        $remoteCompanyId = filter_var($event["remote_company_id"] ?? null, FILTER_VALIDATE_INT);
+        return $remoteCompanyId !== false && (int) $remoteCompanyId > 0
+            ? (int) $remoteCompanyId
+            : (int) $event["company_id"];
     }
 
     /** @return array{ok:bool,error:string,http_code:int} */

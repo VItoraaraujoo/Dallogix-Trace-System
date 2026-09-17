@@ -31,6 +31,51 @@
   color: var(--muted);
   margin: 0 0 25px;
 }
+.local-license-status {
+  margin: 0 0 16px;
+  padding: 11px 13px;
+  border: 1px solid #b8e1c8;
+  border-radius: 8px;
+  background: #edf9f1;
+  color: #14733c;
+  font-size: 13px;
+  font-weight: 800;
+}
+.local-license-status small {
+  display: block;
+  margin-top: 3px;
+  color: #4d7660;
+  font-size: 11px;
+  font-weight: 500;
+}
+.local-activation-panel {
+  margin: 0 0 22px;
+  padding: 17px;
+  border: 1px solid #cfe1e8;
+  border-radius: 10px;
+  background: #f7fbfc;
+}
+.local-activation-panel h2 {
+  margin: 4px 0 5px;
+  font-size: 20px;
+}
+.local-activation-panel p {
+  margin: 0 0 14px;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+.local-activation-panel form {
+  display: grid;
+  gap: 10px;
+}
+.local-activation-panel .button {
+  width: 100%;
+  margin: 3px 0 0;
+}
+.local-activation-panel .login-error {
+  margin: 12px 0 0;
+}
 .login-card input {
   font: inherit;
   font-size: 16px;

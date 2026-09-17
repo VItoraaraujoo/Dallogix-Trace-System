@@ -1,4 +1,4 @@
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609162120";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609162400";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609160900";
@@ -6,9 +6,9 @@ import { numero } from "./funcoes/formato.js";
 import { el, esc } from "./funcoes/html.js";
 import { rotuloEstado } from "./funcoes/rotulos.js";
 import { settings } from "./telas/configuracoes.js?v=202609140210";
-import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609161845";
+import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609162240";
 import { company } from "./telas/empresa.js";
-import { companies } from "./telas/empresas.js?v=202609162205";
+import { companies } from "./telas/empresas.js?v=202609162400";
 import { errorLogs } from "./telas/logs.js";
 import { masterHome } from "./telas/master.js?v=202609162205";
 import {
@@ -358,7 +358,7 @@ function waitForDocumentStyles() {
 // inicial não é recarregado, então os estilos exclusivos de Dalas precisam ser
 // adicionados quando a rota muda a partir de outra tela.
 const DALA_PAGES = new Set(["dalas", "dala", "dala-edit", "dala-actions"]);
-const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609161845";
+const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609162240";
 async function ensureDalaScreenStyles(page) {
   if (!DALA_PAGES.has(page)) return;
   const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
@@ -392,6 +392,59 @@ function renderLogin(message = "") {
       : "";
     if (message) box.focus();
   }
+}
+
+function renderLocalActivation(data = { active: false }, message = "") {
+  const status = el("#local-license-status");
+  const panel = el("#local-activation");
+  const error = el("#local-activation-error");
+  const enabled = Boolean(data?.enabled);
+  const active = enabled && Boolean(data?.active);
+  if (status) {
+    status.hidden = !active;
+    status.innerHTML = active
+      ? `<strong>Licença ativa</strong><small>${esc(data.company_name || "Empresa configurada")} · @${esc(data.login_domain || "—")}</small>`
+      : "";
+  }
+  if (panel) panel.hidden = !enabled || active;
+  if (error) {
+    error.textContent = message;
+    error.hidden = !message;
+  }
+}
+
+function bindLocalActivationForm() {
+  const form = document.querySelector("#local-activation-form");
+  if (!form || form.dataset.bound === "1") return;
+  form.dataset.bound = "1";
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (form.dataset.submitting === "1") return;
+    form.dataset.submitting = "1";
+    const submit = form.querySelector('button[type="submit"]');
+    if (submit) {
+      submit.disabled = true;
+      submit.textContent = "Ativando…";
+    }
+    renderLocalActivation({ active: false }, "");
+    try {
+      const data = Object.fromEntries(new FormData(form));
+      const activation = await store.activateLocalInstallation(data);
+      renderLocalActivation(activation);
+      const login = document.querySelector('#login-form [name="email"]');
+      if (login) login.value = data.email || "";
+      form.reset();
+      alert(`Instalação ativada para ${activation.company_name}.`);
+    } catch (error) {
+      renderLocalActivation({ active: false }, error.message || "Não foi possível ativar esta instalação.");
+    } finally {
+      form.dataset.submitting = "0";
+      if (submit) {
+        submit.disabled = false;
+        submit.textContent = "Ativar este PC";
+      }
+    }
+  });
 }
 
 function isMobileMenuViewport() {
@@ -712,6 +765,26 @@ function bindActions() {
           render();
         } catch (error) {
           alert(error.message);
+        }
+        return;
+      }
+      if (action === "generate-company-activation") {
+        if (node.textContent.trim() === "Novo código" && !confirm("Gerar um novo código? O código anterior deixará de funcionar.")) return;
+        try {
+          await store.generateCompanyActivation(node.dataset.id);
+          render();
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+      if (action === "copy-company-activation") {
+        const code = node.dataset.code || "";
+        try {
+          await navigator.clipboard.writeText(code);
+          alert("Código copiado.");
+        } catch (error) {
+          alert(`Código de ativação: ${code}`);
         }
         return;
       }
@@ -1985,7 +2058,14 @@ async function bootstrap() {
     } catch (storageError) {
       /* armazenamento indisponível */
     }
+    try {
+      await store.loadLocalActivation();
+    } catch (error) {
+      store.state.localActivation = { active: false };
+    }
+    renderLocalActivation(store.state.localActivation || { active: false });
     renderLogin(loginMessage);
+    bindLocalActivationForm();
     bindLoginForm();
     return;
   }

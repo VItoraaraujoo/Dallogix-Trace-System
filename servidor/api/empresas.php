@@ -18,6 +18,43 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
 
     exigir_csrf();
     $payload = ler_json_da_requisicao();
+    if (($payload["action"] ?? "") === "generate_activation_code") {
+        $companyId = filter_var($payload["company_id"] ?? null, FILTER_VALIDATE_INT);
+        if (!$companyId) {
+            responder_json(["error" => "Empresa não informada."], 422);
+        }
+        $company = obter_conexao_banco()->prepare(
+            "SELECT id, name, login_domain FROM empresas WHERE id = :id LIMIT 1",
+        );
+        $company->execute(["id" => $companyId]);
+        $empresa = $company->fetch();
+        if (!$empresa) {
+            responder_json(["error" => "Empresa não encontrada."], 404);
+        }
+        $activation = gerar_codigo_ativacao_empresa();
+        $update = obter_conexao_banco()->prepare(
+            "UPDATE empresas
+             SET activation_code = :code,
+                 activation_code_hash = :code_hash,
+                 activation_code_preview = :code_preview,
+                 activation_code_created_at = NOW()
+             WHERE id = :id",
+        );
+        $update->execute([
+            "code" => $activation["code"],
+            "code_hash" => $activation["hash"],
+            "code_preview" => $activation["preview"],
+            "id" => $empresa["id"],
+        ]);
+        responder_json([
+            "data" => [
+                "id" => (int) $empresa["id"],
+                "name" => $empresa["name"],
+                "login_domain" => $empresa["login_domain"],
+                "activation_code" => $activation["code"],
+            ],
+        ], 201);
+    }
     $nomeEmpresa = trim((string) ($payload["name"] ?? ""));
     if ($nomeEmpresa === "" || mb_strlen($nomeEmpresa) > 160) {
         responder_json(["error" => "Informe o nome da empresa."], 422);
@@ -34,16 +71,40 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
 
         $loginDomain = gerar_dominio_login_empresa($pdo, $nomeEmpresa);
+        $activation = gerar_codigo_ativacao_empresa();
         $insercao = $pdo->prepare(
-            "INSERT INTO empresas (name, login_domain) VALUES (:name, :login_domain)",
+            "INSERT INTO empresas
+                (name, login_domain, activation_code, activation_code_hash, activation_code_preview, activation_code_created_at)
+             VALUES
+                (:name, :login_domain, :code, :code_hash, :code_preview, NOW())",
         );
-        $insercao->execute(["name" => $nomeEmpresa, "login_domain" => $loginDomain]);
+        $insercao->execute([
+            "name" => $nomeEmpresa,
+            "login_domain" => $loginDomain,
+            "code" => $activation["code"],
+            "code_hash" => $activation["hash"],
+            "code_preview" => $activation["preview"],
+        ]);
+        $createdCompanyId = (int) $pdo->lastInsertId();
+        registrar_evento_operacional(
+            $pdo,
+            $usuarioAtor,
+            "EMPRESA_CRIADA",
+            "company",
+            $createdCompanyId,
+            [
+                "name" => $nomeEmpresa,
+                "login_domain" => $loginDomain,
+                "activation_code_preview" => $activation["preview"],
+            ],
+        );
         responder_json(
             [
                 "data" => [
-                    "id" => (int) $pdo->lastInsertId(),
+                    "id" => $createdCompanyId,
                     "name" => $nomeEmpresa,
                     "login_domain" => $loginDomain,
+                    "activation_code" => $activation["code"],
                 ],
             ],
             201,
@@ -156,7 +217,8 @@ $machinesSql = "SELECT e.id, e.equipment_code, e.name,
 
 if ($requestedCompanyId !== null) {
     $companyStatement = $pdo->prepare(
-        "SELECT id, name, login_domain, created_at FROM empresas WHERE id = :id LIMIT 1",
+        "SELECT id, name, login_domain, activation_code, activation_code_preview, activation_code_created_at, created_at
+         FROM empresas WHERE id = :id LIMIT 1",
     );
     $companyStatement->execute(["id" => $requestedCompanyId]);
     $empresa = $companyStatement->fetch();
@@ -191,6 +253,9 @@ if ($requestedCompanyId !== null) {
             "id" => (int) $empresa["id"],
             "name" => $empresa["name"],
             "login_domain" => $empresa["login_domain"],
+            "activation_code" => $isAdminDallogix ? $empresa["activation_code"] : null,
+            "activation_code_preview" => $empresa["activation_code_preview"],
+            "activation_code_created_at" => $empresa["activation_code_created_at"],
             "created_at" => $empresa["created_at"],
             "maquinas" => $maquinas->fetchAll(),
             "ocorrencias_recentes" => $ocorrencias->fetchAll(),
@@ -201,7 +266,7 @@ if ($requestedCompanyId !== null) {
 }
 
 $empresas = $pdo->prepare(
-    "SELECT c.id, c.name, c.login_domain, c.created_at,
+    "SELECT c.id, c.name, c.login_domain, c.activation_code_preview, c.activation_code_created_at, c.created_at,
             (SELECT l.status FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_status,
             (SELECT l.blocked_reason FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_reason,
             COUNT(e.id) AS total_machines,
@@ -225,6 +290,8 @@ $rows = array_map(static function (array $row): array {
         "id" => (int) $row["id"],
         "name" => $row["name"],
         "login_domain" => $row["login_domain"],
+        "activation_code_preview" => $row["activation_code_preview"],
+        "activation_code_created_at" => $row["activation_code_created_at"],
         "created_at" => $row["created_at"],
         "total_machines" => $total,
         "machines_online" => $online,

@@ -70,6 +70,12 @@ O deploy automático do servidor de teste ocorre pelo workflow [`.github/workflo
 
 Credencial local inicial: `admin@dallogix.local` / `password`. A senha definida no cadastro é válida imediatamente e não exige troca no primeiro acesso.
 
+## Ativação do PC industrial
+
+Ao criar uma empresa no site com o perfil Master, o Trace gera um código de ativação da empresa e o exibe em **Gerenciar empresa** para cópia. No primeiro acesso da instalação local, informe esse código e o login do administrador da empresa. O PC valida a empresa no servidor central, cria o acesso local e registra a ativação. Nas aberturas seguintes, a tela de login mostra `Licença ativa` e não solicita o código novamente.
+
+No PC industrial, configure `TRACE_INSTALLATION_MODE=local` e `TRACE_CENTRAL_URL` com a URL base do servidor central. No servidor remoto, configure `TRACE_INSTALLATION_MODE=central`; nesse ambiente o formulário de ativação não aparece e o login remoto permanece normal. Se o modo ficar vazio, o Trace considera ambientes diferentes de produção como locais e produção como central.
+
 ## Parar e reiniciar
 
 ```bash
