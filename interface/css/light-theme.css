@@ -2840,6 +2840,7 @@ textarea {
 .login-address input {
   min-width: 0;
   flex: 1;
+  margin-top: 0;
   height: 44px;
   min-height: 0;
   box-sizing: border-box;
