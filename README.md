@@ -14,7 +14,9 @@ A reversão e as ações configuráveis por Dala usam uma fila própria para o g
 
 ## Credenciais locais
 
-O seed cria usuários de demonstração com troca obrigatória de senha no primeiro login. As senhas abaixo existem somente para inicializar um ambiente local e não são aceitas como configuração de produção:
+O seed cria usuários de demonstração para um ambiente local. As senhas abaixo
+existem somente para inicializar esse ambiente e não são aceitas como
+configuração de produção:
 
 - `admin@dallogix.local` / `password` — administrador da empresa.
 - `supervisor@dallogix.local` / `password1234` — supervisor local.
@@ -73,6 +75,9 @@ Não existe uma tela remota no PC industrial. Todo gerenciamento fora da máquin
 O serviço `sync-worker` reserva eventos em lotes, envia com timeout e backoff e recupera reservas abandonadas. Quando `SYNC_REMOTE_BATCH_URL` é configurada, o worker usa o contrato HTTP de lote; sem ela, mantém compatibilidade com o endpoint individual `SYNC_REMOTE_URL`. O serviço `image-retention` executa diariamente a limpeza de imagens e a retenção segura de leituras, eventos de sensor, auditoria confirmada, fila enviada e logs de erro. Os prazos podem ser ajustados no `.env`; registros de auditoria só são removidos quando existe entrega confirmada e nenhuma tentativa pendente.
 
 O horário da aplicação segue o relógio do PC industrial quando a internet está indisponível. Com conexão, `/api/relogio.php` consulta o servidor central e a interface aplica somente a diferença de horário enquanto a conexão permanecer disponível; ao perder a conexão, volta imediatamente ao relógio do PC. O Trace não altera o relógio do Windows ou do macOS. Para registros persistidos, a instalação local continua usando o horário local offline e o servidor central usa o próprio horário ao receber os eventos.
+
+O relatório da última homologação, com o esperado e o resultado observado em
+cada fluxo, está em [homologação completa de 17/09/2026](documentacao/testes/homologacao-2026-09-17.md).
 
 `/api/health.php` informa a versão e o SHA implantados. `/api/prontidao.php` informa profundidade/idade da fila, heartbeats, comandos travados, schema e espaço livre. Fila pendente sem erro pode ser normal quando a sincronização remota está desabilitada; o healthcheck degrada quando há erro, atraso acima do limite ou risco operacional.
 
