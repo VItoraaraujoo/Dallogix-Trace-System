@@ -2,7 +2,7 @@ import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=2026091709
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609160900";
-import { numero } from "./funcoes/formato.js";
+import { numero } from "./funcoes/formato.js?v=202609170930";
 import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js";
@@ -345,7 +345,7 @@ function installLocalIndicator() {
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202609170015").catch(() => {
+  navigator.serviceWorker.register("/service-worker.js?v=202609170930").catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }

@@ -1,5 +1,5 @@
 import { button, esc } from "../funcoes/html.js";
-import { numero, relativo } from "../funcoes/formato.js";
+import { numero, relativo } from "../funcoes/formato.js?v=202609170930";
 import { rotuloEstado } from "../funcoes/rotulos.js";
 import { deviceBadge, pageHeader } from "../funcoes/view.js?v=202609150300";
 

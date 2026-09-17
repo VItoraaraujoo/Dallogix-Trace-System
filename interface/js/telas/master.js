@@ -1,5 +1,5 @@
 import { esc } from "../funcoes/html.js";
-import { dataHora, numero } from "../funcoes/formato.js";
+import { dataHora, numero } from "../funcoes/formato.js?v=202609170930";
 import { companyGrid, pageHeader } from "../funcoes/view.js?v=202609170900";
 
 export function masterHome(store) {

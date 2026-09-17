@@ -1,5 +1,5 @@
 import { button, esc } from "./html.js";
-import { data, numero, relativo } from "./formato.js";
+import { data, numero, relativo } from "./formato.js?v=202609170930";
 import { rotuloEstado, rotuloStatusRomaneio } from "./rotulos.js";
 
 export function pageHeader(kicker, title, description, action = "") {

@@ -1,4 +1,4 @@
-import { dataHora, numero } from "../funcoes/formato.js";
+import { dataHora, numero } from "../funcoes/formato.js?v=202609170930";
 import { button, esc } from "../funcoes/html.js";
 import { rotuloComando, rotuloEstado, rotuloEvento, rotuloStatusComando } from "../funcoes/rotulos.js";
 import { pageHeader } from "../funcoes/view.js?v=202609150020";

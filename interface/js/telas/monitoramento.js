@@ -1,5 +1,5 @@
 import { button, esc } from "../funcoes/html.js";
-import { data, dataHora, numero, relativo } from "../funcoes/formato.js";
+import { data, dataHora, numero, relativo } from "../funcoes/formato.js?v=202609170930";
 import { emergencyPanel, manifestStatusBadge, pageHeader, manifestsTable, progress } from "../funcoes/view.js?v=202609151955";
 import { rotuloOcorrencia, rotuloStatusRomaneio, rotuloStatusSincronizacao } from "../funcoes/rotulos.js";
 export function occurrences(store) {

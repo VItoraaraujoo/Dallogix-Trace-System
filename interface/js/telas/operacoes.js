@@ -1,5 +1,5 @@
 import { button, esc } from "../funcoes/html.js";
-import { data, numero } from "../funcoes/formato.js";
+import { data, numero } from "../funcoes/formato.js?v=202609170930";
 import { agora } from "../funcoes/relogio.js?v=202609170015";
 import { rotuloEstado, rotuloStatusComando } from "../funcoes/rotulos.js";
 import {
