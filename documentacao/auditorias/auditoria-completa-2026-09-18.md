@@ -160,9 +160,11 @@ fluxos de simulação continuam sendo importados manualmente.
 
 O banco local terminou com 40 registros em `schema_migrations` nesta rodada.
 A migration histórica 034, que já existia no banco mas faltava no checkout, foi
-restaurada no repositório. O endpoint remoto informa apenas a contagem 40 e não
-expõe o nome do registro histórico adicional; essa identificação precisa ser
-feita diretamente no banco remoto antes de qualquer limpeza ou renomeação de
+restaurada no repositório. Após a publicação desta rodada, o endpoint remoto
+passou a informar 42 migrations, contra 40 no banco local; isso comprova dois
+registros históricos adicionais no servidor que não estão no checkout atual.
+O endpoint não expõe os nomes, então a identificação precisa ser feita
+diretamente no banco remoto antes de qualquer limpeza ou renomeação de
 histórico. Nenhuma migration deve ser apagada para forçar a contagem.
 
 ## 7. Revisão do frontend
@@ -318,9 +320,9 @@ histórico adicional do banco remoto.
   Dalas, configurações, logs de erros e histórico carregaram sem erro de
   aplicação; o horário e o indicador de sistema online foram exibidos.
 - O banco local terminou com 40 migrations aplicadas nesta rodada; a migration
-  034 histórica foi restaurada no repositório. O endpoint remoto informa apenas
-  a contagem, portanto o registro histórico extra do remoto precisa de consulta
-  direta antes de qualquer limpeza.
+  034 histórica foi restaurada no repositório. Após o deploy, o remoto informa
+  42: os dois registros históricos adicionais precisam de consulta direta no
+  banco antes de qualquer limpeza.
 
 ### Limitações mantidas
 
