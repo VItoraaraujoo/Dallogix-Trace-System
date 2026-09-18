@@ -1959,12 +1959,17 @@ textarea:focus-visible {
 
 .status {
   gap: 12px;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
+  align-items: stretch;
 }
 
 .status span {
   min-height: 42px;
   padding: 11px 14px;
   border-radius: 9px;
+  min-width: 0;
 }
 
 .progress {
@@ -2628,8 +2633,9 @@ textarea {
 }
 
 .company-card footer > .actions {
+  width: 100%;
   justify-content: flex-end;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   margin-top: 0;
 }
 
