@@ -20,7 +20,7 @@ if (
 
 $pdo = db();
 $statement = $pdo->prepare(
-    "SELECT password_hash FROM usuarios WHERE id = :id AND active = 1 LIMIT 1",
+    "SELECT password_hash, auth_version FROM usuarios WHERE id = :id AND active = 1 LIMIT 1",
 );
 $statement->execute(["id" => $usuario["id"]]);
 $stored = $statement->fetch();
@@ -31,7 +31,9 @@ if (!$stored || !password_verify($senhaAtual, (string) $stored["password_hash"])
 $pdo->beginTransaction();
 try {
     $update = $pdo->prepare(
-        "UPDATE usuarios SET password_hash = :password_hash, must_change_password = 0 WHERE id = :id AND active = 1",
+        "UPDATE usuarios SET password_hash = :password_hash, must_change_password = 0,
+            auth_version = auth_version + 1
+         WHERE id = :id AND active = 1",
     );
     $update->execute([
         "password_hash" => password_hash($novaSenha, PASSWORD_DEFAULT),
@@ -60,6 +62,7 @@ try {
 
 session_regenerate_id(true);
 $_SESSION["user"] = $usuarioAtualizado;
+$_SESSION["auth_version"] = (int) $stored["auth_version"] + 1;
 $_SESSION["user_validated_at"] = time();
 json_response([
     "data" => ["updated" => true],

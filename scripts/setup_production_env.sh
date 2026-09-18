@@ -25,4 +25,8 @@ with os.fdopen(fd, 'w') as f:
     f.write('\n'.join(lines) + '\n')
 print('OK: configuração de produção criada com segredos próprios; arquivo protegido.')
 PY
-bash "$root_dir/scripts/check_production_env.sh" "$target"
+# A configuração ainda não aponta para um banco de produção em execução. A
+# checagem de hashes de demonstração pertence ao banco já provisionado e não
+# pode consultar por engano o compose local do desenvolvedor durante a criação
+# deste ambiente isolado.
+TRACE_ENV_CHECK_SKIP_DATABASE=1 bash "$root_dir/scripts/check_production_env.sh" "$target"

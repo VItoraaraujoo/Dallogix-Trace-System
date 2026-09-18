@@ -140,7 +140,8 @@ try {
     if ($localUser) {
         $updateUser = $pdo->prepare(
             "UPDATE usuarios SET company_id = :company_id, name = :name, password_hash = :password_hash,
-                role = 'ADMIN_EMPRESA', active = 1, must_change_password = 0
+                role = 'ADMIN_EMPRESA', active = 1, must_change_password = 0,
+                auth_version = auth_version + 1
              WHERE id = :id",
         );
         $updateUser->execute([

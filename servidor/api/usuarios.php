@@ -117,7 +117,8 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
         json_response(["error" => "Você não pode desativar o próprio acesso."], 409);
     }
 
-    $sql = "UPDATE usuarios SET name = :name, role = :role, active = :active";
+    $sql = "UPDATE usuarios SET name = :name, role = :role, active = :active,
+        auth_version = auth_version + 1";
     $params = [
         "name" => $nome,
         "role" => $perfil,

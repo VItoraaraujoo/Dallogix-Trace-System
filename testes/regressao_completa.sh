@@ -35,7 +35,7 @@ if printf '%s' "$login" | grep -q '"authenticated":true'; then
   fi
 fi
 
-for i in $(seq 1 37); do
+for i in $(seq 1 39); do
   test_file="$root/testes/etapa${i}.sh"
   [ -f "$test_file" ] || continue
   # O Nginx limita login a 2 req/s; o intervalo evita falsos 503 entre etapas.

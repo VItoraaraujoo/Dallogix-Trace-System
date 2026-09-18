@@ -124,6 +124,8 @@ if ($sensorEventId) {
 
 $result = "SEM_LEITURA";
 $productId = null;
+$productPlannedQuantity = 0;
+$productValidCount = 0;
 if ($barcode !== "") {
     $productStatement = $pdo->prepare(
         'SELECT p.id
@@ -138,18 +140,45 @@ if ($barcode !== "") {
     $product = $productStatement->fetch();
     if ($product) {
         $plannedStatement = $pdo->prepare(
-            "SELECT 1 FROM romaneio_itens WHERE romaneio_id = :romaneio_id AND product_id = :product_id AND (truck_id = :truck_id OR truck_id IS NULL) LIMIT 1",
+            "SELECT COALESCE(SUM(ri.planned_quantity), 0) AS planned_quantity,
+                    COALESCE((
+                        SELECT COUNT(*)
+                        FROM leituras l
+                        WHERE l.carregamento_id = :carregamento_id
+                          AND l.product_id = :count_product_id
+                          AND l.result = 'VALIDO'
+                    ), 0) AS valid_count
+             FROM romaneio_itens ri
+             WHERE ri.romaneio_id = :romaneio_id
+               AND ri.product_id = :product_id
+               AND (ri.truck_id = :truck_id OR ri.truck_id IS NULL)",
         );
         $plannedStatement->execute([
+            "carregamento_id" => $loadingId,
+            "count_product_id" => $product["id"],
             "romaneio_id" => $loading["romaneio_id"],
             "product_id" => $product["id"],
             "truck_id" => $loading["truck_id"],
         ]);
-        $productId = (int) $product["id"];
-        $result = $plannedStatement->fetch() ? "VALIDO" : "PRODUTO_INCORRETO";
+        $productPlan = $plannedStatement->fetch() ?: [];
+        $productPlannedQuantity = (int) ($productPlan["planned_quantity"] ?? 0);
+        $productValidCount = (int) ($productPlan["valid_count"] ?? 0);
+        if ($productPlannedQuantity > 0) {
+            $productId = (int) $product["id"];
+            $result = "VALIDO";
+        } else {
+            $result = "PRODUTO_INCORRETO";
+        }
     } else {
         $result = "PRODUTO_INCORRETO";
     }
+}
+if (
+    $result === "VALIDO" &&
+    $productPlannedQuantity > 0 &&
+    $productValidCount >= $productPlannedQuantity
+) {
+    $result = "EXCESSO";
 }
 if ($result === "VALIDO" && $plannedQuantity > 0 && $validCount >= $plannedQuantity) {
     $result = "EXCESSO";

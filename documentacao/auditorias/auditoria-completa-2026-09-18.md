@@ -6,7 +6,7 @@ Escopo: aplicação web, APIs, banco, sincronização, Node-RED, Modbus virtual,
 
 ## 1. Resultado executivo
 
-O núcleo funcional passou pela regressão completa: **37 de 37 etapas aprovadas**.
+O núcleo funcional passou pela regressão completa: **39 de 39 etapas aprovadas**.
 Também passaram os testes de qualidade, security scan, permissões isoladas,
 navegação, API smoke, backup com checksum e Modbus TCP virtual.
 
@@ -21,7 +21,9 @@ Durante a auditoria foram encontrados e corrigidos três problemas comprovados:
    consulta de empresa introduzida pelo código atual.
 
 Após as correções, o worker voltou a enviar lotes sem erro, o fluxo CLP foi
-carregado no Node-RED real e todos os 37 testes passaram.
+carregado no Node-RED real e todos os 39 testes passaram. A rodada final também
+cobriu limite por produto no carregamento, revogação imediata de sessão após
+alteração de credencial e homologação HTTPS isolada com CSRF ativo.
 
 Isso **não equivale à homologação de um CLP físico**. A entrada em produção
 industrial continua bloqueada até confirmar em bancada o modelo, o módulo de
@@ -65,7 +67,7 @@ sincronização remota.
 
 | Área | Esperado | Resultado |
 | --- | --- | --- |
-| Regressão completa | Todas as etapas existentes aprovadas | **PASS — 37/37** |
+| Regressão completa | Todas as etapas existentes aprovadas | **PASS — 39/39** |
 | Login válido, inválido e logout | Sessão criada, senha inválida recusada e logout encerra acesso | **PASS** |
 | Sessão sem autenticação | APIs protegidas retornam 401 | **PASS** |
 | CSRF | Mutação sem token é recusada | **PASS — HTTP 419** |
@@ -147,9 +149,8 @@ fluxos de simulação continuam sendo importados manualmente.
 - Avaliação profissional dos helpers de sessão, banco, autorização, auditoria
   e log: **PASS**.
 - API smoke: **PASS**.
-- PHPStan/PHPUnit local: **NÃO EXECUTADOS** porque Composer e os binários
-  `vendor/bin/phpunit`/`vendor/bin/phpstan` não estão instalados neste checkout.
-  Os workflows do GitHub instalam e executam essas ferramentas.
+- PHPUnit/PHPStan local: **PASS** após instalar as dependências do checkout
+  (`1 teste, 2 assertions` e análise sem erros).
 - Banco local: 30 tabelas e 143 índices contabilizados.
 - `EXPLAIN` da fila usou os índices de status/disponibilidade e empresa; o
   plano do romaneio está adequado ao volume atual, mas usa filesort e deve ser
@@ -157,12 +158,12 @@ fluxos de simulação continuam sendo importados manualmente.
 
 ### Divergência de migrations
 
-O banco local terminou com 39 registros em `schema_migrations`, enquanto o
-endpoint remoto de prontidão informa 40. Os arquivos versionados no checkout
-terminam em `039`; o servidor mantém uma migration histórica adicional que não
-está presente no repositório atual. Não houve falha funcional observada, mas a
-paridade de histórico deve ser reconciliada antes de uma nova promoção de
-produção.
+O banco local terminou com 40 registros em `schema_migrations` nesta rodada.
+A migration histórica 034, que já existia no banco mas faltava no checkout, foi
+restaurada no repositório. O endpoint remoto informa apenas a contagem 40 e não
+expõe o nome do registro histórico adicional; essa identificação precisa ser
+feita diretamente no banco remoto antes de qualquer limpeza ou renomeação de
+histórico. Nenhuma migration deve ser apagada para forçar a contagem.
 
 ## 7. Revisão do frontend
 
@@ -257,42 +258,73 @@ ações destrutivas contra dados reais do servidor.
 - Atualizador remoto possui assinatura/manifesto, backup, migrations,
   healthcheck e rollback documentados.
 
-### Risco operacional encontrado
+### Risco operacional encontrado — resolvido no código
 
-`.github/workflows/deploy-test.yml` dispara em qualquer push para `master`, mas
-não possui `needs` nem mecanismo de `workflow_run` que aguarde os workflows
-separados de qualidade e segurança. Portanto, o código do workflow não garante
-sozinho a afirmação da documentação de que o deploy só ocorre após esses
-checks. Isso deve ser protegido por regras obrigatórias do GitHub ou por uma
-etapa de gate dentro do próprio workflow antes de considerar o pipeline
-homologado.
+`.github/workflows/deploy-test.yml` disparava em qualquer push para `master`,
+sem um gate local. O workflow agora executa Composer, PHPUnit, PHPStan,
+qualidade estática e security scan em `quality-gate`; o deploy depende desse job
+com `needs: quality-gate`. A proteção de branch do GitHub continua sendo uma
+camada recomendada, mas o pipeline já não publica um commit que falhe nesses
+checks básicos.
 
 ## 15. Tabela final de achados
 
 | Prioridade | Achado | Estado | Ação |
 | --- | --- | --- | --- |
 | P0 operacional | Mapa Modbus/I/O e CLP físico não homologados | Aberto por dependência externa | Confirmar em bancada antes de liberar escrita física |
-| P1 | Deploy de teste não está acoplado por código aos workflows de qualidade/segurança | Aberto | Exigir checks na proteção de `master` ou criar gate único |
-| P2 | Histórico de migrations local/remoto diverge: 39 × 40 | Aberto | Identificar e versionar/reconciliar a migration histórica |
+| P1 | Deploy de teste não estava acoplado por código aos checks | Corrigido | Gate `quality-gate` obrigatório no workflow de deploy |
+| P2 | Havia migration 034 aplicada no banco, mas ausente do checkout | Corrigido no repositório | Migration histórica 034 restaurada; validar o nome do registro extra já existente no servidor remoto antes da próxima promoção |
+| P2 | O servidor remoto mantém um registro histórico adicional não identificado no endpoint de prontidão | Aberto por dependência externa | Consultar `schema_migrations` diretamente no servidor e preservar o registro, sem inventar ou apagar histórico |
 | P2 ambiental | Prontidão local degrada com câmera sem heartbeat | Esperado no fixture, deve ser tratado no go-live | Provisionar câmera/worker e validar heartbeat real |
-| P2 | PHPUnit/PHPStan ausentes no checkout local | Limitação de execução | Rodar no CI ou instalar dependências para auditoria local |
+| P2 | PHPUnit/PHPStan não estavam instalados no checkout inicial | Corrigido nesta rodada | Dependências instaladas e PHPUnit/PHPStan aprovados |
 | P3 resolvido | `created_at` ambíguo no worker de sincronização | Corrigido | Manter teste de fila e monitorar novos logs |
 | P3 resolvido | Node-RED iniciava com fluxo vazio | Corrigido | Entrypoint carrega seed somente sobre placeholder |
-| P3 resolvido | Testes frágeis de paginação, fila e mock | Corrigido | Suíte passou 37/37 após ajustes |
+| P3 resolvido | Testes frágeis de paginação, fila e mock | Corrigido | Suíte passou 39/39 após ajustes |
+| P3 resolvido | Excesso era calculado somente pelo total do romaneio | Corrigido | Quantidade e leituras válidas agora são controladas por produto |
+| P3 resolvido | Sessão antiga permanecia válida até o cache expirar | Corrigido | `auth_version` invalida a sessão imediatamente após alteração sensível |
+| P3 resolvido | Smoke HTTPS podia consultar o banco local e falhar antes de criar o ambiente isolado | Corrigido | Preparação ignora a checagem de hashes somente antes do provisionamento novo |
+| P3 resolvido | Artefato `nginx.conf` criado como diretório interrompia a homologação | Corrigido | O preparador remove somente diretório vazio reservado ao arquivo |
 
 ## 16. Top 5 riscos antes do go-live
 
 1. Liberar escrita no CLP sem mapa e intertravamentos confirmados.
-2. Permitir deploy automático sem gate obrigatório de qualidade/segurança.
-3. Deixar a divergência de migrations sem reconciliação documentada.
-4. Instalar o PC industrial sem provisionar heartbeat da câmera e token próprio.
-5. Considerar os testes locais de carga e navegador como evidência de produção.
+2. Deixar o registro histórico adicional de migrations remoto sem identificação direta.
+3. Instalar o PC industrial sem provisionar heartbeat da câmera e token próprio.
+4. Considerar os testes locais de carga e navegador como evidência de produção.
+5. Liberar a escrita física no CLP antes de validar o mapa Modbus/I/O e os intertravamentos.
 
 ## 17. Conclusão
 
-O software, os fluxos de negócio, a fila, as permissões e a simulação Modbus
-estão em condição funcional para continuar a homologação. A suíte automatizada
-está verde após a correção dos problemas encontrados. A entrega ainda deve ser
-classificada como **aprovada para ambiente de teste e bancada**, não como
-aprovada para acionamento industrial real, até fechar os cinco riscos listados
-acima.
+O software, os fluxos de negócio, a fila, as permissões, a sessão, a
+simulação Modbus e a interface principal passaram pela rodada final. A entrega
+está **aprovada para ambiente de teste e bancada**. Ela ainda não deve ser
+classificada como aprovada para acionamento industrial real enquanto não forem
+confirmados o mapa Modbus/I/O, os intertravamentos, a câmera física e o registro
+histórico adicional do banco remoto.
+
+## 18. Atualização da rodada final
+
+### Validações executadas
+
+- Regressão ponta a ponta: **39/39 aprovadas** com CSRF e rate limit restaurados
+  após a execução determinística; o worker foi pausado somente durante a etapa
+  de fila e religado ao final.
+- `composer validate`, PHPUnit (**1 teste, 2 assertions**) e PHPStan: **PASS**.
+- `testes/qualidade.sh`, `scripts/security_scan.sh` e smoke de autenticação da
+  API: **PASS**.
+- Homologação HTTPS isolada: **PASS** para TLS, cookies Secure/HttpOnly,
+  SameSite, CSP, CSRF, logout e restrição de operador.
+- Interface local em Chrome: login e telas de dashboard, romaneios, produtos,
+  Dalas, configurações, logs de erros e histórico carregaram sem erro de
+  aplicação; o horário e o indicador de sistema online foram exibidos.
+- O banco local terminou com 40 migrations aplicadas nesta rodada; a migration
+  034 histórica foi restaurada no repositório. O endpoint remoto informa apenas
+  a contagem, portanto o registro histórico extra do remoto precisa de consulta
+  direta antes de qualquer limpeza.
+
+### Limitações mantidas
+
+- O teste Modbus usa o simulador TCP e não substitui o teste com CLP físico.
+- A câmera sem worker/heartbeat deixa a prontidão local como `degraded`, como
+  esperado no ambiente de desenvolvimento.
+- Firefox, Edge e Safari não foram executados nesta máquina.

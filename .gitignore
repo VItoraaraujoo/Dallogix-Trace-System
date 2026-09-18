@@ -10,6 +10,8 @@ armazenamento/backups/
 armazenamento/updates/
 armazenamento/logs/
 tmp/
+/vendor/
+/var/
 .codegraph/
 
 armazenamento/producao-teste/

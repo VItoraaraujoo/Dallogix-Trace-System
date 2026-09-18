@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import secrets
 import subprocess
+import time
 
 ROOT = Path(__file__).resolve().parents[1]
 STATE = ROOT / 'armazenamento/producao-teste'
@@ -17,9 +18,28 @@ def run(args, **kwargs):
 
 
 def sql(statement):
-    return run(COMPOSE + ['exec', '-T', 'mysql', 'sh', '-c',
-        'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -N -u root "$MYSQL_DATABASE"'],
-        input=statement, text=True, capture_output=True).stdout.strip()
+    command = COMPOSE + ['exec', '-T', 'mysql', 'sh', '-c',
+        'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -N -u root "$MYSQL_DATABASE"']
+    last_result = None
+    for _ in range(10):
+        result = subprocess.run(
+            command,
+            cwd=ROOT,
+            input=statement,
+            text=True,
+            capture_output=True,
+        )
+        if result.returncode == 0:
+            return result.stdout.strip()
+        last_result = result
+        time.sleep(2)
+    assert last_result is not None
+    raise subprocess.CalledProcessError(
+        last_result.returncode,
+        command,
+        output=last_result.stdout,
+        stderr=last_result.stderr,
+    )
 
 
 def main():
@@ -49,7 +69,15 @@ def main():
         run(['openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-days', '30',
              '-keyout', str(tls / 'privkey.pem'), '-out', str(tls / 'fullchain.pem'), '-config', str(conf)], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         (tls / 'privkey.pem').chmod(0o600)
-    (STATE / 'nginx.conf').write_text((ROOT / 'nginx/https.conf.example').read_text().replace('__APP_URL__', 'https://localhost:8443'))
+    nginx_config = STATE / 'nginx.conf'
+    # Docker pode deixar um diretório vazio quando o bind mount de um arquivo
+    # ainda não existia em uma tentativa interrompida. Remova somente esse
+    # artefato vazio e preserve qualquer conteúdo inesperado.
+    if nginx_config.is_dir():
+        if any(nginx_config.iterdir()):
+            raise SystemExit(f'ERRO: caminho reservado para nginx.conf contém arquivos: {nginx_config}')
+        nginx_config.rmdir()
+    nginx_config.write_text((ROOT / 'nginx/https.conf.example').read_text().replace('__APP_URL__', 'https://localhost:8443'))
     run(COMPOSE + ['up', '-d', '--build', '--wait', 'mysql', 'php'])
     sql('CREATE TABLE IF NOT EXISTS trace_deployment_migrations (name VARCHAR(190) PRIMARY KEY);')
     applied = set(sql('SELECT name FROM trace_deployment_migrations').splitlines())

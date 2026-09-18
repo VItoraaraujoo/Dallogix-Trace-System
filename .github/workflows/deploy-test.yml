@@ -13,7 +13,32 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  quality-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+      - name: Configure PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist
+      - name: Validate Composer manifest
+        run: composer validate --no-check-publish
+      - name: Run PHPUnit
+        run: composer test
+      - name: Run PHPStan
+        run: composer analyse -- --no-progress
+      - name: Validate project files
+        run: bash testes/qualidade.sh
+      - name: Scan for high-risk secrets
+        run: bash scripts/security_scan.sh
+
   deploy:
+    needs: quality-gate
     runs-on: ubuntu-latest
     environment: test
     steps:

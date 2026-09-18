@@ -504,13 +504,8 @@ function exigir_sessao_usuario(bool $permitirTrocaSenha = false): array
     if ($usuario === null) {
         responder_json(["error" => "Autenticação necessária."], 401);
     }
-    $validatedAt = (int) ($_SESSION["user_validated_at"] ?? 0);
-    $cachedUser = $_SESSION["user"];
-    if ($validatedAt > time() - 30 && is_array($cachedUser)) {
-        return $cachedUser;
-    }
     $consulta = obter_conexao_banco()->prepare(
-        "SELECT u.id, u.company_id, u.name, u.email, u.role, u.active, u.must_change_password,
+        "SELECT u.id, u.company_id, u.name, u.email, u.role, u.active, u.must_change_password, u.auth_version,
                 e.login_domain AS company_login_domain
          FROM usuarios u
          LEFT JOIN empresas e ON e.id = u.company_id
@@ -525,8 +520,15 @@ function exigir_sessao_usuario(bool $permitirTrocaSenha = false): array
         session_destroy();
         responder_json(["error" => "Sessão expirada ou acesso desativado."], 401);
     }
+    $sessionAuthVersion = (int) ($_SESSION["auth_version"] ?? 0);
+    if ($sessionAuthVersion > 0 && $sessionAuthVersion !== (int) $usuarioAtual["auth_version"]) {
+        $_SESSION = [];
+        session_destroy();
+        responder_json(["error" => "A sessão foi encerrada porque as credenciais foram alteradas."], 401);
+    }
     $usuarioPublico = usuario_publico($usuarioAtual);
     $_SESSION["user"] = $usuarioPublico;
+    $_SESSION["auth_version"] = (int) $usuarioAtual["auth_version"];
     $_SESSION["user_validated_at"] = time();
     return $usuarioPublico;
 }

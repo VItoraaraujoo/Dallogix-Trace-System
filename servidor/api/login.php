@@ -38,7 +38,7 @@ if (mb_strlen($password) < 6 || mb_strlen($password) > 128) {
 verificar_taxa_de_login($email);
 
 $statement = obter_conexao_banco()->prepare(
-    "SELECT u.id, u.company_id, u.name, u.email, u.password_hash, u.role, u.active, u.must_change_password,
+    "SELECT u.id, u.company_id, u.name, u.email, u.password_hash, u.role, u.active, u.must_change_password, u.auth_version,
             e.login_domain AS company_login_domain
      FROM usuarios u
      LEFT JOIN empresas e ON e.id = u.company_id
@@ -72,6 +72,7 @@ if (password_needs_rehash($usuario["password_hash"], PASSWORD_DEFAULT)) {
 
 session_regenerate_id(true);
 $_SESSION["user"] = usuario_publico($usuario);
+$_SESSION["auth_version"] = (int) $usuario["auth_version"];
 $_SESSION["user_validated_at"] = time();
 
 responder_json([
