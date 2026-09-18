@@ -38,6 +38,8 @@ fi
 for i in $(seq 1 37); do
   test_file="$root/testes/etapa${i}.sh"
   [ -f "$test_file" ] || continue
+  # O Nginx limita login a 2 req/s; o intervalo evita falsos 503 entre etapas.
+  sleep "${TRACE_REGRESSION_STAGE_DELAY:-1}"
   if bash "$test_file"; then
     pass=$((pass + 1))
   else

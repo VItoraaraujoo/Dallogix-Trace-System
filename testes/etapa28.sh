@@ -7,7 +7,7 @@ fail() { echo "FAIL: $1"; exit 1; }
 dashboard="$root/interface/js/telas/painel.js"
 app="$root/interface/js/aplicacao.js"
 css="$root/interface/css/light-theme.css"
-monitoring="$root/servidor/api/monitoramento.php"
+monitoring="$root/servidor/src/Aplicacao/ServicoMonitoramento.php"
 
 grep -q 'data-action="view-manifest"' "$dashboard" || fail "dashboard sem acesso ao romaneio"
 grep -q 'data-action="view-dala"' "$dashboard" || fail "dashboard sem acesso à Dala"

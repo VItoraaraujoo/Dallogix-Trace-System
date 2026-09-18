@@ -92,8 +92,14 @@ try {
             $row[$index["quantidade"]] ?? null,
             FILTER_VALIDATE_INT,
         );
-        $driverName = trim((string) ($row[$index["motorista"]] ?? ""));
-        $shipper = trim((string) ($row[$index["expedidor"]] ?? ""));
+        $driverIndex = $index["motorista"] ?? null;
+        $shipperIndex = $index["expedidor"] ?? null;
+        $driverName = $driverIndex === null
+            ? ""
+            : trim((string) ($row[$driverIndex] ?? ""));
+        $shipper = $shipperIndex === null
+            ? ""
+            : trim((string) ($row[$shipperIndex] ?? ""));
         $date = null;
         foreach (["Y-m-d", "d/m/Y"] as $format) {
             $candidate = DateTime::createFromFormat("!{$format}", $dateValue);

@@ -17,7 +17,11 @@ if ! printf '%s' "$login" | grep -q '"authenticated":true'; then
   exit 1
 fi
 
-loading_id="${TRACE_LOADING_ID:-$(ensure_loading_carregando)}"
+if [[ -n "${TRACE_LOADING_ID:-}" ]]; then
+  loading_id="$TRACE_LOADING_ID"
+else
+  TRACE_FORCE_NEW_LOADING=1 loading_id="$(ensure_loading_carregando)"
+fi
 [ -n "$loading_id" ] || { echo "FAIL: nenhum carregamento CARREGANDO disponível"; exit 1; }
 
 curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" -d '{"equipment_id":1,"device_type":"CLP","status":"ONLINE"}' "$base_url/api/device_heartbeat.php" >/dev/null
