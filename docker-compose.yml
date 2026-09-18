@@ -218,11 +218,12 @@ services:
       SYNC_REMOTE_BATCH_URL: ${SYNC_REMOTE_BATCH_URL:-}
       SYNC_REMOTE_TOKEN: ${SYNC_REMOTE_TOKEN:-}
       SYNC_BATCH_SIZE: ${SYNC_BATCH_SIZE:-50}
+      SYNC_POLL_INTERVAL_SECONDS: ${SYNC_POLL_INTERVAL_SECONDS:-1}
     command:
       [
         "sh",
         "-c",
-        "while true; do php /var/www/scripts/sync_worker.php; sleep 5; done",
+        "while true; do php /var/www/scripts/sync_worker.php; sleep \"$${SYNC_POLL_INTERVAL_SECONDS:-1}\"; done",
       ]
     volumes:
       - ./servidor:/var/www/servidor:ro

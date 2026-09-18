@@ -65,11 +65,19 @@ final class ServicoSincronizacao
         // A descoberta por empresa acontece antes de reserveBatch(), portanto a
         // recuperação precisa ocorrer aqui também para incluir filas expiradas.
         $this->recoverStaleReservations();
-        $batchUrl = $this->batchRemoteUrl();
-        $globalRemoteUrl = $this->remoteUrl();
+        $installedCompanyId = $this->installedCompanyId();
+        $installedRemoteUrl = $installedCompanyId !== null
+            ? $this->remoteUrl($installedCompanyId)
+            : "";
+        $usesInstalledSync = $installedCompanyId !== null && $installedRemoteUrl !== "";
+        $batchUrl = $usesInstalledSync ? "" : $this->batchRemoteUrl();
+        $globalRemoteUrl = $usesInstalledSync ? "" : $this->remoteUrl();
         $companyIds = $batchUrl !== "" || $globalRemoteUrl !== ""
             ? [null]
             : $this->companiesWithRemoteUrl();
+        if ($usesInstalledSync) {
+            $companyIds = [$installedCompanyId];
+        }
         $summary = ["reserved" => 0, "sent" => 0, "failed" => 0, "skipped" => 0];
 
         foreach ($companyIds as $companyId) {
@@ -243,7 +251,7 @@ final class ServicoSincronizacao
             "payload" => $this->decodePayload($event),
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 
-        return $this->postJson($remoteUrl, $body);
+        return $this->postJson($remoteUrl, $body, (int) $event["company_id"]);
     }
 
     /** @return array{ok:bool,error:string,http_code:int} */
@@ -272,10 +280,10 @@ final class ServicoSincronizacao
     }
 
     /** @return array{ok:bool,error:string,http_code:int} */
-    private function postJson(string $remoteUrl, string $body): array
+    private function postJson(string $remoteUrl, string $body, ?int $companyId = null): array
     {
         $headers = ["Content-Type: application/json"];
-        $token = trim((string) (getenv("SYNC_REMOTE_TOKEN") ?: ""));
+        $token = $this->remoteToken($companyId);
         if ($token !== "") {
             if (preg_match('/[\r\n]/', $token) === 1) {
                 return ["ok" => false, "error" => "Token de sincronização inválido.", "http_code" => 0];
@@ -426,15 +434,44 @@ final class ServicoSincronizacao
 
     private function remoteUrl(?int $companyId = null): string
     {
-        $global = trim((string) (getenv("SYNC_REMOTE_URL") ?: ""));
-        if ($global !== "" || $companyId === null) {
-            return $global;
+        if ($companyId !== null) {
+            $statement = $this->connection->prepare(
+                "SELECT sync_remote_url FROM configuracoes_empresa WHERE company_id = :company_id LIMIT 1",
+            );
+            $statement->execute(["company_id" => $companyId]);
+            $configured = trim((string) ($statement->fetchColumn() ?: ""));
+            if ($configured !== "") {
+                return $configured;
+            }
         }
-        $statement = $this->connection->prepare(
-            "SELECT sync_remote_url FROM configuracoes_empresa WHERE company_id = :company_id LIMIT 1",
+        return trim((string) (getenv("SYNC_REMOTE_URL") ?: ""));
+    }
+
+    private function remoteToken(?int $companyId = null): string
+    {
+        if ($companyId !== null) {
+            $statement = $this->connection->prepare(
+                "SELECT i.sync_token
+                 FROM instalacoes_locais i
+                 WHERE i.id = 1 AND i.company_id = :company_id
+                 LIMIT 1",
+            );
+            $statement->execute(["company_id" => $companyId]);
+            $configured = trim((string) ($statement->fetchColumn() ?: ""));
+            if ($configured !== "") {
+                return $configured;
+            }
+        }
+        return trim((string) (getenv("SYNC_REMOTE_TOKEN") ?: ""));
+    }
+
+    private function installedCompanyId(): ?int
+    {
+        $statement = $this->connection->query(
+            "SELECT company_id FROM instalacoes_locais WHERE id = 1 AND sync_token IS NOT NULL LIMIT 1",
         );
-        $statement->execute(["company_id" => $companyId]);
-        return trim((string) ($statement->fetchColumn() ?: ""));
+        $companyId = $statement->fetchColumn();
+        return $companyId === false ? null : (int) $companyId;
     }
 
     private function batchRemoteUrl(): string

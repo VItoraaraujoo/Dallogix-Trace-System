@@ -99,7 +99,12 @@ final class ServicoEstadoCarregamento
                 "ESTADO_CARREGAMENTO_ALTERADO",
                 "carregamento",
                 $loadingId,
-                ["previous_state" => $current["state"], "state" => $target],
+                [
+                    "previous_state" => $current["state"],
+                    "state" => $target,
+                    "remote_carregamento_id" => $current["remote_carregamento_id"] === null
+                        ? null : (int) $current["remote_carregamento_id"],
+                ],
             );
             $this->connection->commit();
             return [
@@ -118,7 +123,7 @@ final class ServicoEstadoCarregamento
     private function findLoading(int $loadingId, int $companyId): array|false
     {
         $statement = $this->connection->prepare(
-            "SELECT id, state, equipment_id FROM carregamentos
+            "SELECT id, state, equipment_id, remote_carregamento_id FROM carregamentos
              WHERE id = :id AND company_id = :company_id LIMIT 1 FOR UPDATE",
         );
         $statement->execute(["id" => $loadingId, "company_id" => $companyId]);

@@ -25,6 +25,15 @@ $details = isset($payload["details"])
     ? json_encode($payload["details"], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR)
     : null;
 $pdo = db();
+$equipmentMetaStatement = $pdo->prepare(
+    "SELECT remote_equipment_id, equipment_code
+     FROM equipamentos WHERE id = :equipment_id AND company_id = :company_id LIMIT 1",
+);
+$equipmentMetaStatement->execute([
+    "equipment_id" => $device["equipment_id"],
+    "company_id" => $device["company_id"],
+]);
+$equipmentMeta = $equipmentMetaStatement->fetch() ?: [];
 $pdo->beginTransaction();
 try {
     $current = $pdo->prepare(
@@ -67,6 +76,9 @@ try {
                 "device_type" => $device["device_type"],
                 "previous_status" => $previous["status"] ?? null,
                 "status" => $status,
+                "remote_equipment_id" => $equipmentMeta["remote_equipment_id"] === null
+                    ? null : (int) $equipmentMeta["remote_equipment_id"],
+                "equipment_code" => $equipmentMeta["equipment_code"] ?? null,
             ],
         );
     }

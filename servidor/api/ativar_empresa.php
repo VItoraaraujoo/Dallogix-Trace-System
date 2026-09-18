@@ -137,6 +137,7 @@ try {
         throw new RuntimeException("O login informado já pertence a outra empresa local.");
     }
     $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+    $localUserId = 0;
     if ($localUser) {
         $updateUser = $pdo->prepare(
             "UPDATE usuarios SET company_id = :company_id, name = :name, password_hash = :password_hash,
@@ -150,6 +151,7 @@ try {
             "password_hash" => $passwordHash,
             "id" => $localUser["id"],
         ]);
+        $localUserId = (int) $localUser["id"];
     } else {
         $insertUser = $pdo->prepare(
             "INSERT INTO usuarios (company_id, name, email, password_hash, role, active, must_change_password)
@@ -161,20 +163,35 @@ try {
             "email" => $email,
             "password_hash" => $passwordHash,
         ]);
+        $localUserId = (int) $pdo->lastInsertId();
     }
 
     $installation = $pdo->prepare(
         "INSERT INTO instalacoes_locais
-            (id, company_id, remote_company_id, company_name, login_domain, activated_at)
-         VALUES (1, :company_id, :remote_company_id, :company_name, :login_domain, NOW())
+            (id, company_id, remote_company_id, company_name, login_domain, sync_token, activated_at)
+         VALUES (1, :company_id, :remote_company_id, :company_name, :login_domain, :sync_token, NOW())
          ON DUPLICATE KEY UPDATE company_id = VALUES(company_id), remote_company_id = VALUES(remote_company_id),
-            company_name = VALUES(company_name), login_domain = VALUES(login_domain), activated_at = VALUES(activated_at)",
+            company_name = VALUES(company_name), login_domain = VALUES(login_domain),
+            sync_token = VALUES(sync_token), activated_at = VALUES(activated_at)",
     );
     $installation->execute([
         "company_id" => $localCompanyId,
         "remote_company_id" => $remoteCompany["company_id"],
         "company_name" => $remoteCompany["name"],
         "login_domain" => $remoteCompany["login_domain"],
+        "sync_token" => $code,
+    ]);
+
+    $syncUrl = rtrim($centralUrl, "/") . "/api/sincronizacao_eventos.php";
+    $settings = $pdo->prepare(
+        "INSERT INTO configuracoes_empresa (company_id, sync_remote_url, updated_by)
+         VALUES (:company_id, :sync_remote_url, :updated_by)
+         ON DUPLICATE KEY UPDATE sync_remote_url = VALUES(sync_remote_url), updated_by = VALUES(updated_by)",
+    );
+    $settings->execute([
+        "company_id" => $localCompanyId,
+        "sync_remote_url" => $syncUrl,
+        "updated_by" => $localUserId,
     ]);
     $pdo->commit();
 } catch (Throwable $exception) {

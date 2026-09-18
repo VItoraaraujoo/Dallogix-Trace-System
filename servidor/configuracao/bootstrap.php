@@ -237,6 +237,43 @@ function require_device_token(array $allowedDeviceTypes = []): array
     ];
 }
 
+function token_bearer_instalacao(): string
+{
+    $authorization = trim((string) ($_SERVER["HTTP_AUTHORIZATION"] ?? ""));
+    if (preg_match('/^Bearer\s+(.+)$/i', $authorization, $matches)) {
+        return trim((string) $matches[1]);
+    }
+    return trim((string) ($_SERVER["HTTP_X_INSTALLATION_TOKEN"] ?? ""));
+}
+
+/** @return array{id:int,name:string,login_domain:string} */
+function exigir_instalacao_remota(): array
+{
+    $token = token_bearer_instalacao();
+    if ($token === "" || strlen($token) > 128) {
+        responder_json(["error" => "Credencial da instalação ausente ou inválida."], 401);
+    }
+
+    $normalized = str_replace("-", "", strtoupper($token));
+    $statement = obter_conexao_banco()->prepare(
+        "SELECT id, name, login_domain
+         FROM empresas
+         WHERE archived_at IS NULL AND activation_code_hash = :code_hash
+         LIMIT 1",
+    );
+    $statement->execute(["code_hash" => hash("sha256", $normalized)]);
+    $company = $statement->fetch();
+    if (!$company) {
+        responder_json(["error" => "Credencial da instalação inválida."], 401);
+    }
+
+    return [
+        "id" => (int) $company["id"],
+        "name" => (string) $company["name"],
+        "login_domain" => (string) $company["login_domain"],
+    ];
+}
+
 function validar_licenca_ativa(PDO $pdo, int $companyId): array
 {
     $statement = $pdo->prepare(

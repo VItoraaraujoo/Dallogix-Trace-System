@@ -96,6 +96,8 @@ final class ServicoComandoClp
                     "command" => $command,
                     "carregamento_id" => $loadingId,
                     "equipment_id" => (int) $loading["equipment_id"],
+                    "remote_carregamento_id" => $loading["remote_carregamento_id"] === null
+                        ? null : (int) $loading["remote_carregamento_id"],
                     "requires_clp_adapter" => true,
                 ],
             );
@@ -134,7 +136,8 @@ final class ServicoComandoClp
     private function findLoading(int $loadingId, int $companyId): array|false
     {
         $statement = $this->connection->prepare(
-            "SELECT id, state, equipment_id FROM carregamentos WHERE id = :id AND company_id = :company_id LIMIT 1 FOR UPDATE",
+            "SELECT id, state, equipment_id, remote_carregamento_id
+             FROM carregamentos WHERE id = :id AND company_id = :company_id LIMIT 1 FOR UPDATE",
         );
         $statement->execute(["id" => $loadingId, "company_id" => $companyId]);
         return $statement->fetch();

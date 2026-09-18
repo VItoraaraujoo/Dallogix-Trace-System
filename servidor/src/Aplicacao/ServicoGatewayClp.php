@@ -32,11 +32,15 @@ final class ServicoGatewayClp
         $this->connection->beginTransaction();
         try {
             $expired = $this->connection->prepare(
-                "SELECT id, company_id, equipment_id, carregamento_id, command
-                 FROM solicitacoes_comandos_clp
-                 WHERE equipment_id = :equipment_id AND status = 'PROCESSANDO'
+                "SELECT r.id, r.company_id, r.equipment_id, r.carregamento_id, r.command,
+                        r.remote_command_id, c.remote_carregamento_id,
+                        e.remote_equipment_id, e.equipment_code
+                 FROM solicitacoes_comandos_clp r
+                 JOIN carregamentos c ON c.id = r.carregamento_id
+                 JOIN equipamentos e ON e.id = r.equipment_id
+                 WHERE r.equipment_id = :equipment_id AND r.status = 'PROCESSANDO'
                    AND expires_at < NOW(3)
-                 ORDER BY id FOR UPDATE",
+                 ORDER BY r.id FOR UPDATE",
             );
             $expired->execute(["equipment_id" => $equipmentId]);
             $expire = $this->connection->prepare(
@@ -58,15 +62,26 @@ final class ServicoGatewayClp
                         "carregamento_id" => (int) $request["carregamento_id"],
                         "command" => $request["command"],
                         "device_id" => $deviceId,
+                        "remote_command_id" => $request["remote_command_id"] === null
+                            ? null : (int) $request["remote_command_id"],
+                        "remote_carregamento_id" => $request["remote_carregamento_id"] === null
+                            ? null : (int) $request["remote_carregamento_id"],
+                        "remote_equipment_id" => $request["remote_equipment_id"] === null
+                            ? null : (int) $request["remote_equipment_id"],
+                        "equipment_code" => $request["equipment_code"],
                     ],
                 );
             }
 
             $statement = $this->connection->prepare(
-                "SELECT id, company_id, equipment_id, carregamento_id, command, requested_at
-                 FROM solicitacoes_comandos_clp
-                 WHERE equipment_id = :equipment_id AND status = 'PENDENTE'
-                 ORDER BY requested_at, id
+                "SELECT r.id, r.company_id, r.equipment_id, r.carregamento_id, r.command, r.requested_at,
+                        r.remote_command_id, c.remote_carregamento_id,
+                        e.remote_equipment_id, e.equipment_code
+                 FROM solicitacoes_comandos_clp r
+                 JOIN carregamentos c ON c.id = r.carregamento_id
+                 JOIN equipamentos e ON e.id = r.equipment_id
+                 WHERE r.equipment_id = :equipment_id AND r.status = 'PENDENTE'
+                 ORDER BY r.requested_at, r.id
                  LIMIT 1 FOR UPDATE SKIP LOCKED",
             );
             $statement->execute(["equipment_id" => $equipmentId]);
@@ -120,11 +135,15 @@ final class ServicoGatewayClp
         $this->connection->beginTransaction();
         try {
             $statement = $this->connection->prepare(
-                "SELECT id, company_id, equipment_id, command, carregamento_id
-                 FROM solicitacoes_comandos_clp
-                 WHERE id = :id AND claimed_by_device_id = :device_id
-                   AND status = 'PROCESSANDO'
-                   AND (expires_at IS NULL OR expires_at >= NOW(3))
+                "SELECT r.id, r.company_id, r.equipment_id, r.command, r.carregamento_id,
+                        r.remote_command_id, c.remote_carregamento_id,
+                        e.remote_equipment_id, e.equipment_code
+                 FROM solicitacoes_comandos_clp r
+                 JOIN carregamentos c ON c.id = r.carregamento_id
+                 JOIN equipamentos e ON e.id = r.equipment_id
+                 WHERE r.id = :id AND r.claimed_by_device_id = :device_id
+                   AND r.status = 'PROCESSANDO'
+                   AND (r.expires_at IS NULL OR r.expires_at >= NOW(3))
                  LIMIT 1 FOR UPDATE",
             );
             $statement->execute(["id" => $requestId, "device_id" => $deviceId]);
@@ -170,6 +189,13 @@ final class ServicoGatewayClp
                     "status" => $status,
                     "message" => $message,
                     "device_id" => $deviceId,
+                    "remote_command_id" => $request["remote_command_id"] === null
+                        ? null : (int) $request["remote_command_id"],
+                    "remote_carregamento_id" => $request["remote_carregamento_id"] === null
+                        ? null : (int) $request["remote_carregamento_id"],
+                    "remote_equipment_id" => $request["remote_equipment_id"] === null
+                        ? null : (int) $request["remote_equipment_id"],
+                    "equipment_code" => $request["equipment_code"],
                 ],
             );
 
@@ -217,6 +243,8 @@ final class ServicoGatewayClp
                             "command_request_id" => $requestId,
                             "command" => $request["command"],
                             "device_id" => $deviceId,
+                            "remote_carregamento_id" => $request["remote_carregamento_id"] === null
+                                ? null : (int) $request["remote_carregamento_id"],
                         ],
                     );
                 }
