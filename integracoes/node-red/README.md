@@ -4,6 +4,12 @@
 
 O arquivo `trace-clp-bridge.flow.json` pode ser importado no Node-RED local. Ele contém somente nós nativos e começa em modo seguro:
 
+No `docker compose` do projeto, esse fluxo de referência é carregado
+automaticamente quando o volume do Node-RED ainda contém apenas o `Flow 1`
+vazio criado pela imagem. Um fluxo já configurado pelo operador é preservado;
+os fluxos de simulação continuam sendo importados manualmente quando
+necessário.
+
 - publica o heartbeat do CLP a cada 1 segundo;
 - consulta a fila de comandos a cada 2 segundos;
 - reserva comandos pela API e os conclui como `REJEITADO` enquanto o mapa de I/O estiver como `CONFIRMAR`;

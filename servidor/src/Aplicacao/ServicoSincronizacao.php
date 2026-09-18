@@ -130,7 +130,7 @@ final class ServicoSincronizacao
 
             $statement = $this->connection->prepare(
                 "SELECT q.id, q.company_id, e.remote_company_id, q.event_uuid, q.aggregate_type, q.aggregate_id, q.payload,
-                        status, attempts, last_error, available_at, created_at
+                        q.status, q.attempts, q.last_error, q.available_at, q.created_at
                  FROM fila_sincronizacao q
                  LEFT JOIN empresas e ON e.id = q.company_id
                  WHERE " . implode(" AND ", $where) .

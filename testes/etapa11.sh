@@ -19,7 +19,7 @@ if ! printf '%s' "$result" | grep -q '"items":1'; then
   exit 1
 fi
 
-romaneios="$(curl -sS -b "$cookie_file" "$base_url/api/romaneios.php")"
+romaneios="$(curl -sS -G -b "$cookie_file" --data-urlencode "number=$test_number" "$base_url/api/romaneios.php")"
 if ! printf '%s' "$romaneios" | grep -q "$test_number"; then
   echo "FAIL: romaneio importado não foi listado"
   exit 1

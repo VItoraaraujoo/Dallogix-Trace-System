@@ -13,6 +13,7 @@ class TestStatement extends PDOStatement {
         return true;
     }
     public function fetch(int $mode = PDO::FETCH_DEFAULT, int $orientation = PDO::FETCH_ORI_NEXT, int $offset = 0): mixed {
+        if (str_contains($this->sql, 'FROM empresas')) return ['id' => 1, 'login_domain' => 'empresa.test', 'archived_at' => null];
         if (str_contains($this->sql, 'FROM usuarios')) return ['id' => 2, 'role' => 'ADMIN_EMPRESA', 'active' => 1];
         if (str_contains($this->sql, 'FROM equipamentos')) return ['id' => 1];
         if (str_contains($this->sql, 'FROM acoes_dala')) return false;

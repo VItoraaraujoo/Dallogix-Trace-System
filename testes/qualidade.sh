@@ -43,5 +43,7 @@ fi
 python3 -m py_compile scripts/test_modbus_virtual.py integracoes/modbus-virtual/server.py
 bash -n scripts/check_production_env.sh
 bash -n scripts/check_physical_deployment.sh scripts/launch_kiosk.sh
+sh -n integracoes/node-red/entrypoint.sh
+grep -q 'entrypoint: \["/bin/sh", "/seed/entrypoint.sh"\]' docker-compose.yml
 
 echo 'OK: sintaxe PHP/JavaScript e referências órfãs verificadas.'
