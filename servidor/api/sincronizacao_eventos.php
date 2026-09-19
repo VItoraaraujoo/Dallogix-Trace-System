@@ -118,6 +118,8 @@ $deleteEquipment = static function (PDO $connection, int $companyId, int $remote
     if ($equipmentId === 0) {
         return 0;
     }
+    $connection->prepare("DELETE FROM gatilhos_dala WHERE equipment_id = :id")->execute(["id" => $equipmentId]);
+    $connection->prepare("DELETE FROM acoes_dala WHERE equipment_id = :id")->execute(["id" => $equipmentId]);
     $connection->prepare("DELETE FROM status_dispositivos WHERE equipment_id = :id")->execute(["id" => $equipmentId]);
     try {
         $connection->prepare("DELETE FROM equipamentos WHERE id = :id AND company_id = :company_id")->execute([

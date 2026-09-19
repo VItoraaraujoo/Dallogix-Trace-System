@@ -281,6 +281,14 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
     }
     try {
         $pdo->beginTransaction();
+        // As ações e o gatilho padrão são criados junto com toda Dala nova.
+        // Eles não podem permanecer apontando para um equipamento removido.
+        $pdo->prepare("DELETE FROM gatilhos_dala WHERE equipment_id = :id")->execute([
+            "id" => $id,
+        ]);
+        $pdo->prepare("DELETE FROM acoes_dala WHERE equipment_id = :id")->execute([
+            "id" => $id,
+        ]);
         $pdo->prepare(
             "DELETE FROM status_dispositivos WHERE equipment_id = :id",
         )->execute(["id" => $id]);
