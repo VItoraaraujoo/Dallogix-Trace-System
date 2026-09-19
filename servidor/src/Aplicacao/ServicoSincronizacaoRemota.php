@@ -148,6 +148,7 @@ final class ServicoSincronizacaoRemota
                 $equipmentIds[(int) $remoteEquipment["id"]] = $this->upsertEquipment($companyId, $remoteEquipment);
                 $updated++;
             }
+            $updated += $this->removeStaleRemoteEquipment($companyId, array_keys($equipmentIds));
 
             $loadingIds = [];
             foreach (($snapshot["carregamentos_ativos"] ?? []) as $remoteLoading) {
@@ -209,6 +210,63 @@ final class ServicoSincronizacaoRemota
             }
             throw $exception;
         }
+    }
+
+    /** @param list<int> $remoteEquipmentIds */
+    private function removeStaleRemoteEquipment(int $companyId, array $remoteEquipmentIds): int
+    {
+        $remoteEquipmentIds = array_values(array_unique(array_filter(
+            array_map(static fn (mixed $id): int => (int) $id, $remoteEquipmentIds),
+            static fn (int $id): bool => $id > 0,
+        )));
+        $where = ["company_id = :company_id", "remote_equipment_id IS NOT NULL"];
+        $params = ["company_id" => $companyId];
+        if ($remoteEquipmentIds !== []) {
+            $placeholders = [];
+            foreach ($remoteEquipmentIds as $index => $remoteId) {
+                $key = "remote_equipment_id_{$index}";
+                $placeholders[] = ":{$key}";
+                $params[$key] = $remoteId;
+            }
+            $where[] = "remote_equipment_id NOT IN (" . implode(",", $placeholders) . ")";
+        }
+        $stale = $this->connection->prepare(
+            "SELECT id FROM equipamentos WHERE " . implode(" AND ", $where) . " ORDER BY id",
+        );
+        $stale->execute($params);
+        $removed = 0;
+        foreach ($stale->fetchAll() as $row) {
+            $equipmentId = (int) $row["id"];
+            $dependencies = $this->connection->prepare(
+                "SELECT
+                    (SELECT COUNT(*) FROM carregamentos WHERE equipment_id = :equipment_id_a) +
+                    (SELECT COUNT(*) FROM eventos_sensor WHERE equipment_id = :equipment_id_b) +
+                    (SELECT COUNT(*) FROM imagens WHERE equipment_id = :equipment_id_c) +
+                    (SELECT COUNT(*) FROM solicitacoes_captura_camera WHERE equipment_id = :equipment_id_d) +
+                    (SELECT COUNT(*) FROM solicitacoes_comandos_clp WHERE equipment_id = :equipment_id_e) +
+                    (SELECT COUNT(*) FROM dispositivos WHERE equipment_id = :equipment_id_f) AS total",
+            );
+            $dependencies->execute([
+                "equipment_id_a" => $equipmentId,
+                "equipment_id_b" => $equipmentId,
+                "equipment_id_c" => $equipmentId,
+                "equipment_id_d" => $equipmentId,
+                "equipment_id_e" => $equipmentId,
+                "equipment_id_f" => $equipmentId,
+            ]);
+            if ((int) $dependencies->fetchColumn() > 0) {
+                continue;
+            }
+            $this->connection->prepare("DELETE FROM gatilhos_dala WHERE equipment_id = :id")->execute(["id" => $equipmentId]);
+            $this->connection->prepare("DELETE FROM acoes_dala WHERE equipment_id = :id")->execute(["id" => $equipmentId]);
+            $this->connection->prepare("DELETE FROM status_dispositivos WHERE equipment_id = :id")->execute(["id" => $equipmentId]);
+            $this->connection->prepare("DELETE FROM equipamentos WHERE id = :id AND company_id = :company_id")->execute([
+                "id" => $equipmentId,
+                "company_id" => $companyId,
+            ]);
+            $removed++;
+        }
+        return $removed;
     }
 
     /** @param array<string,mixed> $remote */
