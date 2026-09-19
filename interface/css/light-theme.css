@@ -4901,6 +4901,12 @@ p {
   min-width: 150px;
 }
 
+/* O cadastro fica separado do painel de itens para não parecer parte da tabela. */
+#new-manifest-form > .button[data-action="submit-manifest"] {
+  display: inline-flex;
+  margin: 28px 0 0;
+}
+
 @media (max-width: 760px) {
   .pdf-import-card form {
     flex-direction: column;
@@ -4927,6 +4933,11 @@ p {
 
   .pdf-import-card .actions .button {
     width: 100%;
+  }
+
+  #new-manifest-form > .button[data-action="submit-manifest"] {
+    width: 100%;
+    justify-content: center;
   }
 }
 
