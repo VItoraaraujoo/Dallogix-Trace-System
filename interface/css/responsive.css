@@ -829,6 +829,12 @@ table {
   text-align: center;
 }
 
+.manifests-table th {
+  white-space: normal;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
 .manifests-table th:nth-child(1),
 .manifests-table td:nth-child(1) {
   width: 16%;
