@@ -322,7 +322,44 @@ final class ServicoSincronizacao
     /** @return mixed */
     private function decodePayload(array $event): mixed
     {
-        return json_decode((string) $event["payload"], true, 512, JSON_THROW_ON_ERROR);
+        $payload = json_decode((string) $event["payload"], true, 512, JSON_THROW_ON_ERROR);
+        if (!is_array($payload)) {
+            return $payload;
+        }
+
+        $action = trim((string) ($payload["action"] ?? ""));
+        if (!in_array($action, ["DALA_CADASTRADA", "DALA_ATUALIZADA"], true)) {
+            return $payload;
+        }
+
+        // Eventos antigos de Dala podem ter sido gravados antes do contrato
+        // completo de sincronização. Enriquece o payload na saída usando o
+        // registro atual para que um retry também replique nome e comunicação.
+        $equipmentId = (int) ($event["aggregate_id"] ?? 0);
+        $companyId = (int) ($event["company_id"] ?? 0);
+        if ($equipmentId <= 0 || $companyId <= 0) {
+            return $payload;
+        }
+        $equipment = $this->connection->prepare(
+            "SELECT equipment_code, name, plc_ip, plc_port, external_port, plc_protocol
+             FROM equipamentos WHERE id = :id AND company_id = :company_id LIMIT 1",
+        );
+        $equipment->execute(["id" => $equipmentId, "company_id" => $companyId]);
+        $row = $equipment->fetch();
+        if (!$row) {
+            return $payload;
+        }
+        $data = is_array($payload["data"] ?? null) ? $payload["data"] : [];
+        $payload["data"] = array_merge($data, [
+            "remote_equipment_id" => $equipmentId,
+            "equipment_code" => $row["equipment_code"],
+            "name" => $row["name"],
+            "plc_ip" => $row["plc_ip"],
+            "plc_port" => (int) $row["plc_port"],
+            "external_port" => $row["external_port"] === null ? null : (int) $row["external_port"],
+            "plc_protocol" => $row["plc_protocol"],
+        ]);
+        return $payload;
     }
 
     /** @param list<array<string,mixed>> $events */

@@ -272,12 +272,22 @@ function navigationIcon(page) {
   return icons[page] || icons.dashboard;
 }
 
-function setLocalIndicator(state, checkedAt = null) {
-  const labels = {
-    online: "Sistema local online",
-    degraded: "Sistema local sem confirmação",
-    offline: "Sistema local sem comunicação",
-  };
+let currentInstallationMode = ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname)
+  ? "local"
+  : "central";
+
+function setLocalIndicator(state, checkedAt = null, installationMode = currentInstallationMode) {
+  const labels = installationMode === "central"
+    ? {
+        online: "Servidor central online",
+        degraded: "Servidor central sem confirmação",
+        offline: "Servidor central sem comunicação",
+      }
+    : {
+        online: "Sistema local online",
+        degraded: "Sistema local sem confirmação",
+        offline: "Sistema local sem comunicação",
+      };
   const clock = statusRelogio();
   const detail = checkedAt
     ? `Última verificação: ${new Date(checkedAt).toLocaleTimeString("pt-BR")} • Horário: ${clock.label}`
@@ -308,8 +318,9 @@ async function refreshLocalIndicator() {
       sincronizarRelogio(),
     ]);
     const result = await response.json().catch(() => ({}));
+    currentInstallationMode = result.installation_mode === "central" ? "central" : "local";
     const state = response.ok && result.status === "ok" ? "online" : "degraded";
-    setLocalIndicator(state, result.checked_at || Date.now());
+    setLocalIndicator(state, result.checked_at || Date.now(), currentInstallationMode);
   } catch (error) {
     setLocalIndicator("offline");
   } finally {

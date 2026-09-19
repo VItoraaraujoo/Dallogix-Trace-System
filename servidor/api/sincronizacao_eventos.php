@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
+require_once __DIR__ . "/../src/Aplicacao/InicializadorAcoesDala.php";
+
+use App\Aplicacao\InicializadorAcoesDala;
 
 if (trace_e_instalacao_local()) {
     responder_json(["error" => "Endpoint disponível somente no servidor central."], 403);
@@ -18,6 +21,117 @@ $pdo = obter_conexao_banco();
 $processed = 0;
 $ignored = 0;
 
+$upsertEquipment = static function (PDO $connection, int $companyId, int $remoteEquipmentId, array $data): int {
+    $code = trim((string) ($data["equipment_code"] ?? ""));
+    $name = trim((string) ($data["name"] ?? ""));
+    $plcIp = trim((string) ($data["plc_ip"] ?? ""));
+    $plcPort = filter_var($data["plc_port"] ?? 502, FILTER_VALIDATE_INT);
+    $externalPort = ($data["external_port"] ?? null) === null || ($data["external_port"] ?? "") === ""
+        ? null
+        : filter_var($data["external_port"], FILTER_VALIDATE_INT);
+    $protocol = strtoupper(trim((string) ($data["plc_protocol"] ?? "MODBUS_TCP")));
+    $previousCode = trim((string) ($data["previous_equipment_code"] ?? ""));
+
+    if (
+        !preg_match('/^[a-z0-9_]{1,30}$/', $code) ||
+        $name === "" ||
+        $plcIp === "" ||
+        $plcPort === false ||
+        (int) $plcPort < 1 ||
+        (int) $plcPort > 65535 ||
+        ($externalPort !== null && ($externalPort === false || (int) $externalPort < 1 || (int) $externalPort > 65535)) ||
+        !in_array($protocol, ["MODBUS_TCP", "MODBUS_RTU"], true)
+    ) {
+        throw new RuntimeException("Dados da Dala recebidos pela sincronização são inválidos.");
+    }
+
+    $identity = ["equipment_code = :equipment_code"];
+    $params = [
+        "company_id" => $companyId,
+        "equipment_code" => $code,
+    ];
+    if ($previousCode !== "" && $previousCode !== $code) {
+        $identity[] = "equipment_code = :previous_equipment_code";
+        $params["previous_equipment_code"] = $previousCode;
+    }
+    if ($remoteEquipmentId > 0) {
+        $identity[] = "remote_equipment_id = :remote_equipment_id";
+        $params["remote_equipment_id"] = $remoteEquipmentId;
+    }
+    $find = $connection->prepare(
+        "SELECT id FROM equipamentos WHERE company_id = :company_id AND (" . implode(" OR ", $identity) . ") LIMIT 1",
+    );
+    $find->execute($params);
+    $equipmentId = (int) ($find->fetchColumn() ?: 0);
+    $values = [
+        "company_id" => $companyId,
+        "remote_equipment_id" => $remoteEquipmentId > 0 ? $remoteEquipmentId : null,
+        "equipment_code" => $code,
+        "name" => $name,
+        "plc_ip" => $plcIp,
+        "plc_port" => (int) $plcPort,
+        "external_port" => $externalPort === null ? null : (int) $externalPort,
+        "plc_protocol" => $protocol,
+    ];
+
+    if ($equipmentId > 0) {
+        $update = $connection->prepare(
+            "UPDATE equipamentos SET remote_equipment_id = :remote_equipment_id,
+             equipment_code = :equipment_code, name = :name, plc_ip = :plc_ip,
+             plc_port = :plc_port, external_port = :external_port, plc_protocol = :plc_protocol
+             WHERE id = :id AND company_id = :company_id",
+        );
+        $update->execute([...$values, "id" => $equipmentId]);
+    } else {
+        $insert = $connection->prepare(
+            "INSERT INTO equipamentos
+             (company_id, remote_equipment_id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol)
+             VALUES (:company_id, :remote_equipment_id, :equipment_code, :name, :plc_ip, :plc_port, :external_port, :plc_protocol)",
+        );
+        $insert->execute($values);
+        $equipmentId = (int) $connection->lastInsertId();
+    }
+    InicializadorAcoesDala::garantir($connection, $companyId, $equipmentId);
+    return $equipmentId;
+};
+
+$deleteEquipment = static function (PDO $connection, int $companyId, int $remoteEquipmentId, array $data): int {
+    $code = trim((string) ($data["equipment_code"] ?? ""));
+    if ($remoteEquipmentId <= 0 && $code === "") {
+        return 0;
+    }
+    $identity = [];
+    $params = ["company_id" => $companyId];
+    if ($remoteEquipmentId > 0) {
+        $identity[] = "remote_equipment_id = :remote_equipment_id";
+        $params["remote_equipment_id"] = $remoteEquipmentId;
+    }
+    if ($code !== "") {
+        $identity[] = "equipment_code = :equipment_code";
+        $params["equipment_code"] = $code;
+    }
+    $find = $connection->prepare(
+        "SELECT id FROM equipamentos WHERE company_id = :company_id AND (" . implode(" OR ", $identity) . ") LIMIT 1",
+    );
+    $find->execute($params);
+    $equipmentId = (int) ($find->fetchColumn() ?: 0);
+    if ($equipmentId === 0) {
+        return 0;
+    }
+    $connection->prepare("DELETE FROM status_dispositivos WHERE equipment_id = :id")->execute(["id" => $equipmentId]);
+    try {
+        $connection->prepare("DELETE FROM equipamentos WHERE id = :id AND company_id = :company_id")->execute([
+            "id" => $equipmentId,
+            "company_id" => $companyId,
+        ]);
+    } catch (PDOException $exception) {
+        if ((int) ($exception->errorInfo[1] ?? 0) !== 1451) {
+            throw $exception;
+        }
+    }
+    return $equipmentId;
+};
+
 $pdo->beginTransaction();
 try {
     foreach ($events as $event) {
@@ -26,19 +140,33 @@ try {
         if (!preg_match('/^[a-f0-9-]{16,80}$/i', $eventUuid) || $eventCompanyId === false || (int) $eventCompanyId !== $companyId) {
             throw new RuntimeException("Evento de sincronização inválido.");
         }
-        $existing = $pdo->prepare(
-            "SELECT id FROM logs_auditoria WHERE company_id = :company_id AND event_uuid = :event_uuid LIMIT 1",
-        );
-        $existing->execute(["company_id" => $companyId, "event_uuid" => $eventUuid]);
-        if ($existing->fetchColumn()) {
-            $ignored++;
-            continue;
-        }
-
         $action = trim((string) ($event["payload"]["action"] ?? ""));
         $data = is_array($event["payload"]["data"] ?? null) ? $event["payload"]["data"] : [];
         $entityType = trim((string) ($event["aggregate_type"] ?? $event["payload"]["entity_type"] ?? "sincronizacao"));
         $entityId = (int) ($event["aggregate_id"] ?? $event["payload"]["entity_id"] ?? 0);
+        $isEquipmentEvent = in_array($action, ["DALA_CADASTRADA", "DALA_ATUALIZADA", "DALA_EXCLUIDA"], true);
+        $existing = $pdo->prepare(
+            "SELECT id FROM logs_auditoria WHERE company_id = :company_id AND event_uuid = :event_uuid LIMIT 1",
+        );
+        $existing->execute(["company_id" => $companyId, "event_uuid" => $eventUuid]);
+        $replay = (bool) $existing->fetchColumn();
+        if ($replay && !$isEquipmentEvent) {
+            $ignored++;
+            continue;
+        }
+
+        if (in_array($action, ["DALA_CADASTRADA", "DALA_ATUALIZADA"], true)) {
+            $entityId = $upsertEquipment($pdo, $companyId, $entityId, $data);
+        }
+
+        if ($action === "DALA_EXCLUIDA") {
+            $entityId = $deleteEquipment(
+                $pdo,
+                $companyId,
+                (int) ($data["remote_equipment_id"] ?? $entityId),
+                $data,
+            );
+        }
 
         if ($action === "ESTADO_CARREGAMENTO_ALTERADO") {
             $remoteLoadingId = filter_var($data["remote_carregamento_id"] ?? null, FILTER_VALIDATE_INT);
@@ -106,19 +234,30 @@ try {
             }
         }
 
-        $audit = $pdo->prepare(
-            "INSERT INTO logs_auditoria
-             (event_uuid, company_id, user_id, action, entity_type, entity_id, metadata, delivered_at)
-             VALUES (:event_uuid, :company_id, NULL, :action, :entity_type, :entity_id, :metadata, NOW(3))",
-        );
-        $audit->execute([
+        $auditData = [
             "event_uuid" => $eventUuid,
             "company_id" => $companyId,
             "action" => $action !== "" ? $action : "SINCRONIZACAO_RECEBIDA",
             "entity_type" => $entityType,
             "entity_id" => max(1, $entityId),
             "metadata" => json_encode($event, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
-        ]);
+        ];
+        if ($replay) {
+            $audit = $pdo->prepare(
+                "UPDATE logs_auditoria
+                 SET action = :action, entity_type = :entity_type, entity_id = :entity_id,
+                     metadata = :metadata, delivered_at = NOW(3)
+                 WHERE company_id = :company_id AND event_uuid = :event_uuid",
+            );
+            $audit->execute($auditData);
+        } else {
+            $audit = $pdo->prepare(
+                "INSERT INTO logs_auditoria
+                 (event_uuid, company_id, user_id, action, entity_type, entity_id, metadata, delivered_at)
+                 VALUES (:event_uuid, :company_id, NULL, :action, :entity_type, :entity_id, :metadata, NOW(3))",
+            );
+            $audit->execute($auditData);
+        }
         $processed++;
     }
     $pdo->commit();

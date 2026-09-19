@@ -177,6 +177,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             $id,
             [
                 "equipment_code" => $data["code"],
+                "name" => $data["name"],
+                "plc_ip" => $data["ip"],
+                "plc_port" => $data["port"],
+                "external_port" => $data["externalPort"],
                 "plc_protocol" => $data["protocol"],
             ],
         );
@@ -212,10 +216,11 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
         json_response(["error" => "Dala não informada."], 422);
     }
     $find = $pdo->prepare(
-        "SELECT id FROM equipamentos WHERE id = :id AND company_id = :company_id LIMIT 1",
+        "SELECT id, equipment_code FROM equipamentos WHERE id = :id AND company_id = :company_id LIMIT 1",
     );
     $find->execute(["id" => $id, "company_id" => $user["company_id"]]);
-    if (!$find->fetch()) {
+    $existingDala = $find->fetch();
+    if (!$existingDala) {
         json_response(["error" => "Dala não encontrada."], 404);
     }
     $data = $validatePayload($payload);
@@ -238,7 +243,15 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
             "DALA_ATUALIZADA",
             "equipment",
             $id,
-            ["equipment_code" => $data["code"]],
+            [
+                "previous_equipment_code" => $existingDala["equipment_code"],
+                "equipment_code" => $data["code"],
+                "name" => $data["name"],
+                "plc_ip" => $data["ip"],
+                "plc_port" => $data["port"],
+                "external_port" => $data["externalPort"],
+                "plc_protocol" => $data["protocol"],
+            ],
         );
         json_response(["data" => ["updated" => true]]);
     } catch (Throwable $exception) {
@@ -280,7 +293,10 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
             "DALA_EXCLUIDA",
             "equipment",
             $id,
-            ["equipment_code" => $dala["equipment_code"]],
+            [
+                "remote_equipment_id" => $id,
+                "equipment_code" => $dala["equipment_code"],
+            ],
         );
         $pdo->commit();
         json_response(["data" => ["deleted" => true]]);

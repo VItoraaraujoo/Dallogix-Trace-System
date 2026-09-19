@@ -16,6 +16,7 @@ try {
         "mysql" => true,
         "version" => $release["version"],
         "commit" => $release["commit"],
+        "installation_mode" => trace_e_instalacao_local() ? "local" : "central",
         "checked_at" => date("c"),
     ]);
 } catch (Throwable $error) {
@@ -27,6 +28,7 @@ try {
             "mysql" => false,
             "version" => $release["version"],
             "commit" => $release["commit"],
+            "installation_mode" => trace_e_instalacao_local() ? "local" : "central",
         ],
         503,
     );
