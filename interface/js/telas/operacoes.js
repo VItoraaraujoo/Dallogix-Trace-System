@@ -170,13 +170,32 @@ export function division(store) {
   <section class="panel"><h3>Produtos previstos</h3><div class="table-wrap"><table><thead><tr><th>Produto</th><th>Quantidade</th></tr></thead><tbody>${(manifest.items || []).map((item) => `<tr><td>${esc(item.name)}</td><td>${numero(item.planned_quantity)}</td></tr>`).join("") || '<tr><td colspan="2">Nenhum item informado.</td></tr>'}</tbody></table></div></section>`;
 }
 function loadingSelection(store) {
-  const cards = (store.state.activeLoadings || [])
+  const activeLoadings = store.state.activeLoadings || [];
+  const occupiedEquipmentIds = new Set(
+    activeLoadings
+      .filter((loading) => loading.equipment_id)
+      .map((loading) => Number(loading.equipment_id)),
+  );
+  const availableEquipments = (store.state.equipments || []).filter(
+    (equipment) => !occupiedEquipmentIds.has(Number(equipment.id)),
+  );
+  const detached = activeLoadings
+    .filter((loading) => !loading.equipment_id)
+    .map((loading) => {
+      const options = availableEquipments
+        .map((equipment) => `<option value="${equipment.id}">${esc(equipment.name)} • ${esc(equipment.equipment_code)}</option>`)
+        .join("");
+      return `<article class="panel detached-loading-card"><span class="kicker">Dala removida</span><h3>${esc(loading.romaneio_number || "Sem romaneio")}</h3><p>Caminhão ${esc(loading.plate || "—")}. O carregamento foi interrompido e aguarda uma nova máquina.</p><form class="reassign-loading-form" data-loading-id="${loading.id}"><label>Selecionar nova Dala<select name="equipment_id" required ${options ? "" : "disabled"}>${options || "<option>Nenhuma Dala disponível</option>"}</select></label><button class="button primary" type="submit" ${options ? "" : "disabled"}>Vincular Dala</button></form></article>`;
+    })
+    .join("");
+  const cards = activeLoadings
+    .filter((loading) => loading.equipment_id)
     .map(
       (loading) =>
         `<button class="dala-selection-card" data-action="select-loading" data-id="${loading.id}" type="button"><span class="kicker">${esc(loading.equipment_code || "Dala")}</span><strong>${esc(loading.romaneio_number || "Sem romaneio")}</strong><span>Caminhão ${esc(loading.plate || "—")}</span><b>${esc(rotuloEstado(loading.state))}</b><small>Selecionar esta Dala</small></button>`,
     )
     .join("");
-  return `${pageHeader("Operação", "Selecionar Dala", "Escolha a Dala que será acompanhada e controlada nesta tela.")}<section class="dala-selection-screen"><div class="dala-selection-heading"><span class="kicker">Operações disponíveis</span><h3>Qual Dala você deseja operar?</h3><p>Cada seleção mantém contagem, comandos e emergência separados.</p></div><div class="dala-selection-grid">${cards || '<p class="empty-cell">Nenhum carregamento disponível.</p>'}</div></section>`;
+  return `${pageHeader("Operação", "Selecionar Dala", "Escolha a Dala que será acompanhada e controlada nesta tela.")}<section class="dala-selection-screen"><div class="dala-selection-heading"><span class="kicker">Operações disponíveis</span><h3>Qual Dala você deseja operar?</h3><p>Cada seleção mantém contagem, comandos e emergência separados.</p></div>${detached ? `<div class="detached-loading-list">${detached}</div>` : ""}<div class="dala-selection-grid">${cards || (detached ? "" : '<p class="empty-cell">Nenhum carregamento disponível.</p>')}</div></section>`;
 }
 function workControls(store) {
   const left = Math.max(0, store.state.planned - store.state.loaded);

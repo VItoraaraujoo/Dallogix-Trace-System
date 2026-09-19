@@ -56,7 +56,7 @@ final class ServicoMonitoramento
     /** @return list<array<string,mixed>> */
     public function activeLoadings(int $companyId): array
     {
-        $statement = $this->connection->prepare("SELECT c.id, c.state, c.equipment_id, c.started_at, c.finished_at, r.number AS romaneio_number, rt.plate, e.equipment_code, COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity, COALESCE(c.leituras_validas, 0) AS valid_readings FROM carregamentos c JOIN romaneios r ON r.id = c.romaneio_id JOIN romaneio_caminhoes rt ON rt.id = c.truck_id JOIN equipamentos e ON e.id = c.equipment_id WHERE c.company_id = :company_id AND c.state <> 'FINALIZADO' ORDER BY c.id DESC");
+        $statement = $this->connection->prepare("SELECT c.id, c.state, c.equipment_id, c.started_at, c.finished_at, r.number AS romaneio_number, rt.plate, e.equipment_code, COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity, COALESCE(c.leituras_validas, 0) AS valid_readings FROM carregamentos c JOIN romaneios r ON r.id = c.romaneio_id JOIN romaneio_caminhoes rt ON rt.id = c.truck_id LEFT JOIN equipamentos e ON e.id = c.equipment_id WHERE c.company_id = :company_id AND c.state <> 'FINALIZADO' ORDER BY c.id DESC");
         $statement->execute(["company_id" => $companyId]);
         $rows = $statement->fetchAll();
         foreach ($rows as &$row) {

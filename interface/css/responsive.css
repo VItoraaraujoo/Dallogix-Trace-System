@@ -756,6 +756,10 @@ table {
     grid-template-columns: 1fr;
   }
 
+  .reassign-loading-form {
+    grid-template-columns: 1fr;
+  }
+
   .dala-album-card {
     min-height: 0;
   }

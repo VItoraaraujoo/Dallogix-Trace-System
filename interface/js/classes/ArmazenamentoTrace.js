@@ -254,6 +254,23 @@ export class ArmazenamentoTrace {
     await this.loadActiveLoading(this.state.selectedLoadingId);
     return result.data;
   }
+  async reassignLoading(loadingId, equipmentId) {
+    const response = await fetch("/api/carregamentos.php", {
+      method: "PATCH",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({
+        carregamento_id: Number(loadingId),
+        equipment_id: Number(equipmentId),
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result.error || "Não foi possível vincular a nova Dala.");
+    }
+    await this.loadEquipments({ force: true });
+    await this.loadActiveLoading(Number(loadingId));
+    return result.data;
+  }
   async importPdf(formData) {
     const response = await fetch("/api/importar_pdf.php", {
       method: "POST",
@@ -395,13 +412,16 @@ export class ArmazenamentoTrace {
       (item) => item.state !== "FINALIZADO",
     );
     const requestedId = Number(selectedId) || null;
-    const loading =
-      this.state.activeLoadings.find(
-        (item) => Number(item.id) === requestedId,
-      ) ||
-      (this.state.activeLoadings.length === 1
-        ? this.state.activeLoadings[0]
-        : null);
+    const requestedLoading = this.state.activeLoadings.find(
+      (item) => Number(item.id) === requestedId,
+    );
+    const loading = requestedLoading?.equipment_id
+      ? requestedLoading
+      : (requestedId
+        ? null
+        : (this.state.activeLoadings.length === 1 && this.state.activeLoadings[0]?.equipment_id
+          ? this.state.activeLoadings[0]
+          : null));
     if (!loading) {
       this.state.loadingId = null;
       this.state.selectedLoadingId = null;
@@ -439,8 +459,14 @@ export class ArmazenamentoTrace {
     );
     this.state.activeLoadings = activeLoadings;
     const requestedId = Number(selectedId) || null;
-    const loading = activeLoadings.find((item) => Number(item.id) === requestedId) ||
-      (activeLoadings.length === 1 ? activeLoadings[0] : null);
+    const requestedLoading = activeLoadings.find((item) => Number(item.id) === requestedId);
+    const loading = requestedLoading?.equipment_id
+      ? requestedLoading
+      : (requestedId
+        ? null
+        : (activeLoadings.length === 1 && activeLoadings[0]?.equipment_id
+          ? activeLoadings[0]
+          : null));
     if (!loading) {
       this.state.loadingId = null;
       this.state.selectedLoadingId = null;

@@ -1,4 +1,4 @@
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609170900";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609181700";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609160900";
@@ -26,7 +26,7 @@ import {
     manifests,
     manifestView,
     work,
-} from "./telas/operacoes.js?v=202609161900";
+} from "./telas/operacoes.js?v=202609181700";
 import { dashboard } from "./telas/painel.js?v=202609150300";
 import { users } from "./telas/usuarios.js?v=202609162215";
 
@@ -348,7 +348,7 @@ function installLocalIndicator() {
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202609170930").catch(() => {
+  navigator.serviceWorker.register("/service-worker.js?v=202609181700").catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }
@@ -1850,6 +1850,23 @@ function bindForms() {
         if (submit) submit.disabled = false;
       }
     });
+  document.querySelectorAll(".reassign-loading-form").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const submit = form.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      try {
+        const raw = Object.fromEntries(new FormData(form));
+        await store.reassignLoading(form.dataset.loadingId, raw.equipment_id);
+        alert("Nova Dala vinculada. O carregamento está aguardando o início da operação.");
+        render();
+      } catch (error) {
+        alert(error.message);
+      } finally {
+        if (submit) submit.disabled = false;
+      }
+    });
+  });
   document.querySelectorAll(".manual-reading-form").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();

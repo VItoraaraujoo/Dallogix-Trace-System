@@ -152,9 +152,13 @@ final class ServicoSincronizacaoRemota
 
             $loadingIds = [];
             foreach (($snapshot["carregamentos_ativos"] ?? []) as $remoteLoading) {
-                $equipmentId = $equipmentIds[(int) $remoteLoading["equipment_id"]]
-                    ?? $this->findEquipmentId($companyId, (string) ($remoteLoading["equipment_code"] ?? ""));
-                if (!$equipmentId) {
+                $remoteEquipmentId = filter_var($remoteLoading["equipment_id"] ?? null, FILTER_VALIDATE_INT);
+                $equipmentId = null;
+                if ($remoteEquipmentId !== false && $remoteEquipmentId !== null && $remoteEquipmentId > 0) {
+                    $equipmentId = $equipmentIds[(int) $remoteEquipmentId]
+                        ?? $this->findEquipmentId($companyId, (string) ($remoteLoading["equipment_code"] ?? ""));
+                }
+                if ($remoteEquipmentId !== false && $remoteEquipmentId !== null && $remoteEquipmentId > 0 && !$equipmentId) {
                     continue;
                 }
                 $loadingIds[(int) $remoteLoading["id"]] = $this->upsertLoading($companyId, $equipmentId, $remoteLoading);
@@ -314,7 +318,7 @@ final class ServicoSincronizacaoRemota
     }
 
     /** @param array<string,mixed> $remote */
-    private function upsertLoading(int $companyId, int $equipmentId, array $remote): int
+    private function upsertLoading(int $companyId, ?int $equipmentId, array $remote): int
     {
         $remoteLoadingId = (int) ($remote["id"] ?? 0);
         $remoteRomaneioId = (int) ($remote["romaneio_id"] ?? 0);

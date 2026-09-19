@@ -19,7 +19,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
          FROM carregamentos c
          JOIN romaneios r ON r.id = c.romaneio_id
          JOIN romaneio_caminhoes rt ON rt.id = c.truck_id
-         JOIN equipamentos e ON e.id = c.equipment_id
+         LEFT JOIN equipamentos e ON e.id = c.equipment_id
          WHERE c.company_id = :company_id
          ORDER BY c.id DESC',
     );
@@ -80,6 +80,104 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
         unset($row);
     }
     responder_json(["data" => $rows]);
+}
+
+if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
+    exigir_csrf();
+    if (!in_array($usuarioAtor["role"], ["ADMIN_EMPRESA", "SUPERVISOR"], true)) {
+        responder_json(["error" => "Perfil sem permissão para trocar a Dala."], 403);
+    }
+    validar_licenca_ativa(obter_conexao_banco(), (int) $usuarioAtor["company_id"]);
+    $payload = ler_json_da_requisicao();
+    $loadingId = filter_var($payload["carregamento_id"] ?? null, FILTER_VALIDATE_INT);
+    $equipmentId = filter_var($payload["equipment_id"] ?? null, FILTER_VALIDATE_INT);
+    if (!$loadingId || !$equipmentId) {
+        responder_json(["error" => "Carregamento e nova Dala são obrigatórios."], 422);
+    }
+
+    try {
+        $pdo->beginTransaction();
+        $loading = $pdo->prepare(
+            "SELECT id, state, equipment_id, remote_carregamento_id
+             FROM carregamentos
+             WHERE id = :id AND company_id = :company_id
+             LIMIT 1 FOR UPDATE",
+        );
+        $loading->execute([
+            "id" => $loadingId,
+            "company_id" => $usuarioAtor["company_id"],
+        ]);
+        $current = $loading->fetch();
+        if (!$current || $current["state"] === "FINALIZADO" || $current["equipment_id"] !== null) {
+            $pdo->rollBack();
+            responder_json(["error" => "Carregamento não está aguardando uma Dala."], 409);
+        }
+        $equipment = $pdo->prepare(
+            "SELECT id, equipment_code FROM equipamentos
+             WHERE id = :id AND company_id = :company_id LIMIT 1 FOR UPDATE",
+        );
+        $equipment->execute([
+            "id" => $equipmentId,
+            "company_id" => $usuarioAtor["company_id"],
+        ]);
+        $target = $equipment->fetch();
+        if (!$target) {
+            $pdo->rollBack();
+            responder_json(["error" => "Nova Dala não encontrada para esta empresa."], 404);
+        }
+        $conflict = $pdo->prepare(
+            "SELECT id FROM carregamentos
+             WHERE company_id = :company_id AND id <> :id
+               AND state <> 'FINALIZADO' AND equipment_id = :equipment_id
+             LIMIT 1 FOR UPDATE",
+        );
+        $conflict->execute([
+            "company_id" => $usuarioAtor["company_id"],
+            "id" => $loadingId,
+            "equipment_id" => $equipmentId,
+        ]);
+        if ($conflict->fetch()) {
+            $pdo->rollBack();
+            responder_json(["error" => "A nova Dala já possui um carregamento em andamento."], 409);
+        }
+        $update = $pdo->prepare(
+            "UPDATE carregamentos
+             SET equipment_id = :equipment_id, state = 'AGUARDANDO', started_at = NULL
+             WHERE id = :id AND company_id = :company_id",
+        );
+        $update->execute([
+            "equipment_id" => $equipmentId,
+            "id" => $loadingId,
+            "company_id" => $usuarioAtor["company_id"],
+        ]);
+        record_operational_event(
+            $pdo,
+            $usuarioAtor,
+            "CARREGAMENTO_DALA_VINCULADO",
+            "carregamento",
+            (int) $loadingId,
+            [
+                "equipment_id" => $equipmentId,
+                "equipment_code" => $target["equipment_code"],
+                "previous_equipment_id" => $current["equipment_id"] === null ? null : (int) $current["equipment_id"],
+                "remote_carregamento_id" => $current["remote_carregamento_id"] === null ? null : (int) $current["remote_carregamento_id"],
+                "state" => "AGUARDANDO",
+            ],
+        );
+        $pdo->commit();
+        responder_json(["data" => [
+            "id" => (int) $loadingId,
+            "equipment_id" => (int) $equipmentId,
+            "equipment_code" => $target["equipment_code"],
+            "state" => "AGUARDANDO",
+        ]]);
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        error_log("Loading equipment reassignment failed: " . $exception->getMessage());
+        responder_json(["error" => "Não foi possível vincular a nova Dala."], 500);
+    }
 }
 
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {

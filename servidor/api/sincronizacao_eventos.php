@@ -118,6 +118,16 @@ $deleteEquipment = static function (PDO $connection, int $companyId, int $remote
     if ($equipmentId === 0) {
         return 0;
     }
+    $activeLoadings = $connection->prepare(
+        "UPDATE carregamentos
+         SET equipment_id = NULL, state = 'AGUARDANDO', started_at = NULL
+         WHERE company_id = :company_id AND equipment_id = :equipment_id
+           AND state <> 'FINALIZADO'",
+    );
+    $activeLoadings->execute([
+        "company_id" => $companyId,
+        "equipment_id" => $equipmentId,
+    ]);
     $connection->prepare("DELETE FROM gatilhos_dala WHERE equipment_id = :id")->execute(["id" => $equipmentId]);
     $connection->prepare("DELETE FROM acoes_dala WHERE equipment_id = :id")->execute(["id" => $equipmentId]);
     $connection->prepare("DELETE FROM status_dispositivos WHERE equipment_id = :id")->execute(["id" => $equipmentId]);
@@ -168,6 +178,54 @@ try {
                 (int) ($data["remote_equipment_id"] ?? $entityId),
                 $data,
             );
+        }
+
+        if (in_array($action, ["CARREGAMENTO_DALA_DESVINCULADO", "CARREGAMENTO_DALA_VINCULADO"], true)) {
+            $remoteLoadingId = filter_var($data["remote_carregamento_id"] ?? null, FILTER_VALIDATE_INT);
+            $loadingId = $remoteLoadingId !== false && $remoteLoadingId > 0
+                ? (int) $remoteLoadingId
+                : $entityId;
+            if ($loadingId > 0) {
+                if ($action === "CARREGAMENTO_DALA_DESVINCULADO") {
+                    $update = $pdo->prepare(
+                        "UPDATE carregamentos
+                         SET equipment_id = NULL, state = 'AGUARDANDO', started_at = NULL
+                         WHERE id = :id AND company_id = :company_id",
+                    );
+                    $update->execute(["id" => $loadingId, "company_id" => $companyId]);
+                } else {
+                    $remoteEquipmentId = filter_var($data["remote_equipment_id"] ?? null, FILTER_VALIDATE_INT);
+                    $equipmentCode = trim((string) ($data["equipment_code"] ?? ""));
+                    $equipment = $pdo->prepare(
+                        "SELECT id FROM equipamentos
+                         WHERE company_id = :company_id
+                           AND ((:remote_id_a IS NOT NULL AND remote_equipment_id = :remote_id_b)
+                             OR (:equipment_code_a <> '' AND equipment_code = :equipment_code_b))
+                         LIMIT 1",
+                    );
+                    $equipment->execute([
+                        "company_id" => $companyId,
+                        "remote_id_a" => $remoteEquipmentId === false ? null : (int) $remoteEquipmentId,
+                        "remote_id_b" => $remoteEquipmentId === false ? null : (int) $remoteEquipmentId,
+                        "equipment_code_a" => $equipmentCode,
+                        "equipment_code_b" => $equipmentCode,
+                    ]);
+                    $equipmentId = $equipment->fetchColumn();
+                    if ($equipmentId) {
+                        $update = $pdo->prepare(
+                            "UPDATE carregamentos
+                             SET equipment_id = :equipment_id, state = 'AGUARDANDO', started_at = NULL
+                             WHERE id = :id AND company_id = :company_id",
+                        );
+                        $update->execute([
+                            "equipment_id" => $equipmentId,
+                            "id" => $loadingId,
+                            "company_id" => $companyId,
+                        ]);
+                    }
+                }
+                $entityId = $loadingId;
+            }
         }
 
         if ($action === "ESTADO_CARREGAMENTO_ALTERADO") {

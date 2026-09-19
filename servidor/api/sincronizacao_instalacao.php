@@ -73,7 +73,7 @@ $loadingStatement = $pdo->prepare(
      FROM carregamentos c
      JOIN romaneios r ON r.id = c.romaneio_id
      JOIN romaneio_caminhoes t ON t.id = c.truck_id
-     JOIN equipamentos e ON e.id = c.equipment_id
+     LEFT JOIN equipamentos e ON e.id = c.equipment_id
      WHERE c.company_id = :company_id AND c.state <> 'FINALIZADO'
      ORDER BY c.id",
 );
@@ -82,7 +82,7 @@ $carregamentos = $loadingStatement->fetchAll();
 $loadingIds = array_map(static fn (array $row): int => (int) $row["id"], $carregamentos);
 foreach ($carregamentos as &$loading) {
     $loading["id"] = (int) $loading["id"];
-    $loading["equipment_id"] = (int) $loading["equipment_id"];
+    $loading["equipment_id"] = $loading["equipment_id"] === null ? null : (int) $loading["equipment_id"];
     $loading["romaneio_id"] = (int) $loading["romaneio_id"];
     $loading["truck_id"] = (int) $loading["truck_id"];
     $loading["items"] = [];

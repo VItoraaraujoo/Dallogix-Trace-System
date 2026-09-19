@@ -281,6 +281,42 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
     }
     try {
         $pdo->beginTransaction();
+        $activeLoadings = $pdo->prepare(
+            "SELECT id, state, remote_carregamento_id
+             FROM carregamentos
+             WHERE company_id = :company_id AND equipment_id = :equipment_id
+               AND state <> 'FINALIZADO'
+             ORDER BY id FOR UPDATE",
+        );
+        $activeLoadings->execute([
+            "company_id" => $user["company_id"],
+            "equipment_id" => $id,
+        ]);
+        foreach ($activeLoadings->fetchAll() as $loading) {
+            $detach = $pdo->prepare(
+                "UPDATE carregamentos
+                 SET equipment_id = NULL, state = 'AGUARDANDO', started_at = NULL
+                 WHERE id = :id AND company_id = :company_id",
+            );
+            $detach->execute([
+                "id" => $loading["id"],
+                "company_id" => $user["company_id"],
+            ]);
+            record_operational_event(
+                $pdo,
+                $user,
+                "CARREGAMENTO_DALA_DESVINCULADO",
+                "carregamento",
+                (int) $loading["id"],
+                [
+                    "previous_equipment_id" => (int) $id,
+                    "equipment_code" => $dala["equipment_code"],
+                    "previous_state" => $loading["state"],
+                    "state" => "AGUARDANDO",
+                    "remote_carregamento_id" => $loading["remote_carregamento_id"] === null ? null : (int) $loading["remote_carregamento_id"],
+                ],
+            );
+        }
         // As ações e o gatilho padrão são criados junto com toda Dala nova.
         // Eles não podem permanecer apontando para um equipamento removido.
         $pdo->prepare("DELETE FROM gatilhos_dala WHERE equipment_id = :id")->execute([

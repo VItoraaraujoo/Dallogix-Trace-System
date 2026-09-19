@@ -2145,6 +2145,36 @@ textarea {
   color: var(--muted);
 }
 
+.detached-loading-list {
+  display: grid;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.detached-loading-card {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  border-color: #f4bd55;
+  background: #fffaf0;
+}
+
+.detached-loading-card h3,
+.detached-loading-card p {
+  margin: 0;
+}
+
+.detached-loading-card p {
+  color: var(--muted);
+}
+
+.reassign-loading-form {
+  display: grid;
+  grid-template-columns: minmax(220px, 1fr) auto;
+  gap: 12px;
+  align-items: end;
+}
+
 .dala-selection-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
