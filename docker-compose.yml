@@ -53,6 +53,7 @@ services:
       SYNC_REMOTE_TOKEN: ${SYNC_REMOTE_TOKEN:-}
       TRACE_CENTRAL_URL: ${TRACE_CENTRAL_URL:-}
       TRACE_INSTALLATION_MODE: ${TRACE_INSTALLATION_MODE:-}
+      TRACE_LOCAL_SIMULATION: ${TRACE_LOCAL_SIMULATION:-0}
       TRACE_VERSION: ${TRACE_VERSION:-development}
       TRACE_COMMIT: ${TRACE_COMMIT:-unknown}
       HEALTH_DEVICE_STALE_SECONDS: ${HEALTH_DEVICE_STALE_SECONDS:-30}
@@ -121,9 +122,12 @@ services:
     environment:
       TRACE_API_URL: ${TRACE_API_URL:-http://nginx}
       TRACE_DEVICE_TOKEN: ${TRACE_DEVICE_TOKEN:-trace-device-local-token-2026-v1}
+      TRACE_DEVICE_TOKENS: ${TRACE_DEVICE_TOKENS:-}
       CAMERA_DEVICE_TOKEN: ${CAMERA_DEVICE_TOKEN:-trace-camera-local-token-2026-v1}
       MODBUS_VIRTUAL_HOST: ${MODBUS_VIRTUAL_HOST:-modbus-virtual}
       MODBUS_VIRTUAL_PORT: ${MODBUS_VIRTUAL_PORT:-1502}
+      MODBUS_VIRTUAL_DALA2_HOST: ${MODBUS_VIRTUAL_DALA2_HOST:-modbus-virtual-dala2}
+      MODBUS_VIRTUAL_DALA2_PORT: ${MODBUS_VIRTUAL_DALA2_PORT:-1502}
     volumes:
       - node_red_data:/data
       - ./integracoes/node-red:/seed:ro
@@ -139,6 +143,27 @@ services:
       context: ./integracoes/modbus-virtual
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${MODBUS_VIRTUAL_PORT:-1502}:1502"
+    environment:
+      MODBUS_PORT: 1502
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 128m
+    cpus: "0.50"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 1502), 1); s.close()"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  modbus-virtual-dala2:
+    profiles: ["simulation"]
+    build:
+      context: ./integracoes/modbus-virtual
+    ports:
+      - "${BIND_ADDRESS:-127.0.0.1}:${MODBUS_VIRTUAL_DALA2_HOST_PORT:-1503}:1502"
     environment:
       MODBUS_PORT: 1502
     restart: unless-stopped
@@ -219,6 +244,7 @@ services:
       SYNC_REMOTE_TOKEN: ${SYNC_REMOTE_TOKEN:-}
       TRACE_CENTRAL_URL: ${TRACE_CENTRAL_URL:-}
       TRACE_INSTALLATION_MODE: ${TRACE_INSTALLATION_MODE:-}
+      TRACE_LOCAL_SIMULATION: ${TRACE_LOCAL_SIMULATION:-0}
       SYNC_BATCH_SIZE: ${SYNC_BATCH_SIZE:-50}
       SYNC_POLL_INTERVAL_SECONDS: ${SYNC_POLL_INTERVAL_SECONDS:-1}
     command:

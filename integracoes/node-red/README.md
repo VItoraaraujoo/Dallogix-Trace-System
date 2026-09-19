@@ -20,10 +20,10 @@ Configure no ambiente do Node-RED:
 
 ```text
 TRACE_API_URL=http://trace-api.local
-TRACE_DEVICE_TOKEN=token-do-dispositivo-CLP
+TRACE_DEVICE_TOKENS=token-da-dala-1,token-da-dala-2
 ```
 
-O token identifica um único gateway e a API só devolve a Dala vinculada a ele. O endereço deve apontar para a API local da máquina, nunca para a URL pública de produção. Provisione o token com `php scripts/provision_device.php`; não há fallback de token global para autenticar o gateway. Os valores `2049` e `2050` mostrados no fluxo de teste não são considerados mapa oficial de I/O.
+Cada token identifica um único gateway e a API só devolve a Dala vinculada a ele. Para duas Dalas, informe os dois tokens separados por vírgula e provisione cada um para o equipamento correspondente. O endereço deve apontar para a API local da máquina, nunca para a URL pública de produção. Provisione os tokens com `php scripts/provision_device.php`; `TRACE_DEVICE_TOKEN` continua aceito como compatibilidade para uma única Dala. Os valores `2049` e `2050` mostrados no fluxo de teste não são considerados mapa oficial de I/O.
 
 O nó `Modbus Read/Write` só deve ser acrescentado depois de confirmar em bancada a variante do Delta DVP14SS, IP, porta, unidade Modbus, registradores, bobinas e intertravamentos do Ladder. A ausência dessas informações é intencionalmente tratada como bloqueio seguro.
 
@@ -33,9 +33,9 @@ Para testar a lógica sem CLP, importe também `trace-clp-simulador.flow.json`. 
 
 Sequência sugerida: `Resetar` → `Iniciar` → vários `Sensor + produto correto` → `Pausar` → `Retorno`. Depois repita com `Produto incorreto`, `Sensor sem leitura` e `Emergência`. Essa simulação usa somente o contexto do Node-RED e não chama a API nem o CLP real.
 
-O projeto também sobe o serviço `modbus-virtual` em `127.0.0.1:1502`. Ele implementa leitura de coils/entradas/registros e escrita de coil/registro em memória, para testes de transporte Modbus TCP. O mapa da simulação está em `integracoes/industrial/register-map.example.json`; ele não deve ser reutilizado como mapa de produção.
+O projeto sobe `modbus-virtual` para a primeira Dala em `127.0.0.1:1502` e `modbus-virtual-dala2` para a segunda em `127.0.0.1:1503`. Cada serviço implementa leitura de coils/entradas/registros e escrita de coil/registro em memória, para testes de transporte Modbus TCP. O mapa da simulação está em `integracoes/industrial/register-map.example.json`; ele não deve ser reutilizado como mapa de produção.
 
-Para testar o transporte pelo próprio Node-RED, importe `trace-modbus-teste.flow.json`. A aba `TRACE • Teste Modbus` lê o registro virtual `holding[0]` a cada 2 segundos e mostra a resposta no Debug. O endereço de rede usado entre containers é `modbus-virtual:1502`.
+Para testar o transporte pelo próprio Node-RED, importe `trace-modbus-duas-dalas.flow.json`. A aba `TRACE • Modbus das duas Dalas` lê o registro virtual `holding[0]` dos dois serviços a cada 2 segundos e mostra cada resposta no Debug. Os endereços de rede usados entre containers são `modbus-virtual:1502` e `modbus-virtual-dala2:1502`.
 
 ## Referência elétrica recebida
 
@@ -47,7 +47,7 @@ O scanner Elgin EL8600 ficará conectado ao PC industrial em USB ou RS-232 e per
 
 ## Heartbeat dos dispositivos
 
-O gateway deve publicar a cada **1 segundo** em `/api/device_heartbeat.php`, com `X-Device-Token: ${TRACE_DEVICE_TOKEN}`: `{"equipment_id":N,"device_type":"CLP","status":"ONLINE","details":{"latency_ms":0}}`. Em falha, envie `OFFLINE` ou `ERRO` imediatamente. Se não houver sinal por mais de 3 segundos, a API bloqueia novos comandos operacionais. O fluxo deve tentar restabelecer a comunicação com o CLP a cada 2 segundos. Isso alimenta o monitoramento local; não habilita comandos físicos por si só.
+O gateway deve publicar a cada **1 segundo** em `/api/device_heartbeat.php`, usando o token individual de cada Dala: `X-Device-Token: ${TRACE_DEVICE_TOKENS}`: `{"equipment_id":N,"device_type":"CLP","status":"ONLINE","details":{"latency_ms":0}}`. Em falha, envie `OFFLINE` ou `ERRO` imediatamente. Se não houver sinal por mais de 3 segundos, a API bloqueia novos comandos operacionais. O fluxo deve tentar restabelecer a comunicação com o CLP a cada 2 segundos. Isso alimenta o monitoramento local; não habilita comandos físicos por si só.
 
 ## Sincronização remota
 
@@ -72,7 +72,7 @@ O protocolo da câmera ainda precisa ser confirmado com o fabricante. O servidor
 
 O painel não escreve diretamente no CLP. Com a esteira pausada, qualquer perfil operacional pode solicitar `REVERSAO_ATIVAR` ou `REVERSAO_DESATIVAR`; a aplicação cria uma entrada local em `plc_command_requests`. O fluxo do Node-RED/gateway é:
 
-1. `POST ${TRACE_API_URL}/plc_gateway.php` com `X-Device-Token: ${TRACE_DEVICE_TOKEN}` e `{"action":"CLAIM","equipment_id":N}`;
+1. `POST ${TRACE_API_URL}/plc_gateway.php` com o token individual da Dala em `X-Device-Token` e `{"action":"CLAIM","equipment_id":N}`;
 2. validar no CLP que a máquina está pausada, sem emergência e com todos os intertravamentos do Ladder atendidos;
 3. enviar o pulso de ativação ou desativação de reversão definido no mapa de I/O aprovado;
 4. retornar `{"action":"COMPLETE","request_id":N,"status":"APLICADO"}` ou `REJEITADO`/`ERRO`, com uma mensagem curta. Somente o mesmo dispositivo que reservou o comando pode concluí-lo.

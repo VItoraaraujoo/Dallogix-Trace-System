@@ -20,6 +20,9 @@ final class ServicoSincronizacaoRemota
     /** @return array{enabled:bool,synced:bool,updated?:int,error?:string} */
     public function process(): array
     {
+        if ((string) (getenv("TRACE_LOCAL_SIMULATION") ?: "0") === "1") {
+            return ["enabled" => false, "synced" => false, "updated" => 0];
+        }
         $installation = $this->installation();
         if (!$installation || trim((string) ($installation["sync_token"] ?? "")) === "") {
             return ["enabled" => false, "synced" => false, "updated" => 0];
