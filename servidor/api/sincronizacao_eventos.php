@@ -128,6 +128,25 @@ $deleteEquipment = static function (PDO $connection, int $companyId, int $remote
         "company_id" => $companyId,
         "equipment_id" => $equipmentId,
     ]);
+        $connection->prepare(
+            "UPDATE solicitacoes_comandos_clp
+         SET equipment_id = NULL, status = CASE WHEN status IN ('PENDENTE', 'PROCESSANDO') THEN 'ERRO' ELSE status END,
+             completed_at = COALESCE(completed_at, NOW(3)),
+             response_message = COALESCE(response_message, 'Dala excluída antes da conclusão do comando.')
+         WHERE company_id = :company_id AND equipment_id = :equipment_id",
+    )->execute(["company_id" => $companyId, "equipment_id" => $equipmentId]);
+    $connection->prepare(
+        "UPDATE solicitacoes_captura_camera
+         SET equipment_id = NULL, status = CASE WHEN status IN ('PENDENTE', 'CAPTURANDO') THEN 'DESCARTADA' ELSE status END,
+             error_message = COALESCE(error_message, 'Dala excluída antes da captura.')
+         WHERE equipment_id = :equipment_id",
+    )->execute(["equipment_id" => $equipmentId]);
+    $connection->prepare("UPDATE eventos_sensor SET equipment_id = NULL WHERE equipment_id = :equipment_id")
+        ->execute(["equipment_id" => $equipmentId]);
+    $connection->prepare("UPDATE imagens SET equipment_id = NULL WHERE equipment_id = :equipment_id")
+        ->execute(["equipment_id" => $equipmentId]);
+    $connection->prepare("DELETE FROM dispositivos WHERE company_id = :company_id AND equipment_id = :equipment_id")
+        ->execute(["company_id" => $companyId, "equipment_id" => $equipmentId]);
     $connection->prepare("DELETE FROM gatilhos_dala WHERE equipment_id = :id")->execute(["id" => $equipmentId]);
     $connection->prepare("DELETE FROM acoes_dala WHERE equipment_id = :id")->execute(["id" => $equipmentId]);
     $connection->prepare("DELETE FROM status_dispositivos WHERE equipment_id = :id")->execute(["id" => $equipmentId]);

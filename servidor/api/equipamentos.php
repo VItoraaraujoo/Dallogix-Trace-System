@@ -317,6 +317,25 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
                 ],
             );
         }
+        $pdo->prepare(
+            "UPDATE solicitacoes_comandos_clp
+             SET equipment_id = NULL, status = CASE WHEN status IN ('PENDENTE', 'PROCESSANDO') THEN 'ERRO' ELSE status END,
+                 completed_at = COALESCE(completed_at, NOW(3)),
+                 response_message = COALESCE(response_message, 'Dala excluída antes da conclusão do comando.')
+             WHERE company_id = :company_id AND equipment_id = :equipment_id",
+        )->execute(["company_id" => $user["company_id"], "equipment_id" => $id]);
+        $pdo->prepare(
+            "UPDATE solicitacoes_captura_camera
+             SET equipment_id = NULL, status = CASE WHEN status IN ('PENDENTE', 'CAPTURANDO') THEN 'DESCARTADA' ELSE status END,
+                 error_message = COALESCE(error_message, 'Dala excluída antes da captura.')
+             WHERE equipment_id = :equipment_id",
+        )->execute(["equipment_id" => $id]);
+        $pdo->prepare("UPDATE eventos_sensor SET equipment_id = NULL WHERE equipment_id = :equipment_id")
+            ->execute(["equipment_id" => $id]);
+        $pdo->prepare("UPDATE imagens SET equipment_id = NULL WHERE equipment_id = :equipment_id")
+            ->execute(["equipment_id" => $id]);
+        $pdo->prepare("DELETE FROM dispositivos WHERE company_id = :company_id AND equipment_id = :equipment_id")
+            ->execute(["company_id" => $user["company_id"], "equipment_id" => $id]);
         // As ações e o gatilho padrão são criados junto com toda Dala nova.
         // Eles não podem permanecer apontando para um equipamento removido.
         $pdo->prepare("DELETE FROM gatilhos_dala WHERE equipment_id = :id")->execute([
@@ -348,6 +367,7 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
+        error_log("Equipment deletion failed: " . $exception->getMessage());
         if ((int) $exception->errorInfo[1] === 1451) {
             json_response(
                 [
