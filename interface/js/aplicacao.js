@@ -8,14 +8,13 @@ import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./fun
 import { rotuloEstado } from "./funcoes/rotulos.js";
 import { settings } from "./telas/configuracoes.js?v=202609140210";
 import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609162240";
-import { company } from "./telas/empresa.js";
-import { companies } from "./telas/empresas.js?v=202609162400";
+import { company } from "./telas/empresa.js?v=202609181200";
+import { companies } from "./telas/empresas.js?v=202609181200";
 import { errorLogs } from "./telas/logs.js";
 import { masterHome } from "./telas/master.js?v=202609162205";
 import {
     alerts,
     emergency,
-    history,
     occurrences,
     products,
     summary,
@@ -42,7 +41,6 @@ const screens = {
   work,
   occurrences,
   summary,
-  history,
   products,
   alerts,
   emergency,
@@ -77,7 +75,6 @@ const ROLE_PAGES = {
     "work",
     "occurrences",
     "summary",
-    "history",
     "products",
     "alerts",
     "emergency",
@@ -99,7 +96,6 @@ const ROLE_PAGES = {
     "work",
     "occurrences",
     "summary",
-    "history",
     "products",
     "alerts",
     "emergency",
@@ -124,7 +120,6 @@ const NAV_GROUPS = [
     [
       ["manifests", "Romaneios"],
       ["dashboard", "Dashboard"],
-      ["history", "Histórico"],
     ],
   ],
   [
@@ -157,7 +152,6 @@ const PAGE_LABELS = {
   work: "Operação",
   occurrences: "Ocorrências",
   summary: "Resumo final",
-  history: "Histórico",
   products: "Produtos",
   alerts: "Alertas",
   emergency: "Emergência",
@@ -264,8 +258,6 @@ function navigationIcon(page) {
     work: '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 8h18v8H3zM7 8V5h10v3M7 16v3h10v-3"/><path d="M8 12h8"/></svg>',
     occurrences:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 2.8 20h18.4L12 3Z"/><path d="M12 9v5M12 17h.01"/></svg>',
-    history:
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5M12 7v5l3 2"/></svg>',
     summary:
       '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h14v18H5z"/><path d="M8 8h8M8 12h8M8 16h5"/></svg>',
     alerts:
@@ -409,14 +401,19 @@ function renderLocalActivation(data = { active: false }, message = "") {
   const panel = el("#local-activation");
   const error = el("#local-activation-error");
   const enabled = Boolean(data?.enabled);
-  const active = enabled && Boolean(data?.active);
+  const licenseStatus = String(data?.license_status || (data?.active ? "ATIVA" : ""));
+  const active = enabled && Boolean(data?.active) && licenseStatus === "ATIVA";
+  const blocked = enabled && Boolean(data?.active) && licenseStatus !== "ATIVA";
   if (status) {
-    status.hidden = !active;
+    status.hidden = !active && !blocked;
+    status.classList.toggle("is-blocked", blocked);
     status.innerHTML = active
       ? `<strong>Licença ativa</strong><small>${esc(data.company_name || "Empresa configurada")} · @${esc(data.login_domain || "—")}</small>`
-      : "";
+      : blocked
+        ? `<strong>Licença bloqueada</strong><small>${esc(data.license_reason || "A empresa precisa ser liberada no servidor central.")}</small>`
+        : "";
   }
-  if (panel) panel.hidden = !enabled || active;
+  if (panel) panel.hidden = !enabled || active || blocked;
   if (error) {
     error.textContent = message;
     error.hidden = !message;
@@ -436,7 +433,7 @@ function bindLocalActivationForm() {
       submit.disabled = true;
       submit.textContent = "Ativando…";
     }
-    renderLocalActivation({ active: false }, "");
+    renderLocalActivation({ enabled: true, active: false }, "");
     try {
       const data = Object.fromEntries(new FormData(form));
       const activation = await store.activateLocalInstallation(data);
@@ -446,7 +443,10 @@ function bindLocalActivationForm() {
       form.reset();
       alert(`Instalação ativada para ${activation.company_name}.`);
     } catch (error) {
-      renderLocalActivation({ active: false }, error.message || "Não foi possível ativar esta instalação.");
+      renderLocalActivation(
+        { enabled: true, active: false },
+        error.message || "Não foi possível ativar esta instalação.",
+      );
     } finally {
       form.dataset.submitting = "0";
       if (submit) {
@@ -2019,7 +2019,6 @@ async function loadPageData(page) {
     ],
     occurrences: () => [store.loadMonitoring(), store.loadActiveLoading()],
     summary: () => [store.loadMonitoring(), store.loadActiveLoading()],
-    history: () => [store.loadMonitoring(), store.loadReport()],
     products: () => [store.loadProducts()],
     alerts: () => [
       store.loadMonitoring(),

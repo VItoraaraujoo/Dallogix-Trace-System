@@ -134,6 +134,8 @@ responder_json([
             "id" => $companyId,
             "name" => $company["name"],
             "login_domain" => $company["login_domain"],
+            "license_status" => $company["license_status"],
+            "license_reason" => $company["license_reason"],
         ],
         "equipamentos" => $equipamentos,
         "carregamentos_ativos" => $carregamentos,

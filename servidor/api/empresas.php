@@ -108,7 +108,8 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             responder_json(["error" => "Empresa não informada."], 422);
         }
         $company = obter_conexao_banco()->prepare(
-            "SELECT id, name, login_domain, activation_code, activation_code_hash, archived_at
+            "SELECT id, name, login_domain, activation_code, activation_code_hash, archived_at,
+                    (SELECT l.status FROM licencas l WHERE l.company_id = empresas.id ORDER BY l.id DESC LIMIT 1) AS license_status
              FROM empresas WHERE id = :id LIMIT 1",
         );
         $company->execute(["id" => $companyId]);
@@ -118,6 +119,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
         if ($empresa["archived_at"] !== null) {
             responder_json(["error" => "Não é possível gerar ativação para uma empresa arquivada."], 409);
+        }
+        if (($empresa["license_status"] ?? "") !== "ATIVA") {
+            responder_json(["error" => "Ative a licença da empresa antes de liberar o código de ativação."], 409);
         }
         if (trim((string) ($empresa["activation_code"] ?? "")) !== "") {
             responder_json([
@@ -175,19 +179,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
 
         $loginDomain = gerar_dominio_login_empresa($pdo, $nomeEmpresa);
-        $activation = gerar_codigo_ativacao_empresa();
         $insercao = $pdo->prepare(
             "INSERT INTO empresas
-                (name, login_domain, activation_code, activation_code_hash, activation_code_preview, activation_code_created_at)
+                (name, login_domain)
              VALUES
-                (:name, :login_domain, :code, :code_hash, :code_preview, NOW())",
+                (:name, :login_domain)",
         );
         $insercao->execute([
             "name" => $nomeEmpresa,
             "login_domain" => $loginDomain,
-            "code" => $activation["code"],
-            "code_hash" => $activation["hash"],
-            "code_preview" => $activation["preview"],
         ]);
         $createdCompanyId = (int) $pdo->lastInsertId();
         registrar_evento_operacional(
@@ -199,7 +199,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             [
                 "name" => $nomeEmpresa,
                 "login_domain" => $loginDomain,
-                "activation_code_preview" => $activation["preview"],
             ],
         );
         responder_json(
@@ -208,7 +207,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                     "id" => $createdCompanyId,
                     "name" => $nomeEmpresa,
                     "login_domain" => $loginDomain,
-                    "activation_code" => $activation["code"],
                 ],
             ],
             201,
@@ -460,7 +458,8 @@ $machinesSql = "SELECT e.id, e.equipment_code, e.name,
 
 if ($requestedCompanyId !== null) {
     $companyStatement = $pdo->prepare(
-        "SELECT id, name, login_domain, activation_code, activation_code_preview, activation_code_created_at, created_at, archived_at
+        "SELECT id, name, login_domain, activation_code, activation_code_preview, activation_code_created_at, created_at, archived_at,
+                (SELECT l.status FROM licencas l WHERE l.company_id = empresas.id ORDER BY l.id DESC LIMIT 1) AS license_status
          FROM empresas WHERE id = :id LIMIT 1",
     );
     $companyStatement->execute(["id" => $requestedCompanyId]);
@@ -491,14 +490,17 @@ if ($requestedCompanyId !== null) {
     );
     $sincronizacaoPendente->execute(["company_id" => $requestedCompanyId]);
 
+    $licenseStatus = $empresa["license_status"] ?: "SEM_LICENCA";
+    $activationAvailable = $licenseStatus === "ATIVA";
     json_response([
         "data" => [
             "id" => (int) $empresa["id"],
             "name" => $empresa["name"],
             "login_domain" => $empresa["login_domain"],
-            "activation_code" => $isAdminDallogix ? $empresa["activation_code"] : null,
-            "activation_code_preview" => $empresa["activation_code_preview"],
-            "activation_code_created_at" => $empresa["activation_code_created_at"],
+            "license_status" => $licenseStatus,
+            "activation_code" => $isAdminDallogix && $activationAvailable ? $empresa["activation_code"] : null,
+            "activation_code_preview" => $activationAvailable ? $empresa["activation_code_preview"] : null,
+            "activation_code_created_at" => $activationAvailable ? $empresa["activation_code_created_at"] : null,
             "created_at" => $empresa["created_at"],
             "archived_at" => $empresa["archived_at"],
             "archived" => $empresa["archived_at"] !== null,
@@ -537,7 +539,7 @@ $rows = array_map(static function (array $row): array {
         "id" => (int) $row["id"],
         "name" => $row["name"],
         "login_domain" => $row["login_domain"],
-        "activation_code_preview" => $row["activation_code_preview"],
+        "activation_code_preview" => $licenseStatus === "ATIVA" ? $row["activation_code_preview"] : null,
         "activation_code_created_at" => $row["activation_code_created_at"],
         "created_at" => $row["created_at"],
         "archived_at" => $row["archived_at"],

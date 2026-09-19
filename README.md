@@ -87,9 +87,9 @@ Credencial local inicial: `admin@dallogix.local` / `password`. A senha definida 
 
 ## Ativação do PC industrial
 
-Ao criar uma empresa no site com o perfil Master, o Trace gera um código de ativação único e permanente e o exibe em **Gerenciar empresa** para cópia. No primeiro acesso da instalação local, informe esse código e o login do administrador da empresa. O PC envia o código ao servidor central, que calcula o hash e confirma a empresa; depois valida as credenciais do administrador da mesma empresa, cria o acesso local e registra a ativação. Nas aberturas seguintes, a tela de login mostra `Licença ativa` e não solicita o código novamente.
+Ao criar uma empresa no site com o perfil Master, primeiro ative a licença. Só depois disso o Trace libera o código de ativação único e permanente em **Ver código**. No primeiro acesso da instalação local, informe esse código e o login do administrador da empresa. O PC envia o código ao servidor central, que calcula o hash e confirma a empresa; depois valida as credenciais do administrador da mesma empresa, cria o acesso local e registra a ativação. Nas aberturas seguintes, a tela de login mostra `Licença ativa` e não solicita o código novamente. Bloquear a licença oculta novamente o código e impede novas ativações até o desbloqueio.
 
-No PC industrial, configure `TRACE_INSTALLATION_MODE=local` e `TRACE_CENTRAL_URL` com a URL base do servidor central. No servidor remoto, configure `TRACE_INSTALLATION_MODE=central`; nesse ambiente o formulário de ativação não aparece e o login remoto permanece normal. Se o modo ficar vazio, o Trace considera ambientes diferentes de produção como locais e produção como central.
+No PC industrial, configure `TRACE_INSTALLATION_MODE=local` e `TRACE_CENTRAL_URL` com a URL base do servidor central. No servidor remoto, configure `TRACE_INSTALLATION_MODE=central`; nesse ambiente o formulário de ativação não aparece e o login remoto permanece normal. Se o modo ficar vazio, o Trace considera ambientes diferentes de produção como locais e produção como central. O servidor central consulta a licença em cada sincronização: se ela for bloqueada, rejeita heartbeat, eventos e comandos, e a instalação local grava o estado bloqueado para impedir novas operações até a licença ser reativada.
 
 ## Parar e reiniciar
 

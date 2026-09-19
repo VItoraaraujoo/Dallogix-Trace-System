@@ -246,7 +246,7 @@ function token_bearer_instalacao(): string
     return trim((string) ($_SERVER["HTTP_X_INSTALLATION_TOKEN"] ?? ""));
 }
 
-/** @return array{id:int,name:string,login_domain:string} */
+/** @return array{id:int,name:string,login_domain:string,license_status:string,license_reason:?string} */
 function exigir_instalacao_remota(): array
 {
     $token = token_bearer_instalacao();
@@ -255,7 +255,8 @@ function exigir_instalacao_remota(): array
     }
 
     $normalized = str_replace("-", "", strtoupper($token));
-    $statement = obter_conexao_banco()->prepare(
+    $pdo = obter_conexao_banco();
+    $statement = $pdo->prepare(
         "SELECT id, name, login_domain
          FROM empresas
          WHERE archived_at IS NULL AND activation_code_hash = :code_hash
@@ -267,10 +268,19 @@ function exigir_instalacao_remota(): array
         responder_json(["error" => "Credencial da instalação inválida."], 401);
     }
 
+    // O código identifica a instalação, mas a licença decide se ela pode
+    // continuar sincronizando. A mesma regra também é usada pelas rotas
+    // operacionais autenticadas.
+    $license = validar_licenca_ativa($pdo, (int) $company["id"]);
+
     return [
         "id" => (int) $company["id"],
         "name" => (string) $company["name"],
         "login_domain" => (string) $company["login_domain"],
+        "license_status" => (string) $license["status"],
+        "license_reason" => $license["blocked_reason"] !== null
+            ? (string) $license["blocked_reason"]
+            : null,
     ];
 }
 
@@ -278,19 +288,27 @@ function validar_licenca_ativa(PDO $pdo, int $companyId): array
 {
     $statement = $pdo->prepare(
         "SELECT id, status, blocked_reason
-         FROM licencas WHERE company_id = :company_id LIMIT 1",
+         FROM licencas
+         WHERE company_id = :company_id
+         ORDER BY id DESC
+         LIMIT 1",
     );
     $statement->execute(["company_id" => $companyId]);
     $license = $statement->fetch();
 
     if (!$license) {
-        responder_json(["error" => "Empresa sem licença configurada."], 402);
+        responder_json([
+            "error" => "Empresa sem licença configurada.",
+            "error_code" => "LICENSE_INACTIVE",
+            "license_status" => "SEM_LICENCA",
+        ], 402);
     }
 
     if ($license["status"] !== "ATIVA") {
         responder_json(
             [
                 "error" => "Licença da empresa bloqueada.",
+                "error_code" => "LICENSE_INACTIVE",
                 "license_status" => $license["status"],
                 "blocked_reason" => $license["blocked_reason"],
             ],
@@ -299,6 +317,22 @@ function validar_licenca_ativa(PDO $pdo, int $companyId): array
     }
 
     return $license;
+}
+
+function validar_licenca_local_se_ativada(PDO $pdo, int $companyId): void
+{
+    if (!trace_e_instalacao_local() || $companyId < 1) {
+        return;
+    }
+
+    $installation = $pdo->query(
+        "SELECT company_id FROM instalacoes_locais WHERE id = 1 LIMIT 1",
+    )->fetchColumn();
+    if ($installation === false || (int) $installation !== $companyId) {
+        return;
+    }
+
+    validar_licenca_ativa($pdo, $companyId);
 }
 
 /** @deprecated Use validar_licenca_ativa() in new endpoints. */
@@ -564,6 +598,10 @@ function exigir_sessao_usuario(bool $permitirTrocaSenha = false): array
         responder_json(["error" => "A sessão foi encerrada porque as credenciais foram alteradas."], 401);
     }
     $usuarioPublico = usuario_publico($usuarioAtual);
+    validar_licenca_local_se_ativada(
+        obter_conexao_banco(),
+        (int) ($usuarioPublico["company_id"] ?? 0),
+    );
     $_SESSION["user"] = $usuarioPublico;
     $_SESSION["auth_version"] = (int) $usuarioAtual["auth_version"];
     $_SESSION["user_validated_at"] = time();

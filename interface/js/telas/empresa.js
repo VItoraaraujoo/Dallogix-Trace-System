@@ -1,5 +1,5 @@
 import { button, esc } from "../funcoes/html.js";
-import { pageHeader, machineGrid, deviceBadge } from "../funcoes/view.js?v=202609150020";
+import { pageHeader, machineGrid, deviceBadge } from "../funcoes/view.js?v=202609181200";
 
 export function company(store) {
   const detail = store.state.companyDetail;
@@ -20,16 +20,23 @@ export function company(store) {
     store.state.companyActivation?.id === detail.id
       ? store.state.companyActivation
       : null;
+  const licenseStatus = String(detail.license_status || "SEM_LICENCA");
+  const licenseActive = licenseStatus === "ATIVA";
   const visibleActivationCode =
-    activation?.activation_code || detail.activation_code || "";
+    licenseActive ? activation?.activation_code || detail.activation_code || "" : "";
   const activationButtonLabel =
-    detail.activation_code || detail.activation_code_preview
-    ? "Ver código"
-    : "Gerar código";
-  const activationCodeContent = visibleActivationCode
+    licenseActive && (detail.activation_code || detail.activation_code_preview)
+      ? "Ver código"
+      : "Gerar código";
+  const activationCodeContent = !licenseActive
+    ? "<p>Ative a licença da empresa para liberar o código de ativação do PC industrial.</p>"
+    : visibleActivationCode
     ? `<strong class="company-activation-code">${esc(visibleActivationCode)}</strong><small>Guarde este código para ativar o PC industrial.</small>`
     : `<p>${detail.activation_code_preview ? `Código permanente já emitido (final ${esc(detail.activation_code_preview)}).` : "O código ainda não foi gerado para esta empresa."}</p>`;
-  const activationPanel = `<section class="panel company-activation-panel"><div><span class="kicker">Acesso da instalação</span><h3>Código de ativação da empresa</h3>${activationCodeContent}<small>Domínio: @${esc(detail.login_domain || "—")}</small></div><div class="actions"><button class="button primary" data-action="generate-company-activation" data-id="${detail.id}" type="button">${activationButtonLabel}</button>${visibleActivationCode ? `<button class="button secondary" data-action="copy-company-activation" data-code="${esc(visibleActivationCode)}" type="button">Copiar código</button>` : ""}</div></section><br>`;
+  const activationActions = licenseActive
+    ? `<button class="button primary" data-action="generate-company-activation" data-id="${detail.id}" type="button">${activationButtonLabel}</button>${visibleActivationCode ? `<button class="button secondary" data-action="copy-company-activation" data-code="${esc(visibleActivationCode)}" type="button">Copiar código</button>` : ""}`
+    : "";
+  const activationPanel = `<section class="panel company-activation-panel"><div><span class="kicker">Acesso da instalação</span><h3>Código de ativação da empresa</h3>${activationCodeContent}<small>Domínio: @${esc(detail.login_domain || "—")}</small></div><div class="actions">${activationActions}</div></section><br>`;
   const renamePanel = `<section class="panel"><form id="company-rename-form" data-company-id="${detail.id}"><div class="panel-heading"><div><span class="kicker">Cadastro da empresa</span><h3>Nome da empresa</h3><p>O domínio dos logins permanece o mesmo para não interromper os acessos existentes.</p></div><button class="button primary" type="submit">Salvar nome</button></div><label>Nome comercial<input name="name" maxlength="160" value="${esc(detail.name)}" required /></label><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form></section><br>`;
   return `<div class="title-row with-actions has-back"><button class="button secondary page-back" data-action="back-companies" type="button">← Voltar</button><div><span class="kicker">Dallogix / gerenciamento</span><h2>${esc(detail.name)}</h2><p>Dashboard operacional da empresa: máquinas, carregamentos e ocorrências.</p><p class="kicker">Domínio de acesso: @${esc(detail.login_domain || "—")}</p></div><div class="actions">${button("Logins", "open-users", "secondary", `data-company-id="${detail.id}"`)}</div></div>
     ${renamePanel}${activationPanel}

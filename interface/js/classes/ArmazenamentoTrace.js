@@ -848,6 +848,7 @@ export class ArmazenamentoTrace {
     if (!response.ok)
       throw new Error(result.error || "Não foi possível atualizar a licença.");
     await this.loadCompanies();
+    this.state.companyActivation = null;
     return result.data;
   }
   selectCompany(id) {

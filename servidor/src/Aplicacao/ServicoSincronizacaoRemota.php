@@ -117,6 +117,12 @@ final class ServicoSincronizacaoRemota
             throw new RuntimeException("Resposta inválida do servidor central.");
         }
         if ($status < 200 || $status >= 300) {
+            if (($decoded["error_code"] ?? "") === "LICENSE_INACTIVE") {
+                $this->syncLocalLicenseStatus(
+                    (string) ($decoded["license_status"] ?? "BLOQUEADA"),
+                    $decoded["blocked_reason"] ?? ($decoded["error"] ?? null),
+                );
+            }
             throw new RuntimeException((string) ($decoded["error"] ?? "Servidor central respondeu HTTP {$status}."));
         }
         return $decoded["data"] ?? $decoded;
@@ -129,6 +135,14 @@ final class ServicoSincronizacaoRemota
         $updated = 0;
         $this->connection->beginTransaction();
         try {
+            $remoteLicense = is_array($snapshot["empresa"] ?? null)
+                ? $snapshot["empresa"]
+                : [];
+            $this->syncLocalLicenseStatus(
+                (string) ($remoteLicense["license_status"] ?? "ATIVA"),
+                $remoteLicense["license_reason"] ?? null,
+            );
+
             $equipmentIds = [];
             foreach (($snapshot["equipamentos"] ?? []) as $remoteEquipment) {
                 $equipmentIds[(int) $remoteEquipment["id"]] = $this->upsertEquipment($companyId, $remoteEquipment);
@@ -533,5 +547,37 @@ final class ServicoSincronizacaoRemota
             "UPDATE instalacoes_locais SET last_remote_sync_error = :error WHERE id = 1",
         );
         $statement->execute(["error" => mb_substr($message, 0, 1000)]);
+    }
+
+    private function syncLocalLicenseStatus(string $status, mixed $reason): void
+    {
+        $normalizedStatus = strtoupper(trim($status)) === "ATIVA" ? "ATIVA" : "BLOQUEADA";
+        $blockedReason = trim((string) ($reason ?? ""));
+
+        try {
+            $companyId = (int) ($this->connection->query(
+                "SELECT company_id FROM instalacoes_locais WHERE id = 1 LIMIT 1",
+            )->fetchColumn() ?: 0);
+            if ($companyId < 1) {
+                return;
+            }
+
+            $statement = $this->connection->prepare(
+                "INSERT INTO licencas (company_id, plan_name, billing_period, status, blocked_at, blocked_reason)
+                 VALUES (:company_id, 'Trace Mensal', 'MENSAL', :status, :blocked_at, :blocked_reason)
+                 ON DUPLICATE KEY UPDATE status = VALUES(status), blocked_at = VALUES(blocked_at),
+                     blocked_reason = VALUES(blocked_reason)",
+            );
+            $statement->execute([
+                "company_id" => $companyId,
+                "status" => $normalizedStatus,
+                "blocked_at" => $normalizedStatus === "ATIVA" ? null : date("Y-m-d H:i:s"),
+                "blocked_reason" => $normalizedStatus === "ATIVA"
+                    ? null
+                    : mb_substr($blockedReason !== "" ? $blockedReason : "Licença bloqueada no servidor central.", 0, 255),
+            ]);
+        } catch (Throwable $exception) {
+            error_log("Não foi possível atualizar o estado local da licença: " . $exception->getMessage());
+        }
     }
 }

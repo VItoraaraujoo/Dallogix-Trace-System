@@ -12,7 +12,10 @@ $code = strtoupper(trim((string) ($payload["activation_code"] ?? "")));
 $email = strtolower(trim((string) ($payload["email"] ?? "")));
 $password = (string) ($payload["password"] ?? "");
 if (!preg_match('/^TRC-[A-Z0-9]{4}-[A-Z0-9]{4}$/', $code)) {
-    responder_json(["error" => "Código de ativação inválido."], 422);
+    responder_json([
+        "error" => "Código de ativação incorreto.",
+        "error_code" => "ACTIVATION_CODE_INVALID",
+    ], 422);
 }
 if (!filter_var($email, FILTER_VALIDATE_EMAIL) || mb_strlen($password) < 6 || mb_strlen($password) > 128) {
     responder_json(["error" => "Informe o login e a senha do administrador da empresa."], 422);
@@ -69,6 +72,15 @@ try {
     responder_json(["error" => $exception->getMessage()], 503);
 }
 if ($activationStatus < 200 || $activationStatus >= 300 || !isset($activationResult["data"])) {
+    if (
+        ($activationResult["error_code"] ?? "") === "ACTIVATION_CODE_INVALID"
+        || in_array($activationStatus, [401, 422], true)
+    ) {
+        responder_json([
+            "error" => "Código de ativação incorreto.",
+            "error_code" => "ACTIVATION_CODE_INVALID",
+        ], 401);
+    }
     responder_json(["error" => $activationResult["error"] ?? "Não foi possível validar o código."], 401);
 }
 $remoteCompany = $activationResult["data"];
@@ -165,6 +177,16 @@ try {
         ]);
         $localUserId = (int) $pdo->lastInsertId();
     }
+
+    // A instalação local mantém uma cópia do último estado conhecido da
+    // licença para impedir operações enquanto o servidor central estiver
+    // bloqueando a empresa.
+    $license = $pdo->prepare(
+        "INSERT INTO licencas (company_id, plan_name, billing_period, status, blocked_at, blocked_reason)
+         VALUES (:company_id, 'Trace Mensal', 'MENSAL', 'ATIVA', NULL, NULL)
+         ON DUPLICATE KEY UPDATE status = 'ATIVA', blocked_at = NULL, blocked_reason = NULL",
+    );
+    $license->execute(["company_id" => $localCompanyId]);
 
     $installation = $pdo->prepare(
         "INSERT INTO instalacoes_locais

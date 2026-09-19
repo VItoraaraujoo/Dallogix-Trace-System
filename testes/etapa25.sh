@@ -18,10 +18,8 @@ grep -q '"rows"' /tmp/dx-etapa25-report.json || fail "relatório sem linhas"
 invalid_code="$(curl -sS -o /tmp/dx-etapa25-invalid.json -w '%{http_code}' -b "$jar" "$base_url/api/relatorio_operacional.php?date_from=2026-02-31")"
 [ "$invalid_code" = "422" ] || fail "data inválida não retornou HTTP 422"
 
-history_html="$(curl -sS "$base_url/history.html")"
-printf '%s' "$history_html" | grep -q 'data-page="history"' || fail "history.html sem data-page"
 app_js="$(curl -sS "$base_url/js/aplicacao.js")"
 printf '%s' "$app_js" | grep -q 'loadReport' || fail "app.js sem carregamento do relatório"
 printf '%s' "$app_js" | grep -q 'export-report' || fail "app.js sem exportação do relatório"
 
-echo "OK: relatório operacional autenticado, filtros e exportação do histórico validados."
+echo "OK: relatório operacional autenticado e exportação disponíveis."

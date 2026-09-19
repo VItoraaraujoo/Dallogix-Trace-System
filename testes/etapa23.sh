@@ -31,7 +31,6 @@ check_page division.html division
 check_page work.html work
 check_page occurrences.html occurrences
 check_page summary.html summary
-check_page history.html history
 check_page products.html products
 check_page alerts.html alerts
 check_page emergency.html emergency

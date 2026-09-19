@@ -34,7 +34,6 @@ Estas telas não ficam expostas como itens permanentes do menu. Elas são aberta
 | ALERTAS | Alertas e sincronização | Estado da operação |
 | OCORRÊNCIAS | Ocorrências | Operação em andamento |
 | RESUMO FINAL | Resumo final | Encerramento da operação |
-| HISTÓRICO | Histórico operacional | Acompanhamento da operação |
 | CADASTRO DE PRODUTO | Formulário dentro de Produtos | Menu Produtos |
 | LISTA DE PRODUTOS | Lista dentro de Produtos | Menu Produtos |
 | EMERGÊNCIA | Tela de emergência | Estado crítico da operação |
@@ -58,4 +57,4 @@ As telas de empresas, usuários e administração global continuam disponíveis 
 
 ## Próxima etapa
 
-Revisar cada fluxo interno, nesta ordem: Romaneio → Importação CSV → Divisão por caminhão → Tela de trabalho → Alertas/Ocorrências → Resumo final/Histórico → Emergência.
+Revisar cada fluxo interno, nesta ordem: Romaneio → Importação CSV → Divisão por caminhão → Tela de trabalho → Alertas/Ocorrências → Resumo final → Emergência.

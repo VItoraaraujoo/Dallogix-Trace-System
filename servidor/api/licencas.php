@@ -36,7 +36,10 @@ if (!$companyId || !in_array($status, ["ATIVA", "BLOQUEADA"], true)) {
 if ($plan === "" || mb_strlen($plan) > 100 || mb_strlen($reason) > 255) {
     json_response(["error" => "Dados da licença inválidos."], 422);
 }
-$company = $pdo->prepare("SELECT id, archived_at FROM empresas WHERE id = :id LIMIT 1");
+$company = $pdo->prepare(
+    "SELECT id, archived_at, activation_code, activation_code_preview
+     FROM empresas WHERE id = :id LIMIT 1",
+);
 $company->execute(["id" => $companyId]);
 $companyRow = $company->fetch();
 if (!$companyRow) json_response(["error" => "Empresa não encontrada."], 404);
@@ -59,6 +62,23 @@ try {
         "blocked_at" => $status === "ATIVA" ? null : date("Y-m-d H:i:s"),
         "reason" => $reason !== "" ? $reason : null,
     ]);
+    if ($status === "ATIVA" && trim((string) ($companyRow["activation_code"] ?? "")) === "") {
+        $activation = gerar_codigo_ativacao_empresa();
+        $activationUpdate = $pdo->prepare(
+            "UPDATE empresas
+             SET activation_code = :code,
+                 activation_code_hash = :code_hash,
+                 activation_code_preview = :code_preview,
+                 activation_code_created_at = NOW()
+             WHERE id = :id",
+        );
+        $activationUpdate->execute([
+            "code" => $activation["code"],
+            "code_hash" => $activation["hash"],
+            "code_preview" => $activation["preview"],
+            "id" => $companyId,
+        ]);
+    }
     $idStatement = $pdo->prepare("SELECT id FROM licencas WHERE company_id = :company_id LIMIT 1");
     $idStatement->execute(["company_id" => $companyId]);
     $id = (int) $idStatement->fetchColumn();
