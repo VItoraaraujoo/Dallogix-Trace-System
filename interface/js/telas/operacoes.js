@@ -110,7 +110,8 @@ export function importScreen(store) {
 </div></section><br>
 <section class="panel"><div class="panel-heading"><h3>Itens do Romaneio</h3>${button("Adicionar item", "add-item", "secondary")}</div>
 <div class="table-wrap"><table id="manifest-items" class="mobile-card-table"><thead><tr><th>Produto</th><th>Quantidade</th><th></th></tr></thead><tbody>${itemRow(products)}</tbody></table></div>
-</section><br>${button("Cadastrar", "submit-manifest")}
+</section>
+<div class="manifest-submit-actions">${button("Cadastrar", "submit-manifest")}</div>
 </form>
 <details class="panel csv-legacy"><summary>Importar romaneios por CSV</summary><p>Use o modelo separado por ponto e vírgula. Campos obrigatórios: <b>romaneio, data, placa, produto e quantidade</b>. Motorista e expedidor são opcionais. A data pode ser <b>DD/MM/AAAA</b> ou <b>AAAA-MM-DD</b>.</p><p><a class="text-link" href="assets/modelo-romaneio.csv" download>Baixar modelo CSV</a></p><form id="csv-form"><div class="file-picker"><input id="csv-file" class="file-input" name="file" type="file" accept=".csv,text/csv" required /><label class="button primary file-picker-button" for="csv-file">Escolher arquivo</label><span class="file-name" data-file-name>Nenhum arquivo escolhido</span></div><small>Máximo: 5 MB ou 10.000 linhas. Linhas repetidas do mesmo produto são somadas automaticamente.</small><div class="actions">${button("Importar e validar", "import-csv")}</div><div id="csv-import-feedback" class="import-feedback" role="status" aria-live="polite"></div></form></details>`;
 }

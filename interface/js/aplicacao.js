@@ -26,7 +26,7 @@ import {
     manifests,
     manifestView,
     work,
-} from "./telas/operacoes.js?v=202609181700";
+} from "./telas/operacoes.js?v=202609191120";
 import { dashboard } from "./telas/painel.js?v=202609150300";
 import { users } from "./telas/usuarios.js?v=202609162215";
 

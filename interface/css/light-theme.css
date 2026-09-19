@@ -4902,9 +4902,15 @@ p {
 }
 
 /* O cadastro fica separado do painel de itens para não parecer parte da tabela. */
-#new-manifest-form > .button[data-action="submit-manifest"] {
-  display: inline-flex;
-  margin: 28px 0 0;
+.manifest-submit-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  margin: 20px 0 24px;
+}
+
+.manifest-submit-actions .button {
+  margin: 0;
 }
 
 @media (max-width: 760px) {
@@ -4935,7 +4941,7 @@ p {
     width: 100%;
   }
 
-  #new-manifest-form > .button[data-action="submit-manifest"] {
+  .manifest-submit-actions .button {
     width: 100%;
     justify-content: center;
   }
