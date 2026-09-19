@@ -7,7 +7,7 @@ import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js";
 import { settings } from "./telas/configuracoes.js?v=202609140210";
-import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609162240";
+import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609191020";
 import { company } from "./telas/empresa.js?v=202609181200";
 import { companies } from "./telas/empresas.js?v=202609181200";
 import { errorLogs } from "./telas/logs.js";
