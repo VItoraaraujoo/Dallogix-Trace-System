@@ -81,7 +81,7 @@ jobs:
           SERVER_HOST="140.238.187.6"
           git archive --format=tar HEAD | \
             ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" \
-              "tar -xf - -C '$SERVER_PATH' && cd '$SERVER_PATH' && \
+              "tar -xf - -C '$SERVER_PATH' && rm -f '$SERVER_PATH/interface/history.html' && cd '$SERVER_PATH' && \
               if [ -f .env ]; then sed -i '/^TRACE_VERSION=/d;/^TRACE_COMMIT=/d' .env; fi && \
               printf 'TRACE_VERSION=%s\\nTRACE_COMMIT=%s\\n' '$GITHUB_SHA' '$GITHUB_SHA' >> .env && \
               printf '{\"version\":\"%s\",\"commit\":\"%s\"}\\n' '$GITHUB_SHA' '$GITHUB_SHA' > .release.json.tmp && \
