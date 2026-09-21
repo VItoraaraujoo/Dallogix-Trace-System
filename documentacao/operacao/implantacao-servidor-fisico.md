@@ -20,7 +20,7 @@ O ambiente local integra o Trace com o `modbus-virtual` e com as abas de teste d
 
 Antes de subir o ambiente físico, exporte o `.env` e execute `bash scripts/check_production_env.sh`. A verificação falha se houver segredo padrão, URL sem HTTPS, sessão insegura ou sincronização remota sem token.
 
-O administrador Master controla manualmente o status de cada empresa, podendo bloqueá-la ou desbloqueá-la. Não existe vencimento, cobrança automática, gateway de pagamento, cartão, boleto ou PIX no sistema. Quando a empresa está bloqueada, o Trace impede novas preparações, início de carregamento e comandos operacionais. A carga já iniciada permanece disponível para tratamento seguro e não é desligada pelo sistema.
+O administrador Master controla manualmente o status de cada empresa, podendo bloqueá-la ou desbloqueá-la. Não existe vencimento, cobrança automática, gateway de pagamento, cartão, boleto ou PIX no sistema. Quando a empresa está bloqueada, o Trace local encerra as sessões dos usuários da empresa e impede novo acesso ao sistema, além de rejeitar preparações, início de carregamento e comandos operacionais. O Master permanece apenas para administração da licença e não opera a instalação. A carga já iniciada não é desligada automaticamente pelo sistema; qualquer intervenção física continua dependendo do circuito de segurança e do CLP.
 
 ## Homologação antes da troca
 

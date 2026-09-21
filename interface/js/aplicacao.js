@@ -2186,6 +2186,15 @@ async function bootstrap() {
   }
   const response = await fetch("/api/me.php");
   if (!response.ok) {
+    const result = await response.json().catch(() => ({}));
+    try {
+      sessionStorage.setItem(
+        "trace-login-message",
+        result.error || "O acesso ao sistema foi bloqueado.",
+      );
+    } catch (storageError) {
+      /* armazenamento indisponível */
+    }
     window.location.replace("index.html");
     return;
   }

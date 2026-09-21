@@ -58,6 +58,13 @@ if (
     responder_json(["error" => "Credenciais inválidas."], 401);
 }
 
+if (($usuario["role"] ?? "") !== "ADMIN_DALLOGIX") {
+    exigir_instalacao_local_ativa(
+        obter_conexao_banco(),
+        (int) ($usuario["company_id"] ?? 0),
+    );
+}
+
 registrar_login_sucesso($email);
 
 if (password_needs_rehash($usuario["password_hash"], PASSWORD_DEFAULT)) {

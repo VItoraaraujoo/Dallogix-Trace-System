@@ -132,6 +132,28 @@ function responder_json(array $dados, int $status = 200): never
     exit();
 }
 
+function encerrar_sessao_atual(): void
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return;
+    }
+
+    $_SESSION = [];
+    if (ini_get("session.use_cookies")) {
+        $configuracoes = session_get_cookie_params();
+        setcookie(
+            session_name(),
+            "",
+            time() - 42000,
+            $configuracoes["path"],
+            $configuracoes["domain"],
+            (bool) $configuracoes["secure"],
+            (bool) $configuracoes["httponly"],
+        );
+    }
+    session_destroy();
+}
+
 /** @deprecated Use responder_json() in new endpoints. */
 function json_response(array $payload, int $status = 200): never
 {
@@ -322,6 +344,7 @@ function validar_licenca_ativa(PDO $pdo, int $companyId): array
     $license = $statement->fetch();
 
     if (!$license) {
+        encerrar_sessao_atual();
         responder_json([
             "error" => "Empresa sem licença configurada.",
             "error_code" => "LICENSE_INACTIVE",
@@ -330,6 +353,7 @@ function validar_licenca_ativa(PDO $pdo, int $companyId): array
     }
 
     if ($license["status"] !== "ATIVA") {
+        encerrar_sessao_atual();
         responder_json(
             [
                 "error" => "Licença da empresa bloqueada.",
@@ -344,20 +368,47 @@ function validar_licenca_ativa(PDO $pdo, int $companyId): array
     return $license;
 }
 
+function exigir_instalacao_local_ativa(PDO $pdo, int $companyId): void
+{
+    if (!trace_e_instalacao_local()) {
+        return;
+    }
+
+    $statement = $pdo->query(
+        "SELECT company_id, sync_token, activated_at
+         FROM instalacoes_locais
+         WHERE id = 1
+         LIMIT 1",
+    );
+    $installation = $statement->fetch();
+    if (
+        !$installation ||
+        trim((string) ($installation["sync_token"] ?? "")) === "" ||
+        trim((string) ($installation["activated_at"] ?? "")) === ""
+    ) {
+        encerrar_sessao_atual();
+        responder_json([
+            "error" => "O PC industrial desta instalação ainda não foi configurado.",
+            "error_code" => "INSTALLATION_INACTIVE",
+        ], 403);
+    }
+
+    $installedCompanyId = (int) $installation["company_id"];
+    if ($companyId > 0 && $installedCompanyId !== $companyId) {
+        encerrar_sessao_atual();
+        responder_json([
+            "error" => "O usuário não pertence à instalação local configurada.",
+            "error_code" => "INSTALLATION_MISMATCH",
+        ], 403);
+    }
+
+    validar_licenca_ativa($pdo, $installedCompanyId);
+}
+
+/** @deprecated Use exigir_instalacao_local_ativa() in new endpoints. */
 function validar_licenca_local_se_ativada(PDO $pdo, int $companyId): void
 {
-    if (!trace_e_instalacao_local() || $companyId < 1) {
-        return;
-    }
-
-    $installation = $pdo->query(
-        "SELECT company_id FROM instalacoes_locais WHERE id = 1 LIMIT 1",
-    )->fetchColumn();
-    if ($installation === false || (int) $installation !== $companyId) {
-        return;
-    }
-
-    validar_licenca_ativa($pdo, $companyId);
+    exigir_instalacao_local_ativa($pdo, $companyId);
 }
 
 /** @deprecated Use validar_licenca_ativa() in new endpoints. */
@@ -623,10 +674,12 @@ function exigir_sessao_usuario(bool $permitirTrocaSenha = false): array
         responder_json(["error" => "A sessão foi encerrada porque as credenciais foram alteradas."], 401);
     }
     $usuarioPublico = usuario_publico($usuarioAtual);
-    validar_licenca_local_se_ativada(
-        obter_conexao_banco(),
-        (int) ($usuarioPublico["company_id"] ?? 0),
-    );
+    if (($usuarioPublico["role"] ?? "") !== "ADMIN_DALLOGIX") {
+        exigir_instalacao_local_ativa(
+            obter_conexao_banco(),
+            (int) ($usuarioPublico["company_id"] ?? 0),
+        );
+    }
     $_SESSION["user"] = $usuarioPublico;
     $_SESSION["auth_version"] = (int) $usuarioAtual["auth_version"];
     $_SESSION["user_validated_at"] = time();
