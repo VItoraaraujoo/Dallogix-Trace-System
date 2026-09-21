@@ -99,6 +99,7 @@ jobs:
               bash scripts/docker_compose.sh exec -T nginx nginx -s reload"
           ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" \
             "for attempt in 1 2 3 4 5; do \
-              if curl --fail --silent --show-error --max-time 10 http://127.0.0.1:80/api/prontidao.php | grep -F '\"commit\":\"$GITHUB_SHA\"'; then exit 0; fi; \
+              if curl --fail --silent --show-error --max-time 10 http://127.0.0.1:80/api/prontidao.php >/dev/null && \
+                 curl --fail --silent --show-error --max-time 10 http://127.0.0.1:80/api/health.php | grep -F '\"commit\":\"$GITHUB_SHA\"'; then exit 0; fi; \
               sleep 2; \
             done; exit 1"

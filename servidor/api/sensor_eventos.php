@@ -53,6 +53,7 @@ if (!$eventDate) {
 }
 
 $pdo = db();
+$pdo->beginTransaction();
 try {
     $debounce = $pdo->prepare(
         "SELECT id FROM eventos_sensor
@@ -100,6 +101,7 @@ try {
             "device_code" => $device["device_code"],
         ],
     );
+    $pdo->commit();
     // O sensor apenas correlaciona o saco à leitura. A câmera é acionada pelo
     // resultado da leitura: não fotografamos cada saco que passa pela esteira.
     json_response(
@@ -113,6 +115,9 @@ try {
         201,
     );
 } catch (PDOException $exception) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
     if (
         isset($exception->errorInfo[1]) &&
         (int) $exception->errorInfo[1] === 1062
@@ -135,4 +140,9 @@ try {
         ["error" => "Não foi possível registrar o evento do sensor."],
         500,
     );
+} catch (Throwable $exception) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    throw $exception;
 }

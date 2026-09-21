@@ -82,31 +82,40 @@ if (!is_array($mapping)) {
     json_response(["error" => "Mapeamento PDF inválido."], 422);
 }
 
-$upsert = $pdo->prepare(
-    "INSERT INTO configuracoes_empresa (company_id, gateway_public_ip, sync_remote_url, pdf_field_mapping, pdf_search_field, updated_by) VALUES (:company_id, :gateway_public_ip, :sync_remote_url, :pdf_field_mapping, :pdf_search_field, :updated_by) ON DUPLICATE KEY UPDATE gateway_public_ip = VALUES(gateway_public_ip), sync_remote_url = VALUES(sync_remote_url), pdf_field_mapping = VALUES(pdf_field_mapping), pdf_search_field = VALUES(pdf_search_field), updated_by = VALUES(updated_by)",
-);
-$upsert->execute([
-    "company_id" => $usuarioAtor["company_id"],
-    "gateway_public_ip" => $gatewayIp !== "" ? $gatewayIp : null,
-    "sync_remote_url" => $syncUrl !== "" ? $syncUrl : null,
-    "pdf_field_mapping" => json_encode(
-        $mapping,
-        JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
-    ),
-    "pdf_search_field" => $pdfSearchField,
-    "updated_by" => $usuarioAtor["id"],
-]);
-record_operational_event(
-    $pdo,
-    $usuarioAtor,
-    "CONFIGURACAO_ATUALIZADA",
-    "configuracoes_empresa",
-    (int) $usuarioAtor["company_id"],
-    [
-        "gateway_public_ip" => $gatewayIp,
-        "sync_remote_url_configurada" => $syncUrl !== "",
-        "pdf_fields" => array_keys($mapping),
+$pdo->beginTransaction();
+try {
+    $upsert = $pdo->prepare(
+        "INSERT INTO configuracoes_empresa (company_id, gateway_public_ip, sync_remote_url, pdf_field_mapping, pdf_search_field, updated_by) VALUES (:company_id, :gateway_public_ip, :sync_remote_url, :pdf_field_mapping, :pdf_search_field, :updated_by) ON DUPLICATE KEY UPDATE gateway_public_ip = VALUES(gateway_public_ip), sync_remote_url = VALUES(sync_remote_url), pdf_field_mapping = VALUES(pdf_field_mapping), pdf_search_field = VALUES(pdf_search_field), updated_by = VALUES(updated_by)",
+    );
+    $upsert->execute([
+        "company_id" => $usuarioAtor["company_id"],
+        "gateway_public_ip" => $gatewayIp !== "" ? $gatewayIp : null,
+        "sync_remote_url" => $syncUrl !== "" ? $syncUrl : null,
+        "pdf_field_mapping" => json_encode(
+            $mapping,
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
+        ),
         "pdf_search_field" => $pdfSearchField,
-    ],
-);
+        "updated_by" => $usuarioAtor["id"],
+    ]);
+    record_operational_event(
+        $pdo,
+        $usuarioAtor,
+        "CONFIGURACAO_ATUALIZADA",
+        "configuracoes_empresa",
+        (int) $usuarioAtor["company_id"],
+        [
+            "gateway_public_ip" => $gatewayIp,
+            "sync_remote_url_configurada" => $syncUrl !== "",
+            "pdf_fields" => array_keys($mapping),
+            "pdf_search_field" => $pdfSearchField,
+        ],
+    );
+    $pdo->commit();
+} catch (Throwable $exception) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    throw $exception;
+}
 json_response(["data" => ["saved" => true]]);

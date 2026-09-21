@@ -28,4 +28,16 @@ final class ContratosEndpointsTest extends TestCase
         self::assertIsString($source);
         self::assertStringContainsString('exigir_metodo_http(["POST"]);', $source);
     }
+
+    public function testMutacoesOperacionaisMantemAuditoriaNaMesmaTransacao(): void
+    {
+        foreach (["ocorrencias.php", "configuracoes.php", "sensor_eventos.php"] as $endpoint) {
+            $source = file_get_contents(__DIR__ . "/../../servidor/api/" . $endpoint);
+
+            self::assertIsString($source);
+            self::assertStringContainsString("beginTransaction", $source, $endpoint);
+            self::assertStringContainsString("commit", $source, $endpoint);
+            self::assertStringContainsString("rollBack", $source, $endpoint);
+        }
+    }
 }

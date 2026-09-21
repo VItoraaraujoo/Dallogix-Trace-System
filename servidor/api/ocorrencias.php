@@ -49,26 +49,35 @@ if ($loadingId) {
     }
 }
 
-$insert = $pdo->prepare(
-    "INSERT INTO ocorrencias (company_id, carregamento_id, type, quantity, description, created_by) VALUES (:company_id, :carregamento_id, :type, :quantity, :description, :created_by)",
-);
-$insert->execute([
-    "company_id" => $usuarioAtor["company_id"],
-    "carregamento_id" => $loadingId ?: null,
-    "type" => $type,
-    "quantity" => $quantity,
-    "description" => $description !== "" ? $description : null,
-    "created_by" => $usuarioAtor["id"],
-]);
-$occurrenceId = (int) $pdo->lastInsertId();
-record_operational_event(
-    $pdo,
-    $usuarioAtor,
-    "OCORRENCIA_REGISTRADA",
-    "ocorrencia",
-    $occurrenceId,
-    ["type" => $type, "quantity" => $quantity, "carregamento_id" => $loadingId],
-);
+$pdo->beginTransaction();
+try {
+    $insert = $pdo->prepare(
+        "INSERT INTO ocorrencias (company_id, carregamento_id, type, quantity, description, created_by) VALUES (:company_id, :carregamento_id, :type, :quantity, :description, :created_by)",
+    );
+    $insert->execute([
+        "company_id" => $usuarioAtor["company_id"],
+        "carregamento_id" => $loadingId ?: null,
+        "type" => $type,
+        "quantity" => $quantity,
+        "description" => $description !== "" ? $description : null,
+        "created_by" => $usuarioAtor["id"],
+    ]);
+    $occurrenceId = (int) $pdo->lastInsertId();
+    record_operational_event(
+        $pdo,
+        $usuarioAtor,
+        "OCORRENCIA_REGISTRADA",
+        "ocorrencia",
+        $occurrenceId,
+        ["type" => $type, "quantity" => $quantity, "carregamento_id" => $loadingId],
+    );
+    $pdo->commit();
+} catch (Throwable $exception) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    throw $exception;
+}
 responder_json(
     [
         "data" => [
