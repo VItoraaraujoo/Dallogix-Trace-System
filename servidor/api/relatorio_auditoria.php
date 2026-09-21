@@ -35,11 +35,31 @@ if (!in_array($romaneio["status"], ["FINALIZADO", "CANCELADO"], true)) {
 }
 
 $loads = $pdo->prepare('SELECT c.id, c.state, c.started_at, c.finished_at, e.name AS equipment_name, e.equipment_code
-    FROM carregamentos c JOIN equipamentos e ON e.id = c.equipment_id WHERE c.romaneio_id = :id ORDER BY c.id');
+    FROM carregamentos c LEFT JOIN equipamentos e ON e.id = c.equipment_id WHERE c.romaneio_id = :id ORDER BY c.id');
 $loads->execute(["id" => $romaneioId]);
 $loadRows = $loads->fetchAll();
 $loadIds = array_map(static fn(array $row): int => (int) $row["id"], $loadRows);
 $placeholders = implode(",", array_fill(0, count($loadIds), "?"));
+$formatDate = static function (?string $value): string {
+    if (!$value) {
+        return "—";
+    }
+    $timestamp = strtotime($value);
+    return $timestamp === false ? $value : date("d/m/Y", $timestamp);
+};
+$formatDateTime = static function (?string $value): string {
+    if (!$value) {
+        return "—";
+    }
+    $timestamp = strtotime($value);
+    return $timestamp === false ? $value : date("d/m/Y H:i", $timestamp);
+};
+$equipmentLabels = array_values(array_unique(array_map(
+    static fn(array $row): string => trim((string) ($row["equipment_name"] ?: $row["equipment_code"] ?: "Dala")),
+    $loadRows,
+)));
+$firstLoad = $loadRows[0] ?? [];
+$lastLoad = $loadRows !== [] ? $loadRows[array_key_last($loadRows)] : [];
 
 $items = $pdo->prepare("SELECT p.name, COALESCE(MIN(pc.barcode), p.code, '—') AS barcode, ri.planned_quantity,
     COALESCE((SELECT COUNT(*) FROM leituras l JOIN carregamentos c ON c.id = l.carregamento_id
@@ -65,38 +85,46 @@ if ($loadIds !== []) {
     $incidentImages = $imageQuery->fetchAll();
 }
 
+$evidenceImages = [];
+if ($incidentImages !== []) {
+    $storageRoot = realpath(__DIR__ . "/../../armazenamento") ?: "";
+    foreach ($incidentImages as $image) {
+        $relativePath = ltrim((string) $image["path"], "/");
+        if (str_starts_with($relativePath, "armazenamento/")) {
+            $relativePath = substr($relativePath, strlen("armazenamento/"));
+        }
+        $absolutePath = $storageRoot !== "" ? realpath($storageRoot . "/" . $relativePath) : false;
+        if (
+            $absolutePath !== false &&
+            $storageRoot !== "" &&
+            str_starts_with($absolutePath, $storageRoot . DIRECTORY_SEPARATOR)
+        ) {
+            $evidenceImages[] = [
+                "path" => $absolutePath,
+                "caption" => (string) $image["reason"] . " · " . (string) $image["captured_at"],
+            ];
+        }
+    }
+}
+
 $report = new RelatorioAuditoriaPdf(
     (string) $romaneio["company_name"],
-    "Romaneio " . $romaneio["number"] . " · gerado em " . date("d/m/Y H:i"),
+    "Romaneio " . $romaneio["number"] . " · " . ($romaneio["status"] === "CANCELADO" ? "Cancelado" : "Finalizado"),
 );
-$report->heading("Resumo da operação");
-$report->paragraph(
-    "Este relatório reúne o que foi carregado, as diferenças encontradas e os incidentes registrados durante a operação.",
-);
+$report->heading("Dados do romaneio");
 $report->summaryCards([
     "Romaneio" => $romaneio["number"],
     "Status" => $romaneio["status"] === "CANCELADO" ? "Cancelado" : "Finalizado",
-    "Data programada" => $romaneio["scheduled_date"] ?: "—",
+    "Data programada" => $formatDate($romaneio["scheduled_date"]),
     "Expedidor" => $romaneio["expedidor"] ?: "—",
     "Placa" => $romaneio["plate"] ?: "—",
     "Motorista" => $romaneio["driver_name"] ?: "—",
-    "Dalas / esteiras" =>
-        implode(
-            ", ",
-            array_map(
-                static fn(array $row): string => $row["equipment_name"] .
-                    " (" .
-                    $row["equipment_code"] .
-                    ")",
-                $loadRows,
-            ),
-        ) ?:
-        "—",
-    "Início" => $loadRows[0]["started_at"] ?? "—",
-    "Fim" => $loadRows[array_key_last($loadRows)]["finished_at"] ?? "—",
+    "Dala" => $equipmentLabels !== [] ? implode(", ", $equipmentLabels) : "—",
+    "Início" => $formatDateTime($firstLoad["started_at"] ?? null),
+    "Fim" => $formatDateTime($lastLoad["finished_at"] ?? null),
 ]);
 if ($romaneio["status"] === "CANCELADO") {
-    $report->paragraph("Este romaneio foi cancelado. Os dados abaixo representam o carregamento parcial e os eventos registrados até o cancelamento.");
+    $report->paragraph("Valores registrados até o cancelamento.");
 }
 $report->heading("Conferência dos itens");
 $report->table(
@@ -125,10 +153,10 @@ $divergences = array_values(
             (int) $item["moved_quantity"],
     ),
 );
-$report->heading("Divergências encontradas");
 if ($divergences === []) {
-    $report->paragraph("Nenhuma divergência registrada.");
+    $report->paragraph("Sem divergências.");
 } else {
+    $report->heading("Divergências");
     $report->table(
         ["Produto", "Código", "Movido / previsto", "Situação"],
         array_map(
@@ -145,52 +173,37 @@ if ($divergences === []) {
         [215, 110, 110, 80],
     );
 }
-$report->heading("Ocorrências e incidentes");
-if ($occurrences === []) {
-    $report->paragraph("Nenhuma ocorrência registrada.");
-} else {
+if ($occurrences !== []) {
+    $occurrenceLabels = [
+        "SACA_RASGADA" => "Saca rasgada",
+        "SACA_AVARIADA" => "Saca avariada",
+        "PARADA_MAQUINA" => "Parada de máquina",
+        "LIMPEZA_LINHA" => "Limpeza de linha",
+        "QUEDA_ENERGIA" => "Queda de energia",
+        "AJUSTE_EQUIPAMENTO" => "Ajuste de equipamento",
+        "FALHA_ELETRICA" => "Falha elétrica",
+    ];
+    $report->heading("Ocorrências");
     $report->table(
         ["Data/hora", "Tipo", "Produto", "Detalhes"],
         array_map(
-            static fn(array $row): array => [
-                $row["created_at"],
-                $row["type"],
-                $row["product_name"] ?: "—",
-                $row["description"] ?: "—",
-            ],
+            static function (array $row) use ($formatDateTime, $occurrenceLabels): array {
+                return [
+                    $formatDateTime($row["created_at"]),
+                    $occurrenceLabels[$row["type"]] ?? $row["type"],
+                    $row["product_name"] ?: "—",
+                    $row["description"] ?: "—",
+                ];
+            },
             $occurrences,
         ),
         [100, 115, 150, 150],
     );
 }
-$report->heading("Evidências fotográficas");
-if ($incidentImages === []) {
-    $report->paragraph("Nenhuma imagem de incidente registrada.");
-} else {
-    $storageRoot = realpath(__DIR__ . "/../../armazenamento") ?: "";
-    $addedImages = 0;
-    foreach ($incidentImages as $image) {
-        $relativePath = ltrim((string) $image["path"], "/");
-        if (str_starts_with($relativePath, "armazenamento/")) {
-            $relativePath = substr($relativePath, strlen("armazenamento/"));
-        }
-        $absolutePath = $storageRoot !== "" ? realpath($storageRoot . "/" . $relativePath) : false;
-        if (
-            $absolutePath === false ||
-            $storageRoot === "" ||
-            !str_starts_with($absolutePath, $storageRoot . DIRECTORY_SEPARATOR)
-        ) {
-            continue;
-        }
-        if ($report->incidentImage(
-            $absolutePath,
-            (string) $image["reason"] . " · " . (string) $image["captured_at"],
-        )) {
-            $addedImages++;
-        }
-    }
-    if ($addedImages === 0) {
-        $report->paragraph("As imagens registradas não estão disponíveis em formato JPEG.");
+if ($evidenceImages !== []) {
+    $report->heading("Evidências");
+    foreach ($evidenceImages as $image) {
+        $report->incidentImage($image["path"], $image["caption"]);
     }
 }
 record_operational_event(

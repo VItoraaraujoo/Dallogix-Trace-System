@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 $release = metadados_release();
+$includeDetails = trace_detalhes_prontidao_autorizados();
 
 // Readiness check for deploys and support. It stays separate from health.php
 // so stale devices or a backed-up queue do not remove PHP from the load balancer.
@@ -91,24 +92,30 @@ try {
     $queueStale = $oldestAge !== null && $oldestAge > $maxQueueAgeSeconds;
     $degraded = $schemaMigrations < 1 || (int) ($queue["errors"] ?? 0) > 0 || $queueStale || $staleDevices > 0 || $stuckCommands > 0;
     $status = $diskCritical ? "critical" : ($degraded ? "degraded" : "ready");
-    responder_json([
+    $response = [
         "status" => $status,
         "php" => true,
         "mysql" => true,
-        "checks" => $checks,
         "checked_at" => date("c"),
-    ], $status === "ready" ? 200 : 503);
+    ];
+    if ($includeDetails) {
+        $response["checks"] = $checks;
+    }
+    responder_json($response, $status === "ready" ? 200 : 503);
 } catch (Throwable $error) {
     error_log("Readiness check failure: " . $error->getMessage());
-    responder_json([
+    $response = [
         "status" => "not_ready",
         "php" => true,
         "mysql" => $mysqlConnected,
         "version" => $release["version"],
         "commit" => $release["commit"],
         "error_code" => $mysqlConnected ? "SCHEMA_INCOMPLETO" : "BANCO_INDISPONIVEL",
-        "message" => $mysqlConnected
+    ];
+    if ($includeDetails) {
+        $response["message"] = $mysqlConnected
             ? "O banco responde, mas o schema operacional não está pronto. Execute as migrations."
-            : "Não foi possível conectar ao banco de dados.",
-    ], 503);
+            : "Não foi possível conectar ao banco de dados.";
+    }
+    responder_json($response, 503);
 }

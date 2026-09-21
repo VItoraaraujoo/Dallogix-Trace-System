@@ -55,6 +55,8 @@ jobs:
         run: composer test
       - name: Run PHPStan
         run: composer analyse -- --no-progress
+      - name: Audit PHP dependencies
+        run: composer audit --no-interaction --no-dev
 
   dependencies-and-config:
     runs-on: ubuntu-latest

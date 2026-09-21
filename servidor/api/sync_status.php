@@ -39,7 +39,7 @@ if ($remoteUrl === "") {
     $settings->execute(["company_id" => $user["company_id"]]);
     $remoteUrl = trim((string) ($settings->fetchColumn() ?: ""));
 }
-$remoteConfigured = $remoteUrl !== "";
+$centralUrlConfigured = trim((string) (getenv("TRACE_CENTRAL_URL") ?: "")) !== "";
 $installation = $pdo->prepare(
     "SELECT last_remote_sync_at, last_remote_sync_error
      FROM instalacoes_locais
@@ -47,10 +47,12 @@ $installation = $pdo->prepare(
 );
 $installation->execute(["company_id" => $user["company_id"]]);
 $installationStatus = $installation->fetch() ?: null;
+$installationRegistered = $installationStatus !== null;
+$remoteConfigured = $remoteUrl !== "" || ($centralUrlConfigured && $installationRegistered);
 $centralSync = [
-    "configured" => $installationStatus !== null,
-    "central_url_configured" => trim((string) (getenv("TRACE_CENTRAL_URL") ?: "")) !== "",
-    "installation_registered" => $installationStatus !== null,
+    "configured" => $installationRegistered,
+    "central_url_configured" => $centralUrlConfigured,
+    "installation_registered" => $installationRegistered,
     "last_sync_at" => $installationStatus["last_remote_sync_at"] ?? null,
     "last_error" => $installationStatus["last_remote_sync_error"] ?? null,
 ];

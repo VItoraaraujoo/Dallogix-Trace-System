@@ -67,6 +67,7 @@ Em uma instalação já existente, `scripts/migrate.sh` cria o controle de vers�
 O seed cria uma empresa, usuário administrador, máquina, esteira, produto e barcode para desenvolvimento local.
 
 As credenciais técnicas não possuem valor padrão público. Defina `TRACE_DEVICE_TOKEN` e `CAMERA_DEVICE_TOKEN` no `.env` e, depois do seed, provisione os dispositivos com tokens próprios usando `php scripts/provision_device.php`.
+Cada reprovisionamento gera um novo `token_id`, invalida a credencial anterior e registra a criação e o último uso sem armazenar o token em texto puro. A expiração e a revogação ficam associadas somente ao dispositivo provisionado.
 
 O código `TRC-....-....` serve somente para a ativação assistida. A ativação
 gera uma credencial aleatória separada para a sincronização da instalação; por

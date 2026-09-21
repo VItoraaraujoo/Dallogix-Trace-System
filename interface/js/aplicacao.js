@@ -958,13 +958,6 @@ function bindActions() {
         window.location.href = "index.html";
         return;
       }
-      if (action === "export-report") {
-        downloadCsv(
-          "dallogix-relatorio-operacional.csv",
-          store.state.reportCsvRows || [],
-        );
-        return;
-      }
       if (action === "retry-sync") {
         try {
           const result = await store.retrySync(node.dataset.id);
@@ -1201,7 +1194,7 @@ function bindActions() {
       }
       if (action === "reload-error-logs") {
         try {
-          await store.loadErrorLogs();
+          await Promise.all([store.loadErrorLogs(), store.loadTechnicalDiagnostics()]);
           render();
         } catch (error) {
           alert(error.message);
@@ -2000,19 +1993,6 @@ function bindForms() {
       await store.loadUsers();
       render();
     });
-  const reportFilters = document.querySelector("#report-filters");
-  if (reportFilters)
-    reportFilters.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      try {
-        await store.applyReportFilters(
-          Object.fromEntries(new FormData(reportFilters)),
-        );
-        render();
-      } catch (error) {
-        alert(error.message);
-      }
-    });
   if (productSearch)
     productSearch.addEventListener("input", () => {
       const term = productSearch.value.toLowerCase();
@@ -2028,6 +2008,7 @@ async function loadPageData(page) {
     await store.loadCompanies();
     if (["master-home", "error-logs"].includes(page)) {
       await store.loadErrorLogs();
+      if (page === "error-logs") await store.loadTechnicalDiagnostics();
     }
     if (page === "company") {
       const id = queryId();
@@ -2078,7 +2059,7 @@ async function loadPageData(page) {
     dala: () => [loadDalaView(queryId())],
     "dala-edit": () => [store.loadEquipment(queryId())],
     "dala-actions": () => [store.loadEquipment(queryId()), store.loadDalaActionConfig(queryId())],
-    "error-logs": () => [store.loadErrorLogs()],
+    "error-logs": () => Promise.all([store.loadErrorLogs(), store.loadTechnicalDiagnostics()]),
     users: () => [store.loadUsers()],
   };
   if (

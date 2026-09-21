@@ -164,7 +164,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
             [
                 "equipment_id" => $equipmentId,
                 "equipment_code" => $target["equipment_code"],
-                "previous_equipment_id" => $current["equipment_id"] === null ? null : (int) $current["equipment_id"],
+                "previous_equipment_id" => null,
                 "remote_carregamento_id" => $current["remote_carregamento_id"] === null ? null : (int) $current["remote_carregamento_id"],
                 "state" => "AGUARDANDO",
             ],

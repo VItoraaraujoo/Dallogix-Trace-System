@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 
+exigir_metodo_http(["POST"]);
 exigir_csrf();
 
 $_SESSION = [];

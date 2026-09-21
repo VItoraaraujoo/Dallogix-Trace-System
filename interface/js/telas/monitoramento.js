@@ -1,7 +1,7 @@
 import { button, esc } from "../funcoes/html.js";
-import { data, dataHora, numero, relativo } from "../funcoes/formato.js?v=202609201000";
-import { emergencyPanel, manifestStatusBadge, operationalBadge, pageHeader, manifestsTable, progress } from "../funcoes/view.js?v=202609210400";
-import { rotuloOcorrencia, rotuloStatusRomaneio, rotuloStatusSincronizacao } from "../funcoes/rotulos.js";
+import { dataHora, numero, relativo } from "../funcoes/formato.js?v=202609201000";
+import { emergencyPanel, operationalBadge, pageHeader, progress } from "../funcoes/view.js?v=202609210400";
+import { rotuloOcorrencia, rotuloStatusSincronizacao } from "../funcoes/rotulos.js";
 export function occurrences(store) {
   const recent = store.state.monitoring?.ocorrencias || [];
   return `${pageHeader("Acompanhamento / qualidade", "Ocorrências", "Registre desvios e paradas relacionadas à carga atual.")}<div class="grid two"><section class="panel"><h3>Ocorrência do lote</h3><form id="occurrence-form"><label>Tipo<select name="type"><option value="SACA_RASGADA">Saca rasgada</option><option value="SACA_AVARIADA">Saca avariada</option><option value="PARADA_MAQUINA">Parada de máquina</option><option value="LIMPEZA_LINHA">Limpeza de linha</option><option value="QUEDA_ENERGIA">Queda de energia</option><option value="AJUSTE_EQUIPAMENTO">Ajuste de equipamento</option><option value="FALHA_ELETRICA">Falha elétrica</option></select></label><label>Quantidade<input name="quantity" type="number" min="1" max="9999" step="1" value="1" /></label><label>Observação<textarea name="description" placeholder="Descreva o que aconteceu..."></textarea></label>${button("Salvar ocorrência", "save-occurrence")}</form></section><section class="panel"><h3>Registros recentes</h3><ul>${recent.length ? recent.map((item) => `<li>${esc(rotuloOcorrencia(item.type))} — ${numero(item.quantity)} unidade(s)<small>${esc(dataHora(item.created_at))} · ${esc(item.description || "Sem observação")}</small></li>`).join("") : "<li>Nenhuma ocorrência registrada.</li>"}</ul></section></div>`;
@@ -14,45 +14,6 @@ export function summary(store) {
   };
   const canFinish = ["FINALIZANDO", "CARREGANDO"].includes(store.state.operationalState);
   return `<div class="title-row with-actions has-back"><button class="button secondary page-back" data-action="back-work" type="button">← Voltar</button><div><span class="kicker">Acompanhamento / encerramento</span><h2>Resumo final</h2><p>${canFinish ? "Confira o balanço antes de finalizar a carga." : "Carregamento já finalizado."}</p></div><div class="actions">${button("Exportar CSV", "export")}</div></div><section class="panel"><h3>Conferência da carga</h3><p>Romaneio #${esc(store.state.romaneio)} • caminhão ${esc(store.state.truck)}</p>${progress(store)}<div class="grid four"><div class="metric"><small>Leituras válidas</small><strong>${numero(data.leituras.VALIDO)}</strong></div><div class="metric"><small>Sem leitura</small><strong>${numero(data.leituras.SEM_LEITURA)}</strong></div><div class="metric"><small>Ocorrências</small><strong>${numero(data.ocorrencias.length)}</strong></div><div class="metric"><small>Envio ao servidor</small><strong>${numero(data.sync_pendente)}</strong></div></div>${canFinish ? button("Finalizar carregamento", "finish", "primary") : ""}</section>`;
-}
-export function history(store) {
-  const monitoringData = store.state.monitoring || { auditoria: [] };
-  const report = store.state.report || { summary: {}, rows: [] };
-  const total = report.summary || {};
-  const filters = store.state.reportFilters || {};
-  const rows = report.rows || [];
-  store.state.reportCsvRows = [
-    [
-      "Data",
-      "Romaneio",
-      "Status",
-      "Caminhão",
-      "Planejado",
-      "Carregado",
-      "Sem leitura",
-      "Produto incorreto",
-      "Ocorrências",
-      "Duração (min)",
-      "Divergência",
-    ],
-    ...rows.map((row) => [
-      row.scheduled_date,
-      row.number,
-      row.status,
-      row.plate || "",
-      row.planned_quantity,
-      row.loaded_quantity,
-      row.no_readings,
-      row.wrong_products,
-      row.occurrences,
-      row.duration_minutes ?? "",
-      row.has_divergence ? "Sim" : "Não",
-    ]),
-  ];
-  return `${pageHeader("Acompanhamento / supervisão", "Histórico operacional", "Filtre cargas concluídas, divergências e ocorrências para auditoria.", button("Exportar CSV", "export-report"))}
-  <form id="report-filters" class="panel filters"><div class="filter-grid"><label>Data inicial<input type="date" name="date_from" value="${esc(filters.date_from || "")}"></label><label>Data final<input type="date" name="date_to" value="${esc(filters.date_to || "")}"></label><label>Status<select name="status"><option value="">Todos</option>${["AGUARDANDO", "EM_ANDAMENTO", "FINALIZADO", "CANCELADO"].map((value) => `<option value="${value}"${filters.status === value ? " selected" : ""}>${rotuloStatusRomaneio(value)}</option>`).join("")}</select></label><button class="button primary" type="submit">Aplicar filtros</button></div></form><br>
-  <div class="grid five"><div class="panel metric"><small>Romaneios</small><strong>${numero(total.romaneios)}</strong></div><div class="panel metric"><small>Planejado</small><strong>${numero(total.planejado)}</strong></div><div class="panel metric"><small>Carregado</small><strong>${numero(total.carregado)}</strong></div><div class="panel metric"><small>Ocorrências</small><strong>${numero(total.ocorrencias)}</strong></div><div class="panel metric"><small>Divergentes</small><strong class="${total.divergentes ? "metric-red" : "metric-green"}">${numero(total.divergentes)}</strong></div></div><br>
-  <section class="panel table-wrap"><table class="mobile-card-table monitoring-table"><thead><tr><th>Data</th><th>Romaneio</th><th>Status</th><th>Caminhão</th><th>Planejado</th><th>Carregado</th><th>Alertas</th><th>Duração</th></tr></thead><tbody>${rows.length ? rows.map((row) => `<tr><td data-label="Data">${esc(data(row.scheduled_date))}</td><td data-label="Romaneio"><strong>${esc(row.number)}</strong></td><td data-label="Status">${manifestStatusBadge(row)}</td><td data-label="Caminhão">${esc(row.plate || "—")}</td><td data-label="Planejado">${numero(row.planned_quantity)}</td><td data-label="Carregado">${numero(row.loaded_quantity)}</td><td data-label="Alertas">${numero(Number(row.no_readings) + Number(row.wrong_products) + Number(row.occurrences))}${row.has_divergence ? " · divergência" : ""}</td><td data-label="Duração">${row.duration_minutes === null ? "—" : `${numero(row.duration_minutes)} min`}</td></tr>`).join("") : '<tr><td colspan="8" class="empty-cell">Nenhum registro para os filtros informados.</td></tr>'}</tbody></table></section><br><section class="panel"><h3>Auditoria recente</h3>${monitoringData.auditoria.length ? `<ul>${monitoringData.auditoria.map((item) => `<li>${esc(item.action)} — ${esc(item.entity_type || "")} #${esc(item.entity_id || "")}<small>${esc(dataHora(item.created_at))}</small></li>`).join("")}</ul>` : "<p>Nenhum evento auditado.</p>"}</section>`;
 }
 export function products(store) {
   const search = (store.state.productSearch || "").toLowerCase();

@@ -12,7 +12,9 @@ final class RelatorioAuditoriaPdf
 {
     private const WIDTH = 595;
     private const HEIGHT = 842;
-    private const TOP = 782;
+    private const CONTENT_LEFT = 40;
+    private const CONTENT_RIGHT = 555;
+    private const TOP = 758;
     private const BOTTOM = 56;
     /** @var list<string> */
     private array $pages = [];
@@ -32,23 +34,30 @@ final class RelatorioAuditoriaPdf
 
     public function heading(string $text): void
     {
-        $this->space(26);
-        $this->text($text, 40, $this->y, 15, true);
-        $this->y -= 32;
+        $this->ensure(76);
+        $this->text($text, self::CONTENT_LEFT, $this->y, 12, true);
+        $this->line(
+            self::CONTENT_LEFT,
+            $this->y - 8,
+            self::CONTENT_RIGHT,
+            $this->y - 8,
+        );
+        $this->y -= 26;
     }
 
     /** @param array<string, scalar|null> $rows */
     public function summaryCards(array $rows): void
     {
-        $pairs = array_chunk($rows, 2, true);
+        $gap = 14;
+        $cellWidth = (self::CONTENT_RIGHT - self::CONTENT_LEFT - $gap * 2) / 3;
+        $pairs = array_chunk($rows, 3, true);
         foreach ($pairs as $pair) {
-            $this->ensure(56);
-            $x = 40;
+            $this->ensure(48);
+            $x = (float) self::CONTENT_LEFT;
             foreach ($pair as $label => $value) {
-                $this->rect($x, $this->y - 48, 250, 48, true);
-                $this->text((string) $label, $x + 10, $this->y - 16, 8);
+                $this->text((string) $label, $x, $this->y, 7.5);
                 foreach (
-                    $this->wrap((string) ($value ?? "—"), 36)
+                    $this->wrap((string) ($value ?? "—"), max(12, (int) floor($cellWidth / 5.5)))
                     as $index => $line
                 ) {
                     if ($index > 1) {
@@ -56,17 +65,18 @@ final class RelatorioAuditoriaPdf
                     }
                     $this->text(
                         $line,
-                        $x + 10,
-                        $this->y - 31 - $index * 10,
-                        10,
+                        $x,
+                        $this->y - 14 - $index * 10,
+                        9.5,
                         true,
                     );
                 }
-                $x += 265;
+                $this->line($x, $this->y - 34, $x + $cellWidth, $this->y - 34);
+                $x += $cellWidth + $gap;
             }
-            $this->y -= 58;
+            $this->y -= 46;
         }
-        $this->y -= 14;
+        $this->y -= 8;
     }
 
     /** @param list<string> $headers @param list<list<string|int|float|null>> $rows @param list<int> $widths */
@@ -88,9 +98,8 @@ final class RelatorioAuditoriaPdf
                 $this->newPage();
                 $this->tableHeader($headers, $widths);
             }
-            $x = 40;
+            $x = (float) self::CONTENT_LEFT;
             foreach ($widths as $index => $width) {
-                $this->rect($x, $this->y - $height, $width, $height, false);
                 foreach ($linesByCell[$index] as $lineIndex => $line) {
                     $this->text(
                         $line,
@@ -101,19 +110,25 @@ final class RelatorioAuditoriaPdf
                 }
                 $x += $width;
             }
+            $this->line(
+                self::CONTENT_LEFT,
+                $this->y - $height,
+                self::CONTENT_RIGHT,
+                $this->y - $height,
+            );
             $this->y -= $height;
         }
-        $this->y -= 14;
+        $this->y -= 10;
     }
 
     public function paragraph(string $text): void
     {
         foreach ($this->wrap($text, 92) as $line) {
             $this->ensure(13);
-            $this->text($line, 40, $this->y, 9);
+            $this->text($line, self::CONTENT_LEFT, $this->y, 8.5);
             $this->y -= 13;
         }
-        $this->y -= 5;
+        $this->y -= 3;
     }
 
     /**
@@ -126,7 +141,7 @@ final class RelatorioAuditoriaPdf
             return false;
         }
         $info = @getimagesize($path);
-        if (!$info || ($info["mime"] ?? "") !== "image/jpeg") {
+        if ($info === false || $info["mime"] !== "image/jpeg") {
             return false;
         }
         $data = @file_get_contents($path);
@@ -146,7 +161,7 @@ final class RelatorioAuditoriaPdf
         $height = $info[1] * $scale;
         $blockHeight = $height + ($caption !== "" ? 28 : 8);
         $this->ensure($blockHeight);
-        $x = 40.0;
+        $x = (float) self::CONTENT_LEFT;
         $y = $this->y - $height;
         $this->content[] = sprintf(
             "q %.2F 0 0 %.2F %.2F %.2F cm /%s Do Q",
@@ -239,20 +254,21 @@ final class RelatorioAuditoriaPdf
         $this->y = self::TOP;
         $this->text(
             $this->companyName . " — Relatório de auditoria",
-            40,
+            self::CONTENT_LEFT,
             812,
             9,
             true,
         );
-        $this->text($this->reportTitle, 40, 794, 8);
-        $this->line(40, 787, 555, 787);
+        $this->text($this->reportTitle, self::CONTENT_LEFT, 796, 8);
+        $this->line(self::CONTENT_LEFT, 782, self::CONTENT_RIGHT, 782);
+        $this->y = self::TOP;
     }
 
     private function finishPage(): void
     {
         $page = count($this->pages) + 1;
-        $this->line(40, 34, 555, 34);
-        $this->text("Dallogix Trace — Relatório de auditoria", 40, 20, 8);
+        $this->line(self::CONTENT_LEFT, 34, self::CONTENT_RIGHT, 34);
+        $this->text("Dallogix Trace — Relatório de auditoria", self::CONTENT_LEFT, 20, 8);
         $this->text("Página " . $page, 500, 20, 8);
         $this->pages[] = implode("\n", $this->content);
         $this->content = [];
@@ -261,10 +277,16 @@ final class RelatorioAuditoriaPdf
     /** @param list<string> $headers @param list<int> $widths */
     private function tableHeader(array $headers, array $widths): void
     {
-        $this->ensure(24);
-        $x = 40;
+        $this->ensure(48);
+        $this->rect(
+            self::CONTENT_LEFT,
+            $this->y - 22,
+            array_sum($widths),
+            22,
+            true,
+        );
+        $x = (float) self::CONTENT_LEFT;
         foreach ($headers as $index => $header) {
-            $this->rect($x, $this->y - 22, $widths[$index], 22, true);
             $this->text($header, $x + 4, $this->y - 14, 8, true);
             $x += $widths[$index];
         }
@@ -276,10 +298,6 @@ final class RelatorioAuditoriaPdf
         if ($this->y - $height < self::BOTTOM) {
             $this->newPage();
         }
-    }
-    private function space(float $height): void
-    {
-        $this->ensure($height);
     }
     private function text(
         string $text,
@@ -323,7 +341,7 @@ final class RelatorioAuditoriaPdf
     ): void {
         $this->content[] = sprintf(
             "%s %.1F %.1F %.1F %.1F re %s",
-            $fill ? "0.90 g" : "0.78 G",
+            $fill ? "0.94 g" : "0.84 G",
             $x,
             $y,
             $width,

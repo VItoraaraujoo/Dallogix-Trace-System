@@ -63,6 +63,12 @@ if (($usuario["role"] ?? "") !== "ADMIN_DALLOGIX") {
         obter_conexao_banco(),
         (int) ($usuario["company_id"] ?? 0),
     );
+    if (!trace_e_instalacao_local()) {
+        validar_licenca_ativa(
+            obter_conexao_banco(),
+            (int) ($usuario["company_id"] ?? 0),
+        );
+    }
 }
 
 registrar_login_sucesso($email);

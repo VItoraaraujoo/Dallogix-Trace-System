@@ -20,8 +20,6 @@ export class ArmazenamentoTrace {
       equipmentId: null,
       monitoring: null,
       syncStatus: null,
-      report: null,
-      reportCsvRows: [],
       products: [],
       productsLoaded: false,
       users: [],
@@ -45,7 +43,6 @@ export class ArmazenamentoTrace {
       },
       manifestPage: 1,
       manifestMeta: { page: 1, per_page: 50, total: 0, pages: 0 },
-      reportFilters: { date_from: "", date_to: "", status: "" },
       dashboard: null,
       manifestDetail: null,
       equipmentDetail: null,
@@ -54,6 +51,7 @@ export class ArmazenamentoTrace {
       dalaCommands: [],
       dalaActionConfig: { acoes: [], gatilhos: [], can_manage: false },
       errorLogs: [],
+      technicalDiagnostics: null,
       plcCommand: null,
       productFormOpen: false,
       dalaFormOpen: false,
@@ -186,27 +184,6 @@ export class ArmazenamentoTrace {
   async loadDashboard() {
     const response = await fetch("/api/dashboard.php");
     if (response.ok) this.state.dashboard = (await response.json()).data;
-  }
-  async loadReport() {
-    const params = new URLSearchParams();
-    Object.entries(this.state.reportFilters || {}).forEach(([key, value]) => {
-      if (value) params.set(key, value);
-    });
-    const response = await fetch(
-      `/api/relatorio_operacional.php?${params.toString()}`,
-    );
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível carregar o relatório.");
-    this.state.report = result.data;
-  }
-  async applyReportFilters(raw) {
-    this.state.reportFilters = {
-      date_from: String(raw.date_from || "").trim(),
-      date_to: String(raw.date_to || "").trim(),
-      status: String(raw.status || "").trim(),
-    };
-    await this.loadReport();
   }
   async loadManifest(id) {
     const response = await fetch(`/api/romaneios.php?id=${id}`);
@@ -361,6 +338,13 @@ export class ArmazenamentoTrace {
     if (!response.ok) throw new Error(result.error || "Não foi possível carregar os logs de erro.");
     this.state.errorLogs = result.data || [];
     return this.state.errorLogs;
+  }
+  async loadTechnicalDiagnostics() {
+    const response = await fetch("/api/diagnostico.php");
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível carregar o diagnóstico técnico.");
+    this.state.technicalDiagnostics = result.data || null;
+    return this.state.technicalDiagnostics;
   }
   async updateEquipment(data) {
     const response = await fetch("/api/equipamentos.php", {
@@ -629,7 +613,10 @@ export class ArmazenamentoTrace {
       );
     this.state.operationalState = "FINALIZADO";
     this.state.running = false;
-    await this.loadMonitoring();
+    await Promise.all([
+      this.loadMonitoring(),
+      this.loadEquipments({ force: true }),
+    ]);
   }
   async loadPendingReadings() {
     if (!this.state.loadingId) {
@@ -663,7 +650,12 @@ export class ArmazenamentoTrace {
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Não foi possível cancelar o romaneio.");
-    await this.loadManifests();
+    await Promise.all([
+      this.loadManifests(),
+      this.loadMonitoring(),
+      this.loadActiveLoading(null),
+      this.loadEquipments({ force: true }),
+    ]);
     return result.data;
   }
   async registerReturn(readingId, reason) {

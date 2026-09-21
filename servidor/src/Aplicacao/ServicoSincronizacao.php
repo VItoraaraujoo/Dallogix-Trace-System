@@ -595,9 +595,6 @@ final class ServicoSincronizacao
                 $local = is_array($mapping["local"] ?? null) ? $mapping["local"] : [];
                 $remote = is_array($mapping["remote"] ?? null) ? $mapping["remote"] : [];
                 $companyId = $eventsByUuid[$eventUuid];
-                if ($companyId <= 0) {
-                    throw new RuntimeException("Empresa do mapeamento remoto inválida.");
-                }
                 $localEquipmentId = (int) ($local["equipment_id"] ?? 0);
                 $remoteEquipmentId = (int) ($remote["equipment_id"] ?? 0);
                 if ($localEquipmentId > 0 && $remoteEquipmentId > 0) {
@@ -699,6 +696,7 @@ final class ServicoSincronizacao
     /** @param list<array<string,mixed>> $events */
     private function markFailed(array $events, string $error): void
     {
+        $maxAttempts = max(1, min(100, (int) (getenv("SYNC_MAX_ATTEMPTS") ?: 5)));
         $this->connection->beginTransaction();
         try {
             $failed = $this->connection->prepare(
@@ -717,6 +715,9 @@ final class ServicoSincronizacao
                 if ($failed->rowCount() !== 1) {
                     throw new RuntimeException("Evento de sincronização não está mais reservado para falha.");
                 }
+                if ((int) ($event["attempts"] ?? 0) >= $maxAttempts) {
+                    $this->moveToDeadLetter($event, $error);
+                }
             }
             $this->connection->commit();
         } catch (\Throwable $exception) {
@@ -724,6 +725,41 @@ final class ServicoSincronizacao
                 $this->connection->rollBack();
             }
             throw $exception;
+        }
+    }
+
+    /** @param array<string,mixed> $event */
+    private function moveToDeadLetter(array $event, string $error): void
+    {
+        $insert = $this->connection->prepare(
+            "INSERT INTO sync_dead_letter_queue
+                (original_event_id, company_id, event_uuid, event_type, aggregate_id, payload, last_error, failed_attempts)
+             SELECT id, company_id, event_uuid, aggregate_type, aggregate_id, payload, :last_error, attempts
+             FROM fila_sincronizacao
+             WHERE id = :id AND company_id = :company_id AND status = 'ERRO'
+             ON DUPLICATE KEY UPDATE
+                last_error = VALUES(last_error), failed_attempts = VALUES(failed_attempts)",
+        );
+        $insert->execute([
+            "id" => (int) $event["id"],
+            "company_id" => (int) $event["company_id"],
+            "last_error" => $error,
+        ]);
+
+        if ($insert->rowCount() < 1) {
+            throw new RuntimeException("Não foi possível arquivar o evento na fila morta.");
+        }
+
+        $delete = $this->connection->prepare(
+            "DELETE FROM fila_sincronizacao
+             WHERE id = :id AND company_id = :company_id AND status = 'ERRO'",
+        );
+        $delete->execute([
+            "id" => (int) $event["id"],
+            "company_id" => (int) $event["company_id"],
+        ]);
+        if ($delete->rowCount() !== 1) {
+            throw new RuntimeException("Evento não foi removido da fila após arquivamento.");
         }
     }
 

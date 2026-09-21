@@ -4,13 +4,15 @@ declare(strict_types=1);
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 require_once __DIR__ . "/../src/Aplicacao/InicializadorAcoesDala.php";
 
+exigir_metodo_http(["GET", "POST", "PATCH", "DELETE"]);
+$method = strtoupper((string) ($_SERVER["REQUEST_METHOD"] ?? "GET"));
 $user = require_session_user();
 if ($user["company_id"] === null) {
     json_response(["error" => "Usuário sem empresa vinculada."], 403);
 }
 $companyId = (int) $user["company_id"];
 $canManage = $user["role"] === "ADMIN_EMPRESA";
-$payload = request_json();
+$payload = in_array($method, ["POST", "PATCH"], true) ? request_json() : [];
 $equipmentId = filter_var($_GET["equipment_id"] ?? $payload["equipment_id"] ?? null, FILTER_VALIDATE_INT);
 if (!$equipmentId) {
     json_response(["error" => "Dala não informada."], 422);
@@ -49,7 +51,6 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
 }
 if (!$canManage) json_response(["error" => "Somente administradores podem configurar ações."], 403);
 require_csrf();
-$method = $_SERVER["REQUEST_METHOD"];
 if ($method === "POST") {
     $data = action_payload($payload);
     $nextStatement = $pdo->prepare(

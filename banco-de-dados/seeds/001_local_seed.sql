@@ -34,6 +34,19 @@ WHERE
       e.equipment_code = 'EST-001'
   );
 
+INSERT INTO licencas
+  (company_id, plan_name, billing_period, status)
+SELECT
+  c.id,
+  'Trace Mensal',
+  'MENSAL',
+  'ATIVA'
+FROM empresas c
+WHERE c.name = 'Empresa Demonstração'
+  AND NOT EXISTS (
+    SELECT 1 FROM licencas l WHERE l.company_id = c.id
+  );
+
 INSERT INTO dispositivos
   (company_id, equipment_id, device_code, device_type, token_hash, active)
 SELECT

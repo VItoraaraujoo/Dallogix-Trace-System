@@ -454,7 +454,7 @@ $machinesSql = "SELECT e.id, e.equipment_code, e.name,
             COALESCE(c.leituras_validas, 0) AS valid_readings
      FROM equipamentos e
      LEFT JOIN status_dispositivos d ON d.equipment_id = e.id AND d.device_type = 'CLP'
-     LEFT JOIN carregamentos c ON c.id = (SELECT c2.id FROM carregamentos c2 WHERE c2.equipment_id = e.id ORDER BY c2.id DESC LIMIT 1)
+     LEFT JOIN carregamentos c ON c.id = (SELECT c2.id FROM carregamentos c2 WHERE c2.equipment_id = e.id AND c2.state <> 'FINALIZADO' AND EXISTS (SELECT 1 FROM romaneios r2 WHERE r2.id = c2.romaneio_id AND r2.status NOT IN ('FINALIZADO', 'CANCELADO')) ORDER BY c2.id DESC LIMIT 1)
      LEFT JOIN romaneios r ON r.id = c.romaneio_id
      LEFT JOIN romaneio_caminhoes rt ON rt.id = c.truck_id
      WHERE e.company_id = :company_id

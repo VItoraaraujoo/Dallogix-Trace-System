@@ -30,6 +30,25 @@ jobs:
             exit 1
           fi
 
+      - name: Configurar PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          coverage: none
+          tools: composer
+
+      - name: Instalar dependências PHP
+        run: composer install --no-interaction --prefer-dist --no-progress
+
+      - name: Validar manifesto Composer
+        run: composer validate --no-check-publish
+
+      - name: Executar PHPUnit
+        run: composer test
+
+      - name: Executar PHPStan
+        run: composer analyse -- --no-progress
+
       - name: Validar código e segredos
         run: |
           bash testes/qualidade.sh
@@ -37,11 +56,20 @@ jobs:
 
       - name: Montar pacote imutável
         run: |
-          mkdir -p dist
-          git archive --format=tar.gz --prefix=trace/ "$GITHUB_SHA" \
-            > "dist/trace-${GITHUB_REF_NAME}.tar.gz"
+          mkdir -p dist/stage
+          git archive --format=tar "$GITHUB_SHA" | tar -xf - -C dist/stage
+          php scripts/version_assets.php "$GITHUB_SHA" dist/stage
+          tar -czf "dist/trace-${GITHUB_REF_NAME}.tar.gz" -C dist/stage .
           sha256sum "dist/trace-${GITHUB_REF_NAME}.tar.gz" \
             | awk '{print $1}' > dist/sha256.txt
+
+      - name: Gerar SBOM do release
+        uses: anchore/sbom-action@v0.24.0
+        with:
+          path: dist/stage
+          artifact-name: dallogix-trace-sbom.spdx.json
+          output-file: dist/dallogix-trace-sbom.spdx.json
+          format: spdx-json
 
       - name: Criar manifesto assinado
         env:
@@ -83,6 +111,7 @@ jobs:
           gh release create "$GITHUB_REF_NAME" \
             "dist/trace-${GITHUB_REF_NAME}.tar.gz" \
             dist/manifest.json \
+            dist/dallogix-trace-sbom.spdx.json \
             --repo "$GITHUB_REPOSITORY" \
             --title "Dallogix Trace ${GITHUB_REF_NAME}" \
             --generate-notes

@@ -34,8 +34,16 @@ if ($handle === false) {
     json_response(["error" => "Não foi possível ler o arquivo CSV."], 422);
 }
 
+$firstLine = fgets($handle);
+if ($firstLine === false) {
+    fclose($handle);
+    json_response(["error" => "CSV vazio ou sem linhas de dados."], 422);
+}
+$delimiter = substr_count($firstLine, ",") > substr_count($firstLine, ";") ? "," : ";";
+rewind($handle);
+
 $rows = [];
-while (($row = fgetcsv($handle, 0, ";")) !== false) {
+while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
     if (
         count(
             array_filter(

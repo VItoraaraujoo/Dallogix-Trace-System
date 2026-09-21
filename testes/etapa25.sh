@@ -10,17 +10,11 @@ login_code="$(curl -sS -o /tmp/dx-etapa25-login.json -w '%{http_code}' -c "$jar"
 [ "$login_code" = "200" ] || fail "login retornou HTTP $login_code"
 grep -q '"authenticated":true\|"authenticated": true' /tmp/dx-etapa25-login.json || fail "login não autenticou"
 
-report_code="$(curl -sS -o /tmp/dx-etapa25-report.json -w '%{http_code}' -b "$jar" "$base_url/api/relatorio_operacional.php")"
-[ "$report_code" = "200" ] || fail "relatório retornou HTTP $report_code"
-grep -q '"summary"' /tmp/dx-etapa25-report.json || fail "relatório sem resumo"
-grep -q '"rows"' /tmp/dx-etapa25-report.json || fail "relatório sem linhas"
-
-invalid_code="$(curl -sS -o /tmp/dx-etapa25-invalid.json -w '%{http_code}' -b "$jar" "$base_url/api/relatorio_operacional.php?date_from=2026-02-31")"
-[ "$invalid_code" = "422" ] || fail "data inválida não retornou HTTP 422"
-
 store_js="$(curl -sS "$base_url/js/classes/ArmazenamentoTrace.js")"
 monitoring_js="$(curl -sS "$base_url/js/telas/monitoramento.js")"
-printf '%s' "$store_js" | grep -q 'loadReport' || fail "store sem carregamento do relatório"
-printf '%s' "$monitoring_js" | grep -q 'export-report' || fail "tela sem exportação do relatório"
+operations_js="$(curl -sS "$base_url/js/telas/operacoes.js")"
+if printf '%s' "$store_js" | grep -q 'loadReport'; then fail "histórico operacional ainda está acoplado ao store"; fi
+if printf '%s' "$monitoring_js" | grep -q 'export-report'; then fail "histórico operacional ainda está acoplado à tela"; fi
+printf '%s' "$operations_js" | grep -q 'relatorio_auditoria.php' || fail "link do relatório PDF não está disponível no romaneio"
 
-echo "OK: relatório operacional autenticado e exportação disponíveis."
+echo "OK: tela de histórico removida; relatório PDF permanece disponível no romaneio."

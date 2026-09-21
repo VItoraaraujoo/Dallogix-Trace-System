@@ -191,7 +191,7 @@ if (
 }
 
 $empresa = $exigirEmpresaAtiva($empresaId);
-if (!$empresa || trim((string) $empresa["login_domain"]) === "") {
+if (trim((string) $empresa["login_domain"]) === "") {
     json_response(["error" => "Domínio de login da empresa não configurado."], 409);
 }
 $emailDomain = strtolower(trim((string) $empresa["login_domain"]));

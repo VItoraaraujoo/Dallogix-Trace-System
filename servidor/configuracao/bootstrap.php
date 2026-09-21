@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . "/observabilidade.php";
+
 function ambiente_atual(): string
 {
     return strtolower(trim((string) (getenv("APP_ENV") ?: "local")));
@@ -122,6 +124,7 @@ if (isset($_SESSION["last_activity"]) && time() - (int) $_SESSION["last_activity
     session_start();
 }
 $_SESSION["last_activity"] = time();
+trace_correlation_id();
 
 function responder_json(array $dados, int $status = 200): never
 {
@@ -282,6 +285,8 @@ function require_device_token(array $allowedDeviceTypes = []): array
         "SELECT id, company_id, equipment_id, device_code, device_type, token_hash
          FROM dispositivos
          WHERE active = 1 AND token_lookup_hash = :token_lookup_hash
+           AND (token_revoked_at IS NULL OR token_revoked_at > NOW())
+           AND (token_expires_at IS NULL OR token_expires_at > NOW())
          LIMIT 1",
     );
     $statement->execute(["token_lookup_hash" => hash("sha256", $provided)]);
@@ -294,7 +299,8 @@ function require_device_token(array $allowedDeviceTypes = []): array
     }
 
     $touch = obter_conexao_banco()->prepare(
-        "UPDATE dispositivos SET last_seen_at = NOW() WHERE id = :id AND active = 1",
+        "UPDATE dispositivos SET last_seen_at = NOW(), token_last_used_at = NOW()
+         WHERE id = :id AND active = 1",
     );
     $touch->execute(["id" => $device["id"]]);
 
@@ -759,6 +765,12 @@ function exigir_sessao_usuario(bool $permitirTrocaSenha = false): array
             obter_conexao_banco(),
             (int) ($usuarioPublico["company_id"] ?? 0),
         );
+        if (!trace_e_instalacao_local()) {
+            validar_licenca_ativa(
+                obter_conexao_banco(),
+                (int) ($usuarioPublico["company_id"] ?? 0),
+            );
+        }
     }
     $_SESSION["user"] = $usuarioPublico;
     $_SESSION["auth_version"] = (int) $usuarioAtual["auth_version"];
@@ -810,6 +822,7 @@ function registrar_evento_operacional(
     int $entidadeId,
     array $payload = [],
 ): void {
+    $payload = trace_payload_com_correlacao($payload);
     // Um administrador da plataforma pode operar sobre uma empresa-alvo. A
     // empresa do ator continua sendo a fonte principal; no escopo Master, a
     // operação deve informar company_id no payload para manter a fila isolada.
@@ -888,6 +901,7 @@ function enfileirar_evento_sincronizacao(
     int $entidadeId,
     array $payload = [],
 ): void {
+    $payload = trace_payload_com_correlacao($payload);
     $companyId = filter_var(
         $usuario["company_id"] ?? $payload["company_id"] ?? null,
         FILTER_VALIDATE_INT,
@@ -946,6 +960,7 @@ function registrar_log_erro(Throwable $exception, string $origem = "api"): void
     try {
         $contexto = json_encode(
             [
+                "correlation_id" => trace_correlation_id(),
                 "tipo" => get_class($exception),
                 "arquivo" => basename($exception->getFile()),
                 "linha" => $exception->getLine(),
