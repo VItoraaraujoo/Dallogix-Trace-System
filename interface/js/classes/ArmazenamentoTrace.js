@@ -552,6 +552,29 @@ export class ArmazenamentoTrace {
     };
     return result.data;
   }
+  async requestMachineEmergency(loadingId = this.state.loadingId) {
+    if (!loadingId)
+      throw new Error("Nenhum carregamento ativo para esta Dala.");
+    const response = await fetch("/api/comando_maquina.php", {
+      method: "POST",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({ carregamento_id: loadingId, command: "EMERGENCIA" }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw new Error(result.error || "Não foi possível registrar a emergência.");
+    this.state.operationalState = "EMERGENCIA";
+    this.state.emergency = true;
+    this.state.running = false;
+    this.state.returnMode = false;
+    this.state.plcCommand = {
+      id: result.data.command_request_id,
+      command: result.data.command,
+      status: result.data.status || "PENDENTE",
+      response_message: null,
+    };
+    return result.data;
+  }
   async loadPlcCommandStatus(loadingId = this.state.loadingId) {
     if (!loadingId) {
       this.state.plcCommand = null;
@@ -628,10 +651,15 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async cancelManifest(manifestId, justification = "") {
+    const reason = String(justification).trim();
     const response = await fetch("/api/romaneios.php", {
       method: "PATCH",
       headers: this.jsonHeaders(),
-      body: JSON.stringify({ romaneio_id: manifestId, ...(justification ? { action: "cancel", justification } : {}) }),
+      body: JSON.stringify({
+        action: "cancel",
+        romaneio_id: manifestId,
+        justification: reason,
+      }),
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Não foi possível cancelar o romaneio.");

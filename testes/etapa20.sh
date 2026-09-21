@@ -2,7 +2,7 @@
 set -u
 
 base_url="${TRACE_BASE_URL:-http://localhost:8080}"
-gateway_token="${TRACE_DEVICE_TOKEN:-trace-device-local-token-2026-v1}"
+gateway_token="${TRACE_DEVICE_TOKEN:-}"
 cookie_file="/tmp/dallogix-trace-etapa20-cookie.txt"
 
 login="$(curl -sS -c "$cookie_file" -H 'Content-Type: application/json' -d '{"email":"admin@dallogix.local","password":"password"}' "$base_url/api/login.php")"
@@ -24,6 +24,17 @@ if ! printf '%s' "$emergency" | grep -q '"state":"EMERGENCIA"'; then
   exit 1
 fi
 
+# A transição para emergência também gera o comando de intertravamento. O
+# gateway industrial precisa consumi-lo antes do desbloqueio solicitado pelo
+# operador; caso contrário o teste poderia reservar o comando anterior.
+emergency_command="$(curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" -d "{\"action\":\"CLAIM\",\"equipment_id\":$equipment_id}" "$base_url/api/plc_gateway.php")"
+emergency_request_id="$(printf '%s' "$emergency_command" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
+if [[ -n "$emergency_request_id" ]]; then
+  curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" \
+    -d "{\"action\":\"COMPLETE\",\"request_id\":$emergency_request_id,\"status\":\"APLICADO\",\"message\":\"Intertravamento de emergência confirmado no teste\"}" \
+    "$base_url/api/plc_gateway.php" >/dev/null
+fi
+
 unlock="$(curl -sS -b "$cookie_file" -X POST -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id}" "$base_url/api/desbloquear_maquina.php")"
 if ! printf '%s' "$unlock" | grep -q '"command":"DESBLOQUEAR_MAQUINA"'; then
   echo "FAIL: desbloqueio não foi aceito: $unlock"
@@ -43,11 +54,11 @@ printf '%s' "$completed_unlock" | grep -q '"status":"APLICADO"' || { echo "FAIL:
 # Processa as evidências da própria fixture no worker simulado e encerra a
 # operação, liberando a Dala para as etapas de preparação seguintes.
 for attempt in 1 2 3 4 5 6 7 8 9 10; do
-  claim="$(curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: ${CAMERA_DEVICE_TOKEN:-trace-camera-local-token-2026-v1}" -d '{"action":"CLAIM"}' "$base_url/api/camera_worker.php" || true)"
+  claim="$(curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: ${CAMERA_DEVICE_TOKEN:-}" -d '{"action":"CLAIM"}' "$base_url/api/camera_worker.php" || true)"
   request_id="$(printf '%s' "$claim" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
   [ -n "$request_id" ] || break
-  curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: ${CAMERA_DEVICE_TOKEN:-trace-camera-local-token-2026-v1}" \
-    -d "{\"action\":\"COMPLETE\",\"request_id\":${request_id},\"image_path\":\"simulados/etapa20-${request_id}.jpg\"}" \
+  curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: ${CAMERA_DEVICE_TOKEN:-}" \
+    -d "{\"action\":\"COMPLETE\",\"request_id\":${request_id},\"image_path\":\"company_1/equipment_${equipment_id}/simulados/etapa20-${request_id}.jpg\"}" \
     "$base_url/api/camera_worker.php" >/dev/null
 done
 curl -sS -b "$cookie_file" -X PATCH -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php" >/dev/null

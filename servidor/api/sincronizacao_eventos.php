@@ -289,7 +289,7 @@ $upsertTruck = static function (PDO $connection, int $manifestId, array $data): 
     $sourceId = filter_var($data["source_truck_id"] ?? null, FILTER_VALIDATE_INT);
     $sourceId = $sourceId !== false && $sourceId !== null && $sourceId > 0 ? (int) $sourceId : null;
     $plate = strtoupper(trim((string) ($data["plate"] ?? "")));
-    if ($plate === "") {
+    if (!placa_caminhao_valida($plate)) {
         throw new RuntimeException("Caminhão recebido pela sincronização é inválido.");
     }
     $find = $knownRemoteId === null

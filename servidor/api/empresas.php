@@ -16,7 +16,9 @@ $usuarioAtor = exigir_sessao_usuario();
  */
 function remover_empresa_com_dados(PDO $pdo, int $companyId): void
 {
-    $companyIdSql = (string) $companyId;
+    // Use placeholders even though the ID has already been validated. This
+    // keeps the destructive reset consistent with the rest of the API.
+    $companyIdSql = "?";
 
     // Remova primeiro as tabelas que não possuem company_id próprio, mas
     // apontam para registros operacionais da empresa.
@@ -68,7 +70,8 @@ function remover_empresa_com_dados(PDO $pdo, int $companyId): void
     ];
 
     foreach ($queriesDependentes as $query) {
-        $pdo->exec($query);
+        $statement = $pdo->prepare($query);
+        $statement->execute(array_fill(0, substr_count($query, "?"), $companyId));
     }
 
     // Todas as tabelas com company_id são descobertas no próprio schema para
@@ -85,7 +88,8 @@ function remover_empresa_com_dados(PDO $pdo, int $companyId): void
         if (!is_string($table) || !preg_match('/^[A-Za-z0-9_]+$/', $table)) {
             continue;
         }
-        $pdo->exec("DELETE FROM `{$table}` WHERE company_id = {$companyIdSql}");
+        $statement = $pdo->prepare("DELETE FROM `{$table}` WHERE company_id = ?");
+        $statement->execute([$companyId]);
     }
 
     $delete = $pdo->prepare("DELETE FROM empresas WHERE id = :id");
@@ -164,7 +168,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         ], 201);
     }
     $nomeEmpresa = trim((string) ($payload["name"] ?? ""));
-    if ($nomeEmpresa === "" || mb_strlen($nomeEmpresa) > 160) {
+    if (!nome_empresa_valido($nomeEmpresa)) {
         responder_json(["error" => "Informe o nome da empresa."], 422);
     }
 
@@ -281,7 +285,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
     if (!$id) {
         json_response(["error" => "Empresa não informada."], 422);
     }
-    if ($nomeEmpresa === "" || mb_strlen($nomeEmpresa) > 160) {
+    if (!nome_empresa_valido($nomeEmpresa)) {
         json_response(["error" => "Informe o nome da empresa."], 422);
     }
 

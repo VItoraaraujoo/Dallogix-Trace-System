@@ -49,7 +49,9 @@ jobs:
         env:
           DEPLOY_KEY: ${{ secrets.TEST_SERVER_SSH_KEY }}
           SERVER_PORT: ${{ secrets.TEST_SERVER_SSH_PORT }}
+          SERVER_HOST: ${{ secrets.TEST_SERVER_HOST }}
         run: |
+          : "${SERVER_HOST:?TEST_SERVER_HOST secret is required}"
           install -d -m 700 "$HOME/.ssh"
           # GitHub's textarea can preserve CRLF, escaped leading slashes, or receive only the Base64 body.
           # Normalize all supported forms before handing the key to OpenSSH.
@@ -67,7 +69,7 @@ jobs:
           fi
           chmod 600 "$HOME/.ssh/id_ed25519"
           ssh-keygen -y -f "$HOME/.ssh/id_ed25519" > /dev/null
-          ssh-keyscan -H -p "${SERVER_PORT:-22}" 140.238.187.6 > "$HOME/.ssh/known_hosts"
+          ssh-keyscan -H -p "${SERVER_PORT:-22}" "$SERVER_HOST" > "$HOME/.ssh/known_hosts"
           chmod 644 "$HOME/.ssh/known_hosts"
 
       - name: Deploy through the server synchronizer
@@ -75,10 +77,11 @@ jobs:
           SERVER_USER: ${{ secrets.TEST_SERVER_USER }}
           SERVER_PATH: ${{ secrets.TEST_SERVER_PATH }}
           SERVER_PORT: ${{ secrets.TEST_SERVER_SSH_PORT }}
+          SERVER_HOST: ${{ secrets.TEST_SERVER_HOST }}
         run: |
           : "${SERVER_PORT:=22}"
           : "${SERVER_PATH:=/opt/dallogix-trace}"
-          SERVER_HOST="140.238.187.6"
+          : "${SERVER_HOST:?TEST_SERVER_HOST secret is required}"
           git archive --format=tar HEAD | \
             ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" \
               "tar -xf - -C '$SERVER_PATH' && rm -f '$SERVER_PATH/interface/history.html' && cd '$SERVER_PATH' && \

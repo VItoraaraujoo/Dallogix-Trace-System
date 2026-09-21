@@ -10,6 +10,15 @@ fixture_cookie="/tmp/dallogix-trace-regression-fixture.txt"
 base_url="${TRACE_BASE_URL:-http://localhost:8080}"
 login="$(curl -sS -c "$fixture_cookie" -H 'Content-Type: application/json' -d '{"email":"admin@dallogix.local","password":"password"}' "$base_url/api/login.php")"
 if printf '%s' "$login" | grep -q '"authenticated":true'; then
+  company_id="$(printf '%s' "$login" | sed -n 's/.*"company_id":\([0-9][0-9]*\).*/\1/p')"
+  master_cookie="/tmp/dallogix-trace-regression-master.txt"
+  master_login="$(curl -sS -c "$master_cookie" -H 'Content-Type: application/json' -d '{"email":"master@dallogix.local","password":"password"}' "$base_url/api/login.php")"
+  master_csrf="$(printf '%s' "$master_login" | sed -n 's/.*"csrf_token":"\([^"]*\)".*/\1/p')"
+  if [[ -n "$company_id" && -n "$master_csrf" ]]; then
+    curl -sS -b "$master_cookie" -X PUT -H "X-CSRF-Token: $master_csrf" -H 'Content-Type: application/json' \
+      -d "{\"company_id\":${company_id},\"status\":\"ATIVA\"}" \
+      "$base_url/api/licencas.php" >/dev/null
+  fi
   active="$(curl -sS -b "$fixture_cookie" "$base_url/api/carregamentos.php")"
   if ! printf '%s' "$active" | grep -Eq '"state":"(PREPARANDO|CARREGANDO|EMERGENCIA|PAUSADO)"'; then
     number="FIXTURE-$(date +%s%N)"

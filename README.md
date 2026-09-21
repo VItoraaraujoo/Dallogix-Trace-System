@@ -59,14 +59,14 @@ Com os containers ativos, aplique as migrations controladas e o seed:
 
 ```bash
 ./scripts/migrate.sh
-docker compose exec -T mysql mysql -u root -pchange-me-root trace_local < banco-de-dados/seeds/001_local_seed.sql
+docker compose exec -T mysql sh -lc 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < banco-de-dados/seeds/001_local_seed.sql
 ```
 
 Em uma instalação já existente, `scripts/migrate.sh` cria o controle de versão e registra o schema legado sem reaplicar migrations históricas. As migrations mais recentes adicionam o código de ativação permanente, o arquivamento separado da exclusão definitiva e o índice composto da listagem de usuários.
 
 O seed cria uma empresa, usuário administrador, máquina, esteira, produto e barcode para desenvolvimento local.
 
-As credenciais técnicas locais do seed são `TRACE_DEVICE_TOKEN=trace-device-local-token-2026-v1` para o CLP e `CAMERA_DEVICE_TOKEN=trace-camera-local-token-2026-v1` para a câmera. Em uma instalação real, gere tokens próprios e provisione cada dispositivo com `php scripts/provision_device.php`.
+As credenciais técnicas não possuem valor padrão público. Defina `TRACE_DEVICE_TOKEN` e `CAMERA_DEVICE_TOKEN` no `.env` e, depois do seed, provisione os dispositivos com tokens próprios usando `php scripts/provision_device.php`.
 
 ## Acesso remoto e servidor central
 

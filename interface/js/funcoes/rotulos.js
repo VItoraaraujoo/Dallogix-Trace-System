@@ -7,6 +7,7 @@ const ESTADOS = {
   FINALIZADO: "Finalizado",
   EMERGENCIA: "Emergência",
   ERRO: "Erro",
+  REJEITADO: "Rejeitado",
 };
 
 const COMANDOS = {

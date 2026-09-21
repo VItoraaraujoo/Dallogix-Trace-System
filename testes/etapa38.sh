@@ -3,7 +3,7 @@ set -u
 
 base_url="${TRACE_BASE_URL:-http://localhost:8080}"
 cookie_file="/tmp/dallogix-trace-etapa38-cookie.txt"
-equipment_id="${TRACE_TEST_EQUIPMENT_ID:-$(docker compose exec -T mysql mysql -N -utrace -pchange-me-local trace_local -e "SELECT e.id FROM equipamentos e WHERE NOT EXISTS (SELECT 1 FROM carregamentos c WHERE c.equipment_id = e.id AND c.state <> 'FINALIZADO') ORDER BY e.id LIMIT 1" 2>/dev/null | tr -d '\r' | head -n 1)}"
+equipment_id="${TRACE_TEST_EQUIPMENT_ID:-$(docker compose exec -T mysql mysql -N -utrace -p"${MYSQL_PASSWORD:-}" "${MYSQL_DATABASE:-trace_local}" -e "SELECT e.id FROM equipamentos e WHERE NOT EXISTS (SELECT 1 FROM carregamentos c WHERE c.equipment_id = e.id AND c.state <> 'FINALIZADO') ORDER BY e.id LIMIT 1" 2>/dev/null | tr -d '\r' | head -n 1)}"
 fail() { echo "FAIL: $1"; exit 1; }
 
 [ -n "$equipment_id" ] || fail "nenhuma Dala livre para o teste"

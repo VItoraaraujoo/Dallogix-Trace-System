@@ -18,6 +18,8 @@ if ! printf '%s' "$login_response" | grep -q '"authenticated":true'; then
   echo "FAIL: login válido não autenticou: $login_response"
   exit 1
 fi
+csrf_token="$(printf '%s' "$login_response" | sed -n 's/.*"csrf_token":"\([^"]*\)".*/\1/p')"
+[ -n "$csrf_token" ] || { echo "FAIL: login não retornou token CSRF"; exit 1; }
 
 if [[ "$(status -b "$cookie_file" "$base_url/api/me.php")" != "200" ]]; then
   echo "FAIL: sessão não foi reconhecida"
@@ -29,7 +31,7 @@ if [[ "$(status -H 'Content-Type: application/json' -d '{"email":"admin@dallogix
   exit 1
 fi
 
-if [[ "$(status -b "$cookie_file" -X POST "$base_url/api/logout.php")" != "200" ]]; then
+if [[ "$(status -b "$cookie_file" -X POST -H "X-CSRF-Token: $csrf_token" "$base_url/api/logout.php")" != "200" ]]; then
   echo "FAIL: logout não respondeu 200"
   exit 1
 fi

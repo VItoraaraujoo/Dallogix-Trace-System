@@ -2,7 +2,7 @@
 set -u
 
 DB_NAME="${MYSQL_DATABASE:-trace_local}"
-DB_PASSWORD="${MYSQL_ROOT_PASSWORD:-change-me-root}"
+DB_PASSWORD="${MYSQL_ROOT_PASSWORD:-}"
 MYSQL=(docker compose exec -T mysql mysql -N -B --default-character-set=utf8mb4 -u root "-p${DB_PASSWORD}" "${DB_NAME}")
 
 tables="$(${MYSQL[@]} -e 'SHOW TABLES' 2>/dev/null)"

@@ -294,8 +294,8 @@ try {
     ]);
     $loadingId = (int) $pdo->lastInsertId();
     $pdo->prepare(
-        "UPDATE romaneios SET status = 'EM_ANDAMENTO' WHERE id = :id",
-    )->execute(["id" => $romaneioId]);
+        "UPDATE romaneios SET status = 'EM_ANDAMENTO' WHERE id = :id AND company_id = :company_id",
+    )->execute(["id" => $romaneioId, "company_id" => $usuarioAtor["company_id"]]);
     record_operational_event(
         $pdo,
         $usuarioAtor,

@@ -2,7 +2,7 @@
 
 ensure_loading_carregando() {
   local json loading_id prep_id manifest number plate manifest_id truck_id equipment_ids equipment_id prepared gateway_token
-  gateway_token="${TRACE_DEVICE_TOKEN:-trace-device-local-token-2026-v1}"
+  gateway_token="${TRACE_DEVICE_TOKEN:-}"
   if [[ "${TRACE_FORCE_NEW_LOADING:-0}" != "1" ]]; then
     json="$(curl -sS -b "$cookie_file" "$base_url/api/carregamentos.php")"
     loading_id="$(printf '%s' "$json" | sed -n 's/.*"id":\([0-9][0-9]*\),"state":"CARREGANDO".*/\1/p' | head -n 1)"

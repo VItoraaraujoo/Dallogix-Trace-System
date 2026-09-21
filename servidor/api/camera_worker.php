@@ -100,7 +100,7 @@ try {
         json_response(["error" => "Pedido de captura não está reservado por este dispositivo."], 404);
     }
     $requiredPrefix = "company_" . (int) $capture["company_id"] . "/equipment_" . (int) $capture["equipment_id"] . "/";
-    if (ambiente_atual() === "production" && !str_starts_with($imagePath, $requiredPrefix)) {
+    if (!str_starts_with($imagePath, $requiredPrefix)) {
         $pdo->rollBack();
         json_response(["error" => "image_path deve pertencer à empresa e ao equipamento da captura."], 422);
     }

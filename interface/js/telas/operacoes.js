@@ -8,7 +8,7 @@ import {
   emergencyPanel,
   progress,
   statuses,
-} from "../funcoes/view.js?v=202609201000";
+} from "../funcoes/view.js?v=202609210400";
 
 const STATUS_OPTIONS = [
   ["", "Todos os status"],
@@ -213,6 +213,9 @@ function workControls(store) {
   const bloqueioComando = clpDisponivel && store.state.loadingId
     ? ""
     : `disabled aria-disabled="true" title="${store.state.loadingId ? "CLP sem comunicação" : "Nenhum carregamento selecionado"}"`;
+  const bloqueioEmergencia = store.state.loadingId
+    ? ""
+    : `disabled aria-disabled="true" title="Nenhum carregamento selecionado"`;
   const loadingPicker = `<div class="work-back-row"><button class="button secondary" data-action="goto-manifests" type="button">← Voltar</button></div>`;
   const pendingReadings = store.state.pendingReadings || [];
   const manualIdentification = pendingReadings.length
@@ -227,7 +230,7 @@ function workControls(store) {
   const finalized = store.state.operationalState === "FINALIZADO";
   const controls = finalized
     ? ""
-    : `<div class="work-controls"><div class="work-routine-controls">${button("Iniciar", "run", "primary", bloqueioComando)}${button("Parar", "stop", "ghost", bloqueioComando)}${reverse}</div><div class="work-emergency-zone">${button("Emergência", "emergency", "danger", bloqueioComando)}</div></div>`;
+    : `<div class="work-controls"><div class="work-routine-controls">${button("Iniciar", "run", "primary", bloqueioComando)}${button("Parar", "stop", "ghost", bloqueioComando)}${reverse}</div><div class="work-emergency-zone">${button("Emergência", "emergency", "danger", bloqueioEmergencia)}</div></div>`;
   const summaryReady = ["FINALIZANDO", "FINALIZADO"].includes(
     store.state.operationalState,
   );
@@ -245,6 +248,7 @@ function workControls(store) {
   const activeEmergencyPanel = emergencyPanel({
     canUnlock,
     buttonAttributes: bloqueioComando,
+    commandStatus: store.state.plcCommand,
     compact: true,
   });
   const avisoClp = clpDisponivel
@@ -258,9 +262,9 @@ function workControls(store) {
     return `<tr><td data-label="Produto"><strong>${esc(item.name || "Produto")}</strong></td><td data-label="Código"><code>${esc(item.code || "—")}</code></td><td data-label="Carregado">${numero(loaded)}</td><td data-label="Planejado">${numero(planned)}</td><td data-label="Faltam"><strong>${numero(remaining)}</strong></td><td data-label="Situação"><span class="badge ${status[1]}">${status[0]}</span></td></tr>`;
   }).join("") : '<tr><td colspan="6" class="empty-cell">Nenhum item detalhado para este carregamento.</td></tr>'}</tbody></table></div></section>`;
   const workTitle = store.state.romaneio && store.state.romaneio !== "—"
-    ? `Romaneio #${store.state.romaneio} · ${equipmentLabel(store)}`
+    ? `Romaneio #${esc(store.state.romaneio)} · ${equipmentLabel(store)}`
     : "Operação";
-  return `${pageHeader(`Operação / ${equipmentLabel(store)}`, workTitle, `Caminhão ${store.state.truck}.`, badge)}${loadingPicker}${statuses(store)}${avisoClp}${manualIdentification}${store.state.emergency ? activeEmergencyPanel : `<div class="grid two"><section class="panel"><span class="kicker">Produto atual</span><h3>Contagem do romaneio</h3><p>Leituras vinculadas ao carregamento atual</p><div class="grid three"><div class="metric"><small>Programado</small><strong data-live="planned">${numero(store.state.planned)}</strong></div><div class="metric work-critical-metric"><small>Carregado</small><strong data-live="loaded">${numero(store.state.loaded)}</strong></div><div class="metric work-critical-metric"><small>Faltam</small><strong data-live="remaining">${numero(left)}</strong></div></div>${progress(store)}${left <= 5 && left > 0 ? '<div class="alert-box">Faltam 5 sacas ou menos. Reduza o envio.</div>' : ""}<div class="actions">${controls}</div></section><aside class="panel"><h3>Estado atual</h3><ul><li>Estado <small data-live="operational-state">${esc(rotuloEstado(store.state.operationalState))}</small></li>${commandPanel}<li>Leituras válidas <small data-live="loaded-secondary">${numero(store.state.loaded)}</small></li><li>Carregamento #${store.state.loadingId || "—"}</li></ul>${summaryAction ? `<div class="actions work-summary-action">${summaryAction}</div>` : ""}</aside></div>`}${itemBreakdown}`;
+  return `${pageHeader(`Operação / ${equipmentLabel(store)}`, workTitle, `Caminhão ${esc(store.state.truck)}.`, badge)}${loadingPicker}${statuses(store)}${avisoClp}${manualIdentification}${store.state.emergency ? activeEmergencyPanel : `<div class="grid two"><section class="panel"><span class="kicker">Produto atual</span><h3>Contagem do romaneio</h3><p>Leituras vinculadas ao carregamento atual</p><div class="grid three"><div class="metric"><small>Programado</small><strong data-live="planned">${numero(store.state.planned)}</strong></div><div class="metric work-critical-metric"><small>Carregado</small><strong data-live="loaded">${numero(store.state.loaded)}</strong></div><div class="metric work-critical-metric"><small>Faltam</small><strong data-live="remaining">${numero(left)}</strong></div></div>${progress(store)}${left <= 5 && left > 0 ? '<div class="alert-box">Faltam 5 sacas ou menos. Reduza o envio.</div>' : ""}<div class="actions">${controls}</div></section><aside class="panel"><h3>Estado atual</h3><ul><li>Estado <small data-live="operational-state">${esc(rotuloEstado(store.state.operationalState))}</small></li>${commandPanel}<li>Leituras válidas <small data-live="loaded-secondary">${numero(store.state.loaded)}</small></li><li>Carregamento #${esc(store.state.loadingId || "—")}</li></ul>${summaryAction ? `<div class="actions work-summary-action">${summaryAction}</div>` : ""}</aside></div>`}${itemBreakdown}`;
 }
 export function work(store) {
   if (

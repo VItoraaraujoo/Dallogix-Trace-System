@@ -229,9 +229,9 @@ try {
 $readingId = (int) $pdo->lastInsertId();
 if ($result === "VALIDO") {
     $validCounter = $pdo->prepare(
-        "UPDATE carregamentos SET leituras_validas = leituras_validas + 1 WHERE id = :id",
+        "UPDATE carregamentos SET leituras_validas = leituras_validas + 1 WHERE id = :id AND company_id = :company_id",
     );
-    $validCounter->execute(["id" => $loadingId]);
+    $validCounter->execute(["id" => $loadingId, "company_id" => $usuarioAtor["company_id"]]);
 }
 record_operational_event(
     $pdo,
@@ -318,12 +318,13 @@ if (in_array($result, ["PRODUTO_INCORRETO", "EXCESSO"], true)) {
         ? "Quantidade planejada atingida. Remova a unidade excedente e confirme para continuar."
         : "Produto incorreto detectado. Remova a unidade e confirme para continuar.";
     $stop = $pdo->prepare(
-        "UPDATE carregamentos SET state = 'PAUSADO', stop_reason = :stop_reason, operator_alert = :operator_alert WHERE id = :id AND state = 'CARREGANDO'",
+        "UPDATE carregamentos SET state = 'PAUSADO', stop_reason = :stop_reason, operator_alert = :operator_alert WHERE id = :id AND company_id = :company_id AND state = 'CARREGANDO'",
     );
     $stop->execute([
         "stop_reason" => $stopReason,
         "operator_alert" => $stopAlert,
         "id" => $loadingId,
+        "company_id" => $usuarioAtor["company_id"],
     ]);
     record_operational_event(
         $pdo,
@@ -388,9 +389,9 @@ if (
     ]);
     $configuredAction = $trigger->fetch();
     $stateUpdate = $pdo->prepare(
-        "UPDATE carregamentos SET state = 'FINALIZANDO' WHERE id = :id AND state IN ('PREPARANDO', 'CARREGANDO', 'PAUSADO')",
+        "UPDATE carregamentos SET state = 'FINALIZANDO' WHERE id = :id AND company_id = :company_id AND state IN ('PREPARANDO', 'CARREGANDO', 'PAUSADO')",
     );
-    $stateUpdate->execute(["id" => $loadingId]);
+    $stateUpdate->execute(["id" => $loadingId, "company_id" => $usuarioAtor["company_id"]]);
     if ($configuredAction) {
         $queue = $pdo->prepare(
             "INSERT INTO solicitacoes_comandos_clp (company_id, equipment_id, carregamento_id, command, requested_by)

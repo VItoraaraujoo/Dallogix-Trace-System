@@ -181,11 +181,11 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
                 $pdo->rollBack(); responder_json(["error" => "Antes de cancelar, coloque a Dala em pausa ou emergência."], 409);
             }
             if ($current["loading_id"]) {
-                $updateLoading = $pdo->prepare("UPDATE carregamentos SET state = 'FINALIZADO', finished_at = NOW(), finish_justification = :reason WHERE id = :id AND state <> 'FINALIZADO'");
-                $updateLoading->execute(["id" => $current["loading_id"], "reason" => "ROMANEIO CANCELADO: " . $reason]);
+                $updateLoading = $pdo->prepare("UPDATE carregamentos SET state = 'FINALIZADO', finished_at = NOW(), finish_justification = :reason WHERE id = :id AND company_id = :company_id AND state <> 'FINALIZADO'");
+                $updateLoading->execute(["id" => $current["loading_id"], "company_id" => $companyId, "reason" => "ROMANEIO CANCELADO: " . $reason]);
                 record_operational_event($pdo, $usuarioAtor, "CARREGAMENTO_CANCELADO", "carregamento", (int) $current["loading_id"], ["romaneio_id" => (int) $romaneioId, "justification" => $reason]);
             }
-            $pdo->prepare("UPDATE romaneios SET status = 'CANCELADO' WHERE id = :id")->execute(["id" => $romaneioId]);
+            $pdo->prepare("UPDATE romaneios SET status = 'CANCELADO' WHERE id = :id AND company_id = :company_id")->execute(["id" => $romaneioId, "company_id" => $companyId]);
             record_operational_event($pdo, $usuarioAtor, "ROMANEIO_CANCELADO", "romaneio", (int) $romaneioId, ["justification" => $reason, "in_progress" => (bool) $current["loading_id"]]);
             $pdo->commit();
             responder_json(["data" => ["id" => (int) $romaneioId, "status" => "CANCELADO"]]);
@@ -204,7 +204,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
         $driverName = trim((string) ($payload["driver_name"] ?? ""));
         $expedidor = trim((string) ($payload["expedidor"] ?? ""));
 
-        if (!$romaneioId || $number === "" || $plate === "" || mb_strlen($number) > 80 || !preg_match('/^[A-Za-z0-9À-ÿ _.,\/-]{1,80}$/u', $number)) {
+        if (!$romaneioId || $number === "" || !placa_caminhao_valida($plate) || mb_strlen($number) > 80 || !preg_match('/^[A-Za-z0-9À-ÿ _.,\/-]{1,80}$/u', $number)) {
             responder_json(["error" => "Romaneio, código e placa são obrigatórios."], 422);
         }
 
@@ -276,12 +276,13 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
             }
 
             $pdo->prepare(
-                "UPDATE romaneios SET number = :number, scheduled_date = :scheduled_date, expedidor = :expedidor WHERE id = :id",
+                "UPDATE romaneios SET number = :number, scheduled_date = :scheduled_date, expedidor = :expedidor WHERE id = :id AND company_id = :company_id",
             )->execute([
                 "number" => $number,
                 "scheduled_date" => $scheduledDate,
                 "expedidor" => $expedidor !== "" ? $expedidor : null,
                 "id" => $romaneioId,
+                "company_id" => $companyId,
             ]);
 
             $pdo->prepare(
@@ -349,8 +350,8 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
         responder_json(["error" => "Só é possível cancelar um romaneio que ainda não iniciou carregamento."], 409);
     }
 
-    $update = $pdo->prepare("UPDATE romaneios SET status = 'CANCELADO' WHERE id = :id AND status NOT IN ('FINALIZADO', 'CANCELADO')");
-    $update->execute(["id" => $romaneioId]);
+    $update = $pdo->prepare("UPDATE romaneios SET status = 'CANCELADO' WHERE id = :id AND company_id = :company_id AND status NOT IN ('FINALIZADO', 'CANCELADO')");
+    $update->execute(["id" => $romaneioId, "company_id" => $companyId]);
     record_operational_event(
         $pdo,
         $usuarioAtor,
@@ -379,7 +380,7 @@ $plate = strtoupper(trim((string) ($payload["plate"] ?? "")));
 $driverName = trim((string) ($payload["driver_name"] ?? ""));
 $expedidor = trim((string) ($payload["expedidor"] ?? ""));
 
-if ($number === "" || $plate === "" || mb_strlen($number) > 80 || !preg_match('/^[A-Za-z0-9À-ÿ _.,\/-]{1,80}$/u', $number)) {
+if ($number === "" || !placa_caminhao_valida($plate) || mb_strlen($number) > 80 || !preg_match('/^[A-Za-z0-9À-ÿ _.,\/-]{1,80}$/u', $number)) {
     responder_json(["error" => "Número e placa do caminhão são obrigatórios."], 422);
 }
 

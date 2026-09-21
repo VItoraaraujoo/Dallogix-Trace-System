@@ -40,12 +40,25 @@ if ($remoteUrl === "") {
     $remoteUrl = trim((string) ($settings->fetchColumn() ?: ""));
 }
 $remoteConfigured = $remoteUrl !== "";
+$installation = $pdo->prepare(
+    "SELECT last_remote_sync_at, last_remote_sync_error
+     FROM instalacoes_locais
+     WHERE id = 1 AND company_id = :company_id LIMIT 1",
+);
+$installation->execute(["company_id" => $user["company_id"]]);
+$installationStatus = $installation->fetch() ?: null;
+$centralSync = [
+    "configured" => $installationStatus !== null,
+    "last_sync_at" => $installationStatus["last_remote_sync_at"] ?? null,
+    "last_error" => $installationStatus["last_remote_sync_error"] ?? null,
+];
 
 json_response([
     "data" => [
         "summary" => $summary,
         "recent" => $recent->fetchAll(),
         "remote_configured" => $remoteConfigured,
+        "central_sync" => $centralSync,
         "checked_at" => date("c"),
     ],
 ]);

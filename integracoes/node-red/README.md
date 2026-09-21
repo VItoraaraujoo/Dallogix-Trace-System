@@ -12,7 +12,7 @@ necessário.
 
 - publica o heartbeat do CLP a cada 1 segundo;
 - consulta a fila de comandos a cada 2 segundos;
-- reserva comandos pela API e os conclui como `REJEITADO` enquanto o mapa de I/O estiver como `CONFIRMAR`;
+- reserva comandos pela API, prioriza `EMERGENCIA` e os conclui como `REJEITADO` enquanto o mapa de I/O estiver como `CONFIRMAR`;
 - não executa escrita em bobina, registrador ou saída física;
 - não acessa o banco diretamente.
 
@@ -64,7 +64,7 @@ O worker deverá chamar `/api/camera_worker.php` com `X-Device-Token` igual ao t
 
 1. `POST {"action":"CLAIM"}` para reservar a próxima captura da própria Dala;
 2. disparar a câmera conforme o protocolo confirmado;
-3. `POST {"action":"COMPLETE","request_id":N,"image_path":"..."}` para vincular a imagem ao carregamento.
+3. `POST {"action":"COMPLETE","request_id":N,"image_path":"company_<empresa>/equipment_<dala>/arquivo.jpg"}` para vincular a imagem ao carregamento. O prefixo é obrigatório mesmo em ambiente local, evitando que uma câmera grave evidência em outra empresa ou Dala.
 
 O protocolo da câmera ainda precisa ser confirmado com o fabricante. O servidor não considera uma captura concluída sem o callback `COMPLETE`.
 

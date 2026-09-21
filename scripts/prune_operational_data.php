@@ -5,7 +5,10 @@ declare(strict_types=1);
 $host = getenv("DB_HOST") ?: "127.0.0.1";
 $name = getenv("DB_NAME") ?: "trace_local";
 $user = getenv("DB_USER") ?: "trace";
-$password = getenv("DB_PASSWORD") ?: "change-me-local";
+$password = trim((string) getenv("DB_PASSWORD"));
+if ($password === "") {
+    throw new RuntimeException("DB_PASSWORD não configurado.");
+}
 $pdo = new PDO(
     "mysql:host={$host};dbname={$name};charset=utf8mb4",
     $user,

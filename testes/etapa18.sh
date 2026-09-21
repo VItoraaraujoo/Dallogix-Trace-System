@@ -2,6 +2,7 @@
 set -u
 
 base_url="${TRACE_BASE_URL:-http://localhost:8080}"
+gateway_token="${TRACE_DEVICE_TOKEN:-}"
 cookie_file="/tmp/dallogix-trace-etapa18-cookie.txt"
 
 login="$(curl -sS -c "$cookie_file" -H 'Content-Type: application/json' -d '{"email":"admin@dallogix.local","password":"password"}' "$base_url/api/login.php")"
@@ -16,7 +17,7 @@ loading_id="${TRACE_LOADING_ID:-$(curl -sS -b "$cookie_file" "$base_url/api/carr
 equipment_id="${TRACE_EQUIPMENT_ID:-$(curl -sS -b "$cookie_file" "$base_url/api/carregamentos.php" | sed -n 's/.*"id":'"$loading_id"',"state":"[^"]*","equipment_id":\([0-9][0-9]*\).*/\1/p' | head -n 1)}"
 sleep 1
 event_uuid="55555555-5555-4555-8555-$(printf '%012d' "$(date +%s)")"
-event="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"equipment_id\":$equipment_id,\"event_uuid\":\"$event_uuid\"}" "$base_url/api/sensor_eventos.php")"
+event="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" -d "{\"carregamento_id\":$loading_id,\"equipment_id\":$equipment_id,\"event_uuid\":\"$event_uuid\"}" "$base_url/api/sensor_eventos.php")"
 event_id="$(printf '%s' "$event" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
 [ -n "$event_id" ] || { echo "FAIL: evento de sensor não foi criado: $event"; exit 1; }
 pending="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"sensor_event_id\":$event_id}" "$base_url/api/leituras.php")"

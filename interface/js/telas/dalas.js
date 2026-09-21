@@ -1,7 +1,7 @@
 import { dataHora, numero } from "../funcoes/formato.js?v=202609170930";
 import { button, esc } from "../funcoes/html.js";
 import { rotuloComando, rotuloEstado, rotuloEvento, rotuloStatusComando } from "../funcoes/rotulos.js";
-import { pageHeader } from "../funcoes/view.js?v=202609150020";
+import { operationalBadge, pageHeader } from "../funcoes/view.js?v=202609210400";
 
 function dalaStatusCell(equipment) {
   return `<div class="dala-status" data-equipment-id="${equipment.id}"><span class="status-dot"></span>Verificando…</div>`;
@@ -82,6 +82,7 @@ export function dalaView(store) {
 </div></section>
 <section class="panel dala-stats-panel"><div class="panel-heading"><div><span class="dala-page-kicker">Operação</span><h3>Estatísticas da Dala</h3></div><span class="dala-last-signal">Último sinal: ${esc(operation.last_seen_at || "Sem sinal registrado")}</span></div><div class="grid four dala-stats-grid">
   <div class="metric"><small>Estado da operação</small><strong>${esc(rotuloEstado(operation.carregamento_state))}</strong></div>
+  <div class="metric"><small>Estado físico</small><strong>${operationalBadge(operation.operational_status)}</strong></div>
   <div class="metric"><small>Romaneio atual</small><strong>${esc(operation.romaneio_number ? `#${operation.romaneio_number}` : "—")}</strong></div>
   <div class="metric"><small>Carregado</small><strong>${numero(loaded)} / ${numero(planned)}</strong></div>
   <div class="metric"><small>Progresso</small><strong>${percentage}%</strong></div>

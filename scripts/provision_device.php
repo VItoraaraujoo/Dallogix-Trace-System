@@ -21,7 +21,11 @@ if (
 $host = getenv("DB_HOST") ?: "mysql";
 $name = getenv("DB_NAME") ?: "trace_local";
 $user = getenv("DB_USER") ?: "trace";
-$password = getenv("DB_PASSWORD") ?: "change-me-local";
+$password = trim((string) getenv("DB_PASSWORD"));
+if ($password === "") {
+    fwrite(STDERR, "ERRO: DB_PASSWORD não configurado.\n");
+    exit(2);
+}
 $pdo = new PDO(
     "mysql:host={$host};dbname={$name};charset=utf8mb4",
     $user,

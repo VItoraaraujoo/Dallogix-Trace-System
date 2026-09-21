@@ -428,7 +428,10 @@ final class ServicoSincronizacaoRemota
     /** @param array<string,mixed> $remote */
     private function upsertTruck(int $romaneioId, int $remoteId, array $remote): int
     {
-        $plate = trim((string) ($remote["plate"] ?? ""));
+        $plate = strtoupper(trim((string) ($remote["plate"] ?? "")));
+        if (!placa_caminhao_valida($plate)) {
+            throw new RuntimeException("Caminhão recebido pela sincronização é inválido.");
+        }
         $find = $this->connection->prepare(
             "SELECT id FROM romaneio_caminhoes WHERE romaneio_id = :romaneio_id
              AND (remote_truck_id = :remote_id OR plate = :plate) LIMIT 1",

@@ -62,18 +62,19 @@ $expected->execute([
     "truck_id" => $current["truck_id"],
 ]);
 $result = $expected->fetch() ? "VALIDO" : "PRODUTO_INCORRETO";
-$update = $pdo->prepare("UPDATE leituras SET product_id = :product_id, barcode = COALESCE(NULLIF(:barcode, ''), barcode), result = :result WHERE id = :id");
+$update = $pdo->prepare("UPDATE leituras SET product_id = :product_id, barcode = COALESCE(NULLIF(:barcode, ''), barcode), result = :result WHERE id = :id AND company_id = :company_id");
 $update->execute([
     "product_id" => $selected["id"],
     "barcode" => $barcode,
     "result" => $result,
     "id" => $readingId,
+    "company_id" => $user["company_id"],
 ]);
 if ($result === "VALIDO") {
     // A leitura manual passa a compor o mesmo contador usado pelo scanner.
     // Como a linha foi bloqueada e só SEM_LEITURA é aceita, o incremento ocorre uma única vez.
-    $counter = $pdo->prepare("UPDATE carregamentos SET leituras_validas = leituras_validas + 1 WHERE id = :id");
-    $counter->execute(["id" => (int) $current["carregamento_id"]]);
+    $counter = $pdo->prepare("UPDATE carregamentos SET leituras_validas = leituras_validas + 1 WHERE id = :id AND company_id = :company_id");
+    $counter->execute(["id" => (int) $current["carregamento_id"], "company_id" => $user["company_id"]]);
 }
 record_operational_event($pdo, $user, "LEITURA_IDENTIFICADA_MANUALMENTE", "leitura", (int) $readingId, ["product_id" => (int) $selected["id"], "result" => $result, ...(preg_match('/^[a-f0-9-]{16,80}$/i', $offlineEventId) ? ["event_uuid" => $offlineEventId] : [])]);
 $pdo->commit();

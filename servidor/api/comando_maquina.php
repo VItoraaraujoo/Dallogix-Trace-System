@@ -26,19 +26,17 @@ $command = strtoupper(trim((string) ($payload["command"] ?? "")));
 if (!$loadingId) {
     json_response(
         [
-            "error" =>
-                "Carregamento e comando de reversão válido são obrigatórios.",
+            "error" => "Carregamento e comando válido são obrigatórios.",
         ],
         422,
     );
 }
 
 try {
-    $data = (new ServicoComandoClp(db()))->requestReversal(
-        $user,
-        (int) $loadingId,
-        $command,
-    );
+    $service = new ServicoComandoClp(db());
+    $data = $command === "EMERGENCIA"
+        ? $service->requestEmergency($user, (int) $loadingId)
+        : $service->requestReversal($user, (int) $loadingId, $command);
     json_response(["data" => $data]);
 } catch (ExcecaoComandoClp $exception) {
     json_response(

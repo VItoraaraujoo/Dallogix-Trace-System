@@ -2,7 +2,7 @@
 set -u
 
 base_url="${TRACE_BASE_URL:-http://localhost:8080}"
-gateway_token="${TRACE_DEVICE_TOKEN:-trace-device-local-token-2026-v1}"
+gateway_token="${TRACE_DEVICE_TOKEN:-}"
 cookie_file="/tmp/dallogix-trace-etapa5-cookie.txt"
 source "$(cd "$(dirname "$0")" && pwd)/lib/ensure_loading.sh"
 event_uuid="22222222-2222-4222-8222-$(printf '%012d' "$(date +%s)")"
@@ -40,13 +40,17 @@ fi
 
 equipment_id="${TRACE_EQUIPMENT_ID:-$(curl -sS -b "$cookie_file" "$base_url/api/carregamentos.php" | sed -n 's/.*"id":'"$loading_id"',"state":"[^"]*","equipment_id":\([0-9][0-9]*\).*/\1/p' | head -n 1)}"
 [ -n "$equipment_id" ] || equipment_id=1
-event="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"equipment_id\":$equipment_id,\"event_uuid\":\"$event_uuid\"}" "$base_url/api/sensor_eventos.php")"
+if [[ "$(curl -sS -o /dev/null -w '%{http_code}' -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"equipment_id\":$equipment_id,\"event_uuid\":\"$event_uuid\"}" "$base_url/api/sensor_eventos.php")" != "401" ]]; then
+  echo "FAIL: sessão de usuário comum conseguiu registrar evento do sensor"
+  exit 1
+fi
+event="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" -d "{\"carregamento_id\":$loading_id,\"equipment_id\":$equipment_id,\"event_uuid\":\"$event_uuid\"}" "$base_url/api/sensor_eventos.php")"
 if ! printf '%s' "$event" | grep -q '"duplicate":false'; then
   echo "FAIL: evento novo não foi criado: $event"
   exit 1
 fi
 
-duplicate="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"equipment_id\":$equipment_id,\"event_uuid\":\"$event_uuid\"}" "$base_url/api/sensor_eventos.php")"
+duplicate="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" -d "{\"carregamento_id\":$loading_id,\"equipment_id\":$equipment_id,\"event_uuid\":\"$event_uuid\"}" "$base_url/api/sensor_eventos.php")"
 if ! printf '%s' "$duplicate" | grep -q '"duplicate":true'; then
   echo "FAIL: evento repetido não foi tratado com idempotência: $duplicate"
   exit 1

@@ -158,8 +158,8 @@ try {
     $romaneioFinalizado = (int) $remaining->fetchColumn() === 0;
     if ($romaneioFinalizado) {
         $pdo->prepare(
-            "UPDATE romaneios SET status = 'FINALIZADO' WHERE id = :id",
-        )->execute(["id" => $loading["romaneio_id"]]);
+            "UPDATE romaneios SET status = 'FINALIZADO' WHERE id = :id AND company_id = :company_id",
+        )->execute(["id" => $loading["romaneio_id"], "company_id" => $user["company_id"]]);
     }
     record_operational_event(
         $pdo,

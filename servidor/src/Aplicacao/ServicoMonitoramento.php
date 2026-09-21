@@ -30,7 +30,38 @@ final class ServicoMonitoramento
         $audit = $query("SELECT action, entity_type, entity_id, created_at FROM logs_auditoria WHERE company_id = :company_id ORDER BY id DESC LIMIT 10", ["company_id" => $companyId]);
         $pendingSync = $query("SELECT COUNT(*) AS total FROM fila_sincronizacao q WHERE q.company_id = :company_id AND q.status IN ('PENDENTE', 'ERRO', 'PROCESSANDO')", ["company_id" => $companyId]);
         $devices = $query("SELECT d.equipment_id, d.device_type, CASE WHEN d.status = 'ONLINE' AND d.last_seen_at >= DATE_SUB(NOW(), INTERVAL {$clpSignalLimit} SECOND) THEN 'ONLINE' WHEN d.status = 'ERRO' THEN 'ERRO' ELSE 'OFFLINE' END AS status, d.last_seen_at, CASE WHEN d.last_seen_at IS NULL THEN NULL ELSE TIMESTAMPDIFF(SECOND, d.last_seen_at, NOW()) END AS segundos_sem_sinal, e.equipment_code FROM status_dispositivos d JOIN equipamentos e ON e.id = d.equipment_id WHERE e.company_id = :company_id ORDER BY e.equipment_code, d.device_type", ["company_id" => $companyId]);
-        $maquinas = $query("SELECT e.id, e.equipment_code, e.name, CASE WHEN d.status = 'ONLINE' AND d.last_seen_at >= DATE_SUB(NOW(3), INTERVAL {$clpSignalLimit} SECOND) THEN 'ONLINE' WHEN d.status = 'ERRO' THEN 'ERRO' ELSE 'OFFLINE' END AS clp_status, d.last_seen_at, c.id AS carregamento_id, c.state AS carregamento_state, r.id AS romaneio_id, r.number AS romaneio_number, rt.plate, COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity, COALESCE(c.leituras_validas, 0) AS valid_readings FROM equipamentos e LEFT JOIN status_dispositivos d ON d.equipment_id = e.id AND d.device_type = 'CLP' LEFT JOIN carregamentos c ON c.id = (SELECT c2.id FROM carregamentos c2 WHERE c2.equipment_id = e.id ORDER BY c2.id DESC LIMIT 1) LEFT JOIN romaneios r ON r.id = c.romaneio_id LEFT JOIN romaneio_caminhoes rt ON rt.id = c.truck_id WHERE e.company_id = :company_id ORDER BY e.equipment_code", ["company_id" => $companyId]);
+        $maquinas = $query("SELECT e.id, e.equipment_code, e.name, CASE WHEN d.status = 'ONLINE' AND d.last_seen_at >= DATE_SUB(NOW(3), INTERVAL {$clpSignalLimit} SECOND) THEN 'ONLINE' WHEN d.status = 'ERRO' THEN 'ERRO' ELSE 'OFFLINE' END AS clp_status, d.last_seen_at, d.details AS clp_details, c.id AS carregamento_id, c.state AS carregamento_state, r.id AS romaneio_id, r.number AS romaneio_number, rt.plate, COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity, COALESCE(c.leituras_validas, 0) AS valid_readings FROM equipamentos e LEFT JOIN status_dispositivos d ON d.equipment_id = e.id AND d.device_type = 'CLP' LEFT JOIN carregamentos c ON c.id = (SELECT c2.id FROM carregamentos c2 WHERE c2.equipment_id = e.id ORDER BY c2.id DESC LIMIT 1) LEFT JOIN romaneios r ON r.id = c.romaneio_id LEFT JOIN romaneio_caminhoes rt ON rt.id = c.truck_id WHERE e.company_id = :company_id ORDER BY e.equipment_code", ["company_id" => $companyId]);
+        foreach ($maquinas as &$maquina) {
+            $details = json_decode((string) ($maquina["clp_details"] ?? ""), true);
+            $running = null;
+            if (is_array($details)) {
+                foreach (["conveyor_running", "machine_running", "running"] as $key) {
+                    if (array_key_exists($key, $details) && is_bool($details[$key])) {
+                        $running = $details[$key];
+                        break;
+                    }
+                }
+            }
+            $maquina["physical_running"] = $running;
+            $state = (string) ($maquina["carregamento_state"] ?? "");
+            if ($maquina["clp_status"] !== "ONLINE") {
+                $maquina["operational_status"] = "SEM_COMUNICACAO";
+            } elseif ($running === true) {
+                $maquina["operational_status"] = "OPERANDO";
+            } elseif ($running === false) {
+                $maquina["operational_status"] = "PARADA_CONFIRMADA";
+            } elseif ($state === "EMERGENCIA") {
+                $maquina["operational_status"] = "EMERGENCIA_SEM_CONFIRMACAO";
+            } elseif ($state === "PAUSADO") {
+                $maquina["operational_status"] = "PARADA_SOLICITADA";
+            } elseif (in_array($state, ["CARREGANDO", "FINALIZANDO"], true)) {
+                $maquina["operational_status"] = "OPERACAO_SEM_RETORNO";
+            } else {
+                $maquina["operational_status"] = "OCIOSA";
+            }
+            unset($maquina["clp_details"]);
+        }
+        unset($maquina);
         $romaneioSummary = [];
         foreach ($romaneios as $row) {
             $romaneioSummary[(string) $row["status"]] = (int) $row["total"];

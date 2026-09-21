@@ -3,14 +3,8 @@ declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 
-$user = require_session_user();
-if ($_SERVER["REQUEST_METHOD"] !== "POST") {
-    json_response(["error" => "Método não permitido."], 405);
-}
-require_csrf();
-if ($user["company_id"] === null) {
-    json_response(["error" => "Usuário sem empresa vinculada."], 403);
-}
+exigir_metodo_http(["POST"]);
+$device = require_device_token(["CLP", "SENSOR"]);
 
 $payload = request_json();
 $loadingId = filter_var(
@@ -23,18 +17,14 @@ $equipmentId = filter_var(
 );
 $eventUuid = trim((string) ($payload["event_uuid"] ?? ""));
 $detectedAt = trim((string) ($payload["detected_at"] ?? ""));
-if (
-    !$loadingId ||
-    !$equipmentId ||
-    !preg_match('/^[a-f0-9-]{36}$/i', $eventUuid)
-) {
+if (!$loadingId || !$equipmentId || !preg_match('/^[a-f0-9-]{36}$/i', $eventUuid)) {
     json_response(
-        [
-            "error" =>
-                "Carregamento, esteira e event_uuid válido são obrigatórios.",
-        ],
+        ["error" => "Carregamento, esteira e event_uuid válido são obrigatórios."],
         422,
     );
+}
+if ((int) $equipmentId !== (int) $device["equipment_id"]) {
+    json_response(["error" => "O dispositivo só pode registrar eventos da própria Dala."], 403);
 }
 
 $loadingStatement = db()->prepare(
@@ -45,7 +35,7 @@ $loadingStatement = db()->prepare(
 $loadingStatement->execute([
     "equipment_id" => $equipmentId,
     "loading_id" => $loadingId,
-    "company_id" => $user["company_id"],
+    "company_id" => $device["company_id"],
 ]);
 if (!$loadingStatement->fetch()) {
     json_response(
@@ -99,11 +89,16 @@ try {
     $eventId = (int) $pdo->lastInsertId();
     record_operational_event(
         $pdo,
-        $user,
+        ["id" => null, "company_id" => $device["company_id"]],
         "SENSOR_EVENTO_RECEBIDO",
         "sensor_event",
         $eventId,
-        ["carregamento_id" => (int) $loadingId, "event_uuid" => $eventUuid],
+        [
+            "carregamento_id" => (int) $loadingId,
+            "event_uuid" => $eventUuid,
+            "device_id" => $device["id"],
+            "device_code" => $device["device_code"],
+        ],
     );
     // O sensor apenas correlaciona o saco à leitura. A câmera é acionada pelo
     // resultado da leitura: não fotografamos cada saco que passa pela esteira.

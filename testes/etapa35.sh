@@ -9,7 +9,7 @@ fail() { echo "FAIL: $1"; exit 1; }
 login="$(curl -sS -c "$cookie_file" -H 'Content-Type: application/json' -d '{"email":"admin@dallogix.local","password":"password"}' "$base_url/api/login.php")"
 printf '%s' "$login" | grep -q '"authenticated":true' || fail "login falhou"
 
-romaneio_id="$(docker compose exec -T mysql mysql -N -u root -pchange-me-root trace_local -e "SELECT id FROM romaneios WHERE status = 'FINALIZADO' ORDER BY id DESC LIMIT 1" | tr -d '\r')"
+romaneio_id="$(docker compose exec -T mysql mysql -N -u root -p"${MYSQL_ROOT_PASSWORD:-}" "${MYSQL_DATABASE:-trace_local}" -e "SELECT id FROM romaneios WHERE status = 'FINALIZADO' ORDER BY id DESC LIMIT 1" | tr -d '\r')"
 [ -n "$romaneio_id" ] || fail "nenhum romaneio finalizado para auditoria"
 
 content_type="$(curl -sS -o "$output_pdf" -w '%{content_type}' -b "$cookie_file" "$base_url/api/relatorio_auditoria.php?romaneio_id=$romaneio_id")"

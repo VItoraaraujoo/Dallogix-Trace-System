@@ -226,7 +226,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
     $data = $validatePayload($payload);
     try {
         $update = $pdo->prepare(
-            "UPDATE equipamentos SET equipment_code = :equipment_code, name = :name, plc_ip = :plc_ip, plc_port = :plc_port, external_port = :external_port, plc_protocol = :plc_protocol WHERE id = :id",
+            "UPDATE equipamentos SET equipment_code = :equipment_code, name = :name, plc_ip = :plc_ip, plc_port = :plc_port, external_port = :external_port, plc_protocol = :plc_protocol WHERE id = :id AND company_id = :company_id",
         );
         $update->execute([
             "equipment_code" => $data["code"],
@@ -236,6 +236,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
             "external_port" => $data["externalPort"],
             "plc_protocol" => $data["protocol"],
             "id" => $id,
+            "company_id" => $user["company_id"],
         ]);
         record_operational_event(
             $pdo,
@@ -347,8 +348,9 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
         $pdo->prepare(
             "DELETE FROM status_dispositivos WHERE equipment_id = :id",
         )->execute(["id" => $id]);
-        $pdo->prepare("DELETE FROM equipamentos WHERE id = :id")->execute([
+        $pdo->prepare("DELETE FROM equipamentos WHERE id = :id AND company_id = :company_id")->execute([
             "id" => $id,
+            "company_id" => $user["company_id"],
         ]);
         record_operational_event(
             $pdo,

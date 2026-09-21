@@ -1,4 +1,4 @@
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609181700";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609210400";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609160900";
@@ -18,7 +18,7 @@ import {
     occurrences,
     products,
     summary,
-} from "./telas/monitoramento.js?v=202609201000";
+} from "./telas/monitoramento.js?v=202609210400";
 import {
     division,
     importScreen,
@@ -26,8 +26,8 @@ import {
     manifests,
     manifestView,
     work,
-} from "./telas/operacoes.js?v=202609201000";
-import { dashboard } from "./telas/painel.js?v=202609201000";
+} from "./telas/operacoes.js?v=202609210400";
+import { dashboard } from "./telas/painel.js?v=202609210400";
 import { users } from "./telas/usuarios.js?v=202609162215";
 
 const store = new ArmazenamentoTrace();
@@ -1031,10 +1031,12 @@ function bindActions() {
         return;
       }
       if (action === "cancel-manifest") {
+        const reason = prompt("Informe o motivo do cancelamento do romaneio:") || "";
+        if (!reason.trim()) return;
         if (!confirm("Confirma o cancelamento deste romaneio? Essa ação não poderá ser desfeita.")) return;
         if (!confirm("SEGUNDA CONFIRMAÇÃO: cancelar este romaneio agora?")) return;
         try {
-          await store.cancelManifest(node.dataset.id || queryId());
+          await store.cancelManifest(node.dataset.id || queryId(), reason.trim());
           alert("Romaneio cancelado.");
           await navigate("manifests");
           render();
@@ -1381,8 +1383,9 @@ function bindActions() {
         }
       } else if (action === "emergency") {
         try {
-          await store.changeLoadingState("EMERGENCIA");
-          store.activateEmergency();
+          const result = await store.requestMachineEmergency();
+          alert(result.message);
+          await store.loadMonitoring();
           render();
         } catch (error) {
           alert(error.message);

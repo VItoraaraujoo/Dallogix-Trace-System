@@ -70,7 +70,7 @@ echo "CLP estado: $state"
 
 sleep 1
 event="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' \
-  -H "X-CSRF-Token: ${csrf_token}" \
+  -H "X-Device-Token: ${device_token}" \
   -d "{\"carregamento_id\":${loading_id},\"equipment_id\":${equipment_id},\"event_uuid\":\"${event_uuid}\"}" "$base_url/api/sensor_eventos.php")"
 event_id="$(printf '%s' "$event" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
 if [[ -z "$event_id" ]]; then

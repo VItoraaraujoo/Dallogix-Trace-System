@@ -5,7 +5,7 @@ base_url="${TRACE_BASE_URL:-http://localhost:8080}"
 cookie_file="/tmp/dallogix-trace-etapa7-cookie.txt"
 source "$(cd "$(dirname "$0")" && pwd)/lib/ensure_loading.sh"
 db_name="${MYSQL_DATABASE:-trace_local}"
-db_password="${MYSQL_ROOT_PASSWORD:-change-me-root}"
+db_password="${MYSQL_ROOT_PASSWORD:-}"
 
 login="$(curl -sS -c "$cookie_file" -H 'Content-Type: application/json' -d '{"email":"admin@dallogix.local","password":"password"}' "$base_url/api/login.php")"
 if ! printf '%s' "$login" | grep -q '"authenticated":true'; then

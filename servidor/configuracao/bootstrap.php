@@ -51,6 +51,27 @@ function limite_sinal_clp_segundos(): int
     return max(1, min(60, $configurado === false ? 3 : (int) $configurado));
 }
 
+/**
+ * Placas são exibidas em várias telas e também atravessam a sincronização.
+ * Mantenha o valor em um conjunto simples de caracteres antes de persistir;
+ * a interface continua fazendo escape como defesa adicional.
+ */
+function placa_caminhao_valida(string $placa): bool
+{
+    return $placa !== "" && mb_strlen($placa) <= 20 && preg_match(
+        '/^[A-Z0-9À-ÿ _.,\/-]+$/u',
+        $placa,
+    ) === 1;
+}
+
+function nome_empresa_valido(string $nome): bool
+{
+    return $nome !== "" && mb_strlen($nome) <= 160 && preg_match(
+        '/^[^\x00-\x1F\x7F]+$/u',
+        $nome,
+    ) === 1;
+}
+
 $configuredTimezone = trim((string) (getenv("TZ") ?: "America/Sao_Paulo"));
 if ($configuredTimezone !== "") {
     date_default_timezone_set($configuredTimezone);
@@ -127,7 +148,11 @@ function obter_conexao_banco(): PDO
     $host = getenv("DB_HOST") ?: "mysql";
     $name = getenv("DB_NAME") ?: "trace_local";
     $user = getenv("DB_USER") ?: "trace";
-    $password = getenv("DB_PASSWORD") ?: "change-me-local";
+    $password = trim((string) getenv("DB_PASSWORD"));
+
+    if ($password === "") {
+        throw new RuntimeException("DB_PASSWORD não configurado.");
+    }
 
     if (
         ambiente_atual() === "production" &&

@@ -4,10 +4,13 @@ declare(strict_types=1);
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 require_once __DIR__ . "/../src/Aplicacao/ServicoDisponibilidadeClp.php";
 require_once __DIR__ . "/../src/Aplicacao/ServicoEstadoCarregamento.php";
+require_once __DIR__ . "/../src/Aplicacao/ServicoComandoClp.php";
 
 use App\Aplicacao\ExcecaoDisponibilidadeClp;
+use App\Aplicacao\ExcecaoComandoClp;
 use App\Aplicacao\ExcecaoEstadoCarregamento;
 use App\Aplicacao\ServicoEstadoCarregamento;
+use App\Aplicacao\ServicoComandoClp;
 
 $user = require_session_user();
 if ($_SERVER["REQUEST_METHOD"] !== "PATCH") {
@@ -31,11 +34,9 @@ if ($target === "CARREGANDO" && $user["company_id"] !== null) {
 }
 
 try {
-    $data = (new ServicoEstadoCarregamento(db()))->change(
-        $user,
-        (int) $loadingId,
-        $target,
-    );
+    $data = $target === "EMERGENCIA"
+        ? (new ServicoComandoClp(db()))->requestEmergency($user, (int) $loadingId)
+        : (new ServicoEstadoCarregamento(db()))->change($user, (int) $loadingId, $target);
     json_response(["data" => $data]);
 } catch (ExcecaoEstadoCarregamento $exception) {
     json_response(
@@ -43,6 +44,11 @@ try {
         $exception->httpStatus,
     );
 } catch (ExcecaoDisponibilidadeClp $exception) {
+    json_response(
+        ["error" => $exception->getMessage()],
+        $exception->httpStatus,
+    );
+} catch (ExcecaoComandoClp $exception) {
     json_response(
         ["error" => $exception->getMessage()],
         $exception->httpStatus,

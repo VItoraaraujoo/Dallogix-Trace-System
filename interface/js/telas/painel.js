@@ -1,7 +1,7 @@
 import { button, esc } from "../funcoes/html.js";
 import { numero, relativo } from "../funcoes/formato.js?v=202609201000";
 import { rotuloEstado } from "../funcoes/rotulos.js";
-import { deviceBadge, pageHeader } from "../funcoes/view.js?v=202609201000";
+import { deviceBadge, operationalBadge, pageHeader } from "../funcoes/view.js?v=202609210400";
 
 function dalaAlbumCard(equipment, machines, role) {
   const machine =
@@ -27,6 +27,7 @@ function dalaAlbumCard(equipment, machines, role) {
       <div><small>Romaneio</small><strong>${machine.romaneio_number ? `#${esc(machine.romaneio_number)}` : "Sem romaneio"}</strong></div>
       <div><small>Caminhão</small><strong>${esc(machine.plate || "—")}</strong></div>
       <div><small>Estado</small><strong>${esc(rotuloEstado(state))}</strong></div>
+      <div><small>Estado físico</small><strong>${operationalBadge(machine.operational_status)}</strong></div>
       <div><small>Carregado</small><strong>${numero(loaded)} / ${numero(planned)}</strong></div>
     </div>
     <div class="album-progress"><div class="progress"><i style="width:${percentage}%"></i></div><small>${percentage}% do romaneio</small></div>

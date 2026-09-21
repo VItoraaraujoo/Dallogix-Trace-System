@@ -20,6 +20,7 @@ $consulta = obter_conexao_banco()->prepare(
               ELSE 'OFFLINE'
             END AS status,
             d.last_seen_at,
+            c.state AS carregamento_state,
             CASE
               WHEN d.last_seen_at IS NULL THEN NULL
               ELSE TIMESTAMPDIFF(SECOND, d.last_seen_at, NOW(3))
@@ -27,6 +28,10 @@ $consulta = obter_conexao_banco()->prepare(
      FROM equipamentos e
      LEFT JOIN status_dispositivos d
        ON d.equipment_id = e.id AND d.device_type = 'CLP'
+     LEFT JOIN carregamentos c
+       ON c.id = (SELECT c2.id FROM carregamentos c2
+                  WHERE c2.equipment_id = e.id
+                  ORDER BY c2.id DESC LIMIT 1)
      WHERE e.company_id = :company_id
      ORDER BY e.id",
 );
@@ -38,16 +43,24 @@ $statusDasDalas = array_map(
         $segundos = $dala["segundos_sem_sinal"] === null
             ? null
             : max(0, (int) $dala["segundos_sem_sinal"]);
-        $mensagem = match ($status) {
-            "ONLINE" => "CLP online.",
-            "ERRO" => "CLP reportou erro.",
-            default => $segundos === null
-                ? "CLP sem sinal de comunicação registrado."
-                : "CLP sem sinal há {$segundos} segundos.",
-        };
+        $state = (string) ($dala["carregamento_state"] ?? "");
+        if ($status !== "ONLINE") {
+            $mensagem = $segundos === null
+                ? "Dala sem comunicação; estado físico desconhecido."
+                : "Dala sem comunicação há {$segundos} segundos; estado físico desconhecido.";
+        } else {
+            $mensagem = match ($state) {
+                "EMERGENCIA" => "Emergência registrada; parada física aguardando confirmação do CLP.",
+                "PAUSADO" => "Parada solicitada; aguardando confirmação do CLP.",
+                "CARREGANDO", "FINALIZANDO" => "Operação ativa; retorno físico da esteira não informado.",
+                "PREPARANDO" => "Dala em preparação.",
+                default => "Dala ociosa; sem retorno de movimento configurado.",
+            };
+        }
         return [
             "equipment_id" => (int) $dala["equipment_id"],
             "status" => $status,
+            "carregamento_state" => $state !== "" ? $state : null,
             "message" => $mensagem,
             "last_seen_at" => $dala["last_seen_at"],
             "segundos_sem_sinal" => $segundos,

@@ -1,6 +1,6 @@
 import { button, esc } from "./html.js";
 import { data, numero, relativo } from "./formato.js?v=202609201000";
-import { rotuloEstado, rotuloStatusRomaneio } from "./rotulos.js";
+import { rotuloEstado, rotuloStatusComando, rotuloStatusRomaneio } from "./rotulos.js";
 
 export function pageHeader(kicker, title, description, action = "") {
   return `<div class="title-row"><div><span class="kicker">${esc(kicker)}</span><h2>${esc(title)}</h2><p>${esc(description)}</p></div>${action}</div>`;
@@ -30,9 +30,12 @@ export function emergencyPanel({
   loading = "Aguardando liberação do CLP",
   canUnlock = false,
   buttonAttributes = "",
+  commandStatus = null,
   compact = false,
 } = {}) {
-  return `<section class="emergency${compact ? " emergency-compact" : ""}" aria-live="assertive"><span class="kicker">Parada de segurança</span><h2>Emergência ativa</h2><p>Contagem bloqueada</p><strong>${esc(loading)}</strong>${canUnlock ? button("Desbloquear máquina", "unlock", "secondary", buttonAttributes) : ""}<small>A liberação do software não substitui a confirmação dos intertravamentos no CLP.</small></section>`;
+  const command = commandStatus?.status ? rotuloStatusComando(commandStatus.status) : "Aguardando retorno do gateway";
+  const commandTone = ["ERRO", "REJEITADO", "EXPIRADO"].includes(String(commandStatus?.status || "").toUpperCase()) ? "red" : commandStatus?.status === "APLICADO" ? "green" : "yellow";
+  return `<section class="emergency${compact ? " emergency-compact" : ""}" aria-live="assertive"><span class="kicker">Parada de segurança</span><h2>Emergência ativa</h2><p>Contagem bloqueada</p><strong>${esc(loading)}</strong><p>Parada física: <span class="badge ${commandTone}">${esc(command)}</span></p>${commandStatus?.response_message ? `<p>${esc(commandStatus.response_message)}</p>` : ""}${canUnlock ? button("Desbloquear máquina", "unlock", "secondary", buttonAttributes) : ""}<small>A liberação do software não substitui a confirmação dos intertravamentos no CLP.</small></section>`;
 }
 export function progress(store) {
   const loaded = Number(store.state.loaded) || 0;
@@ -121,6 +124,22 @@ export function deviceBadge(value) {
   return `<span class="badge ${tone}">${esc(labels[normalized] || normalized)}</span>`;
 }
 
+export function operationalBadge(value) {
+  const normalized = String(value || "OCIOSA").toUpperCase();
+  const labels = {
+    OPERANDO: ["Operando", "green"],
+    PARADA_CONFIRMADA: ["Parada confirmada", "yellow"],
+    PARADA_SOLICITADA: ["Parada solicitada", "yellow"],
+    EMERGENCIA_SEM_CONFIRMACAO: ["Emergência · aguardando CLP", "red"],
+    SEM_COMUNICACAO: ["Sem comunicação", "red"],
+    OPERACAO_SEM_RETORNO: ["Operação · sem retorno físico", "yellow"],
+    PREPARANDO: ["Em preparação", "blue"],
+    OCIOSA: ["Ociosa", "blue"],
+  };
+  const [label, tone] = labels[normalized] || [normalized, "yellow"];
+  return `<span class="badge ${tone}">${esc(label)}</span>`;
+}
+
 function machineCard(machine) {
   const loaded = Number(machine.valid_readings || 0);
   const planned = Number(machine.planned_quantity || 0);
@@ -128,11 +147,12 @@ function machineCard(machine) {
     planned > 0 ? Math.min(100, Math.round((loaded / planned) * 100)) : 0;
   const state = rotuloEstado(machine.carregamento_state, "Ociosa");
   return `<article class="machine-card ${String(machine.clp_status || "").toUpperCase() === "ONLINE" ? "" : "is-offline"}">
-    <header><div><strong>${esc(machine.name)}</strong><small>${esc(machine.equipment_code)}</small></div>${deviceBadge(machine.clp_status)}</header>
+    <header><div><strong>${esc(machine.name)}</strong><small>${esc(machine.equipment_code)}</small></div><div class="company-card-statuses">${deviceBadge(machine.clp_status)}${operationalBadge(machine.operational_status)}</div></header>
     <dl>
       <div><dt>Romaneio</dt><dd>${machine.romaneio_number ? "#" + esc(machine.romaneio_number) : "—"}</dd></div>
       <div><dt>Caminhão</dt><dd>${machine.plate ? esc(machine.plate) : "—"}</dd></div>
-      <div><dt>Estado</dt><dd>${esc(state)}</dd></div>
+      <div><dt>Estado da operação</dt><dd>${esc(state)}</dd></div>
+      <div><dt>Estado físico</dt><dd>${operationalBadge(machine.operational_status)}</dd></div>
       <div><dt>Último sinal</dt><dd data-relative-time="${esc(machine.last_seen_at || "")}">${esc(relativo(machine.last_seen_at))}</dd></div>
     </dl>
     <div class="progress"><i style="width:${pct}%"></i></div>

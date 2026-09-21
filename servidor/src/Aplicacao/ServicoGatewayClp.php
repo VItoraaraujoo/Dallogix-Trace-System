@@ -81,7 +81,8 @@ final class ServicoGatewayClp
                  JOIN carregamentos c ON c.id = r.carregamento_id
                  JOIN equipamentos e ON e.id = r.equipment_id
                  WHERE r.equipment_id = :equipment_id AND r.status = 'PENDENTE'
-                 ORDER BY r.requested_at, r.id
+                 ORDER BY CASE WHEN r.command = 'EMERGENCIA' THEN 0 ELSE 1 END,
+                          r.requested_at, r.id
                  LIMIT 1 FOR UPDATE SKIP LOCKED",
             );
             $statement->execute(["equipment_id" => $equipmentId]);
