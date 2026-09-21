@@ -189,8 +189,20 @@ final class ServicoSincronizacao
         }
         $id = (int) $event["id"];
         if ($result["ok"] === true) {
-            $this->markSent([$event]);
-            return ["processed" => true, "status" => "ENVIADO", "id" => $id];
+            try {
+                $this->applyRemoteMappings([$event], (array) ($result["response"] ?? []));
+                $this->markSent([$event]);
+                return ["processed" => true, "status" => "ENVIADO", "id" => $id];
+            } catch (\Throwable $exception) {
+                $this->markFailed([$event], "Mapeamento remoto inválido: " . $exception->getMessage());
+                return [
+                    "processed" => false,
+                    "status" => "ERRO",
+                    "id" => $id,
+                    "error" => "Mapeamento remoto inválido: " . $exception->getMessage(),
+                    "http_code" => (int) ($result["http_code"] ?? 0),
+                ];
+            }
         }
 
         $error = $result["error"];
@@ -218,14 +230,29 @@ final class ServicoSincronizacao
             ];
         }
         if ($result["ok"] === true) {
-            $this->markSent($events);
-            return [
-                "processed" => true,
-                "status" => "ENVIADO",
-                "id" => $firstId,
-                "sent" => count($events),
-                "failed" => 0,
-            ];
+            try {
+                $this->applyRemoteMappings($events, (array) ($result["response"] ?? []));
+                $this->markSent($events);
+                return [
+                    "processed" => true,
+                    "status" => "ENVIADO",
+                    "id" => $firstId,
+                    "sent" => count($events),
+                    "failed" => 0,
+                ];
+            } catch (\Throwable $exception) {
+                $error = "Mapeamento remoto inválido: " . $exception->getMessage();
+                $this->markFailed($events, $error);
+                return [
+                    "processed" => false,
+                    "status" => "ERRO",
+                    "id" => $firstId,
+                    "sent" => 0,
+                    "failed" => count($events),
+                    "error" => $error,
+                    "http_code" => (int) ($result["http_code"] ?? 0),
+                ];
+            }
         }
 
         $this->markFailed($events, $result["error"]);
@@ -240,7 +267,7 @@ final class ServicoSincronizacao
         ];
     }
 
-    /** @return array{ok:bool,error:string,http_code:int} */
+    /** @return array{ok:bool,error:string,http_code:int,response?:array<string,mixed>} */
     private function send(array $event, string $remoteUrl): array
     {
         $body = json_encode([
@@ -254,7 +281,7 @@ final class ServicoSincronizacao
         return $this->postJson($remoteUrl, $body, (int) $event["company_id"]);
     }
 
-    /** @return array{ok:bool,error:string,http_code:int} */
+    /** @return array{ok:bool,error:string,http_code:int,response?:array<string,mixed>} */
     private function sendBatch(array $events, string $remoteUrl): array
     {
         $items = [];
@@ -279,7 +306,7 @@ final class ServicoSincronizacao
             : (int) $event["company_id"];
     }
 
-    /** @return array{ok:bool,error:string,http_code:int} */
+    /** @return array{ok:bool,error:string,http_code:int,response?:array<string,mixed>} */
     private function postJson(string $remoteUrl, string $body, ?int $companyId = null): array
     {
         $headers = ["Content-Type: application/json"];
@@ -305,7 +332,7 @@ final class ServicoSincronizacao
             CURLOPT_SSL_VERIFYPEER => true,
             CURLOPT_SSL_VERIFYHOST => 2,
         ]);
-        curl_exec($handle);
+        $raw = curl_exec($handle);
         $curlError = trim((string) curl_error($handle));
         $httpCode = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
         curl_close($handle);
@@ -313,10 +340,23 @@ final class ServicoSincronizacao
         if ($curlError !== "") {
             return ["ok" => false, "error" => "Falha de rede: " . $curlError, "http_code" => $httpCode];
         }
+        $response = json_decode((string) $raw, true);
         if ($httpCode < 200 || $httpCode >= 300) {
-            return ["ok" => false, "error" => "Endpoint remoto respondeu HTTP {$httpCode}.", "http_code" => $httpCode];
+            $remoteError = is_array($response) ? trim((string) ($response["error"] ?? "")) : "";
+            return [
+                "ok" => false,
+                "error" => $remoteError !== ""
+                    ? "Endpoint remoto respondeu HTTP {$httpCode}: {$remoteError}"
+                    : "Endpoint remoto respondeu HTTP {$httpCode}.",
+                "http_code" => $httpCode,
+            ];
         }
-        return ["ok" => true, "error" => "", "http_code" => $httpCode];
+        return [
+            "ok" => true,
+            "error" => "",
+            "http_code" => $httpCode,
+            "response" => is_array($response) ? $response : [],
+        ];
     }
 
     /** @return mixed */
@@ -328,38 +368,270 @@ final class ServicoSincronizacao
         }
 
         $action = trim((string) ($payload["action"] ?? ""));
-        if (!in_array($action, ["DALA_CADASTRADA", "DALA_ATUALIZADA"], true)) {
+        $data = is_array($payload["data"] ?? null) ? $payload["data"] : [];
+        $companyId = (int) ($event["company_id"] ?? 0);
+        $entityId = (int) ($event["aggregate_id"] ?? 0);
+        if ($companyId <= 0 || $entityId <= 0) {
             return $payload;
         }
 
-        // Eventos antigos de Dala podem ter sido gravados antes do contrato
-        // completo de sincronização. Enriquece o payload na saída usando o
-        // registro atual para que um retry também replique nome e comunicação.
-        $equipmentId = (int) ($event["aggregate_id"] ?? 0);
-        $companyId = (int) ($event["company_id"] ?? 0);
-        if ($equipmentId <= 0 || $companyId <= 0) {
+        if (in_array($action, ["DALA_CADASTRADA", "DALA_ATUALIZADA"], true)) {
+            // Eventos antigos de Dala podem ter sido gravados antes do contrato
+            // completo. Enriquece o retry usando o registro atual.
+            $equipment = $this->connection->prepare(
+                "SELECT equipment_code, name, plc_ip, plc_port, external_port, plc_protocol
+                 FROM equipamentos WHERE id = :id AND company_id = :company_id LIMIT 1",
+            );
+            $equipment->execute(["id" => $entityId, "company_id" => $companyId]);
+            $row = $equipment->fetch();
+            if (!$row) {
+                return $payload;
+            }
+            $payload["data"] = array_merge($data, [
+                "remote_equipment_id" => $entityId,
+                "equipment_code" => $row["equipment_code"],
+                "name" => $row["name"],
+                "plc_ip" => $row["plc_ip"],
+                "plc_port" => (int) $row["plc_port"],
+                "external_port" => $row["external_port"] === null ? null : (int) $row["external_port"],
+                "plc_protocol" => $row["plc_protocol"],
+            ]);
             return $payload;
         }
-        $equipment = $this->connection->prepare(
-            "SELECT equipment_code, name, plc_ip, plc_port, external_port, plc_protocol
-             FROM equipamentos WHERE id = :id AND company_id = :company_id LIMIT 1",
-        );
-        $equipment->execute(["id" => $equipmentId, "company_id" => $companyId]);
-        $row = $equipment->fetch();
-        if (!$row) {
+
+        if (in_array($action, ["PRODUTO_CADASTRADO", "PRODUTO_ATUALIZADO"], true)) {
+            $product = $this->connection->prepare(
+                "SELECT p.code, p.name, p.category, p.active,
+                        COALESCE((SELECT cp.barcode FROM codigos_produtos cp
+                                  WHERE cp.product_id = p.id ORDER BY cp.id LIMIT 1), '') AS barcode
+                 FROM produtos p WHERE p.id = :id AND p.company_id = :company_id LIMIT 1",
+            );
+            $product->execute(["id" => $entityId, "company_id" => $companyId]);
+            $row = $product->fetch();
+            if ($row) {
+                $payload["data"] = array_merge($data, [
+                    "remote_product_id" => $entityId,
+                    "code" => $row["code"],
+                    "name" => $row["name"],
+                    "category" => $row["category"],
+                    "active" => (int) $row["active"],
+                    "barcode" => $row["barcode"],
+                ]);
+            }
             return $payload;
         }
-        $data = is_array($payload["data"] ?? null) ? $payload["data"] : [];
-        $payload["data"] = array_merge($data, [
-            "remote_equipment_id" => $equipmentId,
-            "equipment_code" => $row["equipment_code"],
-            "name" => $row["name"],
-            "plc_ip" => $row["plc_ip"],
-            "plc_port" => (int) $row["plc_port"],
-            "external_port" => $row["external_port"] === null ? null : (int) $row["external_port"],
-            "plc_protocol" => $row["plc_protocol"],
-        ]);
+
+        if (in_array($action, ["ROMANEIO_CRIADO", "ROMANEIO_ATUALIZADO", "ROMANEIO_CANCELADO"], true)) {
+            $manifest = $this->manifestSyncData($companyId, $entityId);
+            if ($manifest !== null) {
+                $payload["data"] = array_merge($data, $manifest);
+            }
+            return $payload;
+        }
+
+        if (in_array($action, [
+            "CARREGAMENTO_PREPARADO",
+            "CARREGAMENTO_DALA_VINCULADO",
+            "CARREGAMENTO_DALA_DESVINCULADO",
+            "ESTADO_CARREGAMENTO_ALTERADO",
+        ], true)) {
+            $loading = $this->loadingSyncData($companyId, $entityId);
+            if ($loading !== null) {
+                $payload["data"] = array_merge($data, $loading);
+            }
+        }
         return $payload;
+    }
+
+    /** @return array<string,mixed>|null */
+    private function manifestSyncData(int $companyId, int $manifestId): ?array
+    {
+        $statement = $this->connection->prepare(
+            "SELECT r.id, r.remote_romaneio_id, r.number, r.scheduled_date, r.status, r.expedidor,
+                    t.id AS truck_id, t.remote_truck_id, t.plate, t.driver_name
+             FROM romaneios r
+             LEFT JOIN romaneio_caminhoes t ON t.romaneio_id = r.id
+             WHERE r.id = :id AND r.company_id = :company_id
+             ORDER BY t.id LIMIT 1",
+        );
+        $statement->execute(["id" => $manifestId, "company_id" => $companyId]);
+        $manifest = $statement->fetch();
+        if (!$manifest) {
+            return null;
+        }
+
+        $items = $this->connection->prepare(
+            "SELECT ri.product_id, ri.planned_quantity, p.code, p.name, p.category,
+                    COALESCE((SELECT cp.barcode FROM codigos_produtos cp
+                              WHERE cp.product_id = p.id ORDER BY cp.id LIMIT 1), '') AS barcode
+             FROM romaneio_itens ri JOIN produtos p ON p.id = ri.product_id
+             WHERE ri.romaneio_id = :romaneio_id ORDER BY ri.id",
+        );
+        $items->execute(["romaneio_id" => $manifestId]);
+        $normalizedItems = [];
+        foreach ($items->fetchAll() as $item) {
+            $normalizedItems[] = [
+                "remote_product_id" => (int) $item["product_id"],
+                "code" => $item["code"],
+                "name" => $item["name"],
+                "category" => $item["category"],
+                "barcode" => $item["barcode"],
+                "planned_quantity" => (int) $item["planned_quantity"],
+            ];
+        }
+
+        $truck = $manifest["truck_id"] === null ? null : [
+            "source_truck_id" => (int) $manifest["truck_id"],
+            "remote_truck_id" => $manifest["remote_truck_id"] === null
+                ? null : (int) $manifest["remote_truck_id"],
+            "plate" => $manifest["plate"],
+            "driver_name" => $manifest["driver_name"],
+        ];
+        return [
+            "source_romaneio_id" => (int) $manifest["id"],
+            "remote_romaneio_id" => $manifest["remote_romaneio_id"] === null
+                ? null : (int) $manifest["remote_romaneio_id"],
+            "number" => $manifest["number"],
+            "scheduled_date" => $manifest["scheduled_date"],
+            "status" => $manifest["status"],
+            "expedidor" => $manifest["expedidor"],
+            "truck" => $truck,
+            "items" => $normalizedItems,
+        ];
+    }
+
+    /** @return array<string,mixed>|null */
+    private function loadingSyncData(int $companyId, int $loadingId): ?array
+    {
+        $statement = $this->connection->prepare(
+            "SELECT c.id, c.remote_carregamento_id, c.state, c.equipment_id, c.started_at,
+                    c.romaneio_id, c.truck_id, e.remote_equipment_id, e.equipment_code,
+                    r.remote_romaneio_id, r.number, r.scheduled_date, r.expedidor,
+                    t.remote_truck_id, t.plate, t.driver_name
+             FROM carregamentos c
+             JOIN romaneios r ON r.id = c.romaneio_id
+             JOIN romaneio_caminhoes t ON t.id = c.truck_id
+             LEFT JOIN equipamentos e ON e.id = c.equipment_id
+             WHERE c.id = :id AND c.company_id = :company_id LIMIT 1",
+        );
+        $statement->execute(["id" => $loadingId, "company_id" => $companyId]);
+        $loading = $statement->fetch();
+        if (!$loading) {
+            return null;
+        }
+        return [
+            "source_carregamento_id" => (int) $loading["id"],
+            "remote_carregamento_id" => $loading["remote_carregamento_id"] === null
+                ? null : (int) $loading["remote_carregamento_id"],
+            "carregamento_id" => (int) $loading["id"],
+            "romaneio_id" => (int) $loading["romaneio_id"],
+            "truck_id" => (int) $loading["truck_id"],
+            "equipment_id" => $loading["equipment_id"] === null ? null : (int) $loading["equipment_id"],
+            "started_at" => $loading["started_at"] ?? null,
+            "source_romaneio_id" => (int) $loading["romaneio_id"],
+            "remote_romaneio_id" => $loading["remote_romaneio_id"] === null
+                ? null : (int) $loading["remote_romaneio_id"],
+            "source_truck_id" => (int) $loading["truck_id"],
+            "remote_truck_id" => $loading["remote_truck_id"] === null
+                ? null : (int) $loading["remote_truck_id"],
+            "remote_equipment_id" => $loading["equipment_id"] === null
+                ? null : ($loading["remote_equipment_id"] === null
+                    ? (int) $loading["equipment_id"] : (int) $loading["remote_equipment_id"]),
+            "equipment_code" => $loading["equipment_code"],
+            "state" => $loading["state"],
+            "romaneio" => [
+                "source_romaneio_id" => (int) $loading["romaneio_id"],
+                "remote_romaneio_id" => $loading["remote_romaneio_id"] === null
+                    ? null : (int) $loading["remote_romaneio_id"],
+                "number" => $loading["number"],
+                "scheduled_date" => $loading["scheduled_date"],
+                "expedidor" => $loading["expedidor"],
+            ],
+            "truck" => [
+                "source_truck_id" => (int) $loading["truck_id"],
+                "remote_truck_id" => $loading["remote_truck_id"] === null
+                    ? null : (int) $loading["remote_truck_id"],
+                "plate" => $loading["plate"],
+                "driver_name" => $loading["driver_name"],
+            ],
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $events @param array<string,mixed> $response */
+    private function applyRemoteMappings(array $events, array $response): void
+    {
+        $mappings = $response["data"]["mappings"] ?? [];
+        if (!is_array($mappings) || $mappings === []) {
+            return;
+        }
+        $this->connection->beginTransaction();
+        try {
+            foreach ($mappings as $mapping) {
+                if (!is_array($mapping)) {
+                    continue;
+                }
+                $local = is_array($mapping["local"] ?? null) ? $mapping["local"] : [];
+                $remote = is_array($mapping["remote"] ?? null) ? $mapping["remote"] : [];
+                $companyId = (int) ($events[0]["company_id"] ?? 0);
+                if ($companyId <= 0) {
+                    continue;
+                }
+                $localEquipmentId = (int) ($local["equipment_id"] ?? 0);
+                $remoteEquipmentId = (int) ($remote["equipment_id"] ?? 0);
+                if ($localEquipmentId > 0 && $remoteEquipmentId > 0) {
+                    $this->connection->prepare(
+                        "UPDATE equipamentos SET remote_equipment_id = :remote_id
+                         WHERE id = :id AND company_id = :company_id",
+                    )->execute([
+                        "remote_id" => $remoteEquipmentId,
+                        "id" => $localEquipmentId,
+                        "company_id" => $companyId,
+                    ]);
+                }
+                $localManifestId = (int) ($local["romaneio_id"] ?? 0);
+                $remoteManifestId = (int) ($remote["romaneio_id"] ?? 0);
+                if ($localManifestId > 0 && $remoteManifestId > 0) {
+                    $this->connection->prepare(
+                        "UPDATE romaneios SET remote_romaneio_id = :remote_id
+                         WHERE id = :id AND company_id = :company_id",
+                    )->execute([
+                        "remote_id" => $remoteManifestId,
+                        "id" => $localManifestId,
+                        "company_id" => $companyId,
+                    ]);
+                }
+                $localTruckId = (int) ($local["truck_id"] ?? 0);
+                $remoteTruckId = (int) ($remote["truck_id"] ?? 0);
+                if ($localTruckId > 0 && $remoteTruckId > 0) {
+                    $this->connection->prepare(
+                        "UPDATE romaneio_caminhoes SET remote_truck_id = :remote_id
+                         WHERE id = :id AND romaneio_id = :romaneio_id",
+                    )->execute([
+                        "remote_id" => $remoteTruckId,
+                        "id" => $localTruckId,
+                        "romaneio_id" => $localManifestId,
+                    ]);
+                }
+                $localLoadingId = (int) ($local["carregamento_id"] ?? 0);
+                $remoteLoadingId = (int) ($remote["carregamento_id"] ?? 0);
+                if ($localLoadingId > 0 && $remoteLoadingId > 0) {
+                    $this->connection->prepare(
+                        "UPDATE carregamentos SET remote_carregamento_id = :remote_id
+                         WHERE id = :id AND company_id = :company_id",
+                    )->execute([
+                        "remote_id" => $remoteLoadingId,
+                        "id" => $localLoadingId,
+                        "company_id" => $companyId,
+                    ]);
+                }
+            }
+            $this->connection->commit();
+        } catch (\Throwable $exception) {
+            if ($this->connection->inTransaction()) {
+                $this->connection->rollBack();
+            }
+            throw $exception;
+        }
     }
 
     /** @param list<array<string,mixed>> $events */
