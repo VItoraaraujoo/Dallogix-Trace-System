@@ -283,11 +283,13 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
     try {
         $pdo->beginTransaction();
         $activeLoadings = $pdo->prepare(
-            "SELECT id, state, remote_carregamento_id
-             FROM carregamentos
-             WHERE company_id = :company_id AND equipment_id = :equipment_id
-               AND state <> 'FINALIZADO'
-             ORDER BY id FOR UPDATE",
+            "SELECT c.id, c.state, c.remote_carregamento_id
+             FROM carregamentos c
+             JOIN romaneios r ON r.id = c.romaneio_id
+             WHERE c.company_id = :company_id AND c.equipment_id = :equipment_id
+               AND c.state <> 'FINALIZADO'
+               AND r.status NOT IN ('FINALIZADO', 'CANCELADO')
+             ORDER BY c.id FOR UPDATE",
         );
         $activeLoadings->execute([
             "company_id" => $user["company_id"],

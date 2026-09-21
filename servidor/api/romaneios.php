@@ -24,7 +24,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
                     (SELECT rt.driver_name FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS driver_name,
                     COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = r.id), 0) AS planned_quantity,
                     COALESCE((SELECT COUNT(*) FROM leituras l JOIN carregamentos c2 ON c2.id = l.carregamento_id WHERE c2.romaneio_id = r.id AND l.result = 'VALIDO'), 0) AS loaded_quantity,
-                    (SELECT c3.id FROM carregamentos c3 WHERE c3.romaneio_id = r.id AND c3.state <> 'FINALIZADO' ORDER BY c3.id DESC LIMIT 1) AS active_loading_id
+                    (SELECT c3.id FROM carregamentos c3 WHERE c3.romaneio_id = r.id AND c3.state <> 'FINALIZADO' AND r.status NOT IN ('FINALIZADO', 'CANCELADO') ORDER BY c3.id DESC LIMIT 1) AS active_loading_id
              FROM romaneios r WHERE r.id = :id AND r.company_id = :company_id LIMIT 1",
         );
         $header->execute(["id" => $detailId, "company_id" => $companyId]);
@@ -114,9 +114,9 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
                 COALESCE((SELECT SUM(ri2.planned_quantity) FROM romaneio_itens ri2 WHERE ri2.romaneio_id = r.id), 0) AS planned_quantity,
                 COALESCE((SELECT COUNT(*) FROM leituras l JOIN carregamentos c2 ON c2.id = l.carregamento_id WHERE c2.romaneio_id = r.id AND l.result = 'VALIDO'), 0) AS loaded_quantity,
                 (SELECT COUNT(*) FROM ocorrencias o WHERE o.carregamento_id IN (SELECT c3.id FROM carregamentos c3 WHERE c3.romaneio_id = r.id)) AS ocorrencias_count,
-                (SELECT c4.id FROM carregamentos c4 WHERE c4.romaneio_id = r.id AND c4.state <> 'FINALIZADO' ORDER BY c4.id DESC LIMIT 1) AS active_loading_id,
-                (SELECT c5.state FROM carregamentos c5 WHERE c5.romaneio_id = r.id AND c5.state <> 'FINALIZADO' ORDER BY c5.id DESC LIMIT 1) AS active_state,
-                (SELECT e.equipment_code FROM carregamentos c6 JOIN equipamentos e ON e.id = c6.equipment_id WHERE c6.romaneio_id = r.id AND c6.state <> 'FINALIZADO' ORDER BY c6.id DESC LIMIT 1) AS active_equipment
+                (SELECT c4.id FROM carregamentos c4 WHERE c4.romaneio_id = r.id AND c4.state <> 'FINALIZADO' AND r.status NOT IN ('FINALIZADO', 'CANCELADO') ORDER BY c4.id DESC LIMIT 1) AS active_loading_id,
+                (SELECT c5.state FROM carregamentos c5 WHERE c5.romaneio_id = r.id AND c5.state <> 'FINALIZADO' AND r.status NOT IN ('FINALIZADO', 'CANCELADO') ORDER BY c5.id DESC LIMIT 1) AS active_state,
+                (SELECT e.equipment_code FROM carregamentos c6 JOIN equipamentos e ON e.id = c6.equipment_id WHERE c6.romaneio_id = r.id AND c6.state <> 'FINALIZADO' AND r.status NOT IN ('FINALIZADO', 'CANCELADO') ORDER BY c6.id DESC LIMIT 1) AS active_equipment
          FROM romaneios r
          LEFT JOIN romaneio_caminhoes rt ON rt.romaneio_id = r.id
          WHERE {$where}
@@ -172,21 +172,28 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
         }
         try {
             $pdo->beginTransaction();
-            $lock = $pdo->prepare("SELECT r.id, r.status, c.id AS loading_id, c.state AS loading_state FROM romaneios r LEFT JOIN carregamentos c ON c.romaneio_id = r.id AND c.state <> 'FINALIZADO' WHERE r.id = :id AND r.company_id = :company_id ORDER BY c.id DESC LIMIT 1 FOR UPDATE");
+            $lock = $pdo->prepare("SELECT r.id, r.status FROM romaneios r WHERE r.id = :id AND r.company_id = :company_id LIMIT 1 FOR UPDATE");
             $lock->execute(["id" => $romaneioId, "company_id" => $companyId]);
             $current = $lock->fetch();
             if (!$current) { $pdo->rollBack(); responder_json(["error" => "Romaneio não encontrado."], 404); }
             if (in_array($current["status"], ["FINALIZADO", "CANCELADO"], true)) { $pdo->rollBack(); responder_json(["error" => "Este romaneio já foi encerrado."], 409); }
-            if ($current["loading_id"] && !in_array($current["loading_state"], ["PREPARANDO", "PAUSADO", "EMERGENCIA"], true)) {
-                $pdo->rollBack(); responder_json(["error" => "Antes de cancelar, coloque a Dala em pausa ou emergência."], 409);
+            $activeLoadingsStatement = $pdo->prepare("SELECT id, state FROM carregamentos WHERE romaneio_id = :romaneio_id AND company_id = :company_id AND state <> 'FINALIZADO' ORDER BY id DESC FOR UPDATE");
+            $activeLoadingsStatement->execute(["romaneio_id" => $romaneioId, "company_id" => $companyId]);
+            $activeLoadings = $activeLoadingsStatement->fetchAll();
+            foreach ($activeLoadings as $activeLoading) {
+                if (!in_array($activeLoading["state"], ["PREPARANDO", "PAUSADO", "EMERGENCIA"], true)) {
+                    $pdo->rollBack(); responder_json(["error" => "Antes de cancelar, coloque todas as Dalas em pausa ou emergência."], 409);
+                }
             }
-            if ($current["loading_id"]) {
-                $updateLoading = $pdo->prepare("UPDATE carregamentos SET state = 'FINALIZADO', finished_at = NOW(), finish_justification = :reason WHERE id = :id AND company_id = :company_id AND state <> 'FINALIZADO'");
-                $updateLoading->execute(["id" => $current["loading_id"], "company_id" => $companyId, "reason" => "ROMANEIO CANCELADO: " . $reason]);
-                record_operational_event($pdo, $usuarioAtor, "CARREGAMENTO_CANCELADO", "carregamento", (int) $current["loading_id"], ["romaneio_id" => (int) $romaneioId, "justification" => $reason]);
+            if ($activeLoadings !== []) {
+                $updateLoading = $pdo->prepare("UPDATE carregamentos SET state = 'FINALIZADO', finished_at = NOW(), finish_justification = :reason WHERE romaneio_id = :romaneio_id AND company_id = :company_id AND state <> 'FINALIZADO'");
+                $updateLoading->execute(["romaneio_id" => $romaneioId, "company_id" => $companyId, "reason" => "ROMANEIO CANCELADO: " . $reason]);
+                foreach ($activeLoadings as $activeLoading) {
+                    record_operational_event($pdo, $usuarioAtor, "CARREGAMENTO_CANCELADO", "carregamento", (int) $activeLoading["id"], ["romaneio_id" => (int) $romaneioId, "justification" => $reason]);
+                }
             }
             $pdo->prepare("UPDATE romaneios SET status = 'CANCELADO' WHERE id = :id AND company_id = :company_id")->execute(["id" => $romaneioId, "company_id" => $companyId]);
-            record_operational_event($pdo, $usuarioAtor, "ROMANEIO_CANCELADO", "romaneio", (int) $romaneioId, ["justification" => $reason, "in_progress" => (bool) $current["loading_id"]]);
+            record_operational_event($pdo, $usuarioAtor, "ROMANEIO_CANCELADO", "romaneio", (int) $romaneioId, ["justification" => $reason, "in_progress" => $activeLoadings !== []]);
             $pdo->commit();
             responder_json(["data" => ["id" => (int) $romaneioId, "status" => "CANCELADO"]]);
         } catch (Throwable $exception) {

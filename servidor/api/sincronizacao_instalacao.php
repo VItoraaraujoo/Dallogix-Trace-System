@@ -75,6 +75,7 @@ $loadingStatement = $pdo->prepare(
      JOIN romaneio_caminhoes t ON t.id = c.truck_id
      LEFT JOIN equipamentos e ON e.id = c.equipment_id
      WHERE c.company_id = :company_id AND c.state <> 'FINALIZADO'
+       AND r.status NOT IN ('FINALIZADO', 'CANCELADO')
      ORDER BY c.id",
 );
 $loadingStatement->execute(["company_id" => $companyId]);

@@ -591,6 +591,19 @@ try {
                 );
             }
             $entityId = (int) $manifest["id"];
+            if ($action === "ROMANEIO_CANCELADO") {
+                $finishLoadings = $pdo->prepare(
+                    "UPDATE carregamentos
+                     SET state = 'FINALIZADO', finished_at = COALESCE(finished_at, NOW()),
+                         finish_justification = COALESCE(finish_justification, 'ROMANEIO CANCELADO POR SINCRONIZAÇÃO')
+                     WHERE company_id = :company_id AND romaneio_id = :romaneio_id
+                       AND state <> 'FINALIZADO'",
+                );
+                $finishLoadings->execute([
+                    "company_id" => $companyId,
+                    "romaneio_id" => (int) $manifest["id"],
+                ]);
+            }
             $mappings[] = [
                 "event_uuid" => $eventUuid,
                 "aggregate_type" => $entityType,

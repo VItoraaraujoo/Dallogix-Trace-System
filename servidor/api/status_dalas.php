@@ -31,6 +31,12 @@ $consulta = obter_conexao_banco()->prepare(
      LEFT JOIN carregamentos c
        ON c.id = (SELECT c2.id FROM carregamentos c2
                   WHERE c2.equipment_id = e.id
+                    AND c2.state <> 'FINALIZADO'
+                    AND EXISTS (
+                        SELECT 1 FROM romaneios r2
+                        WHERE r2.id = c2.romaneio_id
+                          AND r2.status NOT IN ('FINALIZADO', 'CANCELADO')
+                    )
                   ORDER BY c2.id DESC LIMIT 1)
      WHERE e.company_id = :company_id
      ORDER BY e.id",

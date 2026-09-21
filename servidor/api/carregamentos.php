@@ -12,7 +12,7 @@ $pdo = obter_conexao_banco();
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $statement = obter_conexao_banco()->prepare(
-        'SELECT c.id, c.state, c.equipment_id, c.started_at, c.finished_at,
+        "SELECT c.id, c.state, c.equipment_id, c.started_at, c.finished_at,
                 r.number AS romaneio_number, rt.plate, e.equipment_code,
                 COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity,
                 COALESCE(c.leituras_validas, 0) AS valid_readings
@@ -21,7 +21,9 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
          JOIN romaneio_caminhoes rt ON rt.id = c.truck_id
          LEFT JOIN equipamentos e ON e.id = c.equipment_id
          WHERE c.company_id = :company_id
-         ORDER BY c.id DESC',
+           AND c.state <> 'FINALIZADO'
+           AND r.status NOT IN ('FINALIZADO', 'CANCELADO')
+         ORDER BY c.id DESC",
     );
     $statement->execute(["company_id" => $usuarioAtor["company_id"]]);
     $rows = $statement->fetchAll();
@@ -126,9 +128,12 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
             responder_json(["error" => "Nova Dala não encontrada para esta empresa."], 404);
         }
         $conflict = $pdo->prepare(
-            "SELECT id FROM carregamentos
-             WHERE company_id = :company_id AND id <> :id
-               AND state <> 'FINALIZADO' AND equipment_id = :equipment_id
+            "SELECT c.id FROM carregamentos c
+             JOIN romaneios r ON r.id = c.romaneio_id
+             WHERE c.company_id = :company_id AND c.id <> :id
+               AND c.state <> 'FINALIZADO'
+               AND r.status NOT IN ('FINALIZADO', 'CANCELADO')
+               AND c.equipment_id = :equipment_id
              LIMIT 1 FOR UPDATE",
         );
         $conflict->execute([
@@ -262,9 +267,11 @@ try {
         );
     }
     $conflict = $pdo->prepare(
-        "SELECT id FROM carregamentos
-         WHERE company_id = :company_id AND state <> 'FINALIZADO'
-           AND (equipment_id = :equipment_id OR (romaneio_id = :romaneio_id AND truck_id = :truck_id))
+        "SELECT c.id FROM carregamentos c
+         JOIN romaneios r ON r.id = c.romaneio_id
+         WHERE c.company_id = :company_id AND c.state <> 'FINALIZADO'
+           AND r.status NOT IN ('FINALIZADO', 'CANCELADO')
+           AND (c.equipment_id = :equipment_id OR (c.romaneio_id = :romaneio_id AND c.truck_id = :truck_id))
          LIMIT 1 FOR UPDATE",
     );
     $conflict->execute([
