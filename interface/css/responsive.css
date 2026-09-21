@@ -374,9 +374,7 @@ table {
 @media (max-width: 900px) {
   .dalas-grid-v2 {
     display: grid;
-    min-width: 0;
     gap: 12px;
-    overflow: visible;
     border: 0;
     background: transparent;
     box-shadow: none;
@@ -388,7 +386,6 @@ table {
 
   .dala-grid-row-v2 {
     display: block;
-    min-width: 0;
     overflow: hidden;
     border: 1px solid #d7e2e9;
     border-radius: 12px;
@@ -2053,9 +2050,7 @@ button.button {
 
   .dalas-screen-v2 .dalas-grid-v2 {
     display: grid !important;
-    min-width: 0;
     gap: 14px;
-    overflow: visible;
     border: 0;
     background: transparent;
     box-shadow: none;
@@ -2167,9 +2162,7 @@ button.button {
 
   .dalas-screen-v2 .dalas-grid-v2 {
     display: grid !important;
-    min-width: 0;
     gap: 14px;
-    overflow: visible;
     border: 0;
     background: transparent;
     box-shadow: none;

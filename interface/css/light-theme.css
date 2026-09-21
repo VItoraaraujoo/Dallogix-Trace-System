@@ -5463,6 +5463,61 @@ body.mobile-menu-open {
   }
 }
 
+/* A tabela de Dalas em Configurações usa células nativas; o status não deve virar um flex item. */
+.settings-dalas-table-wrap {
+  overflow-x: auto;
+}
+
+.settings-dalas-table {
+  width: 100%;
+  min-width: 900px;
+  table-layout: fixed;
+  border-collapse: collapse;
+}
+
+.settings-dalas-table th,
+.settings-dalas-table td {
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.settings-dalas-table th:nth-child(1),
+.settings-dalas-table td:nth-child(1) {
+  width: 17%;
+}
+
+.settings-dalas-table th:nth-child(2),
+.settings-dalas-table td:nth-child(2) {
+  width: 22%;
+}
+
+.settings-dalas-table th:nth-child(3),
+.settings-dalas-table td:nth-child(3) {
+  width: 14%;
+}
+
+.settings-dalas-table th:nth-child(4),
+.settings-dalas-table td:nth-child(4) {
+  width: 11%;
+}
+
+.settings-dalas-table th:nth-child(5),
+.settings-dalas-table td:nth-child(5) {
+  width: 13%;
+}
+
+.settings-dalas-table th:nth-child(6),
+.settings-dalas-table td:nth-child(6) {
+  width: 23%;
+}
+
+.settings-dalas-table td.dala-status {
+  display: table-cell;
+  min-width: 0;
+  line-height: 1.35;
+  white-space: normal;
+}
+
 /* Ajustes finais de responsividade: conteúdo centrado, menus estáveis e tabelas sem rolagem lateral. */
 html,
 body,

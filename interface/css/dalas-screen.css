@@ -26,8 +26,7 @@
 .dalas-grid-v2 {
   width: 100%;
   min-width: 0;
-  overflow-x: auto;
-  overflow-y: hidden;
+  overflow: visible;
   border: 1px solid #d7e2e9;
   border-radius: 14px;
   background: #fff;
@@ -37,13 +36,11 @@
 .dala-grid-head-v2,
 .dala-grid-row-v2 {
   display: grid;
-  min-width: 1260px;
   grid-template-columns: minmax(0, 1.1fr) minmax(0, 1.35fr) minmax(0, 1.15fr) minmax(70px, .7fr) minmax(86px, .8fr) minmax(0, 1.35fr) minmax(250px, 2.6fr);
   align-items: stretch;
 }
 
 .dala-grid-head-v2 {
-  min-height: 68px;
   color: #62798a;
   background: #f7fafb;
   font-size: 12px;
@@ -52,28 +49,27 @@
   text-transform: uppercase;
 }
 
+/* Os rótulos das colunas permanecem centralizados, independentemente do alinhamento das células. */
+.dalas-screen-v2 .dala-grid-head-v2 > div {
+  text-align: center;
+}
+
 .dala-grid-head-v2>div,
 .dala-grid-cell-v2 {
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
   min-width: 0;
   padding: 18px 16px;
-  border-bottom: 0;
+  border-bottom: 1px solid #e5edf1;
   text-align: center;
   overflow-wrap: anywhere;
 }
 
-.dala-grid-row-v2 {
-  min-height: 68px;
-  border-bottom: 1px solid #e5edf1;
-}
-
-.dala-grid-row-v2:last-child {
+.dala-grid-row-v2:last-child .dala-grid-cell-v2 {
   border-bottom: 0;
 }
 
 .dala-grid-cell-v2 {
+  display: flex;
+  align-items: center;
   justify-content: center;
   color: #263b4b;
   font-size: 14px;

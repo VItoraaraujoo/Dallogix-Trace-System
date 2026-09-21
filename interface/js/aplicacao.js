@@ -6,7 +6,7 @@ import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js";
-import { settings } from "./telas/configuracoes.js?v=202609140210";
+import { settings } from "./telas/configuracoes.js?v=202609210930";
 import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609191020";
 import { company } from "./telas/empresa.js?v=202609181200";
 import { companies } from "./telas/empresas.js?v=202609181200";
@@ -371,7 +371,7 @@ function waitForDocumentStyles() {
 // inicial não é recarregado, então os estilos exclusivos de Dalas precisam ser
 // adicionados quando a rota muda a partir de outra tela.
 const DALA_PAGES = new Set(["dalas", "dala", "dala-edit", "dala-actions"]);
-const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609210900";
+const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609162240";
 async function ensureDalaScreenStyles(page) {
   if (!DALA_PAGES.has(page)) return;
   const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
