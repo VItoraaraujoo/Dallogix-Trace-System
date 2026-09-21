@@ -2,7 +2,7 @@ import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=2026091817
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609160900";
-import { numero } from "./funcoes/formato.js?v=202609170930";
+import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js";
@@ -18,7 +18,7 @@ import {
     occurrences,
     products,
     summary,
-} from "./telas/monitoramento.js?v=202609161845";
+} from "./telas/monitoramento.js?v=202609201000";
 import {
     division,
     importScreen,
@@ -26,8 +26,8 @@ import {
     manifests,
     manifestView,
     work,
-} from "./telas/operacoes.js?v=202609191120";
-import { dashboard } from "./telas/painel.js?v=202609150300";
+} from "./telas/operacoes.js?v=202609201000";
+import { dashboard } from "./telas/painel.js?v=202609201000";
 import { users } from "./telas/usuarios.js?v=202609162215";
 
 const store = new ArmazenamentoTrace();
@@ -537,6 +537,7 @@ function render() {
   el("#screen-root").innerHTML = screens[currentPage](store);
   bindActions();
   bindForms();
+  installRelativeTimeRefresh();
   if (["dalas", "dala"].includes(currentPage)) atualizarStatusDasDalas(store);
   workViewSignature = currentPage === "work" ? workStructureSignature() : "";
   if (currentPage === "work") startWorkPolling();
@@ -603,6 +604,21 @@ function refreshWorkLiveView() {
   document.querySelectorAll("[data-live-status]").forEach((node) => {
     node.textContent = statusByType[node.dataset.liveStatus] || "NÃO REGISTRADO";
   });
+}
+let relativeTimeTimer = null;
+function refreshRelativeTimes() {
+  document.querySelectorAll("[data-relative-time]").forEach((node) => {
+    const value = node.dataset.relativeTime || "";
+    const text = relativo(value);
+    const icon = node.querySelector(".status-dot");
+    if (icon) node.replaceChildren(icon, document.createTextNode(text));
+    else node.textContent = text;
+  });
+}
+function installRelativeTimeRefresh() {
+  if (relativeTimeTimer) window.clearInterval(relativeTimeTimer);
+  refreshRelativeTimes();
+  relativeTimeTimer = window.setInterval(refreshRelativeTimes, 1000);
 }
 function installInteractionGuards() {
   document.addEventListener("dragstart", (event) => {

@@ -384,7 +384,14 @@ final class ServicoSincronizacaoRemota
         );
         $find->execute(["company_id" => $companyId, "remote_id" => $remoteId, "number" => $number]);
         $localId = (int) ($find->fetchColumn() ?: 0);
-        $status = (string) ($remote["state"] ?? "PREPARANDO") === "FINALIZADO" ? "FINALIZADO" : "EM_ANDAMENTO";
+        $remoteStatus = strtoupper(trim((string) (
+            $remote["romaneio_status"]
+                ?? (is_array($remote["romaneio"] ?? null) ? ($remote["romaneio"]["status"] ?? "") : "")
+        )));
+        $allowedStatuses = ["IMPORTADO", "AGUARDANDO", "EM_ANDAMENTO", "FINALIZADO", "CANCELADO"];
+        $status = in_array($remoteStatus, $allowedStatuses, true)
+            ? $remoteStatus
+            : ((string) ($remote["state"] ?? "PREPARANDO") === "FINALIZADO" ? "FINALIZADO" : "EM_ANDAMENTO");
         if ($localId) {
             $update = $this->connection->prepare(
                 "UPDATE romaneios SET remote_romaneio_id = :remote_id, number = :number,

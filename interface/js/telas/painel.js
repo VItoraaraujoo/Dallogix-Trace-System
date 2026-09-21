@@ -1,7 +1,7 @@
 import { button, esc } from "../funcoes/html.js";
-import { numero, relativo } from "../funcoes/formato.js?v=202609170930";
+import { numero, relativo } from "../funcoes/formato.js?v=202609201000";
 import { rotuloEstado } from "../funcoes/rotulos.js";
-import { deviceBadge, pageHeader } from "../funcoes/view.js?v=202609150300";
+import { deviceBadge, pageHeader } from "../funcoes/view.js?v=202609201000";
 
 function dalaAlbumCard(equipment, machines, role) {
   const machine =
@@ -31,7 +31,7 @@ function dalaAlbumCard(equipment, machines, role) {
     </div>
     <div class="album-progress"><div class="progress"><i style="width:${percentage}%"></i></div><small>${percentage}% do romaneio</small></div>
     <footer>
-      <span><i class="status-dot ${String(status).toUpperCase() === "ONLINE" ? "online" : "offline"}"></i>${esc(lastSignal)}</span>
+      <span data-relative-time="${esc(machine.last_seen_at || "")}"><i class="status-dot ${String(status).toUpperCase() === "ONLINE" ? "online" : "offline"}"></i>${esc(lastSignal)}</span>
       <div class="dashboard-card-links"><button class="button secondary small" data-action="view-dala" data-id="${equipment.id}" type="button">Visualizar Dala e estatísticas</button>${machine.romaneio_id ? `<button class="button secondary small" data-action="view-manifest" data-id="${machine.romaneio_id}" type="button">Romaneio</button>` : ""}</div>
     </footer>
   </article>`;

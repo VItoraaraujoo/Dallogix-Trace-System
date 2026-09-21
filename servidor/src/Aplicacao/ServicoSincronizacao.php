@@ -507,7 +507,7 @@ final class ServicoSincronizacao
         $statement = $this->connection->prepare(
             "SELECT c.id, c.remote_carregamento_id, c.state, c.equipment_id, c.started_at,
                     c.romaneio_id, c.truck_id, e.remote_equipment_id, e.equipment_code,
-                    r.remote_romaneio_id, r.number, r.scheduled_date, r.expedidor,
+                    r.remote_romaneio_id, r.number, r.scheduled_date, r.status AS romaneio_status, r.expedidor,
                     t.remote_truck_id, t.plate, t.driver_name
              FROM carregamentos c
              JOIN romaneios r ON r.id = c.romaneio_id
@@ -546,8 +546,10 @@ final class ServicoSincronizacao
                     ? null : (int) $loading["remote_romaneio_id"],
                 "number" => $loading["number"],
                 "scheduled_date" => $loading["scheduled_date"],
+                "status" => $loading["romaneio_status"],
                 "expedidor" => $loading["expedidor"],
             ],
+            "romaneio_status" => $loading["romaneio_status"],
             "truck" => [
                 "source_truck_id" => (int) $loading["truck_id"],
                 "remote_truck_id" => $loading["remote_truck_id"] === null

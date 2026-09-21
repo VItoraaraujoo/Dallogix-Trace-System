@@ -67,7 +67,7 @@ $equipamentos = $equipmentStatement->fetchAll();
 
 $loadingStatement = $pdo->prepare(
     "SELECT c.id, c.remote_carregamento_id, c.equipment_id, c.romaneio_id, c.truck_id,
-            c.state, c.started_at, r.number AS romaneio_number, r.expedidor,
+            c.state, c.started_at, r.status AS romaneio_status, r.number AS romaneio_number, r.expedidor,
             r.scheduled_date, t.plate, t.driver_name, e.equipment_code,
             e.name AS equipment_name
      FROM carregamentos c

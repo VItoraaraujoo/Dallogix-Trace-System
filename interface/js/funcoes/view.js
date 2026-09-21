@@ -1,5 +1,5 @@
 import { button, esc } from "./html.js";
-import { data, numero, relativo } from "./formato.js?v=202609170930";
+import { data, numero, relativo } from "./formato.js?v=202609201000";
 import { rotuloEstado, rotuloStatusRomaneio } from "./rotulos.js";
 
 export function pageHeader(kicker, title, description, action = "") {
@@ -53,9 +53,20 @@ export function badge(status) {
 
 // Badge de status no padrão da referência TracePlatform.
 export function manifestStatusBadge(row) {
+  const activeState = String(row.active_state || "").toUpperCase();
+  const activeStateLabels = {
+    AGUARDANDO: ["Aguardando", "yellow"],
+    PREPARANDO: ["Preparando", "blue"],
+    CARREGANDO: ["Carregando", "green"],
+    PAUSADO: ["Pausado", "yellow"],
+    FINALIZANDO: ["Finalizando", "blue"],
+    EMERGENCIA: ["Emergência", "red"],
+  };
+  if (activeStateLabels[activeState]) {
+    const [label, tone] = activeStateLabels[activeState];
+    return `<span class="badge ${tone}">${label}${row.active_equipment ? " - " + esc(row.active_equipment) : ""}</span>`;
+  }
   if (row.status === "EM_ANDAMENTO") {
-    if (String(row.active_state || "").toUpperCase() === "PAUSADO")
-      return '<span class="badge info">Aguardando continuação</span>';
     return `<span class="badge blue">Em andamento${row.active_equipment ? " - " + esc(row.active_equipment) : ""}</span>`;
   }
   if (row.status === "FINALIZADO") {
@@ -122,7 +133,7 @@ function machineCard(machine) {
       <div><dt>Romaneio</dt><dd>${machine.romaneio_number ? "#" + esc(machine.romaneio_number) : "—"}</dd></div>
       <div><dt>Caminhão</dt><dd>${machine.plate ? esc(machine.plate) : "—"}</dd></div>
       <div><dt>Estado</dt><dd>${esc(state)}</dd></div>
-      <div><dt>Último sinal</dt><dd>${esc(relativo(machine.last_seen_at))}</dd></div>
+      <div><dt>Último sinal</dt><dd data-relative-time="${esc(machine.last_seen_at || "")}">${esc(relativo(machine.last_seen_at))}</dd></div>
     </dl>
     <div class="progress"><i style="width:${pct}%"></i></div>
     <div class="progress-label"><span>${pct}% concluído</span><span>${numero(loaded)} / ${numero(planned)} sacas</span></div>

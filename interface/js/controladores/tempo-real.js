@@ -27,7 +27,7 @@ export function createOperationalRealtimeController({ store, getPage, render, re
       } finally {
         polling = false;
       }
-    }, 5000);
+    }, 1000);
   };
   const start = () => {
     if (eventSource || fallbackTimer || getPage() !== "work") return;
