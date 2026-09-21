@@ -35,13 +35,14 @@ WHERE
   );
 
 INSERT INTO dispositivos
-  (company_id, equipment_id, device_code, device_type, token_hash)
+  (company_id, equipment_id, device_code, device_type, token_hash, active)
 SELECT
   e.company_id,
   e.id,
   'PLC-EST-001',
   'CLP',
-  '$2y$12$3tAPnZ8YIz3SZPV4KXntie3UKgIXqTiiD4pQKdxcuBYoGOolpyWTm'
+  '$2y$12$3tAPnZ8YIz3SZPV4KXntie3UKgIXqTiiD4pQKdxcuBYoGOolpyWTm',
+  0
 FROM equipamentos e
 WHERE e.equipment_code = 'EST-001'
   AND NOT EXISTS (
@@ -49,13 +50,14 @@ WHERE e.equipment_code = 'EST-001'
   );
 
 INSERT INTO dispositivos
-  (company_id, equipment_id, device_code, device_type, token_hash)
+  (company_id, equipment_id, device_code, device_type, token_hash, active)
 SELECT
   e.company_id,
   e.id,
   'CAM-EST-001',
   'CAMERA',
-  '$2y$12$qXieqL6ctQPl3vwOjT9amuDed0qfKMDcmn1izzq/4p0QNyoBIm9.O'
+  '$2y$12$qXieqL6ctQPl3vwOjT9amuDed0qfKMDcmn1izzq/4p0QNyoBIm9.O',
+  0
 FROM equipamentos e
 WHERE e.equipment_code = 'EST-001'
   AND NOT EXISTS (

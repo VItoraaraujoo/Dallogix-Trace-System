@@ -41,10 +41,11 @@ if (!$row) {
 }
 
 $statement = $pdo->prepare(
-    "INSERT INTO dispositivos (company_id, equipment_id, device_code, device_type, token_hash, active)
-     VALUES (:company_id, :equipment_id, :device_code, :device_type, :token_hash, 1)
+    "INSERT INTO dispositivos (company_id, equipment_id, device_code, device_type, token_hash, token_lookup_hash, active)
+     VALUES (:company_id, :equipment_id, :device_code, :device_type, :token_hash, :token_lookup_hash, 1)
      ON DUPLICATE KEY UPDATE company_id = VALUES(company_id), equipment_id = VALUES(equipment_id),
-         device_type = VALUES(device_type), token_hash = VALUES(token_hash), active = 1",
+         device_type = VALUES(device_type), token_hash = VALUES(token_hash),
+         token_lookup_hash = VALUES(token_lookup_hash), active = 1",
 );
 $statement->execute([
     "company_id" => $row["company_id"],
@@ -52,5 +53,6 @@ $statement->execute([
     "device_code" => $deviceCode,
     "device_type" => $deviceType,
     "token_hash" => password_hash($token, PASSWORD_DEFAULT),
+    "token_lookup_hash" => hash("sha256", $token),
 ]);
 echo "OK: dispositivo {$deviceCode} provisionado para o equipamento {$equipmentId}. O token não foi armazenado em texto puro.\n";

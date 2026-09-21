@@ -42,6 +42,14 @@ def sql(statement):
     )
 
 
+def env_value(key):
+    prefix = f'{key}='
+    for line in ENV.read_text().splitlines():
+        if line.startswith(prefix):
+            return line[len(prefix):]
+    return ''
+
+
 def main():
     STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
     tls = STATE / 'tls'
@@ -102,6 +110,21 @@ def main():
         foreach(json_decode(stream_get_contents(STDIN),true,512,JSON_THROW_ON_ERROR) as $email=>$password){$stmt->execute([password_hash($password,PASSWORD_DEFAULT),$email]);}
         $pdo->exec("INSERT INTO trace_deployment_migrations VALUES ('production-test-accounts')");$pdo->commit();'''
         run(COMPOSE + ['exec', '-T', 'php', 'php', '-r', code], input=json.dumps(credentials), text=True)
+
+    equipment_id = sql("SELECT id FROM equipamentos WHERE equipment_code = 'EST-001' LIMIT 1")
+    for device_type, device_code, token_key in (
+        ('CLP', 'PLC-EST-001', 'TRACE_DEVICE_TOKEN'),
+        ('CAMERA', 'CAM-EST-001', 'CAMERA_DEVICE_TOKEN'),
+    ):
+        token = env_value(token_key)
+        if equipment_id and token:
+            run(COMPOSE + [
+                'exec', '-T', 'php', 'php', '/var/www/scripts/provision_device.php',
+                f'--equipment-id={equipment_id}',
+                f'--device-type={device_type}',
+                f'--device-code={device_code}',
+                f'--token={token}',
+            ], stdout=subprocess.DEVNULL)
     run(COMPOSE + ['run', '--rm', '--no-deps', 'nginx', 'nginx', '-t'])
     run(COMPOSE + ['up', '-d', '--wait', 'nginx'])
     run(COMPOSE + ['exec', '-T', 'nginx', 'nginx', '-s', 'reload'])

@@ -49,6 +49,13 @@ if (!in_array($usuarioAtor["role"], ["ADMIN_DALLOGIX", "ADMIN_EMPRESA"], true)) 
 
 $payload = ler_json_da_requisicao();
 $gatewayIp = trim((string) ($payload["gateway_public_ip"] ?? ""));
+$validGatewayHost = static function (string $host): bool {
+    return filter_var($host, FILTER_VALIDATE_IP) !== false
+        || (bool) preg_match(
+            '/\A(?=.{1,253}\z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\z/i',
+            $host,
+        );
+};
 if (array_key_exists("sync_remote_url", $payload)) {
     json_response(
         ["error" => "A integração com o servidor é configurada somente no backend."],
@@ -68,7 +75,7 @@ $pdfSearchField = in_array(
 )
     ? $payload["pdf_search_field"] ?? "barcode"
     : "barcode";
-if ($gatewayIp !== "" && strlen($gatewayIp) > 255) {
+if (($gatewayIp !== "" && strlen($gatewayIp) > 255) || ($gatewayIp !== "" && !$validGatewayHost($gatewayIp))) {
     json_response(["error" => "IP ou DDNS do gateway inválido."], 422);
 }
 if (!is_array($mapping)) {

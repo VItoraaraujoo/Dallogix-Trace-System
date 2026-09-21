@@ -244,6 +244,29 @@ function request_json(): array
     return ler_json_da_requisicao();
 }
 
+/**
+ * A API só pode abrir conexões para destinos aprovados pelo operador da
+ * implantação. A lista é deliberadamente externa ao banco do cliente: um
+ * usuário da empresa pode cadastrar a Dala, mas não amplia a rede que o
+ * servidor PHP está autorizado a alcançar.
+ */
+function destino_dispositivo_permitido(string $host, int $port): bool
+{
+    $normalizar = static function (string $value): string {
+        return rtrim(strtolower(trim($value)), ".");
+    };
+    $hosts = array_values(array_filter(array_map(
+        $normalizar,
+        preg_split('/[,;\n]+/', (string) (getenv("TRACE_ALLOWED_DEVICE_HOSTS") ?: "")) ?: [],
+    ), static fn (string $value): bool => $value !== ""));
+    $ports = array_values(array_filter(array_map(
+        static fn (string $value): int => (int) trim($value),
+        preg_split('/[,;\n]+/', (string) (getenv("TRACE_ALLOWED_DEVICE_PORTS") ?: "")) ?: [],
+    ), static fn (int $value): bool => $value >= 1 && $value <= 65535));
+
+    return in_array($normalizar($host), $hosts, true) && in_array($port, $ports, true);
+}
+
 /** @return array{id:int, company_id:int, equipment_id:int, device_code:string, device_type:string} */
 function require_device_token(array $allowedDeviceTypes = []): array
 {
@@ -252,18 +275,18 @@ function require_device_token(array $allowedDeviceTypes = []): array
         responder_json(["error" => "Credencial do dispositivo ausente."], 401);
     }
 
-    $statement = obter_conexao_banco()->query(
+    // O SHA-256 é somente um seletor indexável. A credencial continua sendo
+    // validada pelo bcrypt, mas uma tentativa inválida não percorre todos os
+    // dispositivos ativos da instalação.
+    $statement = obter_conexao_banco()->prepare(
         "SELECT id, company_id, equipment_id, device_code, device_type, token_hash
-         FROM dispositivos WHERE active = 1",
+         FROM dispositivos
+         WHERE active = 1 AND token_lookup_hash = :token_lookup_hash
+         LIMIT 1",
     );
-    $device = null;
-    foreach ($statement->fetchAll() as $candidate) {
-        if (password_verify($provided, (string) $candidate["token_hash"])) {
-            $device = $candidate;
-            break;
-        }
-    }
-    if ($device === null) {
+    $statement->execute(["token_lookup_hash" => hash("sha256", $provided)]);
+    $device = $statement->fetch();
+    if (!$device || !password_verify($provided, (string) $device["token_hash"])) {
         responder_json(["error" => "Credencial do dispositivo inválida."], 401);
     }
     if ($allowedDeviceTypes !== [] && !in_array($device["device_type"], $allowedDeviceTypes, true)) {
@@ -293,23 +316,28 @@ function token_bearer_instalacao(): string
     return trim((string) ($_SERVER["HTTP_X_INSTALLATION_TOKEN"] ?? ""));
 }
 
+function credencial_instalacao_valida(string $token): bool
+{
+    return preg_match('/\A[a-f0-9]{64}\z/i', $token) === 1;
+}
+
 /** @return array{id:int,name:string,login_domain:string,license_status:string,license_reason:?string} */
 function exigir_instalacao_remota(): array
 {
     $token = token_bearer_instalacao();
-    if ($token === "" || strlen($token) > 128) {
+    if (!credencial_instalacao_valida($token)) {
         responder_json(["error" => "Credencial da instalação ausente ou inválida."], 401);
     }
 
-    $normalized = str_replace("-", "", strtoupper($token));
+    $normalized = strtolower($token);
     $pdo = obter_conexao_banco();
     $statement = $pdo->prepare(
         "SELECT id, name, login_domain
          FROM empresas
-         WHERE archived_at IS NULL AND activation_code_hash = :code_hash
+         WHERE archived_at IS NULL AND installation_token_hash = :token_hash
          LIMIT 1",
     );
-    $statement->execute(["code_hash" => hash("sha256", $normalized)]);
+    $statement->execute(["token_hash" => hash("sha256", $normalized)]);
     $company = $statement->fetch();
     if (!$company) {
         responder_json(["error" => "Credencial da instalação inválida."], 401);
@@ -468,6 +496,11 @@ function hash_limite_login_conta(string $identidade): string
     return hash("sha256", strtolower(trim($identidade)));
 }
 
+function hash_limite_ativacao(string $codigo): string
+{
+    return hash("sha256", "activation|" . strtoupper(trim($codigo)));
+}
+
 function hash_limite_login_ip(): string
 {
     $ip = trim((string) ($_SERVER["REMOTE_ADDR"] ?? ""));
@@ -576,6 +609,45 @@ function verificar_taxa_de_login(string $identidade): void
     }
 }
 
+function verificar_taxa_de_ativacao(string $codigo): void
+{
+    if (getenv("TRACE_TESTING_DISABLE_LOGIN_RATE_LIMIT") === "1") {
+        return;
+    }
+
+    $connection = obter_conexao_banco();
+    try {
+        $connection->beginTransaction();
+        $retryAfter = null;
+        foreach ([
+            [hash_limite_login_ip(), 30],
+            // A ativação legítima faz uma validação inicial e outra para
+            // registrar o token seguro; dez tentativas permitem retries sem
+            // abrir espaço para enumeração sustentada do código.
+            [hash_limite_ativacao($codigo), 10],
+        ] as [$bucket, $maxAttempts]) {
+            $retryAfter = registrar_tentativa_limitada_de_login(
+                $connection,
+                $bucket,
+                $maxAttempts,
+            );
+            if ($retryAfter !== null) {
+                break;
+            }
+        }
+        $connection->commit();
+        if ($retryAfter !== null) {
+            header("Retry-After: {$retryAfter}");
+            responder_json(["error" => "Muitas tentativas. Aguarde alguns minutos."], 429);
+        }
+    } catch (Throwable $exception) {
+        if ($connection->inTransaction()) {
+            $connection->rollBack();
+        }
+        throw $exception;
+    }
+}
+
 function registrar_login_sucesso(string $identidade): void
 {
     if (getenv("TRACE_TESTING_DISABLE_LOGIN_RATE_LIMIT") === "1") {
@@ -645,6 +717,11 @@ function obter_usuario_sessao(): ?array
         : null;
 }
 
+function sessao_auth_version_compativel(int $sessionVersion, int $currentVersion): bool
+{
+    return $sessionVersion > 0 && $sessionVersion === $currentVersion;
+}
+
 function exigir_sessao_usuario(bool $permitirTrocaSenha = false): array
 {
     $usuario = obter_usuario_sessao();
@@ -668,7 +745,10 @@ function exigir_sessao_usuario(bool $permitirTrocaSenha = false): array
         responder_json(["error" => "Sessão expirada ou acesso desativado."], 401);
     }
     $sessionAuthVersion = (int) ($_SESSION["auth_version"] ?? 0);
-    if ($sessionAuthVersion > 0 && $sessionAuthVersion !== (int) $usuarioAtual["auth_version"]) {
+    // Sessões criadas antes do versionamento não carregam auth_version. Elas
+    // precisam ser rejeitadas, nunca promovidas silenciosamente para uma
+    // sessão atual, para que a rotação de senha/perfil invalide todo o legado.
+    if (!sessao_auth_version_compativel($sessionAuthVersion, (int) $usuarioAtual["auth_version"])) {
         $_SESSION = [];
         session_destroy();
         responder_json(["error" => "A sessão foi encerrada porque as credenciais foram alteradas."], 401);

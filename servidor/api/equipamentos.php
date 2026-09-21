@@ -53,6 +53,16 @@ if (
             ],
         ]);
     }
+    if (!destino_dispositivo_permitido((string) $host, $port)) {
+        // Falha fechada: a configuração da empresa não pode transformar o
+        // servidor em um scanner TCP de endereços internos ou metadados.
+        json_response([
+            "data" => [
+                "status" => "OFFLINE",
+                "message" => "Destino não autorizado pela configuração da implantação.",
+            ],
+        ]);
+    }
     $connection = @fsockopen($host, $port, $errno, $errstr, 2.0);
     if ($connection) {
         fclose($connection);

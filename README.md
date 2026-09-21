@@ -68,6 +68,13 @@ O seed cria uma empresa, usuário administrador, máquina, esteira, produto e ba
 
 As credenciais técnicas não possuem valor padrão público. Defina `TRACE_DEVICE_TOKEN` e `CAMERA_DEVICE_TOKEN` no `.env` e, depois do seed, provisione os dispositivos com tokens próprios usando `php scripts/provision_device.php`.
 
+O código `TRC-....-....` serve somente para a ativação assistida. A ativação
+gera uma credencial aleatória separada para a sincronização da instalação; por
+isso, instalações existentes devem ser ativadas novamente após aplicar a
+migration 048. O status de conectividade também só abre sockets para os pares
+explicitamente listados em `TRACE_ALLOWED_DEVICE_HOSTS` e
+`TRACE_ALLOWED_DEVICE_PORTS`.
+
 ## Acesso remoto e servidor central
 
 Não existe uma tela remota no PC industrial. Todo gerenciamento fora da máquina deve ser feito pelo servidor central. O PC industrial inicia as conexões de saída HTTPS para heartbeat e sincronização; não há port forwarding. A operação PC industrial ↔ CLP e o banco/fila local continuam disponíveis durante quedas de internet.

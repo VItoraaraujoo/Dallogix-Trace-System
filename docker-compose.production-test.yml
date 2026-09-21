@@ -29,6 +29,8 @@ services:
       DB_NAME: ${MYSQL_DATABASE:?}
       DB_USER: ${MYSQL_USER:?}
       DB_PASSWORD: ${MYSQL_PASSWORD:?}
+      TRACE_ALLOWED_DEVICE_HOSTS: ${TRACE_ALLOWED_DEVICE_HOSTS:-}
+      TRACE_ALLOWED_DEVICE_PORTS: ${TRACE_ALLOWED_DEVICE_PORTS:-}
       TRACE_DEVICE_TOKEN: ${TRACE_DEVICE_TOKEN:?}
       CAMERA_DEVICE_TOKEN: ${CAMERA_DEVICE_TOKEN:?}
       TRACE_VERSION: ${TRACE_VERSION:-production-test}
@@ -40,6 +42,7 @@ services:
         condition: service_healthy
     volumes:
       - ./servidor:/var/www/servidor:ro
+      - ./scripts:/var/www/scripts:ro
       - ./armazenamento/producao-teste/storage:/var/www/armazenamento
   nginx:
     image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10

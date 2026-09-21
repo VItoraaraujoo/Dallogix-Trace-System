@@ -11,7 +11,8 @@ $payload = ler_json_da_requisicao();
 $code = strtoupper(trim((string) ($payload["activation_code"] ?? "")));
 $email = strtolower(trim((string) ($payload["email"] ?? "")));
 $password = (string) ($payload["password"] ?? "");
-if (!preg_match('/^TRC-[A-Z0-9]{4}-[A-Z0-9]{4}$/', $code)) {
+$installationToken = bin2hex(random_bytes(32));
+if (!preg_match('/^TRC-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/', $code)) {
     responder_json([
         "error" => "Código de ativação incorreto.",
         "error_code" => "ACTIVATION_CODE_INVALID",
@@ -33,22 +34,28 @@ if (!preg_match('/^https:\/\//i', $centralUrl)) {
     responder_json(["error" => "Servidor central não configurado para esta instalação."], 503);
 }
 
-$postJson = static function (string $url, array $body): array {
+$postJson = static function (string $url, array $body, array $extraHeaders = [], ?string $cookieFile = null): array {
     $handle = curl_init($url);
     if ($handle === false) {
         throw new RuntimeException("Não foi possível iniciar a conexão com o servidor central.");
     }
-    curl_setopt_array($handle, [
+    $headers = array_merge(["Content-Type: application/json", "Accept: application/json"], $extraHeaders);
+    $options = [
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
-        CURLOPT_HTTPHEADER => ["Content-Type: application/json", "Accept: application/json"],
+        CURLOPT_HTTPHEADER => $headers,
         CURLOPT_CONNECTTIMEOUT => 5,
         CURLOPT_TIMEOUT => 15,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_FOLLOWLOCATION => false,
         CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_SSL_VERIFYHOST => 2,
-    ]);
+    ];
+    if ($cookieFile !== null) {
+        $options[CURLOPT_COOKIEFILE] = $cookieFile;
+        $options[CURLOPT_COOKIEJAR] = $cookieFile;
+    }
+    curl_setopt_array($handle, $options);
     $raw = curl_exec($handle);
     $error = trim((string) curl_error($handle));
     $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
@@ -71,6 +78,16 @@ try {
 } catch (Throwable $exception) {
     responder_json(["error" => $exception->getMessage()], 503);
 }
+
+$activationCookieFile = tempnam(sys_get_temp_dir(), "trace-activation-");
+if ($activationCookieFile === false) {
+    responder_json(["error" => "Não foi possível preparar a sessão segura de ativação."], 503);
+}
+register_shutdown_function(static function () use ($activationCookieFile): void {
+    if (is_file($activationCookieFile)) {
+        @unlink($activationCookieFile);
+    }
+});
 if ($activationStatus < 200 || $activationStatus >= 300 || !isset($activationResult["data"])) {
     if (
         ($activationResult["error_code"] ?? "") === "ACTIVATION_CODE_INVALID"
@@ -89,6 +106,8 @@ try {
     [$loginStatus, $loginResult] = $postJson(
         rtrim($centralUrl, "/") . "/api/login.php",
         ["email" => $email, "password" => $password],
+        [],
+        $activationCookieFile,
     );
 } catch (Throwable $exception) {
     responder_json(["error" => $exception->getMessage()], 503);
@@ -99,6 +118,23 @@ if ($loginStatus < 200 || $loginStatus >= 300 || ($loginResult["authenticated"] 
 $remoteUser = $loginResult["user"] ?? [];
 if (($remoteUser["role"] ?? "") !== "ADMIN_EMPRESA" || (int) ($remoteUser["company_id"] ?? 0) !== (int) $remoteCompany["company_id"]) {
     responder_json(["error" => "Use o login de administrador da mesma empresa do código."], 403);
+}
+
+try {
+    [$tokenStatus, $tokenResult] = $postJson(
+        rtrim($centralUrl, "/") . "/api/validar_ativacao_empresa.php",
+        [
+            "activation_code" => $code,
+            "installation_token" => $installationToken,
+        ],
+        ["X-CSRF-Token" => (string) ($loginResult["csrf_token"] ?? "")],
+        $activationCookieFile,
+    );
+} catch (Throwable $exception) {
+    responder_json(["error" => $exception->getMessage()], 503);
+}
+if ($tokenStatus < 200 || $tokenStatus >= 300 || !isset($tokenResult["data"])) {
+    responder_json(["error" => "Não foi possível registrar a credencial segura da instalação."], 503);
 }
 
 $pdo = obter_conexao_banco();
@@ -201,7 +237,7 @@ try {
         "remote_company_id" => $remoteCompany["company_id"],
         "company_name" => $remoteCompany["name"],
         "login_domain" => $remoteCompany["login_domain"],
-        "sync_token" => $code,
+        "sync_token" => $installationToken,
     ]);
 
     $syncUrl = rtrim($centralUrl, "/") . "/api/sincronizacao_eventos.php";
