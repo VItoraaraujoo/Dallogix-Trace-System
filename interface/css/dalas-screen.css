@@ -107,12 +107,13 @@
   min-height: 40px;
   border: 1px solid #b6c7d1;
   border-radius: 8px;
-  background: #fff;
-  color: #245c79;
+  background: #e6f4f8;
+  color: #145d78;
   font: inherit;
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
+  transition: background-color 160ms ease, border-color 160ms ease;
 }
 
 .dala-action-v2 {
@@ -123,11 +124,19 @@
 .dala-action-v2:hover,
 .dala-action-v2:focus-visible {
   border-color: #1daac4;
-  background: #edf9fb;
+  background: #d5eef4;
 }
 
 .dala-action-v2.danger {
+  border-color: #efb4bc;
+  background: #fff0f2;
   color: #a33443;
+}
+
+.dala-action-v2.danger:hover,
+.dala-action-v2.danger:focus-visible {
+  border-color: #ed6a78;
+  background: #ffe0e5;
 }
 
 .dala-empty-v2 {
