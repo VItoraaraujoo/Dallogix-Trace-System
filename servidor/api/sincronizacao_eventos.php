@@ -383,7 +383,45 @@ $findEquipment = static function (PDO $connection, int $companyId, array $data):
     return $id === false ? null : (int) $id;
 };
 
-$upsertLoading = static function (PDO $connection, int $companyId, int $sourceLoadingId, array $data) use ($upsertManifest, $upsertTruck, $replaceManifestItems, $upsertProduct, $findEquipment): array {
+$syncManifestStatus = static function (PDO $connection, int $companyId, int $loadingId, string $state, ?bool $manifestFinalized = null): void {
+    $loading = $connection->prepare(
+        "SELECT romaneio_id FROM carregamentos
+         WHERE id = :id AND company_id = :company_id LIMIT 1",
+    );
+    $loading->execute(["id" => $loadingId, "company_id" => $companyId]);
+    $manifestId = (int) ($loading->fetchColumn() ?: 0);
+    if ($manifestId < 1) {
+        return;
+    }
+
+    $active = $connection->prepare(
+        "SELECT COUNT(*) FROM carregamentos
+         WHERE company_id = :company_id AND romaneio_id = :romaneio_id
+           AND id <> :loading_id AND state <> 'FINALIZADO'",
+    );
+    $active->execute([
+        "company_id" => $companyId,
+        "romaneio_id" => $manifestId,
+        "loading_id" => $loadingId,
+    ]);
+    $hasOtherActiveLoading = (int) $active->fetchColumn() > 0;
+
+    $status = match ($state) {
+        "FINALIZADO" => ($manifestFinalized === true || !$hasOtherActiveLoading) ? "FINALIZADO" : "EM_ANDAMENTO",
+        "AGUARDANDO" => $hasOtherActiveLoading ? "EM_ANDAMENTO" : "AGUARDANDO",
+        default => "EM_ANDAMENTO",
+    };
+    $connection->prepare(
+        "UPDATE romaneios SET status = :status
+         WHERE id = :id AND company_id = :company_id",
+    )->execute([
+        "status" => $status,
+        "id" => $manifestId,
+        "company_id" => $companyId,
+    ]);
+};
+
+$upsertLoading = static function (PDO $connection, int $companyId, int $sourceLoadingId, array $data) use ($upsertManifest, $upsertTruck, $replaceManifestItems, $upsertProduct, $findEquipment, $syncManifestStatus): array {
     $knownRemoteLoadingId = filter_var($data["remote_carregamento_id"] ?? null, FILTER_VALIDATE_INT);
     $knownRemoteLoadingId = $knownRemoteLoadingId !== false && $knownRemoteLoadingId !== null && $knownRemoteLoadingId > 0
         ? (int) $knownRemoteLoadingId : null;
@@ -453,10 +491,7 @@ $upsertLoading = static function (PDO $connection, int $companyId, int $sourceLo
     if (isset($data["items"]) && is_array($data["items"]) && $data["items"] !== []) {
         $replaceManifestItems($connection, $companyId, (int) $manifest["id"], (int) $truck["id"], $data["items"], $upsertProduct);
     }
-    if ($state !== "FINALIZADO") {
-        $connection->prepare("UPDATE romaneios SET status = 'EM_ANDAMENTO' WHERE id = :id AND company_id = :company_id")
-            ->execute(["id" => $manifest["id"], "company_id" => $companyId]);
-    }
+    $syncManifestStatus($connection, $companyId, $loadingId, $state);
     return [
         "id" => $loadingId,
         "manifest_id" => (int) $manifest["id"],
@@ -510,6 +545,7 @@ try {
             "CARREGAMENTO_DALA_DESVINCULADO",
             "CARREGAMENTO_DALA_VINCULADO",
             "ESTADO_CARREGAMENTO_ALTERADO",
+            "CARREGAMENTO_FINALIZADO",
         ], true);
         $existing = $pdo->prepare(
             "SELECT id FROM logs_auditoria WHERE company_id = :company_id AND event_uuid = :event_uuid LIMIT 1",
@@ -659,8 +695,33 @@ try {
                 if ($loadingId !== null) {
                     $update = $pdo->prepare("UPDATE carregamentos SET state = :state WHERE id = :id AND company_id = :company_id");
                     $update->execute(["state" => $state, "id" => $loadingId, "company_id" => $companyId]);
+                    $syncManifestStatus($pdo, $companyId, $loadingId, $state);
                     $entityId = $loadingId;
                 }
+            }
+        }
+
+        if ($action === "CARREGAMENTO_FINALIZADO") {
+            $remoteLoadingId = filter_var($data["remote_carregamento_id"] ?? null, FILTER_VALIDATE_INT);
+            $loadingId = $resolveLoadingId(
+                $pdo,
+                $companyId,
+                $remoteLoadingId !== false && $remoteLoadingId > 0 ? (int) $remoteLoadingId : 0,
+                (int) ($data["source_carregamento_id"] ?? $entityId),
+            );
+            if ($loadingId !== null) {
+                $pdo->prepare(
+                    "UPDATE carregamentos SET state = 'FINALIZADO', finished_at = COALESCE(finished_at, NOW())
+                     WHERE id = :id AND company_id = :company_id",
+                )->execute(["id" => $loadingId, "company_id" => $companyId]);
+                $syncManifestStatus(
+                    $pdo,
+                    $companyId,
+                    $loadingId,
+                    "FINALIZADO",
+                    filter_var($data["romaneio_finalizado"] ?? false, FILTER_VALIDATE_BOOLEAN),
+                );
+                $entityId = $loadingId;
             }
         }
 

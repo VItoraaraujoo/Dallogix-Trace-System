@@ -434,6 +434,7 @@ final class ServicoSincronizacao
             "CARREGAMENTO_DALA_VINCULADO",
             "CARREGAMENTO_DALA_DESVINCULADO",
             "ESTADO_CARREGAMENTO_ALTERADO",
+            "CARREGAMENTO_FINALIZADO",
         ], true)) {
             $loading = $this->loadingSyncData($companyId, $entityId);
             if ($loading !== null) {
