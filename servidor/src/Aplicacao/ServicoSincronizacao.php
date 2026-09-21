@@ -142,7 +142,7 @@ final class ServicoSincronizacao
                  FROM fila_sincronizacao q
                  LEFT JOIN empresas e ON e.id = q.company_id
                  WHERE " . implode(" AND ", $where) .
-                    " ORDER BY id ASC LIMIT {$limit} FOR UPDATE SKIP LOCKED",
+                    " ORDER BY q.id ASC LIMIT {$limit} FOR UPDATE SKIP LOCKED",
             );
             $statement->execute($params);
             $events = $statement->fetchAll();
@@ -309,7 +309,7 @@ final class ServicoSincronizacao
     /** @return array{ok:bool,error:string,http_code:int,response?:array<string,mixed>} */
     private function postJson(string $remoteUrl, string $body, ?int $companyId = null): array
     {
-        $headers = ["Content-Type: application/json"];
+        $headers = ["Accept: application/json", "Content-Type: application/json"];
         $token = $this->remoteToken($companyId);
         if ($token !== "") {
             if (preg_match('/[\r\n]/', $token) === 1) {
@@ -351,11 +351,18 @@ final class ServicoSincronizacao
                 "http_code" => $httpCode,
             ];
         }
+        if (!is_array($response) || !isset($response["data"]) || !is_array($response["data"])) {
+            return [
+                "ok" => false,
+                "error" => "Endpoint remoto retornou uma resposta inválida.",
+                "http_code" => $httpCode,
+            ];
+        }
         return [
             "ok" => true,
             "error" => "",
             "http_code" => $httpCode,
-            "response" => is_array($response) ? $response : [],
+            "response" => $response,
         ];
     }
 
@@ -567,17 +574,29 @@ final class ServicoSincronizacao
         if (!is_array($mappings) || $mappings === []) {
             return;
         }
+        $eventsByUuid = [];
+        foreach ($events as $event) {
+            $eventUuid = trim((string) ($event["event_uuid"] ?? ""));
+            $eventCompanyId = (int) ($event["company_id"] ?? 0);
+            if ($eventUuid !== "" && $eventCompanyId > 0) {
+                $eventsByUuid[$eventUuid] = $eventCompanyId;
+            }
+        }
         $this->connection->beginTransaction();
         try {
             foreach ($mappings as $mapping) {
                 if (!is_array($mapping)) {
-                    continue;
+                    throw new RuntimeException("Mapeamento remoto inválido.");
+                }
+                $eventUuid = trim((string) ($mapping["event_uuid"] ?? ""));
+                if ($eventUuid === "" || !isset($eventsByUuid[$eventUuid])) {
+                    throw new RuntimeException("Mapeamento remoto não corresponde ao lote enviado.");
                 }
                 $local = is_array($mapping["local"] ?? null) ? $mapping["local"] : [];
                 $remote = is_array($mapping["remote"] ?? null) ? $mapping["remote"] : [];
-                $companyId = (int) ($events[0]["company_id"] ?? 0);
+                $companyId = $eventsByUuid[$eventUuid];
                 if ($companyId <= 0) {
-                    continue;
+                    throw new RuntimeException("Empresa do mapeamento remoto inválida.");
                 }
                 $localEquipmentId = (int) ($local["equipment_id"] ?? 0);
                 $remoteEquipmentId = (int) ($remote["equipment_id"] ?? 0);
@@ -607,12 +626,15 @@ final class ServicoSincronizacao
                 $remoteTruckId = (int) ($remote["truck_id"] ?? 0);
                 if ($localTruckId > 0 && $remoteTruckId > 0) {
                     $this->connection->prepare(
-                        "UPDATE romaneio_caminhoes SET remote_truck_id = :remote_id
-                         WHERE id = :id AND romaneio_id = :romaneio_id",
+                        "UPDATE romaneio_caminhoes t SET remote_truck_id = :remote_id
+                         WHERE t.id = :id AND t.romaneio_id = :romaneio_id
+                           AND EXISTS (SELECT 1 FROM romaneios r
+                                       WHERE r.id = t.romaneio_id AND r.company_id = :company_id)",
                     )->execute([
                         "remote_id" => $remoteTruckId,
                         "id" => $localTruckId,
                         "romaneio_id" => $localManifestId,
+                        "company_id" => $companyId,
                     ]);
                 }
                 $localLoadingId = (int) ($local["carregamento_id"] ?? 0);
@@ -692,6 +714,9 @@ final class ServicoSincronizacao
                     "company_id" => (int) $event["company_id"],
                     "last_error" => $error,
                 ]);
+                if ($failed->rowCount() !== 1) {
+                    throw new RuntimeException("Evento de sincronização não está mais reservado para falha.");
+                }
             }
             $this->connection->commit();
         } catch (\Throwable $exception) {
@@ -761,18 +786,19 @@ final class ServicoSincronizacao
 
     private function remoteToken(?int $companyId = null): string
     {
-        if ($companyId !== null) {
-            $statement = $this->connection->prepare(
-                "SELECT i.sync_token
-                 FROM instalacoes_locais i
-                 WHERE i.id = 1 AND i.company_id = :company_id
-                 LIMIT 1",
-            );
-            $statement->execute(["company_id" => $companyId]);
-            $configured = trim((string) ($statement->fetchColumn() ?: ""));
-            if ($configured !== "") {
-                return $configured;
+        $installation = $this->connection->query(
+            "SELECT company_id, sync_token
+             FROM instalacoes_locais WHERE id = 1 LIMIT 1",
+        )->fetch();
+        if ($installation) {
+            $installedCompanyId = (int) ($installation["company_id"] ?? 0);
+            if ($companyId === null || $installedCompanyId === $companyId) {
+                $normalized = strtolower(trim((string) ($installation["sync_token"] ?? "")));
+                return preg_match('/\A[a-f0-9]{64}\z/', $normalized) === 1 ? $normalized : "";
             }
+            // Nunca use um token global para enviar eventos de outra empresa
+            // quando esta instalação já está vinculada a uma empresa.
+            return "";
         }
         return trim((string) (getenv("SYNC_REMOTE_TOKEN") ?: ""));
     }
@@ -780,7 +806,8 @@ final class ServicoSincronizacao
     private function installedCompanyId(): ?int
     {
         $statement = $this->connection->query(
-            "SELECT company_id FROM instalacoes_locais WHERE id = 1 AND sync_token IS NOT NULL LIMIT 1",
+            "SELECT company_id FROM instalacoes_locais
+             WHERE id = 1 AND sync_token IS NOT NULL AND TRIM(sync_token) <> '' LIMIT 1",
         );
         $companyId = $statement->fetchColumn();
         return $companyId === false ? null : (int) $companyId;

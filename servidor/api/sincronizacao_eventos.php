@@ -46,24 +46,35 @@ $upsertEquipment = static function (PDO $connection, int $companyId, int $remote
         throw new RuntimeException("Dados da Dala recebidos pela sincronização são inválidos.");
     }
 
-    $identity = ["equipment_code = :equipment_code"];
-    $params = [
-        "company_id" => $companyId,
-        "equipment_code" => $code,
-    ];
-    if ($previousCode !== "" && $previousCode !== $code) {
-        $identity[] = "equipment_code = :previous_equipment_code";
-        $params["previous_equipment_code"] = $previousCode;
-    }
+    $equipmentId = 0;
     if ($remoteEquipmentId > 0) {
-        $identity[] = "remote_equipment_id = :remote_equipment_id";
-        $params["remote_equipment_id"] = $remoteEquipmentId;
+        $find = $connection->prepare(
+            "SELECT id FROM equipamentos WHERE company_id = :company_id
+             AND remote_equipment_id = :remote_equipment_id LIMIT 1",
+        );
+        $find->execute([
+            "company_id" => $companyId,
+            "remote_equipment_id" => $remoteEquipmentId,
+        ]);
+        $equipmentId = (int) ($find->fetchColumn() ?: 0);
     }
-    $find = $connection->prepare(
-        "SELECT id FROM equipamentos WHERE company_id = :company_id AND (" . implode(" OR ", $identity) . ") LIMIT 1",
-    );
-    $find->execute($params);
-    $equipmentId = (int) ($find->fetchColumn() ?: 0);
+    if ($equipmentId === 0) {
+        $identity = ["equipment_code = :equipment_code"];
+        $params = [
+            "company_id" => $companyId,
+            "equipment_code" => $code,
+        ];
+        if ($previousCode !== "" && $previousCode !== $code) {
+            $identity[] = "equipment_code = :previous_equipment_code";
+            $params["previous_equipment_code"] = $previousCode;
+        }
+        $find = $connection->prepare(
+            "SELECT id FROM equipamentos WHERE company_id = :company_id
+             AND (" . implode(" OR ", $identity) . ") LIMIT 1",
+        );
+        $find->execute($params);
+        $equipmentId = (int) ($find->fetchColumn() ?: 0);
+    }
     $values = [
         "company_id" => $companyId,
         "remote_equipment_id" => $remoteEquipmentId > 0 ? $remoteEquipmentId : null,
@@ -241,22 +252,31 @@ $upsertManifest = static function (PDO $connection, int $companyId, int $sourceM
     if (!$date || $date->format("Y-m-d") !== $scheduledDate) {
         throw new RuntimeException("Data do romaneio recebido pela sincronização é inválida.");
     }
-    $find = $knownRemoteId === null
-        ? $connection->prepare(
+    $manifestId = 0;
+    if ($knownRemoteId !== null) {
+        $find = $connection->prepare(
             "SELECT id FROM romaneios WHERE company_id = :company_id
-             AND (remote_romaneio_id = :source_id OR number = :number) LIMIT 1",
-        )
-        : $connection->prepare(
-            "SELECT id FROM romaneios WHERE company_id = :company_id
-             AND (id = :remote_id OR remote_romaneio_id = :source_id OR number = :number) LIMIT 1",
+             AND id = :remote_id LIMIT 1",
         );
-    $find->execute([
-        "company_id" => $companyId,
-        "source_id" => $sourceId,
-        "number" => $number,
-        ...($knownRemoteId === null ? [] : ["remote_id" => $knownRemoteId]),
-    ]);
-    $manifestId = (int) ($find->fetchColumn() ?: 0);
+        $find->execute(["company_id" => $companyId, "remote_id" => $knownRemoteId]);
+        $manifestId = (int) ($find->fetchColumn() ?: 0);
+    }
+    if ($manifestId === 0) {
+        $find = $connection->prepare(
+            "SELECT id FROM romaneios WHERE company_id = :company_id
+             AND remote_romaneio_id = :source_id LIMIT 1",
+        );
+        $find->execute(["company_id" => $companyId, "source_id" => $sourceId]);
+        $manifestId = (int) ($find->fetchColumn() ?: 0);
+    }
+    if ($manifestId === 0) {
+        $find = $connection->prepare(
+            "SELECT id FROM romaneios WHERE company_id = :company_id
+             AND number = :number LIMIT 1",
+        );
+        $find->execute(["company_id" => $companyId, "number" => $number]);
+        $manifestId = (int) ($find->fetchColumn() ?: 0);
+    }
     $values = [
         "remote_id" => $sourceId,
         "number" => $number,
@@ -292,28 +312,31 @@ $upsertTruck = static function (PDO $connection, int $manifestId, array $data): 
     if (!placa_caminhao_valida($plate)) {
         throw new RuntimeException("Caminhão recebido pela sincronização é inválido.");
     }
-    $find = $knownRemoteId === null
-        ? $connection->prepare(
-            "SELECT id FROM romaneio_caminhoes WHERE romaneio_id = :romaneio_id
-             AND ((:source_id_a IS NOT NULL AND remote_truck_id = :source_id_b)
-               OR plate = :plate) LIMIT 1",
-        )
-        : $connection->prepare(
-            "SELECT id FROM romaneio_caminhoes WHERE romaneio_id = :romaneio_id
-             AND ((id = :remote_id) OR (:source_id_a IS NOT NULL AND remote_truck_id = :source_id_b)
-               OR plate = :plate) LIMIT 1",
-        );
-    $findParams = [
-        "romaneio_id" => $manifestId,
-        "source_id_a" => $sourceId,
-        "source_id_b" => $sourceId,
-        "plate" => $plate,
-    ];
+    $truckId = 0;
     if ($knownRemoteId !== null) {
-        $findParams["remote_id"] = $knownRemoteId;
+        $find = $connection->prepare(
+            "SELECT id FROM romaneio_caminhoes WHERE romaneio_id = :romaneio_id
+             AND id = :remote_id LIMIT 1",
+        );
+        $find->execute(["romaneio_id" => $manifestId, "remote_id" => $knownRemoteId]);
+        $truckId = (int) ($find->fetchColumn() ?: 0);
     }
-    $find->execute($findParams);
-    $truckId = (int) ($find->fetchColumn() ?: 0);
+    if ($truckId === 0 && $sourceId !== null) {
+        $find = $connection->prepare(
+            "SELECT id FROM romaneio_caminhoes WHERE romaneio_id = :romaneio_id
+             AND remote_truck_id = :source_id LIMIT 1",
+        );
+        $find->execute(["romaneio_id" => $manifestId, "source_id" => $sourceId]);
+        $truckId = (int) ($find->fetchColumn() ?: 0);
+    }
+    if ($truckId === 0) {
+        $find = $connection->prepare(
+            "SELECT id FROM romaneio_caminhoes WHERE romaneio_id = :romaneio_id
+             AND plate = :plate LIMIT 1",
+        );
+        $find->execute(["romaneio_id" => $manifestId, "plate" => $plate]);
+        $truckId = (int) ($find->fetchColumn() ?: 0);
+    }
     $values = [
         "remote_id" => $sourceId,
         "plate" => $plate,
@@ -446,24 +469,23 @@ $upsertLoading = static function (PDO $connection, int $companyId, int $sourceLo
     if (!in_array($state, $allowedStates, true)) {
         throw new RuntimeException("Estado de carregamento recebido pela sincronização é inválido.");
     }
-    $find = $knownRemoteLoadingId === null
-        ? $connection->prepare(
+    $loadingId = 0;
+    if ($knownRemoteLoadingId !== null) {
+        $find = $connection->prepare(
+            "SELECT id FROM carregamentos WHERE company_id = :company_id
+             AND id = :remote_id LIMIT 1",
+        );
+        $find->execute(["company_id" => $companyId, "remote_id" => $knownRemoteLoadingId]);
+        $loadingId = (int) ($find->fetchColumn() ?: 0);
+    }
+    if ($loadingId === 0) {
+        $find = $connection->prepare(
             "SELECT id FROM carregamentos WHERE company_id = :company_id
              AND remote_carregamento_id = :source_id LIMIT 1",
-        )
-        : $connection->prepare(
-            "SELECT id FROM carregamentos WHERE company_id = :company_id
-             AND (id = :remote_id OR remote_carregamento_id = :source_id) LIMIT 1",
         );
-    $findParams = [
-        "company_id" => $companyId,
-        "source_id" => $sourceLoadingId,
-    ];
-    if ($knownRemoteLoadingId !== null) {
-        $findParams["remote_id"] = $knownRemoteLoadingId;
+        $find->execute(["company_id" => $companyId, "source_id" => $sourceLoadingId]);
+        $loadingId = (int) ($find->fetchColumn() ?: 0);
     }
-    $find->execute($findParams);
-    $loadingId = (int) ($find->fetchColumn() ?: 0);
     $values = [
         "remote_id" => $sourceLoadingId,
         "equipment_id" => $equipmentId,

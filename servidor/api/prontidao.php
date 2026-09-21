@@ -12,28 +12,45 @@ try {
     $pdo = obter_conexao_banco();
     $pdo->query("SELECT 1");
     $mysqlConnected = true;
-    $queue = $pdo->query(
+    $installationCompanyId = null;
+    if (trace_e_instalacao_local()) {
+        $installationCompanyId = $pdo->query(
+            "SELECT company_id FROM instalacoes_locais WHERE id = 1 LIMIT 1",
+        )->fetchColumn();
+        $installationCompanyId = $installationCompanyId === false ? null : (int) $installationCompanyId;
+    }
+    $companyCondition = $installationCompanyId === null ? "" : " WHERE company_id = :company_id";
+    $companyParams = $installationCompanyId === null ? [] : ["company_id" => $installationCompanyId];
+    $queueStatement = $pdo->prepare(
         "SELECT SUM(status = 'PENDENTE') AS pending,
                 SUM(status = 'PROCESSANDO') AS processing,
                 SUM(status = 'ERRO') AS errors,
                 MIN(CASE WHEN status IN ('PENDENTE', 'PROCESSANDO', 'ERRO') THEN created_at END) AS oldest_at
-         FROM fila_sincronizacao",
-    )->fetch() ?: [];
+         FROM fila_sincronizacao{$companyCondition}",
+    );
+    $queueStatement->execute($companyParams);
+    $queue = $queueStatement->fetch() ?: [];
     $queueDepth = (int) ($queue["pending"] ?? 0) + (int) ($queue["processing"] ?? 0) + (int) ($queue["errors"] ?? 0);
     $oldestAge = $queue["oldest_at"]
         ? max(0, (int) $pdo->query("SELECT TIMESTAMPDIFF(SECOND, " . $pdo->quote($queue["oldest_at"]) . ", NOW())")->fetchColumn())
         : null;
     $staleSeconds = max(5, (int) (getenv("HEALTH_DEVICE_STALE_SECONDS") ?: 30));
-    $staleDevices = (int) $pdo->query(
+    $staleDevicesStatement = $pdo->prepare(
         "SELECT COUNT(*) FROM dispositivos WHERE active = 1
-         AND (last_seen_at IS NULL OR last_seen_at < DATE_SUB(NOW(), INTERVAL {$staleSeconds} SECOND))",
-    )->fetchColumn();
-    $stuckCommands = (int) $pdo->query(
+         AND (last_seen_at IS NULL OR last_seen_at < DATE_SUB(NOW(), INTERVAL {$staleSeconds} SECOND))"
+            . ($installationCompanyId === null ? "" : " AND company_id = :company_id"),
+    );
+    $staleDevicesStatement->execute($companyParams);
+    $staleDevices = (int) $staleDevicesStatement->fetchColumn();
+    $stuckCommandsStatement = $pdo->prepare(
         "SELECT COUNT(*) FROM solicitacoes_comandos_clp
          WHERE status = 'PROCESSANDO'
          AND (claimed_at < DATE_SUB(NOW(), INTERVAL 5 MINUTE)
-              OR (expires_at IS NOT NULL AND expires_at < NOW()))",
-    )->fetchColumn();
+              OR (expires_at IS NOT NULL AND expires_at < NOW()))"
+            . ($installationCompanyId === null ? "" : " AND company_id = :company_id"),
+    );
+    $stuckCommandsStatement->execute($companyParams);
+    $stuckCommands = (int) $stuckCommandsStatement->fetchColumn();
     $storagePath = dirname(__DIR__, 2) . "/armazenamento";
     $diskFree = is_dir($storagePath) ? disk_free_space($storagePath) : false;
     $diskTotal = is_dir($storagePath) ? disk_total_space($storagePath) : false;
@@ -53,7 +70,10 @@ try {
             "maximum_age_seconds" => $maxQueueAgeSeconds,
         ],
         "heartbeats" => [
-            "active_devices" => (int) $pdo->query("SELECT COUNT(*) FROM dispositivos WHERE active = 1")->fetchColumn(),
+            "active_devices" => (int) $pdo->query(
+                "SELECT COUNT(*) FROM dispositivos WHERE active = 1"
+                    . ($installationCompanyId === null ? "" : " AND company_id = " . (int) $installationCompanyId),
+            )->fetchColumn(),
             "stale_devices" => $staleDevices,
             "stale_after_seconds" => $staleSeconds,
         ],

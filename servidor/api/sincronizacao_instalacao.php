@@ -53,7 +53,10 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             "equipment_code_a" => $equipmentCode,
             "equipment_code_b" => $equipmentCode,
         ]);
-        $received += $upsert->rowCount() > 0 ? 1 : 0;
+        // MySQL pode retornar rowCount() = 0 quando o heartbeat repete
+        // exatamente os mesmos valores. A requisição ainda foi aceita e deve
+        // ser contabilizada como recebida.
+        $received++;
     }
     responder_json(["data" => ["received" => $received]]);
 }

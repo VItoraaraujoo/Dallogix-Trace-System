@@ -34,16 +34,28 @@ if (!preg_match('/^https:\/\//i', $centralUrl)) {
     responder_json(["error" => "Servidor central não configurado para esta instalação."], 503);
 }
 
-$postJson = static function (string $url, array $body, array $extraHeaders = [], ?string $cookieFile = null): array {
+$sessionCookies = [];
+$postJson = static function (string $url, array $body, array $extraHeaders = []) use (&$sessionCookies): array {
     $handle = curl_init($url);
     if ($handle === false) {
         throw new RuntimeException("Não foi possível iniciar a conexão com o servidor central.");
     }
-    $headers = array_merge(["Content-Type: application/json", "Accept: application/json"], $extraHeaders);
+    $headers = ["Content-Type: application/json", "Accept: application/json"];
+    foreach ($extraHeaders as $name => $value) {
+        $headers[] = is_string($name) ? "{$name}: {$value}" : (string) $value;
+    }
+    if ($sessionCookies !== []) {
+        $headers[] = "Cookie: " . implode("; ", array_map(
+            static fn (string $name, string $value): string => "{$name}={$value}",
+            array_keys($sessionCookies),
+            array_values($sessionCookies),
+        ));
+    }
     $options = [
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => json_encode($body, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
         CURLOPT_HTTPHEADER => $headers,
+        CURLOPT_HEADER => true,
         CURLOPT_CONNECTTIMEOUT => 5,
         CURLOPT_TIMEOUT => 15,
         CURLOPT_RETURNTRANSFER => true,
@@ -51,19 +63,32 @@ $postJson = static function (string $url, array $body, array $extraHeaders = [],
         CURLOPT_SSL_VERIFYPEER => true,
         CURLOPT_SSL_VERIFYHOST => 2,
     ];
-    if ($cookieFile !== null) {
-        $options[CURLOPT_COOKIEFILE] = $cookieFile;
-        $options[CURLOPT_COOKIEJAR] = $cookieFile;
-    }
     curl_setopt_array($handle, $options);
     $raw = curl_exec($handle);
     $error = trim((string) curl_error($handle));
     $status = (int) curl_getinfo($handle, CURLINFO_HTTP_CODE);
+    $headerSize = (int) curl_getinfo($handle, CURLINFO_HEADER_SIZE);
     curl_close($handle);
     if ($error !== "") {
         throw new RuntimeException("Servidor central indisponível.");
     }
-    $result = json_decode((string) $raw, true);
+    $headerBlock = substr((string) $raw, 0, $headerSize);
+    foreach (preg_split('/\r?\n/', $headerBlock) ?: [] as $headerLine) {
+        if (stripos($headerLine, "Set-Cookie:") !== 0) {
+            continue;
+        }
+        $cookie = trim(substr($headerLine, strlen("Set-Cookie:")));
+        $separator = strpos($cookie, "=");
+        if ($separator === false) {
+            continue;
+        }
+        $cookieName = trim(substr($cookie, 0, $separator));
+        $cookieValue = trim(explode(";", substr($cookie, $separator + 1), 2)[0]);
+        if ($cookieName !== "") {
+            $sessionCookies[$cookieName] = $cookieValue;
+        }
+    }
+    $result = json_decode(substr((string) $raw, $headerSize), true);
     if (!is_array($result)) {
         throw new RuntimeException("Resposta inválida do servidor central.");
     }
@@ -79,15 +104,6 @@ try {
     responder_json(["error" => $exception->getMessage()], 503);
 }
 
-$activationCookieFile = tempnam(sys_get_temp_dir(), "trace-activation-");
-if ($activationCookieFile === false) {
-    responder_json(["error" => "Não foi possível preparar a sessão segura de ativação."], 503);
-}
-register_shutdown_function(static function () use ($activationCookieFile): void {
-    if (is_file($activationCookieFile)) {
-        @unlink($activationCookieFile);
-    }
-});
 if ($activationStatus < 200 || $activationStatus >= 300 || !isset($activationResult["data"])) {
     if (
         ($activationResult["error_code"] ?? "") === "ACTIVATION_CODE_INVALID"
@@ -106,8 +122,6 @@ try {
     [$loginStatus, $loginResult] = $postJson(
         rtrim($centralUrl, "/") . "/api/login.php",
         ["email" => $email, "password" => $password],
-        [],
-        $activationCookieFile,
     );
 } catch (Throwable $exception) {
     responder_json(["error" => $exception->getMessage()], 503);
@@ -128,12 +142,16 @@ try {
             "installation_token" => $installationToken,
         ],
         ["X-CSRF-Token" => (string) ($loginResult["csrf_token"] ?? "")],
-        $activationCookieFile,
     );
 } catch (Throwable $exception) {
     responder_json(["error" => $exception->getMessage()], 503);
 }
 if ($tokenStatus < 200 || $tokenStatus >= 300 || !isset($tokenResult["data"])) {
+    error_log(sprintf(
+        "Falha ao registrar credencial segura: HTTP %d, erro=%s",
+        $tokenStatus,
+        trim((string) ($tokenResult["error"] ?? "resposta sem dados")),
+    ));
     responder_json(["error" => "Não foi possível registrar a credencial segura da instalação."], 503);
 }
 
