@@ -40,4 +40,20 @@ final class ContratosEndpointsTest extends TestCase
             self::assertStringContainsString("rollBack", $source, $endpoint);
         }
     }
+
+    public function testFilaMortaPermiteReenfileirarComAuditoria(): void
+    {
+        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/sync_dead_letter.php");
+        $worker = file_get_contents(__DIR__ . "/../../servidor/src/Aplicacao/ServicoSincronizacao.php");
+        $readiness = file_get_contents(__DIR__ . "/../../servidor/api/prontidao.php");
+
+        self::assertIsString($endpoint);
+        self::assertIsString($worker);
+        self::assertIsString($readiness);
+        self::assertStringContainsString('"requeue"', $endpoint);
+        self::assertStringContainsString("registrar_evento_operacional", $endpoint);
+        self::assertStringContainsString("beginTransaction", $endpoint);
+        self::assertStringContainsString("resolved_at = NULL", $worker);
+        self::assertStringContainsString("dead_letter_pending", $readiness);
+    }
 }

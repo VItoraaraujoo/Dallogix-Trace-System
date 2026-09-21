@@ -80,7 +80,7 @@ export function dalaView(store) {
 <div class="dala-info-item"><small>Criada em</small><strong>${dataHora(dala.created_at)}</strong></div>
 <div class="dala-info-item"><small>Atualizada em</small><strong>${dataHora(dala.updated_at)}</strong></div>
 </div></section>
-<section class="panel dala-stats-panel"><div class="panel-heading"><div><span class="dala-page-kicker">Operação</span><h3>Estatísticas da Dala</h3></div><span class="dala-last-signal">Último sinal: ${esc(operation.last_seen_at || "Sem sinal registrado")}</span></div><div class="grid four dala-stats-grid">
+<section class="panel dala-stats-panel"><div class="panel-heading"><div><span class="dala-page-kicker">Operação</span><h3>Estatísticas da Dala</h3></div><span class="dala-last-signal">Último sinal: ${esc(dataHora(operation.last_seen_at, "Sem sinal registrado"))}</span></div><div class="grid four dala-stats-grid">
   <div class="metric"><small>Estado da operação</small><strong>${esc(rotuloEstado(operation.carregamento_state))}</strong></div>
   <div class="metric"><small>Estado físico</small><strong>${operationalBadge(operation.operational_status)}</strong></div>
   <div class="metric"><small>Romaneio atual</small><strong>${esc(operation.romaneio_number ? `#${operation.romaneio_number}` : "—")}</strong></div>

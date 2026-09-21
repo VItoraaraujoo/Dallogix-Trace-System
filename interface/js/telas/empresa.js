@@ -1,4 +1,5 @@
 import { button, esc } from "../funcoes/html.js";
+import { dataHora } from "../funcoes/formato.js?v=202609170930";
 import { pageHeader, machineGrid, deviceBadge } from "../funcoes/view.js?v=202609210400";
 
 export function company(store) {
@@ -47,6 +48,6 @@ export function company(store) {
       <div class="panel metric"><small>Romaneios abertos</small><strong>${openRomaneios}</strong></div>
     </div><br>
     ${machineGrid(machines, "Nenhuma máquina cadastrada para esta empresa.")}<br>
-    <section class="panel"><h3>Periféricos reportados</h3>${machines.length ? `<div class="table-wrap"><table><thead><tr><th>Máquina</th><th>Identificador</th><th>CLP</th><th>Último sinal</th></tr></thead><tbody>${machines.map((machine) => `<tr><td><strong>${esc(machine.name)}</strong></td><td>${esc(machine.equipment_code)}</td><td>${deviceBadge(machine.clp_status)}</td><td>${machine.last_seen_at ? esc(machine.last_seen_at) : "—"}</td></tr>`).join("")}</tbody></table></div>` : '<p class="empty-cell">Sem dispositivos registrados.</p>'}</section><br>
-    <section class="panel"><h3>Ocorrências recentes</h3><div class="table-wrap"><table><thead><tr><th>Tipo</th><th>Quantidade</th><th>Descrição</th><th>Data</th></tr></thead><tbody>${occurrences.length ? occurrences.map((occurrence) => `<tr><td><strong>${esc(occurrence.type)}</strong></td><td>${Number(occurrence.quantity)}</td><td>${occurrence.description ? esc(occurrence.description) : "—"}</td><td>${esc(occurrence.created_at)}</td></tr>`).join("") : '<tr><td colspan="4" class="empty-cell">Nenhuma ocorrência registrada.</td></tr>'}</tbody></table></div></section>`;
+    <section class="panel"><h3>Periféricos reportados</h3>${machines.length ? `<div class="table-wrap"><table><thead><tr><th>Máquina</th><th>Identificador</th><th>CLP</th><th>Último sinal</th></tr></thead><tbody>${machines.map((machine) => `<tr><td><strong>${esc(machine.name)}</strong></td><td>${esc(machine.equipment_code)}</td><td>${deviceBadge(machine.clp_status)}</td><td>${esc(dataHora(machine.last_seen_at))}</td></tr>`).join("")}</tbody></table></div>` : '<p class="empty-cell">Sem dispositivos registrados.</p>'}</section><br>
+    <section class="panel"><h3>Ocorrências recentes</h3><div class="table-wrap"><table><thead><tr><th>Tipo</th><th>Quantidade</th><th>Descrição</th><th>Data</th></tr></thead><tbody>${occurrences.length ? occurrences.map((occurrence) => `<tr><td><strong>${esc(occurrence.type)}</strong></td><td>${Number(occurrence.quantity)}</td><td>${occurrence.description ? esc(occurrence.description) : "—"}</td><td>${esc(dataHora(occurrence.created_at))}</td></tr>`).join("") : '<tr><td colspan="4" class="empty-cell">Nenhuma ocorrência registrada.</td></tr>'}</tbody></table></div></section>`;
 }

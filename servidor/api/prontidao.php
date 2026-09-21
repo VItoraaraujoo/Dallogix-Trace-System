@@ -35,6 +35,12 @@ try {
     $oldestAge = $queue["oldest_at"]
         ? max(0, (int) $pdo->query("SELECT TIMESTAMPDIFF(SECOND, " . $pdo->quote($queue["oldest_at"]) . ", NOW())")->fetchColumn())
         : null;
+    $deadLetterStatement = $pdo->prepare(
+        "SELECT COUNT(*) FROM sync_dead_letter_queue
+         WHERE resolved_at IS NULL" . ($installationCompanyId === null ? "" : " AND company_id = :company_id"),
+    );
+    $deadLetterStatement->execute($companyParams);
+    $deadLetterPending = (int) $deadLetterStatement->fetchColumn();
     $staleSeconds = max(5, (int) (getenv("HEALTH_DEVICE_STALE_SECONDS") ?: 30));
     $staleDevicesStatement = $pdo->prepare(
         "SELECT COUNT(*) FROM dispositivos WHERE active = 1
@@ -70,6 +76,7 @@ try {
             "oldest_age_seconds" => $oldestAge,
             "maximum_age_seconds" => $maxQueueAgeSeconds,
         ],
+        "dead_letter_pending" => $deadLetterPending,
         "heartbeats" => [
             "active_devices" => (int) $pdo->query(
                 "SELECT COUNT(*) FROM dispositivos WHERE active = 1"
@@ -90,7 +97,7 @@ try {
     ];
     $diskCritical = $diskFreePercent !== null && $diskFreePercent < $minDiskPercent;
     $queueStale = $oldestAge !== null && $oldestAge > $maxQueueAgeSeconds;
-    $degraded = $schemaMigrations < 1 || (int) ($queue["errors"] ?? 0) > 0 || $queueStale || $staleDevices > 0 || $stuckCommands > 0;
+    $degraded = $schemaMigrations < 1 || (int) ($queue["errors"] ?? 0) > 0 || $deadLetterPending > 0 || $queueStale || $staleDevices > 0 || $stuckCommands > 0;
     $status = $diskCritical ? "critical" : ($degraded ? "degraded" : "ready");
     $response = [
         "status" => $status,

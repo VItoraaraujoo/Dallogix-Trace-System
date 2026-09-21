@@ -1,9 +1,11 @@
 import { agora } from "./relogio.js?v=202609170015";
 
+const traceTimeZone = "America/Sao_Paulo";
 const dateOnly = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
   month: "2-digit",
   year: "numeric",
+  timeZone: traceTimeZone,
 });
 const dateTime = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
@@ -11,6 +13,7 @@ const dateTime = new Intl.DateTimeFormat("pt-BR", {
   year: "numeric",
   hour: "2-digit",
   minute: "2-digit",
+  timeZone: traceTimeZone,
 });
 const numberFormat = new Intl.NumberFormat("pt-BR");
 
@@ -20,15 +23,20 @@ function parseDate(value) {
   const normalized = String(value).trim().replace(" ", "T");
   // Datas de calendário não representam um instante UTC. Construí-las com
   // `new Date("AAAA-MM-DD")` desloca a exibição para o dia anterior em fusos
-  // como o de Brasília. Mantemos a data no fuso local para romaneios,
-  // relatórios e filtros operacionais.
+  // como o de Brasília. O meio-dia UTC mantém a data do calendário estável
+  // quando ela é formatada no fuso oficial do Trace.
   const dateOnlyMatch = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
   if (dateOnlyMatch) {
     const [, year, month, day] = dateOnlyMatch;
-    const localDate = new Date(Number(year), Number(month) - 1, Number(day));
-    return Number.isNaN(localDate.getTime()) ? null : localDate;
+    const calendarDate = new Date(`${year}-${month}-${day}T12:00:00Z`);
+    return Number.isNaN(calendarDate.getTime()) ? null : calendarDate;
   }
-  const parsed = new Date(normalized);
+  // MySQL grava os timestamps operacionais em UTC sem anexar o fuso. Sem o
+  // sufixo `Z`, o navegador interpreta o valor como horário local e exibe
+  // três horas adiantado em Brasília. Valores que já trazem offset continuam
+  // sendo respeitados.
+  const hasTimezone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(normalized);
+  const parsed = new Date(hasTimezone ? normalized : `${normalized}Z`);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 

@@ -52,6 +52,7 @@ export class ArmazenamentoTrace {
       dalaActionConfig: { acoes: [], gatilhos: [], can_manage: false },
       errorLogs: [],
       technicalDiagnostics: null,
+      deadLetters: [],
       plcCommand: null,
       productFormOpen: false,
       dalaFormOpen: false,
@@ -345,6 +346,24 @@ export class ArmazenamentoTrace {
     if (!response.ok) throw new Error(result.error || "Não foi possível carregar o diagnóstico técnico.");
     this.state.technicalDiagnostics = result.data || null;
     return this.state.technicalDiagnostics;
+  }
+  async loadDeadLetters() {
+    const response = await fetch("/api/sync_dead_letter.php");
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível carregar a fila morta.");
+    this.state.deadLetters = result.data || [];
+    return this.state.deadLetters;
+  }
+  async updateDeadLetter(id, action, resolutionNote) {
+    const response = await fetch(`/api/sync_dead_letter.php?id=${encodeURIComponent(id)}`, {
+      method: "PATCH",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({ id, action, resolution_note: resolutionNote }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível atualizar a fila morta.");
+    await Promise.all([this.loadDeadLetters(), this.loadTechnicalDiagnostics()]);
+    return result.data;
   }
   async updateEquipment(data) {
     const response = await fetch("/api/equipamentos.php", {

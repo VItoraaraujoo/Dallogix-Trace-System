@@ -290,7 +290,7 @@ function setLocalIndicator(state, checkedAt = null, installationMode = currentIn
       };
   const clock = statusRelogio();
   const detail = checkedAt
-    ? `Última verificação: ${new Date(checkedAt).toLocaleTimeString("pt-BR")} • Horário: ${clock.label}`
+    ? `Última verificação: ${new Date(checkedAt).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" })} • Horário: ${clock.label}`
     : `Horário: ${clock.label}`;
   document.querySelectorAll(".local").forEach((indicator) => {
     indicator.classList.remove("is-online", "is-degraded", "is-offline");
@@ -1194,7 +1194,24 @@ function bindActions() {
       }
       if (action === "reload-error-logs") {
         try {
-          await Promise.all([store.loadErrorLogs(), store.loadTechnicalDiagnostics()]);
+          await Promise.all([store.loadErrorLogs(), store.loadTechnicalDiagnostics(), store.loadDeadLetters()]);
+          render();
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+      if (action === "requeue-dead-letter" || action === "resolve-dead-letter") {
+        const verb = action === "requeue-dead-letter" ? "reenfileirar" : "resolver";
+        const note = prompt(`Informe o motivo para ${verb} este evento:`);
+        if (note === null || !note.trim()) return;
+        if (!confirm(`Confirma ${verb} este evento da fila morta?`)) return;
+        try {
+          await store.updateDeadLetter(
+            node.dataset.id,
+            action === "requeue-dead-letter" ? "requeue" : "resolve",
+            note.trim(),
+          );
           render();
         } catch (error) {
           alert(error.message);
@@ -2059,7 +2076,7 @@ async function loadPageData(page) {
     dala: () => [loadDalaView(queryId())],
     "dala-edit": () => [store.loadEquipment(queryId())],
     "dala-actions": () => [store.loadEquipment(queryId()), store.loadDalaActionConfig(queryId())],
-    "error-logs": () => Promise.all([store.loadErrorLogs(), store.loadTechnicalDiagnostics()]),
+    "error-logs": () => Promise.all([store.loadErrorLogs(), store.loadTechnicalDiagnostics(), store.loadDeadLetters()]),
     users: () => [store.loadUsers()],
   };
   if (

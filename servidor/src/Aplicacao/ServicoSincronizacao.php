@@ -738,7 +738,8 @@ final class ServicoSincronizacao
              FROM fila_sincronizacao
              WHERE id = :id AND company_id = :company_id AND status = 'ERRO'
              ON DUPLICATE KEY UPDATE
-                last_error = VALUES(last_error), failed_attempts = VALUES(failed_attempts)",
+                last_error = VALUES(last_error), failed_attempts = VALUES(failed_attempts),
+                resolved_at = NULL, resolved_by = NULL, resolution_note = NULL",
         );
         $insert->execute([
             "id" => (int) $event["id"],
