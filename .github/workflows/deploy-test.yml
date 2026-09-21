@@ -89,6 +89,7 @@ jobs:
               printf 'TRACE_VERSION=%s\\nTRACE_COMMIT=%s\\n' '$GITHUB_SHA' '$GITHUB_SHA' >> .env && \
               printf '{\"version\":\"%s\",\"commit\":\"%s\"}\\n' '$GITHUB_SHA' '$GITHUB_SHA' > .release.json.tmp && \
               mv -f .release.json.tmp servidor/.release.json && \
+              bash scripts/ensure_device_secrets.sh .env && \
               bash scripts/docker_compose.sh up -d mysql && \
               mkdir -p armazenamento/backups && \
               bash scripts/backup_db.sh && \
