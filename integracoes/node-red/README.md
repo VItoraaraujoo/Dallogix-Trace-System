@@ -10,7 +10,8 @@ vazio criado pela imagem. Um fluxo já configurado pelo operador é preservado;
 os fluxos de simulação continuam sendo importados manualmente quando
 necessário.
 
-- publica o heartbeat do CLP a cada 1 segundo;
+- testa uma leitura Modbus TCP do CLP e só publica `ONLINE` quando a resposta é válida;
+- publica `OFFLINE` quando o CLP não responde, o endereço/porta são inválidos ou a resposta Modbus é inválida;
 - consulta a fila de comandos a cada 2 segundos;
 - reserva comandos pela API, prioriza `EMERGENCIA` e os conclui como `REJEITADO` enquanto o mapa de I/O estiver como `CONFIRMAR`;
 - não executa escrita em bobina, registrador ou saída física;
@@ -47,7 +48,7 @@ O scanner Elgin EL8600 ficará conectado ao PC industrial em USB ou RS-232 e per
 
 ## Heartbeat dos dispositivos
 
-O gateway deve publicar a cada **1 segundo** em `/api/device_heartbeat.php`, usando o token individual de cada Dala: `X-Device-Token: ${TRACE_DEVICE_TOKENS}`: `{"equipment_id":N,"device_type":"CLP","status":"ONLINE","details":{"latency_ms":0}}`. Em falha, envie `OFFLINE` ou `ERRO` imediatamente. Se não houver sinal por mais de 3 segundos, a API bloqueia novos comandos operacionais. O fluxo deve tentar restabelecer a comunicação com o CLP a cada 2 segundos. Isso alimenta o monitoramento local; não habilita comandos físicos por si só.
+O gateway deve testar a leitura Modbus e publicar a cada **1 segundo** em `/api/device_heartbeat.php`, usando o token individual de cada Dala: `X-Device-Token: ${TRACE_DEVICE_TOKENS}`. Em falha, envie `OFFLINE` imediatamente; se não houver resposta válida por mais de 3 segundos, a API bloqueia novos comandos operacionais. O fluxo deve tentar restabelecer a comunicação com o CLP a cada 2 segundos. Isso alimenta o monitoramento local; não habilita comandos físicos por si só.
 
 ## Sincronização remota
 

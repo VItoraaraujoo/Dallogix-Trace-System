@@ -108,6 +108,19 @@ services:
       timeout: 5s
       retries: 20
 
+  node-red-init:
+    profiles: ["industrial"]
+    image: nodered/node-red:3.1.9@sha256:4872f67418a36ac2adf9f2793cfab1e3130796dd0c874acce7eddaca2e2e96e6
+    user: "0:0"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - >-
+        if [ ! -f /data/flows.json ]; then /usr/local/bin/node -e 'const fs=require("fs"); const output="/data/flows.json"; const files=["/seed/trace-clp-bridge.flow.json","/seed/trace-modbus-duas-dalas.flow.json"]; fs.writeFileSync(output, JSON.stringify(files.flatMap((file) => JSON.parse(fs.readFileSync(file, "utf8")))));'; fi; chown -R 1000:1000 /data
+    network_mode: "none"
+    volumes:
+      - node_red_data:/data
+      - ./integracoes/node-red:/seed:ro
+
   node-red:
     profiles: ["industrial"]
     image: nodered/node-red:3.1.9@sha256:4872f67418a36ac2adf9f2793cfab1e3130796dd0c874acce7eddaca2e2e96e6
@@ -116,6 +129,9 @@ services:
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    depends_on:
+      node-red-init:
+        condition: service_completed_successfully
     pids_limit: 256
     mem_limit: 512m
     cpus: "1.00"
