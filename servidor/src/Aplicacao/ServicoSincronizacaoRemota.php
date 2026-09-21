@@ -155,6 +155,12 @@ final class ServicoSincronizacaoRemota
 
             $loadingIds = [];
             foreach (($snapshot["carregamentos_ativos"] ?? []) as $remoteLoading) {
+                $remoteManifestStatus = strtoupper(trim((string) ($remoteLoading["romaneio_status"] ?? "")));
+                if (in_array($remoteManifestStatus, ["FINALIZADO", "CANCELADO"], true)) {
+                    // Uma versão antiga do central pode ainda devolver um
+                    // carregamento órfão. Não replique uma operação encerrada.
+                    continue;
+                }
                 $remoteEquipmentId = filter_var($remoteLoading["equipment_id"] ?? null, FILTER_VALIDATE_INT);
                 $equipmentId = null;
                 if ($remoteEquipmentId !== false && $remoteEquipmentId !== null && $remoteEquipmentId > 0) {
