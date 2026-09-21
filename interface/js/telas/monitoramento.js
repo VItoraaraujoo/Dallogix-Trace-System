@@ -117,6 +117,8 @@ export function alerts(store) {
   const centralSync = sync.central_sync || {};
   const centralMessage = centralSync.last_error
     ? `Falha: ${centralSync.last_error}`
+    : centralSync.central_url_configured && !centralSync.installation_registered
+      ? "URL central configurada, mas esta instalação ainda não foi ativada. Os eventos permanecem na fila local."
     : centralSync.last_sync_at
       ? `Última sincronização central: ${dataHora(centralSync.last_sync_at)}`
       : centralSync.configured

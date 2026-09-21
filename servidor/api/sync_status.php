@@ -49,6 +49,8 @@ $installation->execute(["company_id" => $user["company_id"]]);
 $installationStatus = $installation->fetch() ?: null;
 $centralSync = [
     "configured" => $installationStatus !== null,
+    "central_url_configured" => trim((string) (getenv("TRACE_CENTRAL_URL") ?: "")) !== "",
+    "installation_registered" => $installationStatus !== null,
     "last_sync_at" => $installationStatus["last_remote_sync_at"] ?? null,
     "last_error" => $installationStatus["last_remote_sync_error"] ?? null,
 ];
