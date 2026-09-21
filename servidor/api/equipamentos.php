@@ -330,6 +330,19 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
                 ],
             );
         }
+        // O histórico operacional permanece preservado, mas não pode manter
+        // uma referência a uma Dala que será removida. A consulta acima trata
+        // somente carregamentos ativos; os finalizados também precisam ser
+        // desvinculados antes da exclusão para não bloquear a FK.
+        $detachHistoricalLoadings = $pdo->prepare(
+            "UPDATE carregamentos
+             SET equipment_id = NULL
+             WHERE company_id = :company_id AND equipment_id = :equipment_id",
+        );
+        $detachHistoricalLoadings->execute([
+            "company_id" => $user["company_id"],
+            "equipment_id" => $id,
+        ]);
         $pdo->prepare(
             "UPDATE solicitacoes_comandos_clp
              SET equipment_id = NULL, status = CASE WHEN status IN ('PENDENTE', 'PROCESSANDO') THEN 'ERRO' ELSE status END,
