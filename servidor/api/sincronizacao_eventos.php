@@ -206,14 +206,16 @@ $upsertProduct = static function (PDO $connection, int $companyId, array $data):
     $barcode = trim((string) ($data["barcode"] ?? ""));
     if ($barcode !== "") {
         $barcodeOwner = $connection->prepare(
-            "SELECT product_id FROM codigos_produtos WHERE barcode = :barcode LIMIT 1",
+            "SELECT product_id FROM codigos_produtos
+             WHERE company_id = :company_id AND barcode = :barcode LIMIT 1",
         );
-        $barcodeOwner->execute(["barcode" => $barcode]);
+        $barcodeOwner->execute(["company_id" => $companyId, "barcode" => $barcode]);
         $owner = (int) ($barcodeOwner->fetchColumn() ?: 0);
         if ($owner === 0) {
             $connection->prepare(
-                "INSERT INTO codigos_produtos (product_id, barcode) VALUES (:product_id, :barcode)",
-            )->execute(["product_id" => $productId, "barcode" => $barcode]);
+                "INSERT INTO codigos_produtos (company_id, product_id, barcode)
+                 VALUES (:company_id, :product_id, :barcode)",
+            )->execute(["company_id" => $companyId, "product_id" => $productId, "barcode" => $barcode]);
         }
     }
     return $productId;
@@ -301,13 +303,16 @@ $upsertTruck = static function (PDO $connection, int $manifestId, array $data): 
              AND ((id = :remote_id) OR (:source_id_a IS NOT NULL AND remote_truck_id = :source_id_b)
                OR plate = :plate) LIMIT 1",
         );
-    $find->execute([
+    $findParams = [
         "romaneio_id" => $manifestId,
-        "remote_id" => $knownRemoteId,
         "source_id_a" => $sourceId,
         "source_id_b" => $sourceId,
         "plate" => $plate,
-    ]);
+    ];
+    if ($knownRemoteId !== null) {
+        $findParams["remote_id"] = $knownRemoteId;
+    }
+    $find->execute($findParams);
     $truckId = (int) ($find->fetchColumn() ?: 0);
     $values = [
         "remote_id" => $sourceId,
@@ -412,11 +417,14 @@ $upsertLoading = static function (PDO $connection, int $companyId, int $sourceLo
             "SELECT id FROM carregamentos WHERE company_id = :company_id
              AND (id = :remote_id OR remote_carregamento_id = :source_id) LIMIT 1",
         );
-    $find->execute([
+    $findParams = [
         "company_id" => $companyId,
         "source_id" => $sourceLoadingId,
-        "remote_id" => $knownRemoteLoadingId,
-    ]);
+    ];
+    if ($knownRemoteLoadingId !== null) {
+        $findParams["remote_id"] = $knownRemoteLoadingId;
+    }
+    $find->execute($findParams);
     $loadingId = (int) ($find->fetchColumn() ?: 0);
     $values = [
         "remote_id" => $sourceLoadingId,
