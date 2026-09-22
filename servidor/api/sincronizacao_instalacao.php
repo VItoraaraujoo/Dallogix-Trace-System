@@ -12,6 +12,11 @@ exigir_metodo_http(["GET", "POST"]);
 $company = exigir_instalacao_remota();
 $pdo = obter_conexao_banco();
 $companyId = (int) $company["id"];
+$industrialPcTableAvailable = (bool) $pdo->query(
+    "SELECT 1 FROM information_schema.tables
+     WHERE table_schema = DATABASE() AND table_name = 'status_pc_industrial'
+     LIMIT 1",
+)->fetchColumn();
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $payload = ler_json_da_requisicao();
@@ -20,7 +25,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
     $industrialPcReceived = false;
     $industrialPc = $payload["industrial_pc"] ?? null;
-    if (is_array($industrialPc)) {
+    if ($industrialPcTableAvailable && is_array($industrialPc)) {
         $pcStatus = strtoupper(trim((string) ($industrialPc["status"] ?? "")));
         if (in_array($pcStatus, ["ONLINE", "OFFLINE", "ERRO", "DESCONHECIDO"], true)) {
             $reportedAt = trim((string) ($industrialPc["reported_at"] ?? ""));

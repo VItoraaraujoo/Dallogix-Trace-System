@@ -70,16 +70,23 @@ if ($companyId !== null) {
 
 $industrialPc = null;
 if ($companyId !== null && !trace_e_instalacao_local()) {
-    $industrialPcQuery = $pdo->prepare(
-        "SELECT status, last_seen_at, details,
-                CASE WHEN status = 'ONLINE'
-                       AND last_seen_at >= DATE_SUB(NOW(3), INTERVAL 30 SECOND)
-                     THEN 1 ELSE 0 END AS online
-         FROM status_pc_industrial
-         WHERE company_id = :company_id LIMIT 1",
-    );
-    $industrialPcQuery->execute(["company_id" => $companyId]);
-    $industrialPc = $industrialPcQuery->fetch() ?: null;
+    $industrialPcTableAvailable = (bool) $pdo->query(
+        "SELECT 1 FROM information_schema.tables
+         WHERE table_schema = DATABASE() AND table_name = 'status_pc_industrial'
+         LIMIT 1",
+    )->fetchColumn();
+    if ($industrialPcTableAvailable) {
+        $industrialPcQuery = $pdo->prepare(
+            "SELECT status, last_seen_at, details,
+                    CASE WHEN status = 'ONLINE'
+                           AND last_seen_at >= DATE_SUB(NOW(3), INTERVAL 30 SECOND)
+                         THEN 1 ELSE 0 END AS online
+             FROM status_pc_industrial
+             WHERE company_id = :company_id LIMIT 1",
+        );
+        $industrialPcQuery->execute(["company_id" => $companyId]);
+        $industrialPc = $industrialPcQuery->fetch() ?: null;
+    }
 }
 
 $storagePath = dirname(__DIR__, 2) . "/armazenamento";
