@@ -1,4 +1,5 @@
 import { button, esc } from "../funcoes/html.js";
+import { dataHora } from "../funcoes/formato.js?v=202609170930";
 import { pageHeader } from "../funcoes/view.js?v=202609150020";
 
 // Configurações no padrão da referência: Rede do cliente, Dalas (somente leitura)
@@ -11,11 +12,24 @@ export function settings(store) {
   const pending = Number(summary.PENDENTE || 0) + Number(summary.PROCESSANDO || 0);
   const errors = Number(summary.ERRO || 0);
   const syncConfigured = Boolean(sync.remote_configured);
-  const syncTone = errors > 0 ? "offline" : "";
-  const syncLabel = !syncConfigured ? "Não configurado" : errors > 0 ? "Com erros" : "Conexão não verificada";
+  const centralSync = sync.central_sync || {};
+  const lastSyncAt = centralSync.last_sync_at || null;
+  const lastSyncError = centralSync.last_error || "";
+  const syncTone = errors > 0 || lastSyncError ? "offline" : "";
+  const syncLabel = !syncConfigured
+    ? "Não configurado"
+    : errors > 0 || lastSyncError
+      ? "Com erros"
+      : lastSyncAt
+        ? "Conexão confirmada"
+        : "Conexão não verificada";
   const syncDetail = !syncConfigured
     ? "A integração será definida no backend do servidor."
-    : `${pending} pendência(s) e ${errors} erro(s) na fila de sincronização.`;
+    : lastSyncError
+      ? `Falha na última sincronização: ${lastSyncError}`
+      : lastSyncAt
+        ? `Última sincronização: ${dataHora(lastSyncAt)} · ${pending} pendência(s) e ${errors} erro(s) na fila de sincronização.`
+        : `${pending} pendência(s) e ${errors} erro(s) na fila de sincronização.`;
   const mapping = saved.pdf_field_mapping || {};
   const searchField = saved.pdf_search_field || "barcode";
   const fields = [
