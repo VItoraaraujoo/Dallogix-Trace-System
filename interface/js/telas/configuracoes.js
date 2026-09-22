@@ -16,7 +16,7 @@ export function settings(store) {
   const lastSyncAt = centralSync.last_sync_at || null;
   const lastSyncError = centralSync.last_error || "";
   const pcOnline = Boolean(centralSync.pc_online);
-  const syncTone = !syncConfigured || !pcOnline ? "offline" : "";
+  const syncTone = syncConfigured && pcOnline ? "online" : "offline";
   const syncLabel = !syncConfigured
     ? "Não configurado"
     : pcOnline
@@ -31,6 +31,18 @@ export function settings(store) {
         : lastSyncAt
           ? `Último contato: ${dataHora(lastSyncAt)} (${relativo(lastSyncAt)}) · ${pending} pendência(s) e ${errors} erro(s) na fila de sincronização.`
           : "O PC industrial ainda não realizou uma comunicação com o servidor.";
+  const dalaStatuses = Array.isArray(store.state.dalaStatuses)
+    ? store.state.dalaStatuses
+    : [];
+  const totalDalas = config.dalas.length;
+  const onlineDalas = dalaStatuses.filter((dala) => dala.status === "ONLINE").length;
+  const dalaTone = totalDalas > 0 && onlineDalas === totalDalas ? "online" : totalDalas > 0 ? "offline" : "";
+  const dalaLabel = totalDalas === 0
+    ? "Nenhuma máquina cadastrada"
+    : `${onlineDalas}/${totalDalas} máquina(s) online`;
+  const dalaDetail = totalDalas === 0
+    ? "Cadastre uma Dala para acompanhar a comunicação com o PC industrial."
+    : `${onlineDalas} online e ${totalDalas - onlineDalas} sem comunicação com o PC industrial.`;
   const mapping = saved.pdf_field_mapping || {};
   const searchField = saved.pdf_search_field || "barcode";
   const fields = [
@@ -59,7 +71,7 @@ ${canManageUsers ? `<section class="panel settings-access-panel"><div class="pan
 <p>Configure o IP público do gateway do cliente. O Trace usará esse endereço com a porta externa de cada Dala para alcançar o serviço dala-modbus na fábrica.</p>
 <form id="network-form"><label>IP público do gateway<input name="gateway_public_ip" value="${esc(saved.gateway_public_ip || "")}" placeholder="170.80.219.146" /><small>IP fixo ou DDNS do modem/roteador do cliente.</small></label>
 <div class="actions">${button("Salvar configuração", "save-network")}</div></form></section><br>
-<section class="panel"><h3>Conexão com o servidor</h3><p>A integração é executada no backend. Nenhuma URL ou credencial fica disponível nesta tela.</p><div class="sync-status-row"><span class="status-dot ${syncTone}"></span><strong>${syncLabel}</strong><span>${esc(syncDetail)}</span></div></section><br>
+<section class="panel"><h3>Conectividade</h3><p>Confira separadamente a conexão do PC industrial com o servidor e a comunicação das máquinas com o PC.</p><div class="sync-status-row"><span class="status-dot ${syncTone}"></span><strong>${syncLabel}</strong><span>${esc(syncDetail)}</span></div><br><div class="sync-status-row"><span class="status-dot ${dalaTone}"></span><strong>Máquinas/Dalas</strong><span>${esc(dalaLabel)} · ${esc(dalaDetail)}</span></div></section><br>
 <section class="panel"><div class="panel-heading"><h3>Dalas</h3><div class="actions">${button("Recarregar", "reload-dalas", "secondary")}${button("Gerenciar Dalas", "goto-dalas")}</div></div>
 <p>Visão consolidada das Dalas cadastradas e do status de comunicação com o serviço dala-modbus. A tabela abaixo é somente leitura — para cadastrar ou editar, use Gerenciar Dalas.</p>
 <p><strong>Identificador:</strong> código único da Dala (letras minúsculas, números e underscores). Deve coincidir com o ID configurado no dala-modbus na fábrica para que comandos e verificação de status funcionem.</p>

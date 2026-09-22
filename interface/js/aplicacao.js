@@ -538,7 +538,7 @@ function render() {
   bindActions();
   bindForms();
   installRelativeTimeRefresh();
-  if (["dalas", "dala"].includes(currentPage)) atualizarStatusDasDalas(store);
+  if (["settings", "dalas", "dala"].includes(currentPage)) atualizarStatusDasDalas(store);
   workViewSignature = currentPage === "work" ? workStructureSignature() : "";
   if (currentPage === "work") startWorkPolling();
   else stopWorkPolling();
@@ -2083,7 +2083,7 @@ async function loadPageData(page) {
       store.loadSyncStatus(),
     ],
     emergency: () => [store.loadActiveLoading(), store.loadMonitoring()],
-    settings: () => [store.loadConfiguration(), store.loadEquipments(), store.loadSyncStatus()],
+    settings: () => [store.loadConfiguration(), store.loadEquipments(), store.loadSyncStatus(), store.loadDalaStatuses()],
     dalas: () => [store.loadEquipments()],
     dala: () => [loadDalaView(queryId())],
     "dala-edit": () => [store.loadEquipment(queryId())],
