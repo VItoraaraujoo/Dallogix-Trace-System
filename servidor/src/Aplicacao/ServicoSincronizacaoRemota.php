@@ -164,7 +164,7 @@ final class ServicoSincronizacaoRemota
             throw new RuntimeException("Resposta do servidor central não informou uma licença válida.");
         }
 
-        foreach (["equipamentos", "carregamentos_ativos", "comandos"] as $field) {
+        foreach (["equipamentos", "produtos", "carregamentos_ativos", "comandos"] as $field) {
             if (!array_key_exists($field, $snapshot) || !is_array($snapshot[$field])) {
                 throw new RuntimeException("Resposta do servidor central está incompleta ({$field}).");
             }
@@ -173,6 +173,17 @@ final class ServicoSincronizacaoRemota
         foreach ($snapshot["equipamentos"] as $equipment) {
             if (!is_array($equipment) || (int) ($equipment["id"] ?? 0) < 1 || trim((string) ($equipment["equipment_code"] ?? "")) === "") {
                 throw new RuntimeException("Resposta do servidor central contém uma Dala inválida.");
+            }
+        }
+
+        foreach ($snapshot["produtos"] as $product) {
+            if (!is_array($product)
+                || (int) ($product["id"] ?? 0) < 1
+                || trim((string) ($product["code"] ?? "")) === ""
+                || trim((string) ($product["name"] ?? "")) === ""
+                || !is_array($product["barcodes"] ?? null)
+            ) {
+                throw new RuntimeException("Resposta do servidor central contém um produto inválido.");
             }
         }
 
@@ -216,6 +227,8 @@ final class ServicoSincronizacaoRemota
                 (string) ($remoteLicense["license_status"] ?? "ATIVA"),
                 $remoteLicense["license_reason"] ?? null,
             );
+
+            $updated += $this->syncProducts($companyId, $snapshot["produtos"] ?? []);
 
             $equipmentIds = [];
             foreach (($snapshot["equipamentos"] ?? []) as $remoteEquipment) {
@@ -574,6 +587,115 @@ final class ServicoSincronizacaoRemota
             "driver_name" => $remote["driver_name"] ?? null,
         ]);
         return (int) $this->connection->lastInsertId();
+    }
+
+    /** @param list<array<string,mixed>> $products */
+    private function syncProducts(int $companyId, array $products): int
+    {
+        $findByRemoteId = $this->connection->prepare(
+            "SELECT id FROM produtos
+             WHERE company_id = :company_id AND remote_product_id = :remote_product_id LIMIT 1",
+        );
+        $findUnlinkedByCode = $this->connection->prepare(
+            "SELECT id FROM produtos
+             WHERE company_id = :company_id AND code = :code
+               AND remote_product_id IS NULL LIMIT 1",
+        );
+        $update = $this->connection->prepare(
+            "UPDATE produtos
+             SET remote_product_id = :remote_product_id, code = :code, name = :name,
+                 category = :category, active = :active
+             WHERE id = :id AND company_id = :company_id",
+        );
+        $insert = $this->connection->prepare(
+            "INSERT INTO produtos (company_id, remote_product_id, code, name, category, active)
+             VALUES (:company_id, :remote_product_id, :code, :name, :category, :active)",
+        );
+        $deleteProductBarcodes = $this->connection->prepare(
+            "DELETE FROM codigos_produtos WHERE company_id = :company_id AND product_id = :product_id",
+        );
+        $deleteBarcodeOwner = $this->connection->prepare(
+            "DELETE FROM codigos_produtos WHERE company_id = :company_id AND barcode = :barcode",
+        );
+        $insertBarcode = $this->connection->prepare(
+            "INSERT INTO codigos_produtos (company_id, product_id, barcode)
+             VALUES (:company_id, :product_id, :barcode)",
+        );
+        $remoteIds = [];
+        $updated = 0;
+
+        foreach ($products as $remoteProduct) {
+            if (!is_array($remoteProduct)) {
+                continue;
+            }
+            $remoteId = (int) ($remoteProduct["id"] ?? 0);
+            $code = trim((string) ($remoteProduct["code"] ?? ""));
+            $name = trim((string) ($remoteProduct["name"] ?? ""));
+            if ($remoteId < 1 || $code === "" || $name === "") {
+                continue;
+            }
+            $category = trim((string) ($remoteProduct["category"] ?? ""));
+            $active = (int) (bool) ($remoteProduct["active"] ?? false);
+            $barcodes = array_values(array_unique(array_filter(
+                array_map(static fn (mixed $barcode): string => trim((string) $barcode), (array) ($remoteProduct["barcodes"] ?? [])),
+                static fn (string $barcode): bool => $barcode !== "",
+            )));
+
+            $findByRemoteId->execute([
+                "company_id" => $companyId,
+                "remote_product_id" => $remoteId,
+            ]);
+            $localId = (int) ($findByRemoteId->fetchColumn() ?: 0);
+            if (!$localId) {
+                $findUnlinkedByCode->execute(["company_id" => $companyId, "code" => $code]);
+                $localId = (int) ($findUnlinkedByCode->fetchColumn() ?: 0);
+            }
+            $params = [
+                "company_id" => $companyId,
+                "remote_product_id" => $remoteId,
+                "code" => $code,
+                "name" => $name,
+                "category" => $category !== "" ? $category : null,
+                "active" => $active,
+            ];
+            if ($localId) {
+                $update->execute([...$params, "id" => $localId]);
+            } else {
+                $insert->execute($params);
+                $localId = (int) $this->connection->lastInsertId();
+            }
+
+            // A lista recebida é a fonte de verdade: remove e recria todos
+            // os códigos para refletir inclusões, edições e remoções remotas.
+            $deleteProductBarcodes->execute(["company_id" => $companyId, "product_id" => $localId]);
+            foreach ($barcodes as $barcode) {
+                $deleteBarcodeOwner->execute(["company_id" => $companyId, "barcode" => $barcode]);
+                $insertBarcode->execute([
+                    "company_id" => $companyId,
+                    "product_id" => $localId,
+                    "barcode" => $barcode,
+                ]);
+            }
+            $remoteIds[] = $remoteId;
+            $updated++;
+        }
+
+        $staleSql = "UPDATE produtos SET active = 0
+                     WHERE company_id = :company_id AND remote_product_id IS NOT NULL";
+        $staleParams = ["company_id" => $companyId];
+        if ($remoteIds !== []) {
+            $placeholders = [];
+            foreach (array_values(array_unique($remoteIds)) as $index => $remoteId) {
+                $key = "remote_product_id_{$index}";
+                $placeholders[] = ":{$key}";
+                $staleParams[$key] = $remoteId;
+            }
+            $staleSql .= " AND remote_product_id NOT IN (" . implode(",", $placeholders) . ")";
+        }
+        $stale = $this->connection->prepare($staleSql);
+        $stale->execute($staleParams);
+
+        return $updated + $stale->rowCount();
     }
 
     /** @param list<array<string,mixed>> $items */

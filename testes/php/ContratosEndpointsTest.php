@@ -82,6 +82,22 @@ final class ContratosEndpointsTest extends TestCase
         self::assertStringContainsString('"delivered_queue_id"', $service);
     }
 
+    public function testCatalogoDeProdutosDoServidorEReplicadoIntegralmenteNoPcIndustrial(): void
+    {
+        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao_instalacao.php");
+        $service = file_get_contents(__DIR__ . "/../../servidor/src/Aplicacao/ServicoSincronizacaoRemota.php");
+        $migration = file_get_contents(__DIR__ . "/../../banco-de-dados/migrations/052_catalogo_produtos_remoto.sql");
+
+        self::assertIsString($endpoint);
+        self::assertIsString($service);
+        self::assertIsString($migration);
+        self::assertStringContainsString('"produtos" => $produtos', $endpoint);
+        self::assertStringContainsString('"barcodes" => []', $endpoint);
+        self::assertStringContainsString("syncProducts", $service);
+        self::assertStringContainsString("remote_product_id", $service);
+        self::assertStringContainsString("remote_product_id", $migration);
+    }
+
     public function testStatusDoPcNaoQuebraSemMigrationEFiltraErroResolvido(): void
     {
         foreach (["empresas.php", "sync_status.php", "diagnostico.php", "logs_erros.php"] as $endpoint) {

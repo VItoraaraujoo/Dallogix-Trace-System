@@ -181,6 +181,35 @@ if ($loadingIds !== []) {
     unset($loading);
 }
 
+$productStatement = $pdo->prepare(
+    "SELECT p.id, p.code, p.name, p.category, p.active, cp.barcode
+     FROM produtos p
+     LEFT JOIN codigos_produtos cp
+       ON cp.product_id = p.id AND cp.company_id = p.company_id
+     WHERE p.company_id = :company_id
+     ORDER BY p.id, cp.id",
+);
+$productStatement->execute(["company_id" => $companyId]);
+$productsById = [];
+foreach ($productStatement->fetchAll() as $productRow) {
+    $productId = (int) $productRow["id"];
+    if (!isset($productsById[$productId])) {
+        $productsById[$productId] = [
+            "id" => $productId,
+            "code" => $productRow["code"],
+            "name" => $productRow["name"],
+            "category" => $productRow["category"],
+            "active" => (int) $productRow["active"],
+            "barcodes" => [],
+        ];
+    }
+    $barcode = trim((string) ($productRow["barcode"] ?? ""));
+    if ($barcode !== "") {
+        $productsById[$productId]["barcodes"][] = $barcode;
+    }
+}
+$produtos = array_values($productsById);
+
 $commandStatement = $pdo->prepare(
     "SELECT r.id, r.remote_command_id, r.equipment_id, r.carregamento_id, r.command,
             r.status, r.requested_at, r.claimed_at, r.completed_at, r.response_message,
@@ -211,6 +240,7 @@ responder_json([
             "license_reason" => $company["license_reason"],
         ],
         "equipamentos" => $equipamentos,
+        "produtos" => $produtos,
         "carregamentos_ativos" => $carregamentos,
         "comandos" => $commandStatement->fetchAll(),
         "sync_cursor" => (int) $syncCursor->fetchColumn(),
