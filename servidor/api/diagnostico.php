@@ -101,11 +101,18 @@ $diskTotal = is_dir($storagePath) ? disk_total_space($storagePath) : false;
 $diskFreePercent = is_numeric($diskFree) && is_numeric($diskTotal) && (float) $diskTotal > 0
     ? round(((float) $diskFree / (float) $diskTotal) * 100, 2)
     : null;
+$diskFreeBytes = is_numeric($diskFree) ? (int) $diskFree : null;
+$diskTotalBytes = is_numeric($diskTotal) ? (int) $diskTotal : null;
+$diskUsedBytes = $diskFreeBytes !== null && $diskTotalBytes !== null
+    ? max(0, $diskTotalBytes - $diskFreeBytes)
+    : null;
 $localInstallation = trace_e_instalacao_local();
 $companyUsesRemotePc = $companyId !== null && !$localInstallation;
 $disk = [
     "scope" => $localInstallation || $companyUsesRemotePc ? "pc_industrial" : "servidor_central",
-    "free_bytes" => $companyUsesRemotePc ? null : (is_numeric($diskFree) ? (int) $diskFree : null),
+    "free_bytes" => $companyUsesRemotePc ? null : $diskFreeBytes,
+    "total_bytes" => $companyUsesRemotePc ? null : $diskTotalBytes,
+    "used_bytes" => $companyUsesRemotePc ? null : $diskUsedBytes,
     "free_percent" => $companyUsesRemotePc ? null : $diskFreePercent,
     "online" => !$companyUsesRemotePc,
     "last_seen_at" => null,
@@ -117,9 +124,15 @@ if ($industrialPc !== null) {
     $pcDisk = is_array($pcDetails) && is_array($pcDetails["disk"] ?? null)
         ? $pcDetails["disk"]
         : [];
+    $pcFreeBytes = isset($pcDisk["free_bytes"]) ? (int) $pcDisk["free_bytes"] : null;
+    $pcTotalBytes = isset($pcDisk["total_bytes"]) ? (int) $pcDisk["total_bytes"] : null;
     $disk = [
         "scope" => "pc_industrial",
-        "free_bytes" => isset($pcDisk["free_bytes"]) ? (int) $pcDisk["free_bytes"] : null,
+        "free_bytes" => $pcFreeBytes,
+        "total_bytes" => $pcTotalBytes,
+        "used_bytes" => $pcFreeBytes !== null && $pcTotalBytes !== null
+            ? max(0, $pcTotalBytes - $pcFreeBytes)
+            : null,
         "free_percent" => isset($pcDisk["free_percent"]) ? (float) $pcDisk["free_percent"] : null,
         "online" => (bool) $industrialPc["online"],
         "status" => $industrialPc["status"],

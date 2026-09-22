@@ -277,6 +277,7 @@ services:
     volumes:
       - ./servidor:/var/www/servidor:ro
       - ./scripts:/var/www/scripts:ro
+      - ./armazenamento:/var/www/armazenamento:ro
 
 volumes:
   mysql_data:

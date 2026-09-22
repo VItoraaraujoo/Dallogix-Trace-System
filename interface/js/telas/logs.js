@@ -11,11 +11,23 @@ export function errorLogs(store) {
   const commands = Array.isArray(diagnostic.commands) ? diagnostic.commands : [];
   const deadLetters = Array.isArray(store.state.deadLetters) ? store.state.deadLetters : [];
   const format = (value) => value ? dataHora(value) : "—";
+  const bytes = (value) => {
+    const amount = Number(value);
+    if (!Number.isFinite(amount) || amount < 0) return "—";
+    const units = ["B", "KB", "MB", "GB", "TB"];
+    const unit = Math.min(Math.floor(Math.log(Math.max(amount, 1)) / Math.log(1024)), units.length - 1);
+    const scaled = amount / (1024 ** unit);
+    return `${scaled >= 10 || unit === 0 ? Math.round(scaled) : scaled.toFixed(1)} ${units[unit]}`;
+  };
+  const diskTitle = disk.scope === "pc_industrial" ? "Disco do PC industrial" : "Disco do servidor";
+  const diskUsage = disk.used_bytes == null || disk.total_bytes == null
+    ? "Dados de capacidade indisponíveis"
+    : `${bytes(disk.used_bytes)} ocupados de ${bytes(disk.total_bytes)}`;
   const deviceRows = devices.length ? devices.map((item) => `<tr><td>${esc(item.device_type)}</td><td>${item.active || 0} / ${item.total || 0}</td><td>${item.stale || 0}</td><td>${esc(format(item.last_seen_at))}</td></tr>`).join("") : '<tr><td colspan="4" class="empty-cell">Nenhum dispositivo registrado.</td></tr>';
   const commandRows = commands.length ? commands.map((item) => `<tr><td>${esc(format(item.requested_at))}</td><td><code>${esc(item.command)}</code></td><td>${esc(item.status)}</td><td>${esc(item.response_message || "—")}</td></tr>`).join("") : '<tr><td colspan="4" class="empty-cell">Nenhum comando recente.</td></tr>';
   const deadLetterRows = deadLetters.length ? deadLetters.map((item) => `<tr><td><code>${esc(item.event_uuid)}</code><small>${esc(format(item.moved_at))}</small></td><td>${esc(item.event_type)}</td><td>${esc(item.failed_attempts)}</td><td class="error-message-cell">${esc(item.last_error)}</td><td><button class="button secondary" data-action="requeue-dead-letter" data-id="${esc(item.id)}" type="button">Reenfileirar</button> <button class="button ghost" data-action="resolve-dead-letter" data-id="${esc(item.id)}" type="button">Resolver</button></td></tr>`).join("") : '<tr><td colspan="5" class="empty-cell">Nenhum evento aguardando análise.</td></tr>';
   return `${pageHeader("Sistema / diagnóstico", "Painel técnico", "Visão operacional para investigar banco, sincronização, dispositivos, comandos e espaço em disco.", button("Atualizar", "reload-error-logs", "secondary"))}
-  <section class="grid four dashboard-metrics"><div class="panel metric"><small>Banco</small><strong>${esc(diagnostic.database?.status || "—")}</strong></div><div class="panel metric"><small>Fila pendente</small><strong>${queue.pending || 0}</strong><span>${queue.errors || 0} erro(s)</span></div><div class="panel metric"><small>Fila morta</small><strong>${diagnostic.dead_letter_pending || 0}</strong><span>evento(s) aguardando análise</span></div><div class="panel metric"><small>Disco livre</small><strong>${disk.free_percent == null ? "—" : `${disk.free_percent}%`}</strong><span>${esc(diagnostic.release?.commit || "commit desconhecido")}</span></div></section><br>
+  <section class="grid four dashboard-metrics"><div class="panel metric"><small>Banco</small><strong>${esc(diagnostic.database?.status || "—")}</strong></div><div class="panel metric"><small>Fila pendente</small><strong>${queue.pending || 0}</strong><span>${queue.errors || 0} erro(s)</span></div><div class="panel metric"><small>Fila morta</small><strong>${diagnostic.dead_letter_pending || 0}</strong><span>evento(s) aguardando análise</span></div><div class="panel metric"><small>${diskTitle}</small><strong>${disk.free_percent == null ? "—" : `${disk.free_percent}% livre`}</strong><span>${diskUsage}</span></div></section><br>
   <section class="panel reference-table-panel"><h3>Dispositivos e comunicação</h3><div class="table-wrap"><table><thead><tr><th>Tipo</th><th>Ativos</th><th>Sem sinal</th><th>Último heartbeat</th></tr></thead><tbody>${deviceRows}</tbody></table></div></section><br>
   <section class="panel reference-table-panel"><h3>Últimos comandos ao gateway</h3><div class="table-wrap"><table><thead><tr><th>Solicitado</th><th>Comando</th><th>Status</th><th>Retorno</th></tr></thead><tbody>${commandRows}</tbody></table></div></section><br>
   <section class="panel reference-table-panel"><div class="panel-heading"><div><h3>Fila morta de sincronização</h3><p class="muted">Reenfileire somente depois de corrigir a causa do erro. Toda ação fica registrada na auditoria.</p></div></div><div class="table-wrap"><table><thead><tr><th>Evento</th><th>Tipo</th><th>Tentativas</th><th>Último erro</th><th>Ação</th></tr></thead><tbody>${deadLetterRows}</tbody></table></div></section><br>
