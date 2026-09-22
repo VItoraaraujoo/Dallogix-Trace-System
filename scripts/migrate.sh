@@ -43,4 +43,20 @@ for migration in "$migrations_dir"/[0-9][0-9][0-9]_*.sql; do
   mysql_query "INSERT INTO schema_migrations (version) VALUES ('$version')"
 done
 
+# A tabela do heartbeat do PC industrial é necessária para o diagnóstico e
+# pode estar ausente em instalações antigas mesmo quando a migration já foi
+# registrada no controle de versão. Revalida a estrutura real para que um
+# deploy consiga se autocorrigir sem depender de intervenção manual.
+status_pc_table="$(mysql_query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'status_pc_industrial'" | tr -d '[:space:]')"
+if [[ "$status_pc_table" != "1" ]]; then
+  status_pc_migration="$migrations_dir/051_status_pc_industrial.sql"
+  [[ -f "$status_pc_migration" ]] || {
+    echo "ERRO: migration 051_status_pc_industrial.sql não encontrada." >&2
+    exit 1
+  }
+  echo "Reparando tabela status_pc_industrial"
+  mysql_file "$status_pc_migration"
+  mysql_query "INSERT IGNORE INTO schema_migrations (version) VALUES ('051_status_pc_industrial')"
+fi
+
 echo "OK: migrations controladas e atualizadas."
