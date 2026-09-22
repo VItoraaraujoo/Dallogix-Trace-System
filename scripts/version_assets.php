@@ -22,7 +22,9 @@ foreach ($iterator as $file) {
     if ($contents === false) {
         continue;
     }
-    $updated = preg_replace('/([?&]v=)[A-Za-z0-9._-]+/', '$1' . $version, $contents);
+    // Delimita a referência capturada para que um versionamento iniciado por
+    // número não seja interpretado como outro grupo pelo mecanismo de regex.
+    $updated = preg_replace('/([?&]v=)[A-Za-z0-9._-]+/', '${1}' . $version, $contents);
     if ($updated === null || $updated === $contents) {
         continue;
     }
