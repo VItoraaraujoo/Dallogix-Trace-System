@@ -49,12 +49,29 @@ $installation->execute(["company_id" => $user["company_id"]]);
 $installationStatus = $installation->fetch() ?: null;
 $installationRegistered = $installationStatus !== null;
 $remoteConfigured = $remoteUrl !== "" || ($centralUrlConfigured && $installationRegistered);
+$lastSyncAt = $installationStatus["last_remote_sync_at"] ?? null;
+$lastSyncError = trim((string) ($installationStatus["last_remote_sync_error"] ?? ""));
+$lastSyncAgeSeconds = null;
+if ($lastSyncAt !== null && trim((string) $lastSyncAt) !== "") {
+    try {
+        $lastSync = new DateTimeImmutable((string) $lastSyncAt, new DateTimeZone("UTC"));
+        $lastSyncAgeSeconds = max(
+            0,
+            time() - $lastSync->getTimestamp(),
+        );
+    } catch (Throwable $exception) {
+        $lastSyncAgeSeconds = null;
+    }
+}
+$pcOnline = $lastSyncAgeSeconds !== null && $lastSyncAgeSeconds <= 30 && $lastSyncError === "";
 $centralSync = [
     "configured" => $installationRegistered,
     "central_url_configured" => $centralUrlConfigured,
     "installation_registered" => $installationRegistered,
-    "last_sync_at" => $installationStatus["last_remote_sync_at"] ?? null,
-    "last_error" => $installationStatus["last_remote_sync_error"] ?? null,
+    "pc_online" => $pcOnline,
+    "last_sync_at" => $lastSyncAt,
+    "last_sync_age_seconds" => $lastSyncAgeSeconds,
+    "last_error" => $lastSyncError !== "" ? $lastSyncError : null,
 ];
 
 json_response([

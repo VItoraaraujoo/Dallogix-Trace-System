@@ -1,5 +1,5 @@
 import { button, esc } from "../funcoes/html.js";
-import { dataHora } from "../funcoes/formato.js?v=202609170930";
+import { dataHora, relativo } from "../funcoes/formato.js?v=202609170930";
 import { pageHeader } from "../funcoes/view.js?v=202609150020";
 
 // Configurações no padrão da referência: Rede do cliente, Dalas (somente leitura)
@@ -15,21 +15,22 @@ export function settings(store) {
   const centralSync = sync.central_sync || {};
   const lastSyncAt = centralSync.last_sync_at || null;
   const lastSyncError = centralSync.last_error || "";
-  const syncTone = errors > 0 || lastSyncError ? "offline" : "";
+  const pcOnline = Boolean(centralSync.pc_online);
+  const syncTone = !syncConfigured || !pcOnline ? "offline" : "";
   const syncLabel = !syncConfigured
     ? "Não configurado"
-    : errors > 0 || lastSyncError
-      ? "Com erros"
-      : lastSyncAt
-        ? "Conexão confirmada"
-        : "Conexão não verificada";
+    : pcOnline
+      ? "PC industrial online"
+      : "PC industrial sem comunicação";
   const syncDetail = !syncConfigured
     ? "A integração será definida no backend do servidor."
     : lastSyncError
-      ? `Falha na última sincronização: ${lastSyncError}`
-      : lastSyncAt
-        ? `Última sincronização: ${dataHora(lastSyncAt)} · ${pending} pendência(s) e ${errors} erro(s) na fila de sincronização.`
-        : `${pending} pendência(s) e ${errors} erro(s) na fila de sincronização.`;
+      ? `Falha na última comunicação: ${lastSyncError}`
+      : lastSyncAt && !pcOnline
+        ? `Último contato: ${dataHora(lastSyncAt)} (${relativo(lastSyncAt)}). O PC industrial não confirma comunicação há mais de 30 segundos.`
+        : lastSyncAt
+          ? `Último contato: ${dataHora(lastSyncAt)} (${relativo(lastSyncAt)}) · ${pending} pendência(s) e ${errors} erro(s) na fila de sincronização.`
+          : "O PC industrial ainda não realizou uma comunicação com o servidor.";
   const mapping = saved.pdf_field_mapping || {};
   const searchField = saved.pdf_search_field || "barcode";
   const fields = [
