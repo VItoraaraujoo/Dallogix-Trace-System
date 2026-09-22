@@ -12,7 +12,7 @@ grep -q 'animation: none' "$root/interface/css/light-theme.css" || fail "animaç
 grep -q 'gap: 24px' "$root/interface/css/light-theme.css" || fail "espaçamento do dashboard não corrigido"
 for file in "$root"/interface/*.html; do
   if [[ "$file" == "$root/interface/index.html" ]]; then
-    grep -q 'js/login.js?v=' "$file" || fail "cache do login não versionado em $file"
+    grep -Eq 'js/(login|aplicacao)\.js\?v=' "$file" || fail "cache do login/app não versionado em $file"
   else
     grep -q 'js/aplicacao.js?v=' "$file" || fail "cache do app não versionado em $file"
   fi

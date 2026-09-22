@@ -56,7 +56,9 @@ jobs:
       - name: Run PHPStan
         run: composer analyse -- --no-progress
       - name: Audit PHP dependencies
-        run: composer audit --no-interaction --no-dev
+        # O projeto só possui dependências de desenvolvimento; --no-dev
+        # deixava o conjunto auditado vazio e fazia o Composer retornar 1.
+        run: composer audit --no-interaction
 
   dependencies-and-config:
     runs-on: ubuntu-latest
