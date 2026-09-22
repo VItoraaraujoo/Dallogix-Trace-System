@@ -18,6 +18,9 @@ list="$(curl -sS -b "$admin_cookie" "$base_url/api/empresas.php")"
 if ! printf '%s' "$list" | grep -q '"total_machines"'; then
   fail "lista de empresas sem indicadores de máquinas: $list"
 fi
+if ! printf '%s' "$list" | grep -q '"industrial_pc_status"'; then
+  fail "lista de empresas sem status do PC industrial: $list"
+fi
 if ! printf '%s' "$list" | grep -q 'Empresa Demonstração'; then
   fail "Empresa Demonstração ausente na lista: $list"
 fi

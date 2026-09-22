@@ -6,12 +6,12 @@ import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js";
-import { settings } from "./telas/configuracoes.js?v=202609210930";
+import { settings } from "./telas/configuracoes.js?v=202609220100";
 import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609191020";
 import { company } from "./telas/empresa.js?v=202609181200";
-import { companies } from "./telas/empresas.js?v=202609181200";
+import { companies } from "./telas/empresas.js?v=202609220100";
 import { errorLogs } from "./telas/logs.js";
-import { masterHome } from "./telas/master.js?v=202609162205";
+import { masterHome } from "./telas/master.js?v=202609220100";
 import {
     alerts,
     emergency,
@@ -27,7 +27,7 @@ import {
     manifestView,
     work,
 } from "./telas/operacoes.js?v=202609210400";
-import { dashboard } from "./telas/painel.js?v=202609210400";
+import { dashboard } from "./telas/painel.js?v=202609220100";
 import { users } from "./telas/usuarios.js?v=202609212000";
 
 const store = new ArmazenamentoTrace();
@@ -2058,6 +2058,8 @@ async function loadPageData(page) {
       store.loadDashboard(),
       store.loadMonitoring(),
       store.loadEquipments(),
+      store.loadSyncStatus(),
+      store.loadDalaStatuses(),
     ],
     manifests: () => [store.loadManifests()],
     manifest: () => [store.loadManifest(queryId())],

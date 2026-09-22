@@ -47,10 +47,27 @@ $installation = $pdo->prepare(
 );
 $installation->execute(["company_id" => $user["company_id"]]);
 $installationStatus = $installation->fetch() ?: null;
-$installationRegistered = $installationStatus !== null;
-$remoteConfigured = $remoteUrl !== "" || ($centralUrlConfigured && $installationRegistered);
-$lastSyncAt = $installationStatus["last_remote_sync_at"] ?? null;
-$lastSyncError = trim((string) ($installationStatus["last_remote_sync_error"] ?? ""));
+$centralMode = !trace_e_instalacao_local();
+$centralPcStatus = null;
+if ($centralMode) {
+    $centralPc = $pdo->prepare(
+        "SELECT status, last_seen_at
+         FROM status_pc_industrial
+         WHERE company_id = :company_id LIMIT 1",
+    );
+    $centralPc->execute(["company_id" => $user["company_id"]]);
+    $centralPcStatus = $centralPc->fetch() ?: null;
+}
+$installationRegistered = $installationStatus !== null || $centralPcStatus !== null;
+$remoteConfigured = $centralMode
+    ? true
+    : $remoteUrl !== "" || ($centralUrlConfigured && $installationRegistered);
+$lastSyncAt = $centralMode
+    ? ($centralPcStatus["last_seen_at"] ?? null)
+    : ($installationStatus["last_remote_sync_at"] ?? null);
+$lastSyncError = $centralMode
+    ? ""
+    : trim((string) ($installationStatus["last_remote_sync_error"] ?? ""));
 $lastSyncAgeSeconds = null;
 if ($lastSyncAt !== null && trim((string) $lastSyncAt) !== "") {
     try {
@@ -63,14 +80,27 @@ if ($lastSyncAt !== null && trim((string) $lastSyncAt) !== "") {
         $lastSyncAgeSeconds = null;
     }
 }
-$pcOnline = $lastSyncAgeSeconds !== null && $lastSyncAgeSeconds <= 30 && $lastSyncError === "";
+$pcSignalLimitSeconds = max(5, min(300, (int) (getenv("HEALTH_DEVICE_STALE_SECONDS") ?: 30)));
+$reportedPcStatus = strtoupper(trim((string) ($centralPcStatus["status"] ?? "")));
+if ($reportedPcStatus === "ERRO") {
+    $pcStatus = "ERRO";
+} elseif ($lastSyncAgeSeconds !== null && $lastSyncAgeSeconds <= $pcSignalLimitSeconds && $lastSyncError === "") {
+    $pcStatus = "ONLINE";
+} elseif ($reportedPcStatus === "OFFLINE" || $lastSyncAt !== null) {
+    $pcStatus = "OFFLINE";
+} else {
+    $pcStatus = "DESCONHECIDO";
+}
+$pcOnline = $pcStatus === "ONLINE";
 $centralSync = [
-    "configured" => $installationRegistered,
+    "configured" => $remoteConfigured,
     "central_url_configured" => $centralUrlConfigured,
     "installation_registered" => $installationRegistered,
     "pc_online" => $pcOnline,
+    "pc_status" => $pcStatus,
     "last_sync_at" => $lastSyncAt,
     "last_sync_age_seconds" => $lastSyncAgeSeconds,
+    "pc_signal_limit_seconds" => $pcSignalLimitSeconds,
     "last_error" => $lastSyncError !== "" ? $lastSyncError : null,
 ];
 

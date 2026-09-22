@@ -171,6 +171,27 @@ export function machineGrid(
 export function companyCard(company, { compact = false } = {}) {
   const total = Number(company.total_machines || 0);
   const online = Number(company.machines_online || 0);
+  const industrialPcStatus = String(company.industrial_pc_status || "DESCONHECIDO").toUpperCase();
+  const industrialPcLabels = {
+    ONLINE: ["PC industrial online", "green"],
+    OFFLINE: ["PC industrial sem comunicação", "red"],
+    ERRO: ["PC industrial com erro", "red"],
+    DESCONHECIDO: ["PC industrial não ativado", "yellow"],
+  };
+  const [industrialPcLabel, industrialPcTone] = industrialPcLabels[industrialPcStatus] || industrialPcLabels.DESCONHECIDO;
+  const industrialPcBadge = `<span class="badge ${industrialPcTone}">${industrialPcLabel}</span>`;
+  const industrialPcMetricValue = industrialPcStatus === "ONLINE"
+    ? "Online"
+    : industrialPcStatus === "OFFLINE"
+      ? "Offline"
+      : industrialPcStatus === "ERRO"
+        ? "Erro"
+        : "—";
+  const industrialPcMetricClass = industrialPcStatus === "ONLINE"
+    ? "metric-green"
+    : ["OFFLINE", "ERRO"].includes(industrialPcStatus)
+      ? "metric-red"
+      : "";
   const users = Number(company.total_users || 0);
   const activeUsers = Number(company.active_users || 0);
   const archived = Boolean(company.archived);
@@ -196,10 +217,11 @@ export function companyCard(company, { compact = false } = {}) {
     ? `<button class="button primary small" data-action="restore-company" data-id="${company.id}" data-name="${esc(company.name)}" type="button">Restaurar</button><button class="button ghost danger-link small" data-action="delete-company-permanently" data-id="${company.id}" data-name="${esc(company.name)}" type="button">Excluir definitivamente</button>`
     : `${activationAction}<button class="button ${licenseStatus === "ATIVA" ? "danger" : "primary"} small" data-action="toggle-license" data-id="${company.id}" data-status="${esc(licenseStatus)}" type="button">${licenseAction}</button><button class="button ghost danger-link small" data-action="archive-company" data-id="${company.id}" data-name="${esc(company.name)}" type="button">Arquivar</button>`;
   return `<article class="company-card">
-    <header><div class="company-card-identity"><strong>${esc(company.name)}</strong><small>${total} máquina(s) • último sinal ${company.last_signal_at ? esc(company.last_signal_at) : "—"}</small><code>Login: @${esc(company.login_domain || "—")}</code></div><div class="company-card-statuses">${connection}${licenseBadge}</div></header>
+    <header><div class="company-card-identity"><strong>${esc(company.name)}</strong><small>${total} máquina(s) • último sinal das Dalas ${company.last_signal_at ? esc(company.last_signal_at) : "—"}</small><small>Último sinal do PC industrial: ${company.industrial_pc_last_seen_at ? esc(company.industrial_pc_last_seen_at) : "—"}</small><code>Login: @${esc(company.login_domain || "—")}</code></div><div class="company-card-statuses">${industrialPcBadge}${connection}${licenseBadge}</div></header>
     <div class="company-card-metrics">
       <div><b>${total}</b><small>Máquinas</small></div>
-      <div><b class="metric-green">${online}</b><small>Online</small></div>
+      <div><b class="metric-green">${online}</b><small>Dalas online</small></div>
+      <div><b class="${industrialPcMetricClass}">${industrialPcMetricValue}</b><small>PC industrial</small></div>
       <div><b>${activeUsers}/${users}</b><small>Acessos ativos</small></div>
     </div>
     <footer><div class="actions"><button class="button secondary" data-action="open-company" data-id="${company.id}" type="button">Gerenciar</button>${compact ? "" : managementActions}</div></footer>
