@@ -2885,12 +2885,52 @@ textarea {
 
 .users-create-panel #user-create-form .user-create-fields > label > input,
 .users-create-panel #user-create-form .user-create-fields > label > select,
-.users-create-panel #user-create-form .login-address {
+.users-create-panel #user-create-form .login-address,
+.users-create-panel #user-create-form .password-field {
   width: 100%;
   height: 46px;
   min-height: 46px;
   margin-top: 8px;
   box-sizing: border-box;
+}
+
+.password-field {
+  display: flex;
+  align-items: stretch;
+}
+
+.password-field input {
+  min-width: 0;
+  flex: 1;
+  margin-top: 0;
+  height: 46px;
+  min-height: 0;
+  border-radius: 8px 0 0 8px;
+  border-right: 0;
+}
+
+.password-toggle {
+  flex: 0 0 auto;
+  min-height: 46px;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-left: 0;
+  border-radius: 0 8px 8px 0;
+  background: var(--cyan-soft);
+  color: #126882;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.password-toggle:hover {
+  background: #d9edf5;
+}
+
+.password-toggle:focus-visible {
+  outline: 3px solid rgba(26, 155, 192, 0.34);
+  outline-offset: 2px;
 }
 
 .login-address {

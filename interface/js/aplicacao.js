@@ -28,7 +28,7 @@ import {
     work,
 } from "./telas/operacoes.js?v=202609210400";
 import { dashboard } from "./telas/painel.js?v=202609210400";
-import { users } from "./telas/usuarios.js?v=202609162215";
+import { users } from "./telas/usuarios.js?v=202609212000";
 
 const store = new ArmazenamentoTrace();
 let renderRequestId = 0;
@@ -348,7 +348,7 @@ function installLocalIndicator() {
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202609181700").catch(() => {
+  navigator.serviceWorker.register("/service-worker.js?v=202609212000").catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }
@@ -774,6 +774,18 @@ function bindActions() {
         const willOpen = panel.hidden;
         panel.hidden = !willOpen;
         node.setAttribute("aria-expanded", String(willOpen));
+        return;
+      }
+      if (action === "toggle-user-create-password") {
+        const input = document.getElementById(
+          node.getAttribute("aria-controls") || "user-create-password",
+        );
+        if (!input) return;
+        const willShow = input.type === "password";
+        input.type = willShow ? "text" : "password";
+        node.textContent = willShow ? "Ocultar senha" : "Ver senha";
+        node.setAttribute("aria-label", willShow ? "Ocultar senha" : "Ver senha");
+        node.setAttribute("aria-pressed", String(willShow));
         return;
       }
       if (action === "clear-manifest-date") {
