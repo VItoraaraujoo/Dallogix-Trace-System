@@ -48,7 +48,12 @@ final class ServicoSincronizacaoRemota
             );
             $this->validateSnapshot($installation, $snapshot);
             $updated = $this->applySnapshot($installation, $snapshot);
-            $this->sendHeartbeats($centralUrl, $installationToken, (int) $installation["company_id"]);
+            $this->sendHeartbeats(
+                $centralUrl,
+                $installationToken,
+                (int) $installation["company_id"],
+                (int) ($snapshot["sync_cursor"] ?? 0),
+            );
             return ["enabled" => true, "synced" => true, "updated" => $updated];
         } catch (Throwable $exception) {
             $this->markError((string) $exception->getMessage());
@@ -707,7 +712,7 @@ final class ServicoSincronizacaoRemota
         ]);
     }
 
-    private function sendHeartbeats(string $centralUrl, string $token, int $companyId): void
+    private function sendHeartbeats(string $centralUrl, string $token, int $companyId, int $syncCursor): void
     {
         $statement = $this->connection->prepare(
             "SELECT e.remote_equipment_id, e.equipment_code, s.device_type, s.status, s.last_seen_at
@@ -734,6 +739,10 @@ final class ServicoSincronizacaoRemota
             "POST",
             [
                 "action" => "heartbeat",
+                // O heartbeat só é enviado depois que o pacote do servidor
+                // central foi validado e aplicado. Assim ele confirma, de
+                // forma idempotente, quais eventos chegaram ao PC industrial.
+                "delivered_queue_id" => max(0, $syncCursor),
                 "industrial_pc" => [
                     "status" => "ONLINE",
                     "reported_at" => date("c"),

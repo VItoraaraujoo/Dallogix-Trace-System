@@ -68,4 +68,17 @@ final class ContratosEndpointsTest extends TestCase
         self::assertStringContainsString("status_pc_industrial", $endpoint);
         self::assertStringContainsString("status_pc_industrial", $migration);
     }
+
+    public function testHeartbeatConfirmaEventosEntreguesAoPcIndustrial(): void
+    {
+        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao_instalacao.php");
+        $service = file_get_contents(__DIR__ . "/../../servidor/src/Aplicacao/ServicoSincronizacaoRemota.php");
+
+        self::assertIsString($endpoint);
+        self::assertIsString($service);
+        self::assertStringContainsString('"sync_cursor"', $endpoint);
+        self::assertStringContainsString('"delivered_queue_id"', $endpoint);
+        self::assertStringContainsString("status IN ('PENDENTE', 'ERRO')", $endpoint);
+        self::assertStringContainsString('"delivered_queue_id"', $service);
+    }
 }

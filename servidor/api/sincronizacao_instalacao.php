@@ -99,7 +99,27 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         // ser contabilizada como recebida.
         $received++;
     }
-    responder_json(["data" => ["received" => $received, "industrial_pc_received" => $industrialPcReceived]]);
+    $deliveredQueueId = filter_var($payload["delivered_queue_id"] ?? null, FILTER_VALIDATE_INT);
+    $deliveredEvents = 0;
+    if ($deliveredQueueId !== false && $deliveredQueueId !== null && (int) $deliveredQueueId > 0) {
+        $markDelivered = $pdo->prepare(
+            "UPDATE fila_sincronizacao
+             SET status = 'ENVIADO', last_error = NULL, processing_started_at = NULL
+             WHERE company_id = :company_id
+               AND id <= :queue_id
+               AND status IN ('PENDENTE', 'ERRO')",
+        );
+        $markDelivered->execute([
+            "company_id" => $companyId,
+            "queue_id" => (int) $deliveredQueueId,
+        ]);
+        $deliveredEvents = $markDelivered->rowCount();
+    }
+    responder_json(["data" => [
+        "received" => $received,
+        "industrial_pc_received" => $industrialPcReceived,
+        "delivered_events" => $deliveredEvents,
+    ]]);
 }
 
 $equipmentStatement = $pdo->prepare(
@@ -173,6 +193,14 @@ $commandStatement = $pdo->prepare(
 );
 $commandStatement->execute(["company_id" => $companyId]);
 
+$syncCursor = $pdo->prepare(
+    "SELECT COALESCE(MAX(id), 0)
+     FROM fila_sincronizacao
+     WHERE company_id = :company_id
+       AND status IN ('PENDENTE', 'ERRO')",
+);
+$syncCursor->execute(["company_id" => $companyId]);
+
 responder_json([
     "data" => [
         "empresa" => [
@@ -185,6 +213,7 @@ responder_json([
         "equipamentos" => $equipamentos,
         "carregamentos_ativos" => $carregamentos,
         "comandos" => $commandStatement->fetchAll(),
+        "sync_cursor" => (int) $syncCursor->fetchColumn(),
         "sent_at" => date("c"),
     ],
 ]);
