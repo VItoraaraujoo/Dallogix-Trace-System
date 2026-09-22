@@ -1,6 +1,6 @@
 import { button, esc } from "../funcoes/html.js";
 import { dataHora, relativo } from "../funcoes/formato.js?v=202609170930";
-import { pageHeader } from "../funcoes/view.js?v=202609150020";
+import { pageHeader } from "../funcoes/view.js?v=202609220100";
 
 // Configurações no padrão da referência: Rede do cliente, Dalas (somente leitura)
 // e parâmetros da importação de romaneios (PDF).
@@ -27,7 +27,7 @@ export function settings(store) {
     : lastSyncError
       ? `Falha na última comunicação: ${lastSyncError}`
       : lastSyncAt && !pcOnline
-        ? `Último contato: ${dataHora(lastSyncAt)} (${relativo(lastSyncAt)}). O PC industrial não confirma comunicação há mais de 30 segundos.`
+        ? `Último contato: ${dataHora(lastSyncAt)} (${relativo(lastSyncAt)}). O PC industrial não confirma comunicação há mais de ${Number(centralSync.pc_signal_limit_seconds || 30)} segundos.`
         : lastSyncAt
           ? `Último contato: ${dataHora(lastSyncAt)} (${relativo(lastSyncAt)}) · ${pending} pendência(s) e ${errors} erro(s) na fila de sincronização.`
           : "O PC industrial ainda não realizou uma comunicação com o servidor.";
