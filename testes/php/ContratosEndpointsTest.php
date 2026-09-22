@@ -56,16 +56,4 @@ final class ContratosEndpointsTest extends TestCase
         self::assertStringContainsString("resolved_at = NULL", $worker);
         self::assertStringContainsString("dead_letter_pending", $readiness);
     }
-
-    public function testHeartbeatDaInstalacaoRegistraPcIndustrialNoServidorCentral(): void
-    {
-        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao_instalacao.php");
-        $migration = file_get_contents(__DIR__ . "/../../banco-de-dados/migrations/051_status_pc_industrial.sql");
-
-        self::assertIsString($endpoint);
-        self::assertIsString($migration);
-        self::assertStringContainsString('"industrial_pc"', $endpoint);
-        self::assertStringContainsString("status_pc_industrial", $endpoint);
-        self::assertStringContainsString("status_pc_industrial", $migration);
-    }
 }

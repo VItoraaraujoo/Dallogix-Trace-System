@@ -446,26 +446,6 @@ if (!$isAdminDallogix) {
 }
 
 $pdo = db();
-$pcSignalLimitSeconds = max(5, min(300, (int) (getenv("HEALTH_DEVICE_STALE_SECONDS") ?: 30)));
-$industrialPcStatus = static function (mixed $reportedStatus, mixed $lastSeenAt) use ($pcSignalLimitSeconds): string {
-    $status = strtoupper(trim((string) ($reportedStatus ?? "")));
-    if ($status === "ERRO") {
-        return "ERRO";
-    }
-    if ($status === "OFFLINE") {
-        return "OFFLINE";
-    }
-    if ($status !== "ONLINE" || trim((string) ($lastSeenAt ?? "")) === "") {
-        return "DESCONHECIDO";
-    }
-    try {
-        $lastSeen = new DateTimeImmutable((string) $lastSeenAt);
-        $age = max(0, time() - $lastSeen->getTimestamp());
-        return $age <= $pcSignalLimitSeconds ? "ONLINE" : "OFFLINE";
-    } catch (Throwable) {
-        return "OFFLINE";
-    }
-};
 
 $machinesSql = "SELECT e.id, e.equipment_code, e.name,
             d.status AS clp_status, d.last_seen_at,
@@ -483,9 +463,7 @@ $machinesSql = "SELECT e.id, e.equipment_code, e.name,
 if ($requestedCompanyId !== null) {
     $companyStatement = $pdo->prepare(
         "SELECT id, name, login_domain, activation_code, activation_code_preview, activation_code_created_at, created_at, archived_at,
-                (SELECT l.status FROM licencas l WHERE l.company_id = empresas.id ORDER BY l.id DESC LIMIT 1) AS license_status,
-                (SELECT s.status FROM status_pc_industrial s WHERE s.company_id = empresas.id LIMIT 1) AS industrial_pc_reported_status,
-                (SELECT s.last_seen_at FROM status_pc_industrial s WHERE s.company_id = empresas.id LIMIT 1) AS industrial_pc_last_seen_at
+                (SELECT l.status FROM licencas l WHERE l.company_id = empresas.id ORDER BY l.id DESC LIMIT 1) AS license_status
          FROM empresas WHERE id = :id LIMIT 1",
     );
     $companyStatement->execute(["id" => $requestedCompanyId]);
@@ -524,11 +502,6 @@ if ($requestedCompanyId !== null) {
             "name" => $empresa["name"],
             "login_domain" => $empresa["login_domain"],
             "license_status" => $licenseStatus,
-            "industrial_pc_status" => $industrialPcStatus(
-                $empresa["industrial_pc_reported_status"] ?? null,
-                $empresa["industrial_pc_last_seen_at"] ?? null,
-            ),
-            "industrial_pc_last_seen_at" => $empresa["industrial_pc_last_seen_at"] ?? null,
             "activation_code" => $isAdminDallogix && $activationAvailable ? $empresa["activation_code"] : null,
             "activation_code_preview" => $activationAvailable ? $empresa["activation_code_preview"] : null,
             "activation_code_created_at" => $activationAvailable ? $empresa["activation_code_created_at"] : null,
@@ -548,8 +521,6 @@ $empresas = $pdo->prepare(
     "SELECT c.id, c.name, c.login_domain, c.activation_code_preview, c.activation_code_created_at, c.created_at, c.archived_at,
             (SELECT l.status FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_status,
             (SELECT l.blocked_reason FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_reason,
-            (SELECT s.status FROM status_pc_industrial s WHERE s.company_id = c.id LIMIT 1) AS industrial_pc_reported_status,
-            (SELECT s.last_seen_at FROM status_pc_industrial s WHERE s.company_id = c.id LIMIT 1) AS industrial_pc_last_seen_at,
             COUNT(e.id) AS total_machines,
             COALESCE(SUM(d.status = 'ONLINE'), 0) AS machines_online,
             MAX(d.last_seen_at) AS last_signal_at,
@@ -581,11 +552,6 @@ $rows = array_map(static function (array $row): array {
         "machines_online" => $online,
         "machines_offline" => max(0, $total - $online),
         "last_signal_at" => $row["last_signal_at"],
-        "industrial_pc_status" => $industrialPcStatus(
-            $row["industrial_pc_reported_status"] ?? null,
-            $row["industrial_pc_last_seen_at"] ?? null,
-        ),
-        "industrial_pc_last_seen_at" => $row["industrial_pc_last_seen_at"] ?? null,
         "total_users" => (int) $row["total_users"],
         "active_users" => (int) $row["active_users"],
         "ocorrencias_24h" => (int) $row["ocorrencias_24h"],
