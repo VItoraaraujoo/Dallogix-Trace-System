@@ -2918,6 +2918,14 @@ textarea {
   border-right: 0;
 }
 
+.password-field input:focus,
+.password-field input:focus-visible {
+  border-color: var(--line);
+  outline: none;
+  outline-offset: 0;
+  box-shadow: none;
+}
+
 .password-toggle {
   flex: 0 0 auto;
   min-height: 46px;
