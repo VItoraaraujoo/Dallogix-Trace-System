@@ -11,8 +11,13 @@ export function settings(store) {
   const summary = sync.summary || {};
   const pending = Number(summary.PENDENTE || 0) + Number(summary.PROCESSANDO || 0);
   const errors = Number(summary.ERRO || 0);
-  const syncConfigured = Boolean(sync.remote_configured);
   const centralSync = sync.central_sync || {};
+  const syncConfigured = Boolean(
+    sync.remote_configured
+      || centralSync.configured
+      || centralSync.pc_status
+      || centralSync.last_sync_at,
+  );
   const lastSyncAt = centralSync.last_sync_at || null;
   const lastSyncError = centralSync.last_error || "";
   const pcOnline = Boolean(centralSync.pc_online);
