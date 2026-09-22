@@ -25,10 +25,15 @@ class TestStatement extends PDOStatement {
 }
 class TestDatabase extends PDO {
     public string $insertId = '42';
+    private bool $transaction = false;
     public function __construct() {}
     public function prepare(string $query, array $options = []): PDOStatement|false { return new TestStatement($query); }
     public function query(string $query, ?int $fetchMode = null, mixed ...$fetchModeArgs): PDOStatement|false { return new TestStatement($query); }
     public function lastInsertId(?string $name = null): string|false { return $this->insertId; }
+    public function beginTransaction(): bool { $this->transaction = true; return true; }
+    public function commit(): bool { $this->transaction = false; return true; }
+    public function rollBack(): bool { $this->transaction = false; return true; }
+    public function inTransaction(): bool { return $this->transaction; }
 }
 $database = new TestDatabase();
 $queries = [];

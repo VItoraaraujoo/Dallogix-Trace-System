@@ -10,7 +10,13 @@ grep -q 'WEB_BIND_ADDRESS=127.0.0.1' "$root/.env.example" || fail "interface loc
 ! grep -q 'tabletTimer\|export function tablet' "$root/interface/js/aplicacao.js" "$root/interface/js/telas/monitoramento.js" || fail "referência à tela tablet ainda existe"
 grep -q 'animation: none' "$root/interface/css/light-theme.css" || fail "animações não removidas"
 grep -q 'gap: 24px' "$root/interface/css/light-theme.css" || fail "espaçamento do dashboard não corrigido"
-for file in "$root"/interface/*.html; do grep -q 'js/aplicacao.js?v=' "$file" || fail "cache do app não versionado em $file"; done
+for file in "$root"/interface/*.html; do
+  if [[ "$file" == "$root/interface/index.html" ]]; then
+    grep -q 'js/login.js?v=' "$file" || fail "cache do login não versionado em $file"
+  else
+    grep -q 'js/aplicacao.js?v=' "$file" || fail "cache do app não versionado em $file"
+  fi
+done
 
 php -l "$root/servidor/api/sync_queue.php" >/dev/null || fail "sync_queue.php inválido"
 php -l "$root/servidor/api/sync_status.php" >/dev/null || fail "sync_status.php inválido"
