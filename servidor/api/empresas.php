@@ -446,6 +446,17 @@ if (!$isAdminDallogix) {
 }
 
 $pdo = db();
+$industrialPcTableAvailable = (bool) $pdo->query(
+    "SELECT 1 FROM information_schema.tables
+     WHERE table_schema = DATABASE() AND table_name = 'status_pc_industrial'
+     LIMIT 1",
+)->fetchColumn();
+$industrialPcStatusSelect = $industrialPcTableAvailable
+    ? "(SELECT s.status FROM status_pc_industrial s WHERE s.company_id = empresas.id LIMIT 1)"
+    : "NULL";
+$industrialPcLastSeenSelect = $industrialPcTableAvailable
+    ? "(SELECT s.last_seen_at FROM status_pc_industrial s WHERE s.company_id = empresas.id LIMIT 1)"
+    : "NULL";
 $pcSignalLimitSeconds = max(5, min(300, (int) (getenv("HEALTH_DEVICE_STALE_SECONDS") ?: 30)));
 $industrialPcStatus = static function (mixed $reportedStatus, mixed $lastSeenAt) use ($pcSignalLimitSeconds): string {
     $status = strtoupper(trim((string) ($reportedStatus ?? "")));
@@ -484,8 +495,8 @@ if ($requestedCompanyId !== null) {
     $companyStatement = $pdo->prepare(
         "SELECT id, name, login_domain, activation_code, activation_code_preview, activation_code_created_at, created_at, archived_at,
                 (SELECT l.status FROM licencas l WHERE l.company_id = empresas.id ORDER BY l.id DESC LIMIT 1) AS license_status,
-                (SELECT s.status FROM status_pc_industrial s WHERE s.company_id = empresas.id LIMIT 1) AS industrial_pc_reported_status,
-                (SELECT s.last_seen_at FROM status_pc_industrial s WHERE s.company_id = empresas.id LIMIT 1) AS industrial_pc_last_seen_at
+                {$industrialPcStatusSelect} AS industrial_pc_reported_status,
+                {$industrialPcLastSeenSelect} AS industrial_pc_last_seen_at
          FROM empresas WHERE id = :id LIMIT 1",
     );
     $companyStatement->execute(["id" => $requestedCompanyId]);
@@ -548,8 +559,12 @@ $empresas = $pdo->prepare(
     "SELECT c.id, c.name, c.login_domain, c.activation_code_preview, c.activation_code_created_at, c.created_at, c.archived_at,
             (SELECT l.status FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_status,
             (SELECT l.blocked_reason FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_reason,
-            (SELECT s.status FROM status_pc_industrial s WHERE s.company_id = c.id LIMIT 1) AS industrial_pc_reported_status,
-            (SELECT s.last_seen_at FROM status_pc_industrial s WHERE s.company_id = c.id LIMIT 1) AS industrial_pc_last_seen_at,
+            " . ($industrialPcTableAvailable
+                ? "(SELECT s.status FROM status_pc_industrial s WHERE s.company_id = c.id LIMIT 1)"
+                : "NULL") . " AS industrial_pc_reported_status,
+            " . ($industrialPcTableAvailable
+                ? "(SELECT s.last_seen_at FROM status_pc_industrial s WHERE s.company_id = c.id LIMIT 1)"
+                : "NULL") . " AS industrial_pc_last_seen_at,
             COUNT(e.id) AS total_machines,
             COALESCE(SUM(d.status = 'ONLINE'), 0) AS machines_online,
             MAX(d.last_seen_at) AS last_signal_at,

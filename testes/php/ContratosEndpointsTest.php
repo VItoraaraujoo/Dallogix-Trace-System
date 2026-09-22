@@ -81,4 +81,21 @@ final class ContratosEndpointsTest extends TestCase
         self::assertStringContainsString("status IN ('PENDENTE', 'ERRO')", $endpoint);
         self::assertStringContainsString('"delivered_queue_id"', $service);
     }
+
+    public function testStatusDoPcNaoQuebraSemMigrationEFiltraErroResolvido(): void
+    {
+        foreach (["empresas.php", "sync_status.php", "diagnostico.php", "logs_erros.php"] as $endpoint) {
+            $source = file_get_contents(__DIR__ . "/../../servidor/api/" . $endpoint);
+
+            self::assertIsString($source);
+            self::assertStringContainsString("information_schema.tables", $source, $endpoint);
+        }
+
+        $logs = file_get_contents(__DIR__ . "/../../servidor/api/logs_erros.php");
+        $diagnostic = file_get_contents(__DIR__ . "/../../servidor/api/diagnostico.php");
+        self::assertIsString($logs);
+        self::assertIsString($diagnostic);
+        self::assertStringContainsString("resolved_status_pc_error", $logs);
+        self::assertStringContainsString("resolved_status_pc_error", $diagnostic);
+    }
 }

@@ -50,13 +50,20 @@ $installationStatus = $installation->fetch() ?: null;
 $centralMode = !trace_e_instalacao_local();
 $centralPcStatus = null;
 if ($centralMode) {
-    $centralPc = $pdo->prepare(
-        "SELECT status, last_seen_at
-         FROM status_pc_industrial
-         WHERE company_id = :company_id LIMIT 1",
-    );
-    $centralPc->execute(["company_id" => $user["company_id"]]);
-    $centralPcStatus = $centralPc->fetch() ?: null;
+    $industrialPcTableAvailable = (bool) $pdo->query(
+        "SELECT 1 FROM information_schema.tables
+         WHERE table_schema = DATABASE() AND table_name = 'status_pc_industrial'
+         LIMIT 1",
+    )->fetchColumn();
+    if ($industrialPcTableAvailable) {
+        $centralPc = $pdo->prepare(
+            "SELECT status, last_seen_at
+             FROM status_pc_industrial
+             WHERE company_id = :company_id LIMIT 1",
+        );
+        $centralPc->execute(["company_id" => $user["company_id"]]);
+        $centralPcStatus = $centralPc->fetch() ?: null;
+    }
 }
 $installationRegistered = $installationStatus !== null || $centralPcStatus !== null;
 $remoteConfigured = $centralMode

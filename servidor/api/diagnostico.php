@@ -45,12 +45,23 @@ $commands = $pdo->prepare(
 );
 $commands->execute($companyParams);
 
+$industrialPcTableAvailable = (bool) $pdo->query(
+    "SELECT 1 FROM information_schema.tables
+     WHERE table_schema = DATABASE() AND table_name = 'status_pc_industrial'
+     LIMIT 1",
+)->fetchColumn();
+$errorWhere = $companyId === null ? "1=1" : "l.company_id = :company_id";
+$errorParams = $companyParams;
+if ($industrialPcTableAvailable) {
+    $errorWhere .= " AND NOT (l.mensagem LIKE :resolved_status_pc_error)";
+    $errorParams["resolved_status_pc_error"] = "%status_pc_industrial%doesn't exist%";
+}
 $errors = $pdo->prepare(
     "SELECT l.id, l.origem, l.mensagem, l.criado_em
-     FROM logs_erros l " . ($companyId === null ? "" : "WHERE l.company_id = :company_id") . "
+     FROM logs_erros l WHERE {$errorWhere}
      ORDER BY l.id DESC LIMIT 10",
 );
-$errors->execute($companyParams);
+$errors->execute($errorParams);
 
 $deadLetter = $pdo->prepare(
     "SELECT COUNT(*) FROM sync_dead_letter_queue WHERE resolved_at IS NULL"
@@ -70,11 +81,6 @@ if ($companyId !== null) {
 
 $industrialPc = null;
 if ($companyId !== null && !trace_e_instalacao_local()) {
-    $industrialPcTableAvailable = (bool) $pdo->query(
-        "SELECT 1 FROM information_schema.tables
-         WHERE table_schema = DATABASE() AND table_name = 'status_pc_industrial'
-         LIMIT 1",
-    )->fetchColumn();
     if ($industrialPcTableAvailable) {
         $industrialPcQuery = $pdo->prepare(
             "SELECT status, last_seen_at, details,
