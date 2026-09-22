@@ -2088,7 +2088,7 @@ async function loadPageData(page) {
     dala: () => [loadDalaView(queryId())],
     "dala-edit": () => [store.loadEquipment(queryId())],
     "dala-actions": () => [store.loadEquipment(queryId()), store.loadDalaActionConfig(queryId())],
-    "error-logs": () => Promise.all([store.loadErrorLogs(), store.loadTechnicalDiagnostics(), store.loadDeadLetters()]),
+    "error-logs": () => [store.loadErrorLogs(), store.loadTechnicalDiagnostics(), store.loadDeadLetters()],
     users: () => [store.loadUsers()],
   };
   if (
