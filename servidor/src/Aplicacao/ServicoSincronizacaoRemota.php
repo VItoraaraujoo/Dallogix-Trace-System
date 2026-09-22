@@ -722,14 +722,29 @@ final class ServicoSincronizacaoRemota
             "status" => $row["status"],
             "last_seen_at" => $row["last_seen_at"],
         ], $statement->fetchAll());
-        if ($heartbeats === []) {
-            return;
-        }
+        $storagePath = dirname(__DIR__, 3) . "/armazenamento";
+        $diskFree = is_dir($storagePath) ? @disk_free_space($storagePath) : false;
+        $diskTotal = is_dir($storagePath) ? @disk_total_space($storagePath) : false;
+        $diskFreePercent = is_numeric($diskFree) && is_numeric($diskTotal) && (float) $diskTotal > 0
+            ? round(((float) $diskFree / (float) $diskTotal) * 100, 2)
+            : null;
         $this->request(
             rtrim($centralUrl, "/") . "/api/sincronizacao_instalacao.php",
             $token,
             "POST",
-            ["action" => "heartbeat", "heartbeats" => $heartbeats],
+            [
+                "action" => "heartbeat",
+                "industrial_pc" => [
+                    "status" => "ONLINE",
+                    "reported_at" => date("c"),
+                    "disk" => [
+                        "free_bytes" => is_numeric($diskFree) ? (int) $diskFree : null,
+                        "total_bytes" => is_numeric($diskTotal) ? (int) $diskTotal : null,
+                        "free_percent" => $diskFreePercent,
+                    ],
+                ],
+                "heartbeats" => $heartbeats,
+            ],
         );
     }
 

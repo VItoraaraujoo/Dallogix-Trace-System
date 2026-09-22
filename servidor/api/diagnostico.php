@@ -68,12 +68,51 @@ if ($companyId !== null) {
     $installation = $installationQuery->fetch() ?: null;
 }
 
+$industrialPc = null;
+if ($companyId !== null && !trace_e_instalacao_local()) {
+    $industrialPcQuery = $pdo->prepare(
+        "SELECT status, last_seen_at, details,
+                CASE WHEN status = 'ONLINE'
+                       AND last_seen_at >= DATE_SUB(NOW(3), INTERVAL 30 SECOND)
+                     THEN 1 ELSE 0 END AS online
+         FROM status_pc_industrial
+         WHERE company_id = :company_id LIMIT 1",
+    );
+    $industrialPcQuery->execute(["company_id" => $companyId]);
+    $industrialPc = $industrialPcQuery->fetch() ?: null;
+}
+
 $storagePath = dirname(__DIR__, 2) . "/armazenamento";
 $diskFree = is_dir($storagePath) ? disk_free_space($storagePath) : false;
 $diskTotal = is_dir($storagePath) ? disk_total_space($storagePath) : false;
 $diskFreePercent = is_numeric($diskFree) && is_numeric($diskTotal) && (float) $diskTotal > 0
     ? round(((float) $diskFree / (float) $diskTotal) * 100, 2)
     : null;
+$localInstallation = trace_e_instalacao_local();
+$companyUsesRemotePc = $companyId !== null && !$localInstallation;
+$disk = [
+    "scope" => $localInstallation || $companyUsesRemotePc ? "pc_industrial" : "servidor_central",
+    "free_bytes" => $companyUsesRemotePc ? null : (is_numeric($diskFree) ? (int) $diskFree : null),
+    "free_percent" => $companyUsesRemotePc ? null : $diskFreePercent,
+    "online" => !$companyUsesRemotePc,
+    "last_seen_at" => null,
+];
+if ($industrialPc !== null) {
+    $pcDetails = is_string($industrialPc["details"] ?? null)
+        ? json_decode($industrialPc["details"], true)
+        : [];
+    $pcDisk = is_array($pcDetails) && is_array($pcDetails["disk"] ?? null)
+        ? $pcDetails["disk"]
+        : [];
+    $disk = [
+        "scope" => "pc_industrial",
+        "free_bytes" => isset($pcDisk["free_bytes"]) ? (int) $pcDisk["free_bytes"] : null,
+        "free_percent" => isset($pcDisk["free_percent"]) ? (float) $pcDisk["free_percent"] : null,
+        "online" => (bool) $industrialPc["online"],
+        "status" => $industrialPc["status"],
+        "last_seen_at" => $industrialPc["last_seen_at"],
+    ];
+}
 
 json_response([
     "data" => [
@@ -91,10 +130,7 @@ json_response([
         "errors" => $errors->fetchAll(),
         "dead_letter_pending" => (int) $deadLetter->fetchColumn(),
         "installation" => $installation,
-        "disk" => [
-            "free_bytes" => is_numeric($diskFree) ? (int) $diskFree : null,
-            "free_percent" => $diskFreePercent,
-        ],
+        "disk" => $disk,
         "checked_at" => date("c"),
     ],
 ]);
