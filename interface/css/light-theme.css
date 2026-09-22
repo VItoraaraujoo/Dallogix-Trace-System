@@ -2868,15 +2868,24 @@ textarea {
 }
 
 .users-create-panel #user-create-form .user-create-fields {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1.65fr)
+    minmax(0, 1fr)
+    minmax(0, 1.35fr);
 }
 
 .users-create-panel #user-create-form .user-create-fields.has-company-field {
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  grid-template-columns:
+    minmax(0, 1fr)
+    minmax(0, 1fr)
+    minmax(0, 1.65fr)
+    minmax(0, 1fr)
+    minmax(0, 1.35fr);
 }
 
 .users-create-panel #user-create-form .login-address-label {
-  grid-column: span 2;
+  grid-column: auto;
 }
 
 .login-address-label {
