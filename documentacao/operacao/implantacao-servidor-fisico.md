@@ -34,6 +34,9 @@ bash testes/qualidade.sh
 bash testes/regressao_completa.sh
 python3 scripts/test_modbus_virtual.py
 bash scripts/backup_db.sh armazenamento/backups
+
+# Depois da primeira implantação, agende o backup diário do banco:
+sudo bash scripts/install_backup_timer.sh /opt/dallogix-trace
 ```
 
 Copie os backups para armazenamento externo. Restauração em produção exige `TRACE_ALLOW_RESTORE=1` definido conscientemente e janela de manutenção. O Node-RED deve apontar para a API local e receber tokens somente por variáveis de ambiente.

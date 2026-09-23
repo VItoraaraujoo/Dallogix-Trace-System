@@ -36,7 +36,7 @@ Sequência sugerida: `Resetar` → `Iniciar` → vários `Sensor + produto corre
 
 O perfil `simulation` sobe um único servidor `modbus-virtual` em `127.0.0.1:1502`. Ele implementa leitura de coils/entradas/registros e escrita de coil/registro em memória, para testes de transporte Modbus TCP. O fluxo operacional `trace-clp-bridge.flow.json` lê o endereço e a porta da Dala cadastrada, sem destino de CLP predefinido. O mapa da simulação está em `integracoes/industrial/register-map.example.json`; ele não deve ser reutilizado como mapa de produção.
 
-O fluxo separado `trace-modbus-duas-dalas.flow.json` só deve ser importado manualmente se houver um teste explícito de duas Dalas com o perfil `simulation-two-dalas`. Ele não é carregado na instalação padrão de um PC industrial.
+O serviço opcional `modbus-virtual-dala2` pode ser habilitado com o perfil `simulation-two-dalas` e usa `127.0.0.1:1503`. O fluxo separado `trace-modbus-duas-dalas.flow.json` só deve ser importado manualmente se houver um teste explícito de duas Dalas com esse perfil. Ele não é carregado na instalação padrão de um PC industrial.
 
 ## Referência elétrica recebida
 

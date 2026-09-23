@@ -58,11 +58,27 @@ if ($method === "POST") {
     );
     $nextStatement->execute(["equipment_id" => $equipmentId]);
     $next = (int) $nextStatement->fetchColumn();
-    $insert = $pdo->prepare("INSERT INTO acoes_dala (company_id, equipment_id, comando, rotulo, cor, visivel, modo, ordem) VALUES (:company_id, :equipment_id, :comando, :rotulo, :cor, :visivel, :modo, :ordem)");
-    try { $insert->execute(["company_id" => $companyId, "equipment_id" => $equipmentId, ...$data, "ordem" => $next]); }
-    catch (Throwable) { json_response(["error" => "Já existe uma ação com esse comando nesta Dala."], 409); }
-    $createdId = (int) $pdo->lastInsertId();
-    record_operational_event($pdo, $user, "ACAO_DALA_CRIADA", "acao_dala", $createdId, ["equipment_id" => (int) $equipmentId, "comando" => $data["comando"]]);
+    $pdo->beginTransaction();
+    try {
+        $insert = $pdo->prepare("INSERT INTO acoes_dala (company_id, equipment_id, comando, rotulo, cor, visivel, modo, ordem) VALUES (:company_id, :equipment_id, :comando, :rotulo, :cor, :visivel, :modo, :ordem)");
+        $insert->execute(["company_id" => $companyId, "equipment_id" => $equipmentId, ...$data, "ordem" => $next]);
+        $createdId = (int) $pdo->lastInsertId();
+        record_operational_event($pdo, $user, "ACAO_DALA_CRIADA", "acao_dala", $createdId, ["equipment_id" => (int) $equipmentId, "comando" => $data["comando"]]);
+        $pdo->commit();
+    } catch (PDOException $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        if ((int) ($exception->errorInfo[1] ?? 0) === 1062) {
+            json_response(["error" => "Já existe uma ação com esse comando nesta Dala."], 409);
+        }
+        throw $exception;
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $exception;
+    }
     json_response(["data" => ["id" => $createdId]], 201);
 }
 if ($method === "PATCH") {

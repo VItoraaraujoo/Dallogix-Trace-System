@@ -24,6 +24,7 @@ const SHELL = [
   "/css/dalas-screen.css",
   "/css/auth.css",
   "/css/responsive.css",
+  "/js/login.js",
   "/js/sessao.js",
   "/js/aplicacao.js",
   "/js/classes/ArmazenamentoTrace.js",

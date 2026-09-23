@@ -288,17 +288,26 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
         }
         if ((int) $exception->errorInfo[1] === 1451) {
             // Produto com histórico (romaneios/carregamentos): apenas desativa para preservar o histórico.
-            $pdo->prepare(
-                "UPDATE produtos SET active = 0 WHERE id = :id",
-            )->execute(["id" => $productId]);
-            record_operational_event(
-                $pdo,
-                $usuarioAtor,
-                "PRODUTO_DESATIVADO",
-                "produto",
-                $productId,
-                ["motivo" => "possui histórico vinculado"],
-            );
+            $pdo->beginTransaction();
+            try {
+                $pdo->prepare(
+                    "UPDATE produtos SET active = 0 WHERE id = :id",
+                )->execute(["id" => $productId]);
+                record_operational_event(
+                    $pdo,
+                    $usuarioAtor,
+                    "PRODUTO_DESATIVADO",
+                    "produto",
+                    $productId,
+                    ["motivo" => "possui histórico vinculado"],
+                );
+                $pdo->commit();
+            } catch (Throwable $fallbackException) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                throw $fallbackException;
+            }
             json_response([
                 "data" => [
                     "deleted" => false,

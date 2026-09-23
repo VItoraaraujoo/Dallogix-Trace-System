@@ -131,6 +131,23 @@ bash scripts/restore_db.sh armazenamento/backups/trace_local_YYYYMMDDTHHMMSSZ.sq
 
 Em produção, a restauração exige `TRACE_ALLOW_RESTORE=1` definido conscientemente.
 
+### Backup automático do servidor
+
+No servidor Linux que usa o caminho padrão `/opt/dallogix-trace`, instale o timer uma vez:
+
+```bash
+sudo bash scripts/install_backup_timer.sh /opt/dallogix-trace
+```
+
+O timer executa o backup diariamente às 03:30, com atraso aleatório de até 15 minutos, e repõe uma execução perdida quando o servidor estava desligado. Os arquivos ficam em `/opt/dallogix-trace/armazenamento/backups`, com retenção padrão de 30 dias e permissão restrita. Confira a programação com:
+
+```bash
+systemctl list-timers dallogix-trace-backup.timer
+systemctl status dallogix-trace-backup.timer
+```
+
+Esse mecanismo protege o banco do próprio servidor. Para proteção contra falha do disco ou do servidor, copie periodicamente esses arquivos para armazenamento externo ou remoto e teste a restauração nesse destino.
+
 ## Pendências técnicas
 
 - Sufixo exato, protocolo e mapa de registradores do CLP Delta DVP14SS.

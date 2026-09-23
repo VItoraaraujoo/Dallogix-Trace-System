@@ -172,13 +172,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         responder_json(["error" => "Informe o nome da empresa."], 422);
     }
 
+    $pdo = obter_conexao_banco();
     try {
-        $pdo = obter_conexao_banco();
+        $pdo->beginTransaction();
         $empresaExistente = $pdo->prepare(
             "SELECT id FROM empresas WHERE name = :name LIMIT 1",
         );
         $empresaExistente->execute(["name" => $nomeEmpresa]);
         if ($empresaExistente->fetch()) {
+            $pdo->rollBack();
             responder_json(["error" => "Já existe uma empresa com este nome."], 409);
         }
 
@@ -205,6 +207,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 "login_domain" => $loginDomain,
             ],
         );
+        $pdo->commit();
         responder_json(
             [
                 "data" => [
@@ -216,7 +219,15 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             201,
         );
     } catch (PDOException $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         responder_json(["error" => "Não foi possível criar a empresa."], 409);
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $exception;
     }
 }
 
@@ -250,24 +261,33 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
             ? $empresaAtual["archived_at"] !== null
             : $empresaAtual["archived_at"] === null;
         if (!$jaNoEstado) {
-            $atualizacao = $pdo->prepare(
-                "UPDATE empresas SET archived_at = :archived_at WHERE id = :id",
-            );
-            $atualizacao->execute([
-                "archived_at" => $arquivar ? date("Y-m-d H:i:s") : null,
-                "id" => $id,
-            ]);
-            registrar_evento_operacional(
-                $pdo,
-                $usuarioAtor,
-                $arquivar ? "EMPRESA_ARQUIVADA" : "EMPRESA_RESTAURADA",
-                "company",
-                (int) $id,
-                [
-                    "name" => $empresaAtual["name"],
-                    "login_domain" => $empresaAtual["login_domain"],
-                ],
-            );
+            $pdo->beginTransaction();
+            try {
+                $atualizacao = $pdo->prepare(
+                    "UPDATE empresas SET archived_at = :archived_at WHERE id = :id",
+                );
+                $atualizacao->execute([
+                    "archived_at" => $arquivar ? date("Y-m-d H:i:s") : null,
+                    "id" => $id,
+                ]);
+                registrar_evento_operacional(
+                    $pdo,
+                    $usuarioAtor,
+                    $arquivar ? "EMPRESA_ARQUIVADA" : "EMPRESA_RESTAURADA",
+                    "company",
+                    (int) $id,
+                    [
+                        "name" => $empresaAtual["name"],
+                        "login_domain" => $empresaAtual["login_domain"],
+                    ],
+                );
+                $pdo->commit();
+            } catch (Throwable $exception) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                throw $exception;
+            }
         }
         json_response([
             "data" => [
@@ -304,20 +324,29 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
         json_response(["error" => "Já existe uma empresa com este nome."], 409);
     }
 
-    $atualizacao = $pdo->prepare("UPDATE empresas SET name = :name WHERE id = :id");
-    $atualizacao->execute(["name" => $nomeEmpresa, "id" => $id]);
-    registrar_evento_operacional(
-        $pdo,
-        $usuarioAtor,
-        "EMPRESA_RENOMEADA",
-        "company",
-        (int) $id,
-        [
-            "name_before" => $empresaAtual["name"],
-            "name_after" => $nomeEmpresa,
-            "login_domain" => $empresaAtual["login_domain"],
-        ],
-    );
+    $pdo->beginTransaction();
+    try {
+        $atualizacao = $pdo->prepare("UPDATE empresas SET name = :name WHERE id = :id");
+        $atualizacao->execute(["name" => $nomeEmpresa, "id" => $id]);
+        registrar_evento_operacional(
+            $pdo,
+            $usuarioAtor,
+            "EMPRESA_RENOMEADA",
+            "company",
+            (int) $id,
+            [
+                "name_before" => $empresaAtual["name"],
+                "name_after" => $nomeEmpresa,
+                "login_domain" => $empresaAtual["login_domain"],
+            ],
+        );
+        $pdo->commit();
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $exception;
+    }
     json_response([
         "data" => [
             "id" => (int) $id,

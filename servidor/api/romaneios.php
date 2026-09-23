@@ -478,7 +478,6 @@ try {
         ]);
     }
 
-    $pdo->commit();
     record_operational_event(
         $pdo,
         $usuarioAtor,
@@ -491,6 +490,7 @@ try {
             "items" => count($resolved),
         ],
     );
+    $pdo->commit();
 
     responder_json(
         [
@@ -512,4 +512,9 @@ try {
         responder_json(["error" => "Já existe um romaneio com este número."], 409);
     }
     responder_json(["error" => "Não foi possível salvar o romaneio."], 500);
+} catch (Throwable $exception) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    throw $exception;
 }

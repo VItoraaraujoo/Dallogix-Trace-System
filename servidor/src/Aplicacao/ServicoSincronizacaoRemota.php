@@ -81,7 +81,14 @@ final class ServicoSincronizacaoRemota
     {
         $configured = trim((string) (getenv("TRACE_CENTRAL_URL") ?: ""));
         if ($configured !== "") {
-            return $configured;
+            $configured = \url_remota_segura($configured);
+            if ($configured === "") {
+                return "";
+            }
+            $parts = parse_url($configured);
+            return is_array($parts) && isset($parts["host"])
+                ? "https://" . $parts["host"] . (isset($parts["port"]) ? ":{$parts["port"]}" : "")
+                : "";
         }
         $statement = $this->connection->prepare(
             "SELECT sync_remote_url FROM configuracoes_empresa WHERE company_id = :company_id LIMIT 1",
@@ -91,6 +98,7 @@ final class ServicoSincronizacaoRemota
         if ($remote === "") {
             $remote = trim((string) (getenv("SYNC_REMOTE_URL") ?: getenv("SYNC_REMOTE_BATCH_URL") ?: ""));
         }
+        $remote = \url_remota_segura($remote);
         $parts = parse_url($remote);
         if (!is_array($parts) || !isset($parts["scheme"], $parts["host"])) {
             return "";

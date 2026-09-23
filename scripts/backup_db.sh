@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+umask 077
 root_dir="$(cd "$(dirname "$0")/.." && pwd)"
-output_dir="${1:-$root_dir/armazenamento/backups}"
-mkdir -p "$output_dir"
+output_dir="${1:-${TRACE_BACKUP_DIR:-$root_dir/armazenamento/backups}}"
+mkdir -p -m 700 "$output_dir"
+chmod 700 "$output_dir"
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 staging_dir="$(mktemp -d "$output_dir/.backup-${timestamp}.XXXXXX")"
 trap 'rm -rf "$staging_dir"' EXIT
@@ -24,6 +26,7 @@ fi
 bash "$root_dir/scripts/verify_backup.sh" "$staging_file"
 mv "$staging_file.sha256" "$output_file.sha256"
 mv "$staging_file" "$output_file"
+chmod 600 "$output_file" "$output_file.sha256"
 
 retention_days="${TRACE_BACKUP_RETENTION_DAYS:-30}"
 if [[ "$retention_days" =~ ^[0-9]+$ ]]; then

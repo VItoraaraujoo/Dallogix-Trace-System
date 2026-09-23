@@ -61,4 +61,12 @@ final class SegurancaHardeningTest extends TestCase
         self::assertTrue(sessao_auth_version_compativel(1, 1));
         self::assertFalse(sessao_auth_version_compativel(1, 2));
     }
+
+    public function testUrlRemotaExigeHttpsEEnderecoPublico(): void
+    {
+        self::assertSame("https://8.8.8.8/events", url_remota_segura("https://8.8.8.8/events"));
+        self::assertSame("", url_remota_segura("http://8.8.8.8/events"));
+        self::assertSame("", url_remota_segura("https://127.0.0.1/events"));
+        self::assertSame("", url_remota_segura("https://user:pass@8.8.8.8/events"));
+    }
 }

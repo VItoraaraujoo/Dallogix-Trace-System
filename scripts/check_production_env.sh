@@ -55,7 +55,7 @@ if [[ -n "${SYNC_REMOTE_URL:-}${SYNC_REMOTE_BATCH_URL:-}" && -z "${SYNC_REMOTE_T
   echo "ERRO: SYNC_REMOTE_TOKEN é obrigatório quando a sincronização remota está configurada." >&2
   failures=$((failures + 1))
 fi
-for key in SYNC_REMOTE_URL SYNC_REMOTE_BATCH_URL; do
+for key in SYNC_REMOTE_URL SYNC_REMOTE_BATCH_URL TRACE_CENTRAL_URL; do
   value="${!key:-}"
   if [[ -n "$value" && "$value" != https://* ]]; then
     echo "ERRO: $key deve usar HTTPS em produção." >&2

@@ -30,7 +30,7 @@ if ($centralUrl === "") {
         $centralUrl = $parts["scheme"] . "://" . $parts["host"] . (isset($parts["port"]) ? ":" . $parts["port"] : "");
     }
 }
-if (!preg_match('/^https:\/\//i', $centralUrl)) {
+if (url_remota_segura($centralUrl) === "") {
     responder_json(["error" => "Servidor central não configurado para esta instalação."], 503);
 }
 

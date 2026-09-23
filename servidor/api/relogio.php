@@ -36,7 +36,7 @@ function url_central_para_horario(): string
         }
     }
 
-    return preg_match('/^https:\/\//i', $centralUrl) === 1 ? rtrim($centralUrl, "/") : "";
+    return url_remota_segura($centralUrl);
 }
 
 function consultar_horario_central(string $centralUrl): ?array

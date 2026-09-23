@@ -1,0 +1,11 @@
+[Unit]
+Description=Backup diário do banco Dallogix Trace
+Wants=network-online.target
+After=network-online.target docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/dallogix-trace
+Environment=PATH=/usr/local/bin:/usr/local/sbin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/usr/bin/bash /opt/dallogix-trace/scripts/backup_db.sh /opt/dallogix-trace/armazenamento/backups

@@ -815,10 +815,10 @@ final class ServicoSincronizacao
             $statement->execute(["company_id" => $companyId]);
             $configured = trim((string) ($statement->fetchColumn() ?: ""));
             if ($configured !== "") {
-                return $configured;
+                return \url_remota_segura($configured);
             }
         }
-        return trim((string) (getenv("SYNC_REMOTE_URL") ?: ""));
+        return \url_remota_segura(trim((string) (getenv("SYNC_REMOTE_URL") ?: "")));
     }
 
     private function remoteToken(?int $companyId = null): string
@@ -852,6 +852,6 @@ final class ServicoSincronizacao
 
     private function batchRemoteUrl(): string
     {
-        return trim((string) (getenv("SYNC_REMOTE_BATCH_URL") ?: ""));
+        return \url_remota_segura(trim((string) (getenv("SYNC_REMOTE_BATCH_URL") ?: "")));
     }
 }

@@ -21,6 +21,56 @@ function trace_e_instalacao_local(): bool
     return ambiente_atual() !== "production";
 }
 
+function url_remota_segura(string $url): string
+{
+    $url = trim($url);
+    if ($url === "" || preg_match('/[\x00-\x1F\x7F]/', $url) === 1) {
+        return "";
+    }
+
+    $parts = parse_url($url);
+    if (!is_array($parts) || strtolower((string) ($parts["scheme"] ?? "")) !== "https") {
+        return "";
+    }
+    if (($parts["host"] ?? "") === "" || isset($parts["user"]) || isset($parts["pass"])) {
+        return "";
+    }
+    if (isset($parts["query"]) || isset($parts["fragment"])) {
+        return "";
+    }
+    if (isset($parts["port"]) && ((int) $parts["port"] < 1 || (int) $parts["port"] > 65535)) {
+        return "";
+    }
+
+    $host = trim((string) $parts["host"], "[]");
+    $publicIp = static function (string $ip): bool {
+        return filter_var(
+            $ip,
+            FILTER_VALIDATE_IP,
+            FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE,
+        ) !== false;
+    };
+    if (filter_var($host, FILTER_VALIDATE_IP) !== false) {
+        return $publicIp($host) ? rtrim($url, "/") : "";
+    }
+    if (preg_match('/\A(?=.{1,253}\z)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)*[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\z/i', $host) !== 1) {
+        return "";
+    }
+
+    $records = dns_get_record($host, DNS_A | DNS_AAAA);
+    if ($records === false || $records === []) {
+        return "";
+    }
+    foreach ($records as $record) {
+        $ip = (string) ($record["ip"] ?? $record["ipv6"] ?? "");
+        if ($ip === "" || !$publicIp($ip)) {
+            return "";
+        }
+    }
+
+    return rtrim($url, "/");
+}
+
 function metadados_release(): array
 {
     $release = [

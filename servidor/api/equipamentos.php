@@ -244,6 +244,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
     }
     $data = $validatePayload($payload);
     try {
+        $pdo->beginTransaction();
         $update = $pdo->prepare(
             "UPDATE equipamentos SET equipment_code = :equipment_code, name = :name, plc_ip = :plc_ip, plc_port = :plc_port, external_port = :external_port, plc_protocol = :plc_protocol WHERE id = :id AND company_id = :company_id",
         );
@@ -273,8 +274,12 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
                 "plc_protocol" => $data["protocol"],
             ],
         );
+        $pdo->commit();
         json_response(["data" => ["updated" => true]]);
     } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         json_response(["error" => "Identificador da Dala já cadastrado."], 409);
     }
 }

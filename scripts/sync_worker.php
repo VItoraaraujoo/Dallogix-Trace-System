@@ -9,6 +9,10 @@ require_once __DIR__ . "/../servidor/src/Aplicacao/ServicoSincronizacaoRemota.ph
 use App\Aplicacao\ServicoSincronizacao;
 use App\Aplicacao\ServicoSincronizacaoRemota;
 
+if ((string) (getenv("TRACE_LOCAL_SIMULATION") ?: "0") === "1") {
+    exit(0);
+}
+
 $batchSize = max(1, min(500, (int) (getenv("SYNC_BATCH_SIZE") ?: 50)));
 $summary = (new ServicoSincronizacao(db()))->processBatch($batchSize);
 $remoteSummary = (new ServicoSincronizacaoRemota(db()))->process();
