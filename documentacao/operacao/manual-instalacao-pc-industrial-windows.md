@@ -34,8 +34,8 @@ No `.env`, defina senhas aleatórias para `MYSQL_PASSWORD` e `MYSQL_ROOT_PASSWOR
 
 No PC industrial, cadastre o endereço e a porta de cada CLP na própria Dala.
 Ao salvar, o Trace tenta abrir uma conexão TCP para esse destino, limitado a
-IPv4 privado. `TRACE_ALLOWED_DEVICE_HOSTS` e `TRACE_ALLOWED_DEVICE_PORTS` são
-opcionais para a verificação direta feita por um servidor central. Depois da
+IPv4 privado. O servidor central não acessa a rede Modbus da fábrica:
+ele recebe o status sincronizado pelo PC industrial. Depois da
 migration 048, reexecute a ativação da instalação
 para trocar o antigo código de ativação por um token aleatório de sincronização.
 

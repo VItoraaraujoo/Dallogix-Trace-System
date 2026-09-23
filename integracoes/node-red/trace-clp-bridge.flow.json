@@ -11,7 +11,7 @@
     "type": "comment",
     "z": "trace-clp-bridge",
     "name": "TRACE / Node-RED local",
-    "info": "Configure TRACE_API_URL e TRACE_DEVICE_TOKENS no ambiente do Node-RED. Informe um token por Dala, separado por vírgula; a API devolve somente a Dala vinculada a cada dispositivo. A comunicação física do CLP entra somente depois da confirmação do mapa de I/O.",
+    "info": "Configure TRACE_API_URL e TRACE_DEVICE_TOKEN no ambiente do Node-RED. Este PC industrial usa um único token, vinculado à sua Dala. A comunicação física do CLP entra somente depois da confirmação do mapa de I/O. Configure explicitamente TRACE_MODBUS_UNIT_ID, TRACE_MODBUS_HEARTBEAT_FUNCTION (3 ou 4) e TRACE_MODBUS_HEARTBEAT_REGISTER com um registrador de leitura confirmado. Sem essa configuração nenhuma sonda é enviada.",
     "x": 180,
     "y": 80,
     "wires": []
@@ -29,14 +29,18 @@
     "topic": "",
     "x": 150,
     "y": 160,
-    "wires": [["heartbeat-build"]]
+    "wires": [
+      [
+        "heartbeat-build"
+      ]
+    ]
   },
   {
     "id": "heartbeat-build",
     "type": "function",
     "z": "trace-clp-bridge",
     "name": "Montar heartbeat CLP",
-    "func": "const baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst tokens = String(env.get('TRACE_DEVICE_TOKENS') || env.get('TRACE_DEVICE_TOKEN') || '').split(/[,;\\n]/).map(token => token.trim()).filter(Boolean);\nif (!baseUrl || !tokens.length) return null;\nreturn [tokens.map(traceToken => ({ ...msg, traceToken, url: `${baseUrl}/api/equipamentos_gateway.php`, method: 'GET', headers: { 'X-Device-Token': traceToken } }))];",
+    "func": "const baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst traceToken = String(env.get('TRACE_DEVICE_TOKEN') || '').trim();\nif (!baseUrl || !traceToken || /[,;\\n]/.test(traceToken)) return null;\nmsg.traceToken = traceToken;\nmsg.url = `${baseUrl}/api/equipamentos_gateway.php`;\nmsg.method = 'GET';\nmsg.headers = { 'X-Device-Token': traceToken };\nreturn msg;",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
@@ -45,7 +49,11 @@
     "libs": [],
     "x": 390,
     "y": 160,
-    "wires": [["heartbeat-http"]]
+    "wires": [
+      [
+        "heartbeat-http"
+      ]
+    ]
   },
   {
     "id": "heartbeat-http",
@@ -61,14 +69,18 @@
     "senderr": false,
     "x": 650,
     "y": 160,
-    "wires": [["heartbeat-dispatch"]]
+    "wires": [
+      [
+        "heartbeat-dispatch"
+      ]
+    ]
   },
   {
     "id": "heartbeat-dispatch",
     "type": "function",
     "z": "trace-clp-bridge",
     "name": "Validar Modbus das Dalas",
-    "func": "const equipment = Array.isArray(msg.payload?.data) ? msg.payload.data : [];\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst traceToken = String(msg.traceToken || '');\nif (!equipment.length || !baseUrl || !traceToken) return [[], []];\nconst probes = [];\nconst watchdogs = [];\nfor (const item of equipment) {\n    const equipmentId = Number(item.id);\n    const host = String(item.plc_ip || '').trim();\n    const port = Number(item.plc_port || 0);\n    const protocol = String(item.plc_protocol || 'MODBUS_TCP').toUpperCase();\n    watchdogs.push({ ...msg, traceToken, equipmentId, url: `${baseUrl}/api/device_heartbeat.php`, method: 'POST', headers: { 'X-Device-Token': traceToken, 'Content-Type': 'application/json' }, payload: { equipment_id: equipmentId, device_type: 'CLP', status: 'OFFLINE', details: { source: 'node-red', communication: 'modbus_tcp', reason: 'sem_resposta_modbus' } } });\n    const invalidPlaceholder = /^(0{8}|9{8})$/.test(host);\n    if (equipmentId > 0 && host && Number.isInteger(port) && port >= 1 && port <= 65535 && protocol === 'MODBUS_TCP' && !invalidPlaceholder) {\n        probes.push({ ...msg, traceToken, equipmentId, modbusHost: host, modbusPort: port, payload: null });\n    }\n}\nreturn [probes, watchdogs];",
+    "func": "if (msg.statusCode !== 200) return [[], []];\nconst equipment = Array.isArray(msg.payload?.data) ? msg.payload.data : [];\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst traceToken = String(msg.traceToken || '');\nif (!equipment.length || !baseUrl || !traceToken) return [[], []];\nconst probes = [];\nconst watchdogs = [];\nfor (const item of equipment) {\n    const equipmentId = Number(item.id);\n    const host = String(item.plc_connect_ip || '').trim();\n    const port = Number(item.plc_port || 0);\n    const protocol = String(item.plc_protocol || 'MODBUS_TCP').toUpperCase();\n    watchdogs.push({ ...msg, traceToken, equipmentId, url: `${baseUrl}/api/device_heartbeat.php`, method: 'POST', headers: { 'X-Device-Token': traceToken, 'Content-Type': 'application/json' }, payload: { equipment_id: equipmentId, device_type: 'CLP', status: 'OFFLINE', details: { source: 'node-red', communication: 'modbus_tcp', reason: 'sem_resposta_modbus' } } });\n    if (equipmentId > 0 && host && Number.isInteger(port) && port >= 1 && port <= 65535 && protocol === 'MODBUS_TCP') {\n        probes.push({ ...msg, traceToken, equipmentId, modbusHost: host, modbusPort: port, payload: null });\n    }\n}\nreturn [probes, watchdogs];",
     "outputs": 2,
     "timeout": 0,
     "noerr": 0,
@@ -77,14 +89,21 @@
     "libs": [],
     "x": 900,
     "y": 160,
-    "wires": [["modbus-frame"], ["heartbeat-watchdog"]]
+    "wires": [
+      [
+        "modbus-frame"
+      ],
+      [
+        "heartbeat-watchdog"
+      ]
+    ]
   },
   {
     "id": "modbus-frame",
     "type": "function",
     "z": "trace-clp-bridge",
-    "name": "Ler holding[0] do CLP",
-    "func": "const transaction = (flow.get('modbus_transaction') || 0) + 1;\nflow.set('modbus_transaction', transaction & 0xffff);\nconst mbap = Buffer.from([(transaction >> 8) & 0xff, transaction & 0xff, 0, 0, 0, 6, 1]);\nmsg.payload = Buffer.concat([mbap, Buffer.from([3, 0, 0, 0, 1])]);\nmsg.host = msg.modbusHost;\nmsg.port = msg.modbusPort;\nreturn msg;",
+    "name": "Ler diagnóstico Modbus configurado",
+    "func": "const rawUnit = String(env.get('TRACE_MODBUS_UNIT_ID') ?? '').trim();\nconst rawFunction = String(env.get('TRACE_MODBUS_HEARTBEAT_FUNCTION') ?? '').trim();\nconst rawRegister = String(env.get('TRACE_MODBUS_HEARTBEAT_REGISTER') ?? '').trim();\nif (![rawUnit, rawFunction, rawRegister].every(value => /^\\d+$/.test(value))) return null;\nconst unit = Number(rawUnit), fc = Number(rawFunction), register = Number(rawRegister);\nif (unit < 0 || unit > 255 || ![3, 4].includes(fc) || register > 65535) return null;\nconst transaction = ((flow.get('modbus_transaction') || 0) + 1) & 0xffff;\nflow.set('modbus_transaction', transaction);\nconst frame = Buffer.alloc(12);\nframe.writeUInt16BE(transaction, 0);\nframe.writeUInt16BE(6, 4);\nframe[6] = unit;\nframe[7] = fc;\nframe.writeUInt16BE(register, 8);\nframe.writeUInt16BE(1, 10);\nmsg.modbusTransaction = transaction;\nmsg.modbusUnit = unit;\nmsg.modbusFunction = fc;\nmsg.modbusRegister = register;\nmsg.modbusStartedAt = Date.now();\nmsg.payload = frame;\nmsg.host = msg.modbusHost;\nmsg.port = msg.modbusPort;\nreturn msg;",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
@@ -93,7 +112,11 @@
     "libs": [],
     "x": 1120,
     "y": 140,
-    "wires": [["modbus-request"]]
+    "wires": [
+      [
+        "modbus-request"
+      ]
+    ]
   },
   {
     "id": "modbus-request",
@@ -104,19 +127,23 @@
     "port": "",
     "out": "time",
     "ret": "buffer",
-    "splitc": "0",
+    "splitc": "500",
     "newline": "",
     "tls": "",
     "x": 1370,
     "y": 140,
-    "wires": [["modbus-result"]]
+    "wires": [
+      [
+        "modbus-result"
+      ]
+    ]
   },
   {
     "id": "modbus-result",
     "type": "function",
     "z": "trace-clp-bridge",
     "name": "Confirmar resposta Modbus",
-    "func": "const frame = Buffer.from(msg.payload || []);\nconst valid = frame.length >= 11 && frame.readUInt16BE(2) === 0 && frame[7] === 3 && frame[8] === 2;\nif (!valid) return null;\nflow.set(`modbus_last_success_${msg.equipmentId}`, Date.now());\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nif (!baseUrl || !msg.traceToken) return null;\nmsg.url = `${baseUrl}/api/device_heartbeat.php`;\nmsg.method = 'POST';\nmsg.headers = { 'X-Device-Token': msg.traceToken, 'Content-Type': 'application/json' };\nmsg.payload = { equipment_id: msg.equipmentId, device_type: 'CLP', status: 'ONLINE', details: { source: 'node-red', communication: 'modbus_tcp', plc_ip: msg.modbusHost, plc_port: msg.modbusPort, holding_register_0: frame.readUInt16BE(9), heartbeat_interval_ms: 1000 } };\nreturn msg;",
+    "func": "const frame = Buffer.isBuffer(msg.payload) ? msg.payload : Buffer.alloc(0);\nconst age = Date.now() - Number(msg.modbusStartedAt);\nconst valid = Number.isFinite(age) && age >= 0 && age <= 2000\n    && frame.length === 11 && frame.readUInt16BE(0) === msg.modbusTransaction\n    && frame.readUInt16BE(2) === 0 && frame.readUInt16BE(4) === 5\n    && frame[6] === msg.modbusUnit && frame[7] === msg.modbusFunction\n    && [3, 4].includes(frame[7]) && frame[8] === 2;\nif (!valid) return null;\nflow.set(`modbus_last_success_${msg.equipmentId}`, Date.now());\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nif (!baseUrl || !msg.traceToken) return null;\nmsg.url = `${baseUrl}/api/device_heartbeat.php`;\nmsg.method = 'POST';\nmsg.headers = { 'X-Device-Token': msg.traceToken, 'Content-Type': 'application/json' };\nmsg.payload = { equipment_id: msg.equipmentId, device_type: 'CLP', status: 'ONLINE', details: {\n    source: 'node-red', communication: 'modbus_tcp', plc_ip: msg.modbusHost, plc_port: msg.modbusPort,\n    modbus_unit_id: msg.modbusUnit, modbus_function: msg.modbusFunction,\n    diagnostic_register: msg.modbusRegister, diagnostic_value: frame.readUInt16BE(9), heartbeat_interval_ms: 1000\n} };\nreturn msg;",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
@@ -125,7 +152,11 @@
     "libs": [],
     "x": 1630,
     "y": 140,
-    "wires": [["heartbeat-post"]]
+    "wires": [
+      [
+        "heartbeat-post"
+      ]
+    ]
   },
   {
     "id": "heartbeat-watchdog",
@@ -141,7 +172,11 @@
     "libs": [],
     "x": 1120,
     "y": 200,
-    "wires": [["heartbeat-post"]]
+    "wires": [
+      [
+        "heartbeat-post"
+      ]
+    ]
   },
   {
     "id": "heartbeat-post",
@@ -157,7 +192,11 @@
     "senderr": false,
     "x": 1150,
     "y": 160,
-    "wires": [["heartbeat-debug"]]
+    "wires": [
+      [
+        "heartbeat-debug"
+      ]
+    ]
   },
   {
     "id": "heartbeat-debug",
@@ -189,14 +228,18 @@
     "topic": "",
     "x": 180,
     "y": 280,
-    "wires": [["command-claim-build"]]
+    "wires": [
+      [
+        "command-claim-build"
+      ]
+    ]
   },
   {
     "id": "command-claim-build",
     "type": "function",
     "z": "trace-clp-bridge",
     "name": "Reservar próximo comando",
-    "func": "const baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst tokens = String(env.get('TRACE_DEVICE_TOKENS') || env.get('TRACE_DEVICE_TOKEN') || '').split(/[,;\\n]/).map(token => token.trim()).filter(Boolean);\nif (!baseUrl || !tokens.length) return null;\nreturn [tokens.map(traceToken => ({ ...msg, traceToken, url: `${baseUrl}/api/equipamentos_gateway.php`, method: 'GET', headers: { 'X-Device-Token': traceToken } }))];",
+    "func": "const baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst traceToken = String(env.get('TRACE_DEVICE_TOKEN') || '').trim();\nif (!baseUrl || !traceToken || /[,;\\n]/.test(traceToken)) return null;\nmsg.traceToken = traceToken;\nmsg.url = `${baseUrl}/api/equipamentos_gateway.php`;\nmsg.method = 'GET';\nmsg.headers = { 'X-Device-Token': traceToken };\nreturn msg;",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
@@ -205,14 +248,38 @@
     "libs": [],
     "x": 430,
     "y": 280,
-    "wires": [["command-claim-dispatch"]]
+    "wires": [
+      [
+        "command-equipment-http"
+      ]
+    ]
+  },
+  {
+    "id": "command-equipment-http",
+    "type": "http request",
+    "z": "trace-clp-bridge",
+    "name": "GET Dala para consultar comandos",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "persist": false,
+    "authType": "",
+    "senderr": false,
+    "x": 650,
+    "y": 240,
+    "wires": [
+      [
+        "command-claim-dispatch"
+      ]
+    ]
   },
   {
     "id": "command-claim-dispatch",
     "type": "function",
     "z": "trace-clp-bridge",
     "name": "Consultar comandos da Dala",
-    "func": "const equipment = Array.isArray(msg.payload?.data) ? msg.payload.data : [];\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst traceToken = String(msg.traceToken || '');\nif (!equipment.length || !baseUrl || !traceToken) return null;\nreturn [equipment.map(item => ({ ...msg, traceToken, url: `${baseUrl}/api/plc_gateway.php`, method: 'POST', headers: { 'X-Device-Token': traceToken, 'Content-Type': 'application/json' }, payload: { action: 'CLAIM', equipment_id: Number(item.id) } }))];",
+    "func": "if (msg.statusCode !== 200) return null;\nconst equipment = Array.isArray(msg.payload?.data) ? msg.payload.data : [];\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst traceToken = String(msg.traceToken || '');\nif (!equipment.length || !baseUrl || !traceToken) return null;\nreturn [equipment.map(item => ({ ...msg, traceToken, url: `${baseUrl}/api/plc_gateway.php`, method: 'POST', headers: { 'X-Device-Token': traceToken, 'Content-Type': 'application/json' }, payload: { action: 'CLAIM', equipment_id: Number(item.id) } }))];",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
@@ -221,7 +288,11 @@
     "libs": [],
     "x": 900,
     "y": 280,
-    "wires": [["command-claim-http"]]
+    "wires": [
+      [
+        "command-claim-http"
+      ]
+    ]
   },
   {
     "id": "command-claim-http",
@@ -237,14 +308,18 @@
     "senderr": false,
     "x": 680,
     "y": 280,
-    "wires": [["command-safe-gate"]]
+    "wires": [
+      [
+        "command-safe-gate"
+      ]
+    ]
   },
   {
     "id": "command-safe-gate",
     "type": "function",
     "z": "trace-clp-bridge",
     "name": "Validar antes de qualquer escrita",
-    "func": "const response = msg.payload && (msg.payload.data || msg.payload);\nif (!response || !response.id) return null;\nconst allowed = ['EMERGENCIA', 'REVERSAO_ATIVAR', 'REVERSAO_DESATIVAR'];\nconst status = allowed.includes(String(response.command || '')) ? 'REJEITADO' : 'ERRO';\nconst reason = status === 'REJEITADO'\n    ? 'Mapa de I/O do CLP ainda não aprovado; nenhuma escrita foi executada. A emergência permanece registrada no sistema.'\n    : 'Comando não suportado pelo gateway local.';\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst token = String(msg.traceToken || '');\nif (!baseUrl || !token) return null;\nmsg.url = `${baseUrl}/api/plc_gateway.php`;\nmsg.method = 'POST';\nmsg.headers = {\n    'X-Device-Token': token,\n    'Content-Type': 'application/json'\n};\nmsg.payload = { action: 'COMPLETE', request_id: Number(response.id), status, message: reason };\nreturn msg;",
+    "func": "if (msg.statusCode !== 200) return null;\nconst response = msg.payload && (msg.payload.data || msg.payload);\nif (!response || !response.id) return null;\nconst allowed = ['EMERGENCIA', 'REVERSAO_ATIVAR', 'REVERSAO_DESATIVAR', 'DESBLOQUEAR_MAQUINA', 'INICIAR_CARREGAMENTO', 'PAUSAR_CARREGAMENTO'];\nconst status = allowed.includes(String(response.command || '')) ? 'REJEITADO' : 'ERRO';\nconst reason = status === 'REJEITADO'\n    ? 'Mapa de I/O do CLP ainda não aprovado; nenhuma escrita foi executada. A solicitação não confirma movimento nem parada física.'\n    : 'Comando não suportado pelo gateway local.';\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst token = String(msg.traceToken || '');\nif (!baseUrl || !token) return null;\nmsg.url = `${baseUrl}/api/plc_gateway.php`;\nmsg.method = 'POST';\nmsg.headers = {\n    'X-Device-Token': token,\n    'Content-Type': 'application/json'\n};\nmsg.payload = { action: 'COMPLETE', request_id: Number(response.id), status, message: reason };\nreturn msg;",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
@@ -253,7 +328,11 @@
     "libs": [],
     "x": 950,
     "y": 280,
-    "wires": [["command-complete-http"]]
+    "wires": [
+      [
+        "command-complete-http"
+      ]
+    ]
   },
   {
     "id": "command-complete-http",
@@ -269,7 +348,11 @@
     "senderr": false,
     "x": 1240,
     "y": 280,
-    "wires": [["command-debug"]]
+    "wires": [
+      [
+        "command-debug"
+      ]
+    ]
   },
   {
     "id": "command-debug",

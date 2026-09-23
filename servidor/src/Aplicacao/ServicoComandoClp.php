@@ -157,6 +157,11 @@ final class ServicoComandoClp
                 );
             }
 
+            // O desbloqueio é revogado mesmo se esta emergência já estiver
+            // pendente: um novo pedido do operador invalida qualquer ACK
+            // de desbloqueio ainda em voo.
+            $this->cancelPendingUnlocks($user, $loadingId);
+
             $pending = $this->pendingCommand($loadingId, self::EMERGENCY_COMMAND);
             if ($pending) {
                 if ($loading["state"] !== "EMERGENCIA") {
@@ -262,6 +267,59 @@ final class ServicoComandoClp
         );
         $statement->execute($params);
         return $statement->fetch();
+    }
+
+    /** @param array{id:int|string, company_id:int|string|null} $user */
+    private function cancelPendingUnlocks(array $user, int $loadingId): void
+    {
+        $pending = $this->connection->prepare(
+            "SELECT r.id, r.equipment_id, r.remote_command_id,
+                    c.remote_carregamento_id, e.remote_equipment_id, e.equipment_code
+             FROM solicitacoes_comandos_clp r
+             JOIN carregamentos c ON c.id = r.carregamento_id
+             JOIN equipamentos e ON e.id = r.equipment_id
+             WHERE r.carregamento_id = :loading_id AND r.company_id = :company_id
+               AND r.command = 'DESBLOQUEAR_MAQUINA'
+               AND r.status IN ('PENDENTE', 'PROCESSANDO')
+             ORDER BY r.id FOR UPDATE",
+        );
+        $pending->execute([
+            "loading_id" => $loadingId,
+            "company_id" => $user["company_id"],
+        ]);
+        $cancel = $this->connection->prepare(
+            "UPDATE solicitacoes_comandos_clp
+             SET status = 'REJEITADO', completed_at = NOW(3),
+                 response_message = 'Nova emergência cancelou o desbloqueio pendente.'
+             WHERE id = :id AND status IN ('PENDENTE', 'PROCESSANDO')",
+        );
+        foreach ($pending->fetchAll() as $request) {
+            $cancel->execute(["id" => $request["id"]]);
+            if ($cancel->rowCount() !== 1) {
+                continue;
+            }
+            \record_operational_event(
+                $this->connection,
+                $user,
+                "COMANDO_CLP_CONCLUIDO",
+                "solicitacao_comando_clp",
+                (int) $request["id"],
+                [
+                    "equipment_id" => (int) $request["equipment_id"],
+                    "carregamento_id" => $loadingId,
+                    "command" => "DESBLOQUEAR_MAQUINA",
+                    "status" => "REJEITADO",
+                    "message" => "Nova emergência cancelou o desbloqueio pendente.",
+                    "remote_command_id" => $request["remote_command_id"] === null
+                        ? null : (int) $request["remote_command_id"],
+                    "remote_carregamento_id" => $request["remote_carregamento_id"] === null
+                        ? null : (int) $request["remote_carregamento_id"],
+                    "remote_equipment_id" => $request["remote_equipment_id"] === null
+                        ? null : (int) $request["remote_equipment_id"],
+                    "equipment_code" => $request["equipment_code"],
+                ],
+            );
+        }
     }
 
     /** @param array<string,mixed> $loading */

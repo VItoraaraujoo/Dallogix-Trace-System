@@ -30,29 +30,37 @@ if (
         json_response(["error" => "Dala não informada."], 422);
     }
     $statement = $pdo->prepare(
-        "SELECT e.id, e.equipment_code, e.plc_ip, e.plc_port, e.external_port, s.gateway_public_ip FROM equipamentos e LEFT JOIN configuracoes_empresa s ON s.company_id = e.company_id WHERE e.id = :id AND e.company_id = :company_id LIMIT 1",
+        "SELECT e.id, e.equipment_code, e.plc_ip, e.plc_port
+         FROM equipamentos e WHERE e.id = :id AND e.company_id = :company_id LIMIT 1",
     );
     $statement->execute(["id" => $id, "company_id" => $user["company_id"]]);
     $dala = $statement->fetch();
     if (!$dala) {
         json_response(["error" => "Dala não encontrada."], 404);
     }
-    $local = trace_e_instalacao_local();
-    if (!$local && (trim((string) ($dala["gateway_public_ip"] ?? "")) === ""
-        || !$dala["external_port"])) {
+    if (!trace_e_instalacao_local()) {
+        $staleSeconds = limite_sinal_clp_segundos();
+        $reported = $pdo->prepare(
+            "SELECT CASE
+                WHEN status = 'ONLINE' AND last_seen_at >= DATE_SUB(NOW(3), INTERVAL {$staleSeconds} SECOND) THEN 'ONLINE'
+                WHEN status = 'ERRO' THEN 'ERRO'
+                ELSE 'OFFLINE' END AS effective_status
+             FROM status_dispositivos
+             WHERE equipment_id = :equipment_id AND device_type = 'CLP' LIMIT 1",
+        );
+        $reported->execute(["equipment_id" => $id]);
+        $effectiveStatus = $reported->fetchColumn();
         json_response([
             "data" => [
-                "status" => "PENDENTE",
-                "message" => "A conexão com o CLP é verificada no PC industrial.",
+                "status" => $effectiveStatus ?: "OFFLINE",
+                "message" => $effectiveStatus === "ONLINE"
+                    ? "CLP respondeu à verificação Modbus no PC industrial; heartbeat remoto recente."
+                    : "Sem verificação Modbus recente do PC industrial; confira o gateway local e a sincronização.",
             ],
         ]);
     }
-    $host = $local
-        ? (string) $dala["plc_ip"]
-        : (string) $dala["gateway_public_ip"];
-    $port = $local
-        ? (int) $dala["plc_port"]
-        : (int) $dala["external_port"];
+    $host = (string) $dala["plc_ip"];
+    $port = (int) $dala["plc_port"];
     if (!$host || $port < 1) {
         json_response([
             "data" => [
@@ -61,14 +69,12 @@ if (
             ],
         ]);
     }
-    $resolvedHost = $local ? resolver_destino_clp_local($host, $port) : $host;
-    if ($resolvedHost === null || (!$local && !destino_dispositivo_permitido($host, $port))) {
+    $resolvedHost = resolver_destino_clp_local($host, $port);
+    if ($resolvedHost === null) {
         json_response([
             "data" => [
                 "status" => "OFFLINE",
-                "message" => $local
-                    ? "Endereço do CLP inválido ou fora da rede privada da instalação."
-                    : "Destino não autorizado pela configuração da implantação.",
+                "message" => "Endereço do CLP inválido ou fora da rede privada da instalação.",
             ],
         ]);
     }
@@ -174,6 +180,16 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $data = $validatePayload(request_json());
     $pdo->beginTransaction();
     try {
+        if (trace_e_instalacao_local()) {
+            $pdo->query("SELECT id FROM instalacoes_locais WHERE id = 1 FOR UPDATE");
+            $existing = $pdo->prepare(
+                "SELECT id FROM equipamentos WHERE company_id = :company_id LIMIT 1",
+            );
+            $existing->execute(["company_id" => $user["company_id"]]);
+            if ($existing->fetchColumn() !== false) {
+                throw new RuntimeException("LOCAL_DALA_LIMIT");
+            }
+        }
         $insert = $pdo->prepare(
             "INSERT INTO equipamentos (company_id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol) VALUES (:company_id, :equipment_code, :name, :plc_ip, :plc_port, :external_port, :plc_protocol)",
         );
@@ -216,6 +232,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     } catch (Throwable $exception) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
+        }
+        if ($exception instanceof RuntimeException && $exception->getMessage() === "LOCAL_DALA_LIMIT") {
+            json_response(["error" => "Este PC industrial já possui uma Dala cadastrada."], 409);
         }
         throw $exception;
     }

@@ -8,26 +8,24 @@ HTML, CSS, JavaScript, PHP, MySQL, Node-RED, Nginx, Docker e Docker Compose.
 
 ## Estado atual
 
-Operação local-first integrada. Cada tela possui seu próprio HTML (`interface/*.html`) com núcleo compartilhado em `js/aplicacao.js`; login em `index.html`. O ambiente base, operação persistida, auditoria, fila de sincronização, monitoramento, ocorrências, catálogo, importação transacional, preparação e encerramento de carregamentos, captura seletiva de evidências, retenção automática de imagens e dados operacionais, relatório CSV e controles por perfil estão disponíveis.
+Operação local-first integrada. Cada tela possui seu próprio HTML (`interface/*.html`) com núcleo compartilhado em `js/aplicacao.js`; login em `index.html`. O ambiente base, operação persistida, auditoria, fila de sincronização, monitoramento, ocorrências, catálogo, importação transacional, preparação e encerramento de carregamentos, solicitação de captura seletiva de evidências, retenção de imagens e dados operacionais, relatório CSV e controles por perfil estão disponíveis. A captura física da câmera e a leitura USB/serial do scanner ainda exigem adaptadores e homologação com os dispositivos reais.
 
 A reversão e as ações configuráveis por Dala usam uma fila própria para o gateway industrial: o painel só registra a solicitação; o gateway autenticado confirma ou rejeita o comando após validar o CLP. Gatilhos, como atingir 100% da quantidade planejada, seguem a mesma fila. Nenhuma escrita física é feita pelo servidor. A ligação real ainda depende do mapa de I/O homologado, do programa Ladder e dos testes de bancada.
 
-## Credenciais locais
+## Instalação limpa e ambiente de desenvolvimento
 
-O seed cria usuários de demonstração para um ambiente local. As senhas abaixo
-existem somente para inicializar esse ambiente e não são aceitas como
-configuração de produção:
-
-- `admin@dallogix.local` / `password` — administrador da empresa.
-- `supervisor@dallogix.local` / `password1234` — supervisor local.
-- `operador@dallogix.local` / `password1234` — operador local.
-- `master@dallogix.local` / `password` — administrador Dallogix.
+A instalação do PC industrial começa sem empresa, usuário, produto ou Dala de
+demonstração. O seed `banco-de-dados/seeds/001_local_seed.sql` é exclusivo de
+testes isolados. Não o execute no banco de homologação ou produção.
+Cada PC industrial aceita uma Dala local. Se uma empresa possuir várias Dalas
+no servidor central, a sincronização deste PC fica bloqueada até existir um
+vínculo explícito instalação ↔ Dala; o sistema não escolhe uma automaticamente.
 
 Novas empresas recebem automaticamente um domínio lógico de acesso, derivado do
 nome cadastrado, como `dallogix.empresa-chat`. O login pode então ser
 `admin@dallogix.empresa-chat`, `joao@dallogix.empresa-chat` ou outro prefixo
-escolhido no gerenciamento de logins. O domínio antigo do seed permanece válido
-para compatibilidade com o ambiente local.
+escolhido no gerenciamento de logins. O domínio antigo do seed existe apenas
+para compatibilidade com os testes isolados.
 
 No perfil Master, uma empresa pode ser **arquivada** sem perder usuários,
 romaneios, leituras, auditoria ou configurações. Enquanto arquivada, ela não
@@ -45,7 +43,7 @@ seguinte apaga também os dados relacionados de forma irreversível.
 4. Verifique a API local em `http://localhost:8080/api/index.php`.
 5. Verifique a saúde em `http://localhost:8080/api/health.php`.
 
-Para validar o transporte do CLP virtual, execute `python3 scripts/test_modbus_virtual.py` com os containers ativos. O teste escreve e lê somente a memória do simulador em `127.0.0.1:1502`.
+Para validar o transporte do CLP virtual, execute `python3 scripts/test_modbus_virtual.py` com o simulador ativo. O teste padrão só lê. A opção `--write-simulator` testa escritas apenas pelo endereço de loopback do emulador.
 
 ## Testar com configuração de produção
 
@@ -55,26 +53,22 @@ os testes e os limites em [teste de produção local](documentacao/operacao/test
 
 ## Banco local
 
-Com os containers ativos, aplique as migrations controladas e o seed:
+Com os containers ativos, aplique somente as migrations controladas:
 
 ```bash
 ./scripts/migrate.sh
-docker compose exec -T mysql sh -lc 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < banco-de-dados/seeds/001_local_seed.sql
 ```
 
 Em uma instalação já existente, `scripts/migrate.sh` cria o controle de versão e registra o schema legado sem reaplicar migrations históricas. As migrations mais recentes adicionam o código de ativação permanente, o arquivamento separado da exclusão definitiva e o índice composto da listagem de usuários.
 
-O seed cria uma empresa, usuário administrador, máquina, esteira, produto e barcode para desenvolvimento local.
-
-As credenciais técnicas não possuem valor padrão público. Defina `TRACE_DEVICE_TOKEN` e `CAMERA_DEVICE_TOKEN` no `.env` e, depois do seed, provisione os dispositivos com tokens próprios usando `php scripts/provision_device.php`.
+As credenciais técnicas não possuem valor padrão público. Defina `TRACE_DEVICE_TOKEN` e `CAMERA_DEVICE_TOKEN` no `.env` e, depois de cadastrar a Dala real, provisione os dispositivos com tokens próprios usando `php scripts/provision_device.php`.
 Cada reprovisionamento gera um novo `token_id`, invalida a credencial anterior e registra a criação e o último uso sem armazenar o token em texto puro. A expiração e a revogação ficam associadas somente ao dispositivo provisionado.
 
 O código `TRC-....-....` serve somente para a ativação assistida. A ativação
 gera uma credencial aleatória separada para a sincronização da instalação; por
 isso, instalações existentes devem ser ativadas novamente após aplicar a
-migration 048. No servidor central, a verificação TCP direta exige os pares
-explicitamente listados em `TRACE_ALLOWED_DEVICE_HOSTS` e
-`TRACE_ALLOWED_DEVICE_PORTS`. Na instalação local, a verificação TCP usa o
+migration 048. No servidor central, o status do CLP vem do heartbeat
+sincronizado; não há conexão TCP direta com a fábrica. Na instalação local, a verificação TCP usa o
 endereço e a porta cadastrados na Dala, desde que o endereço resolva para um
 IPv4 privado. O cadastro não pressupõe o endereço do simulador nem uma porta
 Modbus fixa; a verificação TCP não substitui o heartbeat Modbus do gateway.
@@ -92,9 +86,9 @@ cada fluxo, está em [homologação completa de 17/09/2026](documentacao/testes/
 
 `/api/health.php` informa a versão e o SHA implantados. `/api/prontidao.php` informa profundidade/idade da fila, heartbeats, comandos travados, schema e espaço livre. Fila pendente sem erro pode ser normal quando a sincronização remota está desabilitada; o healthcheck degrada quando há erro, atraso acima do limite ou risco operacional.
 
-O deploy automático do servidor de teste ocorre pelo workflow [`.github/workflows/deploy-test.yml`](.github/workflows/deploy-test.yml) somente depois do gate de qualidade e segurança do próprio workflow, além dos checks independentes da automação do repositório, usando SSH e healthcheck. A atualização de arquivos é feita sem parar ou recriar os containers existentes; o Nginx recebe apenas um reload gracioso, e o release é validado pelo SHA publicado. A `master` é a fonte de verdade da aplicação operacional; a `main` não deve ser usada para deploy. Os segredos de acesso ficam somente no ambiente protegido `test` do GitHub. A publicação de produção ocorre somente por tags de versão no workflow [`.github/workflows/release-production.yml`](.github/workflows/release-production.yml).
+O deploy automático do servidor de teste ocorre pelo workflow [`.github/workflows/deploy-test.yml`](.github/workflows/deploy-test.yml) somente depois do gate de qualidade e segurança do próprio workflow, além dos checks independentes da automação do repositório, usando SSH e healthcheck. A atualização preserva o banco; após backup e migrations, reconstrói e reinicia somente o serviço PHP para aplicar mudanças da imagem, mantém os demais serviços e recarrega o Nginx graciosamente. O release é validado pelo SHA publicado. A `master` é a fonte de verdade da aplicação operacional; a `main` não deve ser usada para deploy. Os segredos de acesso ficam somente no ambiente protegido `test` do GitHub. A publicação de produção ocorre somente por tags de versão no workflow [`.github/workflows/release-production.yml`](.github/workflows/release-production.yml).
 
-Credencial local inicial: `admin@dallogix.local` / `password`. A senha definida no cadastro é válida imediatamente e não exige troca no primeiro acesso.
+A senha definida no cadastro da empresa é válida imediatamente e não exige troca no primeiro acesso.
 
 ## Ativação do PC industrial
 

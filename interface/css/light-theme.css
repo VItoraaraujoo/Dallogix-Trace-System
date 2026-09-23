@@ -5540,32 +5540,27 @@ body.mobile-menu-open {
 
 .settings-dalas-table th:nth-child(1),
 .settings-dalas-table td:nth-child(1) {
-  width: 17%;
+  width: 20%;
 }
 
 .settings-dalas-table th:nth-child(2),
 .settings-dalas-table td:nth-child(2) {
-  width: 22%;
+  width: 25%;
 }
 
 .settings-dalas-table th:nth-child(3),
 .settings-dalas-table td:nth-child(3) {
-  width: 14%;
+  width: 20%;
 }
 
 .settings-dalas-table th:nth-child(4),
 .settings-dalas-table td:nth-child(4) {
-  width: 11%;
+  width: 15%;
 }
 
 .settings-dalas-table th:nth-child(5),
 .settings-dalas-table td:nth-child(5) {
-  width: 13%;
-}
-
-.settings-dalas-table th:nth-child(6),
-.settings-dalas-table td:nth-child(6) {
-  width: 23%;
+  width: 20%;
 }
 
 .settings-dalas-table td.dala-status {

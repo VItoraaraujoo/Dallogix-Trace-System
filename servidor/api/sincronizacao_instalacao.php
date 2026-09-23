@@ -62,7 +62,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $upsert = $pdo->prepare(
         "INSERT INTO status_dispositivos
          (equipment_id, device_type, status, last_seen_at, details)
-         SELECT e.id, :device_type, :status, COALESCE(:last_seen_at, NOW(3)), :details
+         SELECT e.id, :device_type, :status, NOW(3), :details
          FROM equipamentos e
          WHERE e.company_id = :company_id
            AND ((:remote_equipment_id_a IS NOT NULL AND e.id = :remote_equipment_id_b)
@@ -86,7 +86,6 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         $upsert->execute([
             "device_type" => $deviceType,
             "status" => $status,
-            "last_seen_at" => $heartbeat["last_seen_at"] ?? null,
             "details" => $details,
             "company_id" => $companyId,
             "remote_equipment_id_a" => $remoteEquipmentId === false ? null : (int) $remoteEquipmentId,

@@ -70,6 +70,7 @@ export class ArmazenamentoTrace {
     this.state.page = page;
   }
   setUser(user) {
+    this.offlineBuffer.setOwner(user);
     this.state.userRole = user?.role || null;
     this.state.currentUserId = user?.id || null;
     this.state.companyLoginDomain = user?.company_login_domain || null;
@@ -90,8 +91,14 @@ export class ArmazenamentoTrace {
       typeof options.body === "string";
   }
   async requestWithOfflineQueue(url, options = {}) {
+    const eventId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      ? crypto.randomUUID()
+      : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
+    const requestOptions = this.canQueueOffline(url, options)
+      ? { ...options, headers: { ...(options.headers || {}), "X-Trace-Offline-Id": eventId } }
+      : options;
     try {
-      return await fetch(url, options);
+      return await fetch(url, requestOptions);
     } catch (error) {
       if (!this.canQueueOffline(url, options)) throw error;
       const id = await this.offlineBuffer.enqueue({
@@ -99,6 +106,7 @@ export class ArmazenamentoTrace {
         method: options.method || "POST",
         headers: options.headers || {},
         body: options.body,
+        eventId,
       });
       this.state.offlineQueueSize = (await this.offlineBuffer.all()).length;
       return new Response(JSON.stringify({
@@ -108,7 +116,7 @@ export class ArmazenamentoTrace {
     }
   }
   async flushOfflineOperations() {
-    const result = await this.offlineBuffer.flush();
+    const result = await this.offlineBuffer.flush(this.jsonHeaders());
     this.state.offlineQueueSize = result.pending;
     return result;
   }

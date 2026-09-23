@@ -178,6 +178,12 @@ final class ServicoSincronizacaoRemota
             }
         }
 
+        if (count($snapshot["equipamentos"]) > 1) {
+            throw new RuntimeException(
+                "A instalação industrial aceita uma Dala; vincule este PC a uma Dala antes de sincronizar uma empresa com várias.",
+            );
+        }
+
         foreach ($snapshot["equipamentos"] as $equipment) {
             $port = is_array($equipment) ? filter_var($equipment["plc_port"] ?? null, FILTER_VALIDATE_INT) : false;
             if (!is_array($equipment) || (int) ($equipment["id"] ?? 0) < 1
@@ -231,6 +237,19 @@ final class ServicoSincronizacaoRemota
         $updated = 0;
         $this->connection->beginTransaction();
         try {
+            $this->connection->query("SELECT id FROM instalacoes_locais WHERE id = 1 FOR UPDATE");
+            $localEquipment = $this->connection->prepare(
+                "SELECT equipment_code FROM equipamentos WHERE company_id = :company_id ORDER BY id",
+            );
+            $localEquipment->execute(["company_id" => $companyId]);
+            $localCodes = $localEquipment->fetchAll(PDO::FETCH_COLUMN);
+            $remoteCodes = array_map(
+                static fn (array $equipment): string => (string) $equipment["equipment_code"],
+                $snapshot["equipamentos"],
+            );
+            if (count($localCodes) > 1 || ($localCodes !== [] && $remoteCodes !== [] && $localCodes[0] !== $remoteCodes[0])) {
+                throw new RuntimeException("Dala local diferente da Dala recebida; nenhuma configuração foi importada.");
+            }
             $remoteLicense = is_array($snapshot["empresa"] ?? null)
                 ? $snapshot["empresa"]
                 : [];
@@ -278,7 +297,12 @@ final class ServicoSincronizacaoRemota
                     "UPDATE carregamentos
                      SET state = 'FINALIZADO', finished_at = COALESCE(finished_at, NOW(3))
                      WHERE company_id = :company_id AND remote_carregamento_id IS NOT NULL
-                       AND state <> 'FINALIZADO'",
+                       AND state <> 'FINALIZADO'
+                       AND NOT EXISTS (SELECT 1 FROM fila_sincronizacao q
+                           WHERE q.company_id = carregamentos.company_id
+                             AND q.aggregate_type = 'carregamento'
+                             AND q.aggregate_id = carregamentos.id
+                             AND q.status <> 'ENVIADO')",
                 );
                 $finishStale->execute(["company_id" => $companyId]);
             } else {
@@ -287,7 +311,12 @@ final class ServicoSincronizacaoRemota
                     "UPDATE carregamentos
                      SET state = 'FINALIZADO', finished_at = COALESCE(finished_at, NOW(3))
                      WHERE company_id = ? AND remote_carregamento_id IS NOT NULL
-                       AND state <> 'FINALIZADO' AND remote_carregamento_id NOT IN ({$placeholders})",
+                       AND state <> 'FINALIZADO' AND remote_carregamento_id NOT IN ({$placeholders})
+                       AND NOT EXISTS (SELECT 1 FROM fila_sincronizacao q
+                           WHERE q.company_id = carregamentos.company_id
+                             AND q.aggregate_type = 'carregamento'
+                             AND q.aggregate_id = carregamentos.id
+                             AND q.status <> 'ENVIADO')",
                 );
                 $finishStale->execute([$companyId, ...$remoteLoadingIds]);
             }
@@ -348,6 +377,9 @@ final class ServicoSincronizacaoRemota
         $removed = 0;
         foreach ($stale->fetchAll() as $row) {
             $equipmentId = (int) $row["id"];
+            if ($this->hasPendingLocalEvent($companyId, "equipment", $equipmentId)) {
+                continue;
+            }
             $dependencies = $this->connection->prepare(
                 "SELECT
                     (SELECT COUNT(*) FROM carregamentos WHERE equipment_id = :equipment_id_a) +
@@ -413,6 +445,13 @@ final class ServicoSincronizacaoRemota
                 ? $remote["plc_protocol"] : "MODBUS_TCP",
         ];
         if ($localId) {
+            if ($this->hasPendingLocalEvent($companyId, "equipment", $localId)) {
+                $this->connection->prepare(
+                    "UPDATE equipamentos SET remote_equipment_id = :remote_id
+                     WHERE id = :id AND company_id = :company_id",
+                )->execute(["remote_id" => $remoteId, "id" => $localId, "company_id" => $companyId]);
+                return $localId;
+            }
             $update = $this->connection->prepare(
                 "UPDATE equipamentos SET remote_equipment_id = :remote_equipment_id,
                  equipment_code = :equipment_code, name = :name, plc_ip = :plc_ip,
@@ -440,7 +479,7 @@ final class ServicoSincronizacaoRemota
             throw new RuntimeException("Carregamento remoto sem identificador válido.");
         }
         $romaneioId = $this->upsertManifest($companyId, $remoteRomaneioId, $remote);
-        $truckId = $this->upsertTruck($romaneioId, (int) ($remote["truck_id"] ?? 0), $remote);
+        $truckId = $this->upsertTruck($companyId, $romaneioId, (int) ($remote["truck_id"] ?? 0), $remote);
         $find = $this->connection->prepare(
             "SELECT id FROM carregamentos WHERE company_id = :company_id
              AND remote_carregamento_id = :remote_id LIMIT 1",
@@ -453,20 +492,23 @@ final class ServicoSincronizacaoRemota
             $state = "PREPARANDO";
         }
         if ($localId) {
-            $update = $this->connection->prepare(
-                "UPDATE carregamentos SET equipment_id = :equipment_id, romaneio_id = :romaneio_id,
-                 truck_id = :truck_id, state = :state, started_at = :started_at
-                 WHERE id = :id AND company_id = :company_id",
-            );
-            $update->execute([
-                "equipment_id" => $equipmentId,
-                "romaneio_id" => $romaneioId,
-                "truck_id" => $truckId,
-                "state" => $state,
-                "started_at" => $remote["started_at"] ?? null,
-                "id" => $localId,
-                "company_id" => $companyId,
-            ]);
+            $localStatePending = $this->hasPendingLocalEvent($companyId, "carregamento", $localId);
+            if (!$localStatePending) {
+                $update = $this->connection->prepare(
+                    "UPDATE carregamentos SET equipment_id = :equipment_id, romaneio_id = :romaneio_id,
+                     truck_id = :truck_id, state = :state, started_at = :started_at
+                     WHERE id = :id AND company_id = :company_id",
+                );
+                $update->execute([
+                    "equipment_id" => $equipmentId,
+                    "romaneio_id" => $romaneioId,
+                    "truck_id" => $truckId,
+                    "state" => $state,
+                    "started_at" => $remote["started_at"] ?? null,
+                    "id" => $localId,
+                    "company_id" => $companyId,
+                ]);
+            }
         } else {
             $insert = $this->connection->prepare(
                 "INSERT INTO carregamentos
@@ -484,7 +526,9 @@ final class ServicoSincronizacaoRemota
             ]);
             $localId = (int) $this->connection->lastInsertId();
         }
-        $this->syncItems($romaneioId, $companyId, $remote["items"] ?? []);
+        if (!($localStatePending ?? false) && !$this->hasPendingLocalEvent($companyId, "romaneio", $romaneioId)) {
+            $this->syncItems($romaneioId, $companyId, $remote["items"] ?? []);
+        }
         return $localId;
     }
 
@@ -518,6 +562,13 @@ final class ServicoSincronizacaoRemota
             ? $remoteStatus
             : ((string) ($remote["state"] ?? "PREPARANDO") === "FINALIZADO" ? "FINALIZADO" : "EM_ANDAMENTO");
         if ($localId) {
+            if ($this->hasPendingLocalEvent($companyId, "romaneio", $localId)) {
+                $this->connection->prepare(
+                    "UPDATE romaneios SET remote_romaneio_id = :remote_id
+                     WHERE id = :id AND company_id = :company_id",
+                )->execute(["remote_id" => $remoteId, "id" => $localId, "company_id" => $companyId]);
+                return $localId;
+            }
             $update = $this->connection->prepare(
                 "UPDATE romaneios SET remote_romaneio_id = :remote_id, number = :number,
                  expedidor = :expedidor, scheduled_date = :scheduled_date, status = :status
@@ -551,7 +602,7 @@ final class ServicoSincronizacaoRemota
     }
 
     /** @param array<string,mixed> $remote */
-    private function upsertTruck(int $romaneioId, int $remoteId, array $remote): int
+    private function upsertTruck(int $companyId, int $romaneioId, int $remoteId, array $remote): int
     {
         $plate = strtoupper(trim((string) ($remote["plate"] ?? "")));
         if (!placa_caminhao_valida($plate)) {
@@ -575,6 +626,12 @@ final class ServicoSincronizacaoRemota
             $localId = (int) ($find->fetchColumn() ?: 0);
         }
         if ($localId) {
+            if ($this->hasPendingLocalEvent($companyId, "romaneio", $romaneioId)) {
+                $this->connection->prepare(
+                    "UPDATE romaneio_caminhoes SET remote_truck_id = :remote_id WHERE id = :id",
+                )->execute(["remote_id" => $remoteId, "id" => $localId]);
+                return $localId;
+            }
             $update = $this->connection->prepare(
                 "UPDATE romaneio_caminhoes SET remote_truck_id = :remote_id,
                  plate = :plate, driver_name = :driver_name WHERE id = :id",
@@ -626,7 +683,15 @@ final class ServicoSincronizacaoRemota
             "DELETE FROM codigos_produtos WHERE company_id = :company_id AND product_id = :product_id",
         );
         $deleteBarcodeOwner = $this->connection->prepare(
-            "DELETE FROM codigos_produtos WHERE company_id = :company_id AND barcode = :barcode",
+            "DELETE FROM codigos_produtos WHERE company_id = :company_id AND barcode = :barcode
+               AND NOT EXISTS (SELECT 1 FROM fila_sincronizacao q
+                   WHERE q.company_id = codigos_produtos.company_id
+                     AND q.aggregate_type = 'produto'
+                     AND q.aggregate_id = codigos_produtos.product_id
+                     AND q.status <> 'ENVIADO')",
+        );
+        $findBarcodeOwner = $this->connection->prepare(
+            "SELECT product_id FROM codigos_produtos WHERE company_id = :company_id AND barcode = :barcode LIMIT 1",
         );
         $insertBarcode = $this->connection->prepare(
             "INSERT INTO codigos_produtos (company_id, product_id, barcode)
@@ -670,6 +735,16 @@ final class ServicoSincronizacaoRemota
                 "active" => $active,
             ];
             if ($localId) {
+                if ($this->hasPendingLocalEvent($companyId, "produto", $localId)) {
+                    // Vincule a identidade remota, mas preserve as edições e
+                    // códigos locais até a entrega dos eventos pendentes.
+                    $this->connection->prepare(
+                        "UPDATE produtos SET remote_product_id = :remote_id
+                         WHERE id = :id AND company_id = :company_id",
+                    )->execute(["remote_id" => $remoteId, "id" => $localId, "company_id" => $companyId]);
+                    $remoteIds[] = $remoteId;
+                    continue;
+                }
                 $update->execute([...$params, "id" => $localId]);
             } else {
                 $insert->execute($params);
@@ -681,6 +756,11 @@ final class ServicoSincronizacaoRemota
             $deleteProductBarcodes->execute(["company_id" => $companyId, "product_id" => $localId]);
             foreach ($barcodes as $barcode) {
                 $deleteBarcodeOwner->execute(["company_id" => $companyId, "barcode" => $barcode]);
+                $findBarcodeOwner->execute(["company_id" => $companyId, "barcode" => $barcode]);
+                if ($findBarcodeOwner->fetchColumn() !== false) {
+                    // Uma edição local ainda não sincronizada tem precedência.
+                    continue;
+                }
                 $insertBarcode->execute([
                     "company_id" => $companyId,
                     "product_id" => $localId,
@@ -692,7 +772,12 @@ final class ServicoSincronizacaoRemota
         }
 
         $staleSql = "UPDATE produtos SET active = 0
-                     WHERE company_id = :company_id AND remote_product_id IS NOT NULL";
+                     WHERE company_id = :company_id AND remote_product_id IS NOT NULL
+                       AND NOT EXISTS (SELECT 1 FROM fila_sincronizacao q
+                           WHERE q.company_id = produtos.company_id
+                             AND q.aggregate_type = 'produto'
+                             AND q.aggregate_id = produtos.id
+                             AND q.status <> 'ENVIADO')";
         $staleParams = ["company_id" => $companyId];
         if ($remoteIds !== []) {
             $placeholders = [];
@@ -763,6 +848,22 @@ final class ServicoSincronizacaoRemota
         }
     }
 
+    private function hasPendingLocalEvent(int $companyId, string $type, int $id): bool
+    {
+        $statement = $this->connection->prepare(
+            "SELECT 1 FROM fila_sincronizacao
+             WHERE company_id = :company_id AND aggregate_type = :type
+               AND aggregate_id = :aggregate_id AND status <> 'ENVIADO'
+             LIMIT 1",
+        );
+        $statement->execute([
+            "company_id" => $companyId,
+            "type" => $type,
+            "aggregate_id" => $id,
+        ]);
+        return $statement->fetchColumn() !== false;
+    }
+
     private function findEquipmentId(int $companyId, string $code): ?int
     {
         if ($code === "") {
@@ -808,23 +909,15 @@ final class ServicoSincronizacaoRemota
         );
         $find->execute(["company_id" => $companyId, "remote_id" => $remoteId]);
         $localId = (int) ($find->fetchColumn() ?: 0);
-        $status = strtoupper((string) ($remote["status"] ?? "PENDENTE"));
-        if (!in_array($status, ["PENDENTE", "PROCESSANDO", "APLICADO", "REJEITADO", "ERRO"], true)) {
-            $status = "PENDENTE";
-        }
         if ($localId) {
-            $update = $this->connection->prepare(
-                "UPDATE solicitacoes_comandos_clp SET status = :status, response_message = :message,
-                 completed_at = :completed_at WHERE id = :id AND company_id = :company_id",
-            );
-            $update->execute([
-                "status" => $status,
-                "message" => $remote["response_message"] ?? null,
-                "completed_at" => $remote["completed_at"] ?? null,
-                "id" => $localId,
-                "company_id" => $companyId,
-            ]);
+            // Depois da importação, a reserva e o ACK pertencem ao gateway
+            // local. Um snapshot atrasado nunca pode reabrir o comando nem
+            // apagar seu resultado enquanto o evento de confirmação é enviado.
             return;
+        }
+        $command = trim((string) ($remote["command"] ?? ""));
+        if ($command === "") {
+            throw new RuntimeException("Comando remoto sem ação explícita.");
         }
         $insert = $this->connection->prepare(
             "INSERT INTO solicitacoes_comandos_clp
@@ -836,12 +929,13 @@ final class ServicoSincronizacaoRemota
             "remote_id" => $remoteId,
             "equipment_id" => $equipmentId,
             "loading_id" => $loadingId,
-            "command" => (string) ($remote["command"] ?? "REVERSAO_ATIVAR"),
-            "status" => $status,
+            "command" => $command,
+            // PROCESSANDO remoto não representa uma reserva por dispositivo local.
+            "status" => "PENDENTE",
             "requested_by" => $adminId,
             "requested_at" => $remote["requested_at"] ?? date("Y-m-d H:i:s.v"),
-            "message" => $remote["response_message"] ?? null,
-            "completed_at" => $remote["completed_at"] ?? null,
+            "message" => null,
+            "completed_at" => null,
         ]);
     }
 

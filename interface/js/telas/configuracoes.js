@@ -1,8 +1,7 @@
 import { button, esc } from "../funcoes/html.js";
 import { pageHeader } from "../funcoes/view.js?v=202609220100";
 
-// Configurações no padrão da referência: Rede do cliente, Dalas (somente leitura)
-// e parâmetros da importação de romaneios (PDF).
+// Conectividade local/remota, Dalas (somente leitura) e importação de PDF.
 export function settings(store) {
   const config = store.state.configuration || { settings: {}, dalas: [] };
   const saved = config.settings || {};
@@ -37,25 +36,21 @@ export function settings(store) {
     ? config.dalas
         .map(
           (dala) =>
-            `<tr><td>${esc(dala.name)}</td><td><code>${esc(dala.equipment_code)}</code></td><td>${esc(dala.plc_ip || "—")}</td><td>${dala.plc_port || "—"}</td><td>${dala.external_port || "—"}</td><td class="dala-status" data-equipment-id="${dala.id}"><span class="status-dot"></span>Verificando…</td></tr>`,
+            `<tr><td>${esc(dala.name)}</td><td><code>${esc(dala.equipment_code)}</code></td><td>${esc(dala.plc_ip || "—")}</td><td>${dala.plc_port || "—"}</td><td class="dala-status" data-equipment-id="${dala.id}"><span class="status-dot"></span>Verificando…</td></tr>`,
         )
         .join("")
-    : '<tr><td colspan="6" class="empty-cell">Nenhuma Dala cadastrada.</td></tr>';
+    : '<tr><td colspan="5" class="empty-cell">Nenhuma Dala cadastrada.</td></tr>';
   const canManageUsers = ["ADMIN_DALLOGIX", "ADMIN_EMPRESA"].includes(
     store.state.userRole,
   );
   return `<div class="title-row"><div><h2>Configurações</h2></div></div>
 ${canManageUsers ? `<section class="panel settings-access-panel"><div class="panel-heading"><div><h3>Gerenciar usuários</h3><p>Crie e gerencie os usuários, perfis e acessos da empresa.</p></div>${button("Abrir gerenciamento de usuários", "open-users", "primary")}</div></section><br>` : ""}
-<section class="panel"><h3>Rede do cliente</h3>
-<p>Configure o IP público do gateway do cliente. O Trace usará esse endereço com a porta externa de cada Dala para alcançar o serviço dala-modbus na fábrica.</p>
-<form id="network-form"><label>IP público do gateway<input name="gateway_public_ip" value="${esc(saved.gateway_public_ip || "")}" placeholder="170.80.219.146" /><small>IP fixo ou DDNS do modem/roteador do cliente.</small></label>
-<div class="actions">${button("Salvar configuração", "save-network")}</div></form></section><br>
+<section class="panel"><h3>Comunicação industrial</h3><p>O PC industrial acessa o CLP pela rede local e inicia a sincronização HTTPS com o servidor central. Não é necessário abrir porta pública ou configurar redirecionamento no roteador.</p></section><br>
 <section class="panel"><h3>Conectividade</h3><div class="sync-status-row"><span class="status-dot ${syncTone}"></span><strong>${syncLabel}</strong></div><br><div class="sync-status-row"><span class="status-dot ${dalaTone}"></span><strong>${dalaLabel}</strong></div></section><br>
 <section class="panel"><div class="panel-heading"><h3>Dalas</h3><div class="actions">${button("Recarregar", "reload-dalas", "secondary")}${button("Gerenciar Dalas", "goto-dalas")}</div></div>
-<p>Visão consolidada das Dalas cadastradas e do status de comunicação com o serviço dala-modbus. A tabela abaixo é somente leitura — para cadastrar ou editar, use Gerenciar Dalas.</p>
-<p><strong>Identificador:</strong> código único da Dala (letras minúsculas, números e underscores). Deve coincidir com o ID configurado no dala-modbus na fábrica para que comandos e verificação de status funcionem.</p>
-<p><strong>IP do CLP:</strong> endereço IP do CLP na rede local da fábrica (ex.: 192.168.1.10). <strong>Porta do CLP:</strong> porta TCP do CLP para Modbus (geralmente 502). <strong>Porta Externa:</strong> porta TCP aberta no gateway público do cliente, redirecionada para o serviço dala-modbus na edge.</p>
-<div class="table-wrap settings-dalas-table-wrap"><table class="settings-dalas-table"><thead><tr><th>Nome da Dala</th><th>Identificador da Dala</th><th>IP do CLP</th><th>Porta do CLP</th><th>Porta Externa</th><th>Status</th></tr></thead><tbody>${dalaRows}</tbody></table></div></section><br>
+<p>Visão consolidada das Dalas cadastradas e do último sinal Modbus recebido do PC industrial. Para cadastrar ou editar, use Gerenciar Dalas.</p>
+<p><strong>Identificador:</strong> código único da Dala. <strong>IP do CLP:</strong> endereço na rede local da fábrica. <strong>Porta do CLP:</strong> porta TCP Modbus informada pelo fabricante.</p>
+<div class="table-wrap settings-dalas-table-wrap"><table class="settings-dalas-table"><thead><tr><th>Nome da Dala</th><th>Identificador da Dala</th><th>IP do CLP</th><th>Porta do CLP</th><th>Status</th></tr></thead><tbody>${dalaRows}</tbody></table></div></section><br>
 <section class="panel pdf-import-panel"><div class="panel-heading pdf-import-heading"><div><h3>Importação de romaneios (PDF)</h3><p class="compact-help">Informe apenas os nomes dos campos que existem no PDF. <b class="required">*</b> Obrigatório.</p></div></div>
 <form id="pdf-settings-form"><div class="pdf-import-fields">
 ${fields.map(([key, label, required]) => `<label>${label}${required ? ' <b class="required">*</b>' : ""}<input name="pdf_${key}" value="${esc(mapping[key] || "")}" placeholder="Nome do campo no PDF" /></label>`).join("")}

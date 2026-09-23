@@ -34,7 +34,6 @@ export function dalas(store) {
 <label>Identificador<input name="equipment_code" autocomplete="off" required pattern="[a-z0-9_]{1,30}" title="Letras minúsculas, números e underscores (máx. 30)" /><small>Use letras minúsculas, números e underscore. Máximo de 30 caracteres.</small></label>
 <label>Endereço do CLP (IP ou nome)<input name="plc_ip" autocomplete="off" required /></label>
 <label>Porta do CLP<input name="plc_port" type="number" min="1" max="65535" required /></label>
-<label>Porta externa no gateway<input name="external_port" type="number" min="1" max="65535" /><small>Porta TCP pública do gateway que encaminha a comunicação para esta Dala.</small></label>
 </div><div class="actions">${button("Cadastrar Dala", "submit-dala")}</div></form></section></div>`;
   }
   const cells = (equipment) => `<div class="dala-grid-row-v2" role="row">
@@ -42,7 +41,6 @@ export function dalas(store) {
 <div class="dala-grid-cell-v2" data-label="Identificador" role="cell"><code>${esc(equipment.equipment_code)}</code></div>
 <div class="dala-grid-cell-v2" data-label="IP do CLP" role="cell">${esc(equipment.plc_ip || "—")}</div>
 <div class="dala-grid-cell-v2" data-label="Porta do CLP" role="cell">${esc(equipment.plc_port || "—")}</div>
-<div class="dala-grid-cell-v2" data-label="Porta Externa" role="cell">${esc(equipment.external_port || "—")}</div>
 <div class="dala-grid-cell-v2" data-label="Status" role="cell">${dalaStatusCell(equipment)}</div>
 <div class="dala-grid-cell-v2" data-label="Ações" role="cell">${dalaReferenceActions(equipment, canManage, canDelete)}</div>
 </div>`;
@@ -50,7 +48,7 @@ export function dalas(store) {
     ? '<div class="panel page-loading dala-loading" role="status" aria-live="polite"><span class="loading-spinner" aria-hidden="true"></span><span>Carregando Dalas…</span></div>'
     : loadError
     ? `<div class="panel page-error dala-load-error" role="alert"><h3>Não foi possível carregar as Dalas</h3><p>${esc(loadError)}</p><button class="button secondary" data-action="reload-dalas" type="button">Tentar novamente</button></div>`
-    : `<div class="dalas-grid-v2" role="table"><div class="dala-grid-head-v2" role="row">${["Nome", "Identificador", "IP do CLP", "Porta do CLP", "Porta Externa", "Status", "Ações"].map((label) => `<div role="columnheader">${label}</div>`).join("")}</div>${rows.length ? rows.map(cells).join("") : '<div class="dala-empty-v2" role="row"><div role="cell">Nenhuma Dala cadastrada.</div></div>'}</div>`;
+    : `<div class="dalas-grid-v2" role="table"><div class="dala-grid-head-v2" role="row">${["Nome", "Identificador", "IP do CLP", "Porta do CLP", "Status", "Ações"].map((label) => `<div role="columnheader">${label}</div>`).join("")}</div>${rows.length ? rows.map(cells).join("") : '<div class="dala-empty-v2" role="row"><div role="cell">Nenhuma Dala cadastrada.</div></div>'}</div>`;
   return `<section class="dalas-screen-v2" aria-labelledby="dalas-title"><div class="dalas-header-v2"><h2 id="dalas-title">Dalas</h2>${canManage ? button("Nova dala", "toggle-dala-form", "primary") : ""}</div>${content}</section>`;
 }
 
@@ -76,7 +74,6 @@ export function dalaView(store) {
 <div class="dala-info-item"><small>Identificador</small><strong><code>${esc(dala.equipment_code)}</code></strong></div>
 <div class="dala-info-item"><small>IP do CLP</small><strong>${esc(dala.plc_ip || "—")}</strong></div>
 <div class="dala-info-item"><small>Porta do CLP</small><strong>${dala.plc_port || "—"}</strong></div>
-<div class="dala-info-item"><small>Porta externa</small><strong>${dala.external_port || "—"}</strong></div>
 <div class="dala-info-item"><small>Criada em</small><strong>${dataHora(dala.created_at)}</strong></div>
 <div class="dala-info-item"><small>Atualizada em</small><strong>${dataHora(dala.updated_at)}</strong></div>
 </div></section>
@@ -131,7 +128,7 @@ export function dalaEdit(store) {
 <label>Identificador<input name="equipment_code" required readonly pattern="[a-z0-9_]{1,30}" title="O identificador não pode ser alterado após o cadastro" value="${esc(dala.equipment_code)}" /><small>Este identificador é usado pelo serviço da Dala e não pode ser alterado após o cadastro.</small></label>
 <label>Endereço do CLP (IP ou nome)<input name="plc_ip" required value="${esc(dala.plc_ip || "")}" /></label>
 <label>Porta do CLP<input name="plc_port" type="number" min="1" max="65535" required value="${dala.plc_port || ""}" /></label>
-<label>Porta externa no gateway<input name="external_port" type="number" min="1" max="65535" value="${dala.external_port || ""}" /><small>Porta TCP no gateway público do cliente, redirecionada para o serviço dala-modbus na edge.</small></label>
+<input type="hidden" name="external_port" value="${esc(dala.external_port || "")}" />
 </div><div class="actions">${button("Salvar", "save-dala-edit")}</div></section>
 </form>`;
 }

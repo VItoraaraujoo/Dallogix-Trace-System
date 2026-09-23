@@ -11,6 +11,14 @@ export class OfflineOperationBuffer {
     this.storeName = "operations";
     this.memory = [];
     this.flushing = false;
+    this.owner = null;
+  }
+
+  setOwner(user) {
+    const companyId = Number(user?.company_id);
+    const userId = Number(user?.id);
+    this.owner = Number.isSafeInteger(companyId) && companyId > 0 &&
+      Number.isSafeInteger(userId) && userId > 0 ? `${companyId}:${userId}` : null;
   }
 
   supported() {
@@ -33,13 +41,16 @@ export class OfflineOperationBuffer {
   }
 
   async enqueue(operation) {
+    if (!this.owner) throw new Error("Entre na sua conta para guardar uma operação local.");
     const record = {
-      eventId: typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
+      eventId: operation.eventId || (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
         ? crypto.randomUUID()
-        : `${agora().getTime().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`,
+        : `${agora().getTime().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`),
+      owner: this.owner,
       url: operation.url,
       method: operation.method,
-      headers: operation.headers || {},
+      // Credenciais e CSRF da aba não devem permanecer no IndexedDB.
+      headers: { "Content-Type": "application/json" },
       body: operation.body || null,
       createdAt: agora().toISOString(),
     };
@@ -64,17 +75,22 @@ export class OfflineOperationBuffer {
   }
 
   async all() {
-    if (!this.supported()) return [...this.memory];
+    if (!this.owner) return [];
+    const ownedMemory = this.memory.filter((item) => item.owner === this.owner);
+    if (!this.supported()) return ownedMemory;
     try {
       const database = await this.open();
-      if (!database) return [...this.memory];
+      if (!database) return ownedMemory;
       return await new Promise((resolve, reject) => {
         const request = database.transaction(this.storeName, "readonly").objectStore(this.storeName).getAll();
-        request.onsuccess = () => resolve(request.result || []);
+        request.onsuccess = () => resolve([
+          ...ownedMemory,
+          ...(request.result || []).filter((item) => item.owner === this.owner),
+        ]);
         request.onerror = () => reject(request.error || new Error("Não foi possível ler a fila."));
       });
     } catch (_) {
-      return [...this.memory];
+      return ownedMemory;
     }
   }
 
@@ -94,23 +110,29 @@ export class OfflineOperationBuffer {
     }
   }
 
-  async flush() {
+  async flush(currentHeaders = {}) {
     if (this.flushing || typeof fetch !== "function") return { sent: 0, pending: (await this.all()).length };
     this.flushing = true;
     let sent = 0;
+    const owner = this.owner;
     try {
       for (const operation of await this.all()) {
+        if (!owner || this.owner !== owner) break;
         try {
-          const headers = { ...(operation.headers || {}), "X-Trace-Offline-Id": String(operation.eventId || operation.id) };
+          const headers = { ...operation.headers, ...currentHeaders,
+            "X-Trace-Offline-Id": String(operation.eventId || operation.id) };
           const response = await fetch(operation.url, {
             method: operation.method,
             headers,
             body: operation.body || undefined,
             credentials: "same-origin",
           });
-          if (response.status < 500 && response.status !== 401 && response.status !== 419) {
+          if (response.ok) {
             await this.remove(operation.id);
             sent += 1;
+          } else {
+            // Erros 4xx também precisam ficar visíveis na fila para correção.
+            break;
           }
         } catch (_) {
           break;

@@ -135,6 +135,26 @@ final class ServicoGatewayClp
 
         $this->connection->beginTransaction();
         try {
+            if ($status === "APLICADO") {
+                // A emergência bloqueia carregamento antes do comando. Faça o
+                // mesmo no ACK de desbloqueio para evitar inversão/deadlock.
+                $candidate = $this->connection->prepare(
+                    "SELECT command, carregamento_id, company_id
+                     FROM solicitacoes_comandos_clp WHERE id = :id LIMIT 1",
+                );
+                $candidate->execute(["id" => $requestId]);
+                $unlock = $candidate->fetch();
+                if ($unlock && $unlock["command"] === "DESBLOQUEAR_MAQUINA") {
+                    $loadingLock = $this->connection->prepare(
+                        "SELECT state FROM carregamentos
+                         WHERE id = :id AND company_id = :company_id LIMIT 1 FOR UPDATE",
+                    );
+                    $loadingLock->execute([
+                        "id" => $unlock["carregamento_id"],
+                        "company_id" => $unlock["company_id"],
+                    ]);
+                }
+            }
             $statement = $this->connection->prepare(
                 "SELECT r.id, r.company_id, r.equipment_id, r.command, r.carregamento_id,
                         r.remote_command_id, c.remote_carregamento_id,
@@ -154,6 +174,15 @@ final class ServicoGatewayClp
                     "Comando não está reservado por este dispositivo.",
                     404,
                 );
+            }
+
+            $staleUnlock = false;
+            if ($status === "APLICADO" && $request["command"] === "DESBLOQUEAR_MAQUINA") {
+                $staleUnlock = !$this->isLatestUnlockRequest((int) $request["carregamento_id"], $requestId);
+                if ($staleUnlock) {
+                    $status = "REJEITADO";
+                    $message = "ACK de desbloqueio obsoleto após outra solicitação de segurança.";
+                }
             }
 
             $update = $this->connection->prepare(
@@ -202,26 +231,6 @@ final class ServicoGatewayClp
 
             $stateChanged = false;
             if ($status === "APLICADO" && $request["command"] === "DESBLOQUEAR_MAQUINA") {
-                // Serializa ACK e novas emergências pelo mesmo registro de
-                // carregamento antes de decidir qual solicitação é a atual.
-                $loadingLock = $this->connection->prepare(
-                    "SELECT state FROM carregamentos WHERE id = :id AND company_id = :company_id LIMIT 1 FOR UPDATE",
-                );
-                $loadingLock->execute([
-                    "id" => $request["carregamento_id"],
-                    "company_id" => $request["company_id"],
-                ]);
-                $latest = $this->connection->prepare(
-                    "SELECT id FROM solicitacoes_comandos_clp
-                     WHERE carregamento_id = :carregamento_id AND command = 'DESBLOQUEAR_MAQUINA'
-                     ORDER BY id DESC LIMIT 1",
-                );
-                $latest->execute(["carregamento_id" => $request["carregamento_id"]]);
-                // Um ACK antigo nunca pode liberar uma emergência mais recente.
-                if ((int) $latest->fetchColumn() !== $requestId) {
-                    $this->connection->commit();
-                    return ["request_id" => $requestId, "command" => $request["command"], "status" => $status, "state_changed" => false, "stale" => true];
-                }
                 $loading = $this->connection->prepare(
                     "UPDATE carregamentos SET state = 'PREPARANDO'
                      WHERE id = :id AND company_id = :company_id AND state = 'EMERGENCIA'",
@@ -256,6 +265,7 @@ final class ServicoGatewayClp
                 "command" => $request["command"],
                 "status" => $status,
                 "state_changed" => $stateChanged,
+                "stale" => $staleUnlock,
             ];
         } catch (Throwable $exception) {
             if ($this->connection->inTransaction()) {
@@ -267,6 +277,19 @@ final class ServicoGatewayClp
             error_log("PLC gateway could not complete command: " . $exception->getMessage());
             throw new ExcecaoGatewayClp("Não foi possível concluir o comando industrial.", 500);
         }
+    }
+
+    private function isLatestUnlockRequest(int $loadingId, int $requestId): bool
+    {
+        $lockClause = $this->connection->getAttribute(PDO::ATTR_DRIVER_NAME) === "sqlite" ? "" : " FOR UPDATE";
+        $latest = $this->connection->prepare(
+            "SELECT id FROM solicitacoes_comandos_clp
+             WHERE carregamento_id = :carregamento_id
+               AND command IN ('DESBLOQUEAR_MAQUINA', 'EMERGENCIA')
+             ORDER BY id DESC LIMIT 1{$lockClause}",
+        );
+        $latest->execute(["carregamento_id" => $loadingId]);
+        return (int) $latest->fetchColumn() === $requestId;
     }
 
     /** @return array{id:null, company_id:int} */

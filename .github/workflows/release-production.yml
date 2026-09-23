@@ -49,6 +49,21 @@ jobs:
       - name: Executar PHPStan
         run: composer analyse -- --no-progress
 
+      - name: Configurar Node.js dos testes industriais
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Validar integração industrial isolada
+        run: |
+          node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs
+          python3 testes/modbus-transporte.py
+          php testes/api-conectividade-isolada.php online
+          php testes/api-conectividade-isolada.php stale
+          php testes/api-conectividade-isolada.php missing
+          php testes/api-sensor-idempotencia-isolada.php same
+          php testes/api-sensor-idempotencia-isolada.php foreign
+
       - name: Validar código e segredos
         run: |
           bash testes/qualidade.sh

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 $root = dirname(__DIR__);
+require_once __DIR__ . '/image_storage_path.php';
 $host = getenv("DB_HOST") ?: "127.0.0.1";
 $name = getenv("DB_NAME") ?: "trace_local";
 $user = getenv("DB_USER") ?: "trace";
@@ -24,17 +25,10 @@ $statement->execute(["cutoff" => $cutoff]);
 $removed = 0;
 $failed = 0;
 foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $image) {
-    $path = (string) $image["path"];
-    $absolutePath = str_starts_with($path, "/")
-        ? $path
-        : $root . "/" . ltrim($path, "/");
-    // Nunca remove arquivos fora do diretório de evidências, mesmo que uma linha
-    // corrompida no banco contenha um caminho absoluto.
-    if (
-        is_file($absolutePath) &&
-        (!str_starts_with($absolutePath, $root . "/armazenamento/") ||
-            !unlink($absolutePath))
-    ) {
+    $absolutePath = trace_image_storage_path($root . '/armazenamento', (string) $image['path']);
+    // Não apague o registro se a evidência estiver ausente, for um symlink
+    // para fora do armazenamento ou não puder ser removida.
+    if ($absolutePath === null || !unlink($absolutePath)) {
         $failed++;
         continue;
     }

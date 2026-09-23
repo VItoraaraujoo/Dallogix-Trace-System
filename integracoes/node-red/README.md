@@ -21,10 +21,13 @@ Configure no ambiente do Node-RED:
 
 ```text
 TRACE_API_URL=http://trace-api.local
-TRACE_DEVICE_TOKENS=token-da-dala-1,token-da-dala-2
+TRACE_DEVICE_TOKEN=token-da-dala-deste-pc
+TRACE_MODBUS_UNIT_ID=unidade-confirmada
+TRACE_MODBUS_HEARTBEAT_FUNCTION=funcao-confirmada-3-ou-4
+TRACE_MODBUS_HEARTBEAT_REGISTER=registrador-confirmado
 ```
 
-Cada token identifica um único gateway e a API só devolve a Dala vinculada a ele. Para duas Dalas, informe os dois tokens separados por vírgula e provisione cada um para o equipamento correspondente. O endereço deve apontar para a API local da máquina, nunca para a URL pública de produção. Provisione os tokens com `php scripts/provision_device.php`; `TRACE_DEVICE_TOKEN` continua aceito como compatibilidade para uma única Dala. Os valores `2049` e `2050` mostrados no fluxo de teste não são considerados mapa oficial de I/O.
+Cada PC industrial é dedicado a uma Dala e usa o token do seu próprio gateway. A API devolve somente a Dala vinculada a esse dispositivo e fornece um destino IPv4 privado validado. O endereço da API deve apontar para a instalação local, nunca para a URL pública. Provisione o token com `php scripts/provision_device.php`. A unidade, função e registrador de diagnóstico devem ser confirmados no mapa do CLP; sem os três valores a sonda permanece desabilitada. Os valores `2049` e `2050` dos fluxos de teste não são mapa oficial de I/O.
 
 O nó `Modbus Read/Write` só deve ser acrescentado depois de confirmar em bancada a variante do Delta DVP14SS, IP, porta, unidade Modbus, registradores, bobinas e intertravamentos do Ladder. A ausência dessas informações é intencionalmente tratada como bloqueio seguro.
 
@@ -36,8 +39,6 @@ Sequência sugerida: `Resetar` → `Iniciar` → vários `Sensor + produto corre
 
 O perfil `simulation` sobe um único servidor `modbus-virtual` em `127.0.0.1:1502`. Ele implementa leitura de coils/entradas/registros e escrita de coil/registro em memória, para testes de transporte Modbus TCP. O fluxo operacional `trace-clp-bridge.flow.json` lê o endereço e a porta da Dala cadastrada, sem destino de CLP predefinido. O mapa da simulação está em `integracoes/industrial/register-map.example.json`; ele não deve ser reutilizado como mapa de produção.
 
-O serviço opcional `modbus-virtual-dala2` pode ser habilitado com o perfil `simulation-two-dalas` e usa `127.0.0.1:1503`. O fluxo separado `trace-modbus-duas-dalas.flow.json` só deve ser importado manualmente se houver um teste explícito de duas Dalas com esse perfil. Ele não é carregado na instalação padrão de um PC industrial.
-
 ## Referência elétrica recebida
 
 O diagrama externo `I-007-00017` confirma a identificação Delta DVP-14SS2 e apresenta sinais candidatos de emergência, fins de curso e comandos. A leitura foi organizada em `mapa-io-candidato.md`, mas o documento não deve ser tratado como mapa Modbus da instalação atual: ele não confirma o painel, o módulo Ethernet nem os endereços de comunicação. A validação em bancada continua obrigatória.
@@ -48,7 +49,7 @@ O scanner Elgin EL8600 ficará conectado ao PC industrial em USB ou RS-232 e per
 
 ## Heartbeat dos dispositivos
 
-O gateway deve testar a leitura Modbus e publicar a cada **1 segundo** em `/api/device_heartbeat.php`, usando o token individual de cada Dala: `X-Device-Token: ${TRACE_DEVICE_TOKENS}`. Em falha, envie `OFFLINE` imediatamente; se não houver resposta válida por mais de 3 segundos, a API bloqueia novos comandos operacionais. O fluxo deve tentar restabelecer a comunicação com o CLP a cada 2 segundos. Isso alimenta o monitoramento local; não habilita comandos físicos por si só.
+O gateway deve testar a leitura Modbus e publicar a cada **1 segundo** em `/api/device_heartbeat.php`, usando o token da Dala deste PC: `X-Device-Token: ${TRACE_DEVICE_TOKEN}`. Se não houver resposta válida por mais de 3,5 segundos, o fluxo publica `OFFLINE`; a API bloqueia novos comandos operacionais após o limite de sinal configurado. O fluxo tenta restabelecer a comunicação a cada ciclo de 1 segundo. Isso alimenta o monitoramento local; não habilita comandos físicos por si só.
 
 ## Sincronização remota
 
@@ -65,9 +66,10 @@ O worker deverá chamar `/api/camera_worker.php` com `X-Device-Token` igual ao t
 
 1. `POST {"action":"CLAIM"}` para reservar a próxima captura da própria Dala;
 2. disparar a câmera conforme o protocolo confirmado;
-3. `POST {"action":"COMPLETE","request_id":N,"image_path":"company_<empresa>/equipment_<dala>/arquivo.jpg"}` para vincular a imagem ao carregamento. O prefixo é obrigatório mesmo em ambiente local, evitando que uma câmera grave evidência em outra empresa ou Dala.
+3. enviar o JPEG ou PNG real, de até 5 MB, em `POST /api/camera_upload.php` com `multipart/form-data`, campos `request_id` e `file`, e o mesmo token de câmera. A API devolve `image_path` e SHA-256;
+4. `POST {"action":"COMPLETE","request_id":N,"image_path":"<caminho retornado>"}`. A conclusão só é aceita se o arquivo enviado existir, corresponder à solicitação reservada e estiver na pasta da empresa/Dala correta.
 
-O protocolo da câmera ainda precisa ser confirmado com o fabricante. O servidor não considera uma captura concluída sem o callback `COMPLETE`.
+O protocolo de acionamento da câmera ainda precisa ser confirmado com o fabricante e o worker físico não está implementado. O contrato de upload não substitui a captura física; o servidor não considera uma captura concluída sem arquivo válido e callback `COMPLETE`.
 
 ## Fila de comandos do CLP
 

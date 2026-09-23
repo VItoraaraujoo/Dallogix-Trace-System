@@ -10,27 +10,12 @@ final class SegurancaHardeningTest extends TestCase
 {
     protected function tearDown(): void
     {
-        putenv("TRACE_ALLOWED_DEVICE_HOSTS");
-        putenv("TRACE_ALLOWED_DEVICE_PORTS");
         putenv("TRACE_INSTALLATION_MODE");
-    }
-
-    public function testDestinoDeRedeExigeAllowlistDeHostEPorta(): void
-    {
-        putenv("TRACE_ALLOWED_DEVICE_HOSTS=gateway.example.com,192.0.2.10");
-        putenv("TRACE_ALLOWED_DEVICE_PORTS=502,1502");
-
-        self::assertTrue(destino_dispositivo_permitido("gateway.example.com", 502));
-        self::assertTrue(destino_dispositivo_permitido("192.0.2.10", 1502));
-        self::assertFalse(destino_dispositivo_permitido("127.0.0.1", 502));
-        self::assertFalse(destino_dispositivo_permitido("gateway.example.com", 22));
     }
 
     public function testPcIndustrialAceitaIpPrivadoDaDalaSemDestinoPredefinido(): void
     {
         putenv("TRACE_INSTALLATION_MODE=local");
-        putenv("TRACE_ALLOWED_DEVICE_HOSTS");
-        putenv("TRACE_ALLOWED_DEVICE_PORTS");
 
         self::assertSame("10.1.2.3", resolver_destino_clp_local("10.1.2.3", 502));
         self::assertSame("172.18.0.2", resolver_destino_clp_local("172.18.0.2", 1502));

@@ -5,6 +5,8 @@ RUN docker-php-ext-install pdo_mysql \
         echo 'expose_php=Off'; \
         echo 'display_errors=Off'; \
         echo 'log_errors=On'; \
+        echo 'upload_max_filesize=6M'; \
+        echo 'post_max_size=8M'; \
         echo 'allow_url_fopen=Off'; \
         echo 'opcache.enable=1'; \
         echo 'opcache.enable_cli=0'; \

@@ -123,13 +123,25 @@ try {
         (int) $exception->errorInfo[1] === 1062
     ) {
         $existing = $pdo->prepare(
-            "SELECT id FROM eventos_sensor WHERE event_uuid = :event_uuid LIMIT 1",
+            "SELECT s.id FROM eventos_sensor s
+             JOIN carregamentos c ON c.id = s.carregamento_id
+             WHERE s.event_uuid = :event_uuid AND s.equipment_id = :equipment_id
+               AND s.carregamento_id = :carregamento_id AND c.company_id = :company_id LIMIT 1",
         );
-        $existing->execute(["event_uuid" => $eventUuid]);
+        $existing->execute([
+            "event_uuid" => $eventUuid,
+            "equipment_id" => $equipmentId,
+            "carregamento_id" => $loadingId,
+            "company_id" => $device["company_id"],
+        ]);
+        $existingId = $existing->fetchColumn();
+        if ($existingId === false) {
+            json_response(["error" => "Identificador do evento já pertence a outro contexto."], 409);
+        }
         json_response(
             [
                 "data" => [
-                    "id" => (int) $existing->fetchColumn(),
+                    "id" => (int) $existingId,
                     "duplicate" => true,
                 ],
             ],

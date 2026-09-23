@@ -487,6 +487,7 @@ $industrialPcLastSeenSelect = $industrialPcTableAvailable
     ? "(SELECT s.last_seen_at FROM status_pc_industrial s WHERE s.company_id = empresas.id LIMIT 1)"
     : "NULL";
 $pcSignalLimitSeconds = max(5, min(300, (int) (getenv("HEALTH_DEVICE_STALE_SECONDS") ?: 30)));
+$freshClpStatus = "CASE WHEN d.status = 'ONLINE' AND (d.last_seen_at IS NULL OR d.last_seen_at < DATE_SUB(NOW(3), INTERVAL {$pcSignalLimitSeconds} SECOND)) THEN 'OFFLINE' ELSE d.status END";
 $industrialPcStatus = static function (mixed $reportedStatus, mixed $lastSeenAt) use ($pcSignalLimitSeconds): string {
     $status = strtoupper(trim((string) ($reportedStatus ?? "")));
     if ($status === "ERRO") {
@@ -508,7 +509,7 @@ $industrialPcStatus = static function (mixed $reportedStatus, mixed $lastSeenAt)
 };
 
 $machinesSql = "SELECT e.id, e.equipment_code, e.name,
-            d.status AS clp_status, d.last_seen_at,
+            {$freshClpStatus} AS clp_status, d.last_seen_at,
             c.state AS carregamento_state, r.number AS romaneio_number, rt.plate,
             COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity,
             COALESCE(c.leituras_validas, 0) AS valid_readings
@@ -595,7 +596,7 @@ $empresas = $pdo->prepare(
                 ? "(SELECT s.last_seen_at FROM status_pc_industrial s WHERE s.company_id = c.id LIMIT 1)"
                 : "NULL") . " AS industrial_pc_last_seen_at,
             COUNT(e.id) AS total_machines,
-            COALESCE(SUM(d.status = 'ONLINE'), 0) AS machines_online,
+            COALESCE(SUM(d.status = 'ONLINE' AND d.last_seen_at >= DATE_SUB(NOW(3), INTERVAL {$pcSignalLimitSeconds} SECOND)), 0) AS machines_online,
             MAX(d.last_seen_at) AS last_signal_at,
             (SELECT COUNT(*) FROM usuarios u WHERE u.company_id = c.id) AS total_users,
             (SELECT COUNT(*) FROM usuarios u WHERE u.company_id = c.id AND u.active = 1) AS active_users,

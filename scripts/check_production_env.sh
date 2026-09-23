@@ -45,12 +45,6 @@ if [[ "${BIND_ADDRESS:-}" == "0.0.0.0" || "${BIND_ADDRESS:-}" == "::" ]]; then
   echo "ERRO: BIND_ADDRESS deve ficar restrito ao host local ou rede interna." >&2
   failures=$((failures + 1))
 fi
-# Sem uma allowlist explícita, a verificação de conectividade permanece
-# desabilitada. Nunca usar a configuração do cliente como autorização de rede.
-if [[ -n "${TRACE_ALLOWED_DEVICE_HOSTS:-}" && -z "${TRACE_ALLOWED_DEVICE_PORTS:-}" ]]; then
-  echo "ERRO: TRACE_ALLOWED_DEVICE_PORTS é obrigatório quando há destinos autorizados." >&2
-  failures=$((failures + 1))
-fi
 if [[ -n "${SYNC_REMOTE_URL:-}${SYNC_REMOTE_BATCH_URL:-}" && -z "${SYNC_REMOTE_TOKEN:-}" ]]; then
   echo "ERRO: SYNC_REMOTE_TOKEN é obrigatório quando a sincronização remota está configurada." >&2
   failures=$((failures + 1))

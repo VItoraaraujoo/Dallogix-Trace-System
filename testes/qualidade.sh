@@ -6,7 +6,7 @@ cd "$root_dir"
 
 while IFS= read -r php_file; do
   php -l "$php_file" >/dev/null
-done < <(find servidor -type f -name '*.php' | sort)
+done < <(find servidor scripts -type f -name '*.php' | sort)
 
 while IFS= read -r js_file; do
   # O front-end usa módulos ES. Validar pela entrada padrão evita que versões
@@ -40,7 +40,7 @@ if grep -Eq '\$user\[' servidor/api/configuracoes.php; then
   exit 1
 fi
 
-python3 -m py_compile scripts/test_modbus_virtual.py integracoes/modbus-virtual/server.py
+python3 -m py_compile scripts/test_modbus_virtual.py integracoes/modbus-virtual/server.py testes/modbus-transporte.py
 bash -n scripts/check_production_env.sh
 bash -n scripts/check_physical_deployment.sh scripts/launch_kiosk.sh
 sh -n integracoes/node-red/entrypoint.sh

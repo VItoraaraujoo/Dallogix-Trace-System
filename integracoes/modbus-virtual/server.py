@@ -22,6 +22,23 @@ HOLDING_REGISTERS = array("H", [0] * 64)
 INPUT_REGISTERS = array("H", [0] * 64)
 
 
+class ModbusError(ValueError):
+    def __init__(self, code: int):
+        self.code = code
+        super().__init__(f"Modbus exception {code}")
+
+
+def receive_exact(sock, count: int) -> bytes:
+    """TCP é um fluxo: um recv pode retornar apenas parte do ADU."""
+    data = bytearray()
+    while len(data) < count:
+        chunk = sock.recv(count - len(data))
+        if not chunk:
+            raise EOFError
+        data.extend(chunk)
+    return bytes(data)
+
+
 def exception_response(function: int, code: int) -> bytes:
     return bytes([function | 0x80, code])
 
@@ -35,32 +52,40 @@ def pack_bits(values: array) -> bytes:
 
 
 def read_bits(values: array, address: int, quantity: int) -> bytes:
-    if address < 0 or quantity < 1 or address + quantity > len(values):
-        raise ValueError
+    if quantity < 1 or quantity > 2000:
+        raise ModbusError(3)
+    if address < 0 or address + quantity > len(values):
+        raise ModbusError(2)
     return pack_bits(values[address : address + quantity])
 
 
 class ModbusHandler(socketserver.BaseRequestHandler):
     def handle(self) -> None:
+        self.request.settimeout(3)
         while True:
-            header = self.request.recv(7)
-            if not header:
-                return
-            if len(header) != 7:
+            try:
+                header = receive_exact(self.request, 7)
+            except (EOFError, TimeoutError, ConnectionError):
                 return
             transaction, protocol, length, unit = struct.unpack(">HHHB", header)
-            if protocol != 0 or length < 2:
+            if protocol != 0 or not 2 <= length <= 254:
                 return
-            body = self.request.recv(length - 1)
-            if len(body) != length - 1:
+            try:
+                body = receive_exact(self.request, length - 1)
+            except (EOFError, TimeoutError, ConnectionError):
                 return
             function = body[0]
             try:
                 response_body = self.process(function, body[1:])
+            except ModbusError as error:
+                response_body = exception_response(function, error.code)
             except ValueError:
                 response_body = exception_response(function, 3)
             response = struct.pack(">HHHB", transaction, 0, len(response_body) + 1, unit) + response_body
-            self.request.sendall(response)
+            try:
+                self.request.sendall(response)
+            except (TimeoutError, ConnectionError):
+                return
 
     def process(self, function: int, payload: bytes) -> bytes:
         if function in (1, 2):
@@ -76,8 +101,10 @@ class ModbusHandler(socketserver.BaseRequestHandler):
                 raise ValueError
             address, quantity = struct.unpack(">HH", payload)
             values = HOLDING_REGISTERS if function == 3 else INPUT_REGISTERS
-            if quantity < 1 or quantity > 125 or address + quantity > len(values):
-                raise ValueError
+            if quantity < 1 or quantity > 125:
+                raise ModbusError(3)
+            if address + quantity > len(values):
+                raise ModbusError(2)
             data = b"".join(struct.pack(">H", value) for value in values[address : address + quantity])
             logging.info("read registers function=%s address=%s quantity=%s", function, address, quantity)
             return bytes([function, len(data)]) + data
@@ -85,8 +112,10 @@ class ModbusHandler(socketserver.BaseRequestHandler):
             if len(payload) != 4:
                 raise ValueError
             address, value = struct.unpack(">HH", payload)
-            if address >= len(COILS) or value not in (0, 0xFF00):
-                raise ValueError
+            if value not in (0, 0xFF00):
+                raise ModbusError(3)
+            if address >= len(COILS):
+                raise ModbusError(2)
             COILS[address] = 1 if value else 0
             logging.info("coil[%s] = %s", address, COILS[address])
             return bytes([function]) + payload
@@ -95,11 +124,11 @@ class ModbusHandler(socketserver.BaseRequestHandler):
                 raise ValueError
             address, value = struct.unpack(">HH", payload)
             if address >= len(HOLDING_REGISTERS):
-                raise ValueError
+                raise ModbusError(2)
             HOLDING_REGISTERS[address] = value
             logging.info("holding[%s] = %s", address, value)
             return bytes([function]) + payload
-        raise ValueError
+        raise ModbusError(1)
 
 
 class ReusableServer(socketserver.ThreadingTCPServer):

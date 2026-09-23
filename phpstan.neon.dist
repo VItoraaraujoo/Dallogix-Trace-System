@@ -2,6 +2,7 @@ parameters:
     level: 4
     bootstrapFiles:
         - servidor/configuracao/bootstrap.php
+        - scripts/image_storage_path.php
     paths:
         - servidor/src
         - servidor/api

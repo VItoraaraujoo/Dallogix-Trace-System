@@ -325,29 +325,6 @@ function request_json(): array
 }
 
 /**
- * A API só pode abrir conexões para destinos aprovados pelo operador da
- * implantação. A lista é deliberadamente externa ao banco do cliente: um
- * usuário da empresa pode cadastrar a Dala, mas não amplia a rede que o
- * servidor PHP está autorizado a alcançar.
- */
-function destino_dispositivo_permitido(string $host, int $port): bool
-{
-    $normalizar = static function (string $value): string {
-        return rtrim(strtolower(trim($value)), ".");
-    };
-    $hosts = array_values(array_filter(array_map(
-        $normalizar,
-        preg_split('/[,;\n]+/', (string) (getenv("TRACE_ALLOWED_DEVICE_HOSTS") ?: "")) ?: [],
-    ), static fn (string $value): bool => $value !== ""));
-    $ports = array_values(array_filter(array_map(
-        static fn (string $value): int => (int) trim($value),
-        preg_split('/[,;\n]+/', (string) (getenv("TRACE_ALLOWED_DEVICE_PORTS") ?: "")) ?: [],
-    ), static fn (int $value): bool => $value >= 1 && $value <= 65535));
-
-    return in_array($normalizar($host), $hosts, true) && in_array($port, $ports, true);
-}
-
-/**
  * No PC industrial, a Dala cadastrada define o destino do CLP. Resolve o
  * endereço uma única vez e só permite IPv4 privado, evitando que a verificação
  * de conectividade alcance serviços públicos, loopback ou metadados da rede.

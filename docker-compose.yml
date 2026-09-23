@@ -54,8 +54,6 @@ services:
       SYNC_MAX_ATTEMPTS: ${SYNC_MAX_ATTEMPTS:-5}
       TRACE_CENTRAL_URL: ${TRACE_CENTRAL_URL:-}
       TRACE_READINESS_TOKEN: ${TRACE_READINESS_TOKEN:-}
-      TRACE_ALLOWED_DEVICE_HOSTS: ${TRACE_ALLOWED_DEVICE_HOSTS:-}
-      TRACE_ALLOWED_DEVICE_PORTS: ${TRACE_ALLOWED_DEVICE_PORTS:-}
       TRACE_INSTALLATION_MODE: ${TRACE_INSTALLATION_MODE:-}
       TRACE_LOCAL_SIMULATION: ${TRACE_LOCAL_SIMULATION:-0}
       TRACE_VERSION: ${TRACE_VERSION:-development}
@@ -142,7 +140,9 @@ services:
     environment:
       TRACE_API_URL: ${TRACE_API_URL:-http://nginx}
       TRACE_DEVICE_TOKEN: ${TRACE_DEVICE_TOKEN:?TRACE_DEVICE_TOKEN é obrigatório}
-      TRACE_DEVICE_TOKENS: ${TRACE_DEVICE_TOKENS:-}
+      TRACE_MODBUS_UNIT_ID: ${TRACE_MODBUS_UNIT_ID:-}
+      TRACE_MODBUS_HEARTBEAT_FUNCTION: ${TRACE_MODBUS_HEARTBEAT_FUNCTION:-}
+      TRACE_MODBUS_HEARTBEAT_REGISTER: ${TRACE_MODBUS_HEARTBEAT_REGISTER:-}
       CAMERA_DEVICE_TOKEN: ${CAMERA_DEVICE_TOKEN:?CAMERA_DEVICE_TOKEN é obrigatório}
     volumes:
       - node_red_data:/data
@@ -159,27 +159,6 @@ services:
       context: ./integracoes/modbus-virtual
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${MODBUS_VIRTUAL_PORT:-1502}:1502"
-    environment:
-      MODBUS_PORT: 1502
-    restart: unless-stopped
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    pids_limit: 128
-    mem_limit: 128m
-    cpus: "0.50"
-    healthcheck:
-      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 1502), 1); s.close()"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
-
-  modbus-virtual-dala2:
-    profiles: ["simulation-two-dalas"]
-    build:
-      context: ./integracoes/modbus-virtual
-    ports:
-      - "${BIND_ADDRESS:-127.0.0.1}:${MODBUS_VIRTUAL_DALA2_HOST_PORT:-1503}:1502"
     environment:
       MODBUS_PORT: 1502
     restart: unless-stopped

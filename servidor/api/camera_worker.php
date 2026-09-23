@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
+require_once __DIR__ . "/../../scripts/image_storage_path.php";
 
 exigir_metodo_http(["POST"]);
 $device = require_device_token(["CAMERA"]);
@@ -103,6 +104,16 @@ try {
     if (!str_starts_with($imagePath, $requiredPrefix)) {
         $pdo->rollBack();
         json_response(["error" => "image_path deve pertencer à empresa e ao equipamento da captura."], 422);
+    }
+    if (trace_camera_evidence_path(
+        __DIR__ . '/../../armazenamento',
+        (int) $capture['company_id'],
+        (int) $capture['equipment_id'],
+        (int) $requestId,
+        $imagePath,
+    ) === null) {
+        $pdo->rollBack();
+        json_response(['error' => 'Imagem não enviada, inválida ou fora da pasta de evidências.'], 422);
     }
     $update = $pdo->prepare(
         "UPDATE solicitacoes_captura_camera

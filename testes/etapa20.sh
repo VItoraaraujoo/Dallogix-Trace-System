@@ -53,13 +53,22 @@ printf '%s' "$completed_unlock" | grep -q '"status":"APLICADO"' || { echo "FAIL:
 
 # Processa as evidências da própria fixture no worker simulado e encerra a
 # operação, liberando a Dala para as etapas de preparação seguintes.
+camera_fixture="$(mktemp)"
+trap 'rm -f "$camera_fixture"' EXIT
+php -r 'file_put_contents($argv[1], base64_decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/NssAAAAASUVORK5CYII=", true));' "$camera_fixture"
 for attempt in 1 2 3 4 5 6 7 8 9 10; do
   claim="$(curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: ${CAMERA_DEVICE_TOKEN:-}" -d '{"action":"CLAIM"}' "$base_url/api/camera_worker.php" || true)"
   request_id="$(printf '%s' "$claim" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
   [ -n "$request_id" ] || break
-  curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: ${CAMERA_DEVICE_TOKEN:-}" \
-    -d "{\"action\":\"COMPLETE\",\"request_id\":${request_id},\"image_path\":\"company_1/equipment_${equipment_id}/simulados/etapa20-${request_id}.jpg\"}" \
-    "$base_url/api/camera_worker.php" >/dev/null
+  uploaded="$(curl -sS -H "X-Device-Token: ${CAMERA_DEVICE_TOKEN:-}" \
+    -F "request_id=${request_id}" -F "file=@${camera_fixture};type=image/png" \
+    "$base_url/api/camera_upload.php")"
+  image_path="$(printf '%s' "$uploaded" | php -r '$v=json_decode(stream_get_contents(STDIN),true); echo $v["data"]["image_path"]??"";')"
+  [ -n "$image_path" ] || { echo "FAIL: upload da evidência: $uploaded"; exit 1; }
+  completed="$(curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: ${CAMERA_DEVICE_TOKEN:-}" \
+    -d "{\"action\":\"COMPLETE\",\"request_id\":${request_id},\"image_path\":\"${image_path}\"}" \
+    "$base_url/api/camera_worker.php")"
+  printf '%s' "$completed" | grep -q '"status":"CAPTURADA"' || { echo "FAIL: captura não confirmada: $completed"; exit 1; }
 done
 curl -sS -b "$cookie_file" -X PATCH -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php" >/dev/null
   curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"justification\":\"Fixture local de teste encerrada pelo cenário de emergência.\"}" "$base_url/api/encerrar_carregamento.php" >/dev/null

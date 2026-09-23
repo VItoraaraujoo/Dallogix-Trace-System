@@ -1588,26 +1588,7 @@ function bindForms() {
         alert(error.message);
       }
     });
-  // Rede do cliente: preserva os parâmetros de PDF já salvos.
-  const networkForm = document.querySelector("#network-form");
-  if (networkForm)
-    networkForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const raw = Object.fromEntries(new FormData(networkForm));
-      const saved = store.state.configuration?.settings || {};
-      try {
-        await store.saveConfiguration({
-          gateway_public_ip: raw.gateway_public_ip,
-          pdf_field_mapping: saved.pdf_field_mapping || {},
-          pdf_search_field: saved.pdf_search_field || "barcode",
-        });
-        alert("Configuração salva.");
-        render();
-      } catch (error) {
-        alert(error.message);
-      }
-    });
-  // Parâmetros da importação PDF: preserva a rede já salva.
+  // Parâmetros de PDF: preserva valores legados não exibidos na interface.
   const pdfSettingsForm = document.querySelector("#pdf-settings-form");
   if (pdfSettingsForm)
     pdfSettingsForm.addEventListener("submit", async (event) => {
