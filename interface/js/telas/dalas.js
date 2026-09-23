@@ -32,8 +32,8 @@ export function dalas(store) {
 <section class="panel dala-create-panel"><form id="dala-create-form"><div class="grid one">
 <label>Nome da Dala<input name="name" autocomplete="off" required /></label>
 <label>Identificador<input name="equipment_code" autocomplete="off" required pattern="[a-z0-9_]{1,30}" title="Letras minúsculas, números e underscores (máx. 30)" /><small>Use letras minúsculas, números e underscore. Máximo de 30 caracteres.</small></label>
-<label>IP do CLP<input name="plc_ip" inputmode="decimal" autocomplete="off" required /></label>
-<label>Porta do CLP<input name="plc_port" type="number" value="502" min="1" max="65535" required /></label>
+<label>Endereço do CLP (IP ou nome)<input name="plc_ip" autocomplete="off" required /></label>
+<label>Porta do CLP<input name="plc_port" type="number" min="1" max="65535" required /></label>
 <label>Porta externa no gateway<input name="external_port" type="number" min="1" max="65535" /><small>Porta TCP pública do gateway que encaminha a comunicação para esta Dala.</small></label>
 </div><div class="actions">${button("Cadastrar Dala", "submit-dala")}</div></form></section></div>`;
   }
@@ -129,8 +129,8 @@ export function dalaEdit(store) {
 <section class="panel"><div class="grid one">
 <label>Nome da Dala<input name="name" required value="${esc(dala.name)}" /></label>
 <label>Identificador<input name="equipment_code" required readonly pattern="[a-z0-9_]{1,30}" title="O identificador não pode ser alterado após o cadastro" value="${esc(dala.equipment_code)}" /><small>Este identificador é usado pelo serviço da Dala e não pode ser alterado após o cadastro.</small></label>
-<label>IP do CLP<input name="plc_ip" required value="${esc(dala.plc_ip || "")}" /></label>
-<label>Porta do CLP<input name="plc_port" type="number" min="1" max="65535" required value="${dala.plc_port || 502}" /></label>
+<label>Endereço do CLP (IP ou nome)<input name="plc_ip" required value="${esc(dala.plc_ip || "")}" /></label>
+<label>Porta do CLP<input name="plc_port" type="number" min="1" max="65535" required value="${dala.plc_port || ""}" /></label>
 <label>Porta externa no gateway<input name="external_port" type="number" min="1" max="65535" value="${dala.external_port || ""}" /><small>Porta TCP no gateway público do cliente, redirecionada para o serviço dala-modbus na edge.</small></label>
 </div><div class="actions">${button("Salvar", "save-dala-edit")}</div></section>
 </form>`;

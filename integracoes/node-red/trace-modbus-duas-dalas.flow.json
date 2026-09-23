@@ -3,7 +3,7 @@
     "id": "trace-modbus-duas-dalas",
     "type": "tab",
     "label": "TRACE • Modbus das duas Dalas",
-    "disabled": false,
+    "disabled": true,
     "info": "Teste local de leitura entre as duas Dalas e seus CLPs Modbus virtuais. Somente leitura; nenhum coil ou registrador é escrito."
   },
   {

@@ -72,9 +72,12 @@ Cada reprovisionamento gera um novo `token_id`, invalida a credencial anterior e
 O código `TRC-....-....` serve somente para a ativação assistida. A ativação
 gera uma credencial aleatória separada para a sincronização da instalação; por
 isso, instalações existentes devem ser ativadas novamente após aplicar a
-migration 048. O status de conectividade também só abre sockets para os pares
+migration 048. No servidor central, a verificação TCP direta exige os pares
 explicitamente listados em `TRACE_ALLOWED_DEVICE_HOSTS` e
-`TRACE_ALLOWED_DEVICE_PORTS`.
+`TRACE_ALLOWED_DEVICE_PORTS`. Na instalação local, a verificação TCP usa o
+endereço e a porta cadastrados na Dala, desde que o endereço resolva para um
+IPv4 privado. O cadastro não pressupõe o endereço do simulador nem uma porta
+Modbus fixa; a verificação TCP não substitui o heartbeat Modbus do gateway.
 
 ## Acesso remoto e servidor central
 

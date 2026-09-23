@@ -171,7 +171,10 @@ final class ServicoSincronizacaoRemota
         }
 
         foreach ($snapshot["equipamentos"] as $equipment) {
-            if (!is_array($equipment) || (int) ($equipment["id"] ?? 0) < 1 || trim((string) ($equipment["equipment_code"] ?? "")) === "") {
+            $port = is_array($equipment) ? filter_var($equipment["plc_port"] ?? null, FILTER_VALIDATE_INT) : false;
+            if (!is_array($equipment) || (int) ($equipment["id"] ?? 0) < 1
+                || trim((string) ($equipment["equipment_code"] ?? "")) === ""
+                || $port === false || $port < 1 || $port > 65535) {
                 throw new RuntimeException("Resposta do servidor central contém uma Dala inválida.");
             }
         }
@@ -396,7 +399,7 @@ final class ServicoSincronizacaoRemota
             "equipment_code" => $code,
             "name" => trim((string) ($remote["name"] ?? $code)),
             "plc_ip" => $remote["plc_ip"] ?? null,
-            "plc_port" => (int) ($remote["plc_port"] ?? 502),
+            "plc_port" => (int) $remote["plc_port"],
             "external_port" => $remote["external_port"] ?? null,
             "plc_protocol" => in_array(($remote["plc_protocol"] ?? "MODBUS_TCP"), ["MODBUS_TCP", "MODBUS_RTU"], true)
                 ? $remote["plc_protocol"] : "MODBUS_TCP",

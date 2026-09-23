@@ -297,6 +297,41 @@ function destino_dispositivo_permitido(string $host, int $port): bool
     return in_array($normalizar($host), $hosts, true) && in_array($port, $ports, true);
 }
 
+/**
+ * No PC industrial, a Dala cadastrada define o destino do CLP. Resolve o
+ * endereço uma única vez e só permite IPv4 privado, evitando que a verificação
+ * de conectividade alcance serviços públicos, loopback ou metadados da rede.
+ */
+function resolver_destino_clp_local(string $host, int $port): ?string
+{
+    if (!trace_e_instalacao_local() || $port < 1 || $port > 65535) {
+        return null;
+    }
+
+    $host = trim($host);
+    if ($host === "" || strlen($host) > 253) {
+        return null;
+    }
+
+    $ip = filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4);
+    if ($ip === false) {
+        if (preg_match('/\A[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\z/i', $host) !== 1
+            || preg_match('/\A[0-9.]+\z/', $host) === 1) {
+            return null;
+        }
+        $ip = gethostbyname($host);
+        if ($ip === $host || filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) === false) {
+            return null;
+        }
+    }
+
+    $octets = array_map('intval', explode('.', $ip));
+    $private = $octets[0] === 10
+        || ($octets[0] === 172 && $octets[1] >= 16 && $octets[1] <= 31)
+        || ($octets[0] === 192 && $octets[1] === 168);
+    return $private ? $ip : null;
+}
+
 /** @return array{id:int, company_id:int, equipment_id:int, device_code:string, device_type:string} */
 function require_device_token(array $allowedDeviceTypes = []): array
 {

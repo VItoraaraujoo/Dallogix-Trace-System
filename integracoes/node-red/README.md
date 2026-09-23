@@ -34,9 +34,9 @@ Para testar a lógica sem CLP, importe também `trace-clp-simulador.flow.json`. 
 
 Sequência sugerida: `Resetar` → `Iniciar` → vários `Sensor + produto correto` → `Pausar` → `Retorno`. Depois repita com `Produto incorreto`, `Sensor sem leitura` e `Emergência`. Essa simulação usa somente o contexto do Node-RED e não chama a API nem o CLP real.
 
-O projeto sobe `modbus-virtual` para a primeira Dala em `127.0.0.1:1502` e `modbus-virtual-dala2` para a segunda em `127.0.0.1:1503`. Cada serviço implementa leitura de coils/entradas/registros e escrita de coil/registro em memória, para testes de transporte Modbus TCP. O mapa da simulação está em `integracoes/industrial/register-map.example.json`; ele não deve ser reutilizado como mapa de produção.
+O perfil `simulation` sobe um único servidor `modbus-virtual` em `127.0.0.1:1502`. Ele implementa leitura de coils/entradas/registros e escrita de coil/registro em memória, para testes de transporte Modbus TCP. O fluxo operacional `trace-clp-bridge.flow.json` lê o endereço e a porta da Dala cadastrada, sem destino de CLP predefinido. O mapa da simulação está em `integracoes/industrial/register-map.example.json`; ele não deve ser reutilizado como mapa de produção.
 
-Para testar o transporte pelo próprio Node-RED, importe `trace-modbus-duas-dalas.flow.json`. A aba `TRACE • Modbus das duas Dalas` lê o registro virtual `holding[0]` dos dois serviços a cada 2 segundos e mostra cada resposta no Debug. Os endereços de rede usados entre containers são `modbus-virtual:1502` e `modbus-virtual-dala2:1502`.
+O fluxo separado `trace-modbus-duas-dalas.flow.json` só deve ser importado manualmente se houver um teste explícito de duas Dalas com o perfil `simulation-two-dalas`. Ele não é carregado na instalação padrão de um PC industrial.
 
 ## Referência elétrica recebida
 

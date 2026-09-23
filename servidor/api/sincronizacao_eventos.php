@@ -26,7 +26,7 @@ $upsertEquipment = static function (PDO $connection, int $companyId, int $remote
     $code = trim((string) ($data["equipment_code"] ?? ""));
     $name = trim((string) ($data["name"] ?? ""));
     $plcIp = trim((string) ($data["plc_ip"] ?? ""));
-    $plcPort = filter_var($data["plc_port"] ?? 502, FILTER_VALIDATE_INT);
+    $plcPort = filter_var($data["plc_port"] ?? null, FILTER_VALIDATE_INT);
     $externalPort = ($data["external_port"] ?? null) === null || ($data["external_port"] ?? "") === ""
         ? null
         : filter_var($data["external_port"], FILTER_VALIDATE_INT);

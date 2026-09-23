@@ -32,10 +32,11 @@ notepad .env
 
 No `.env`, defina senhas aleatórias para `MYSQL_PASSWORD` e `MYSQL_ROOT_PASSWORD`. Defina também `TRACE_DEVICE_TOKEN` e `CAMERA_DEVICE_TOKEN` com valores fortes e distintos; depois provisione cada dispositivo com `scripts/provision_device.php`. Nunca use valores `change-me-*`.
 
-Para o teste de conectividade, informe explicitamente os destinos aprovados
-em `TRACE_ALLOWED_DEVICE_HOSTS` e as portas correspondentes em
-`TRACE_ALLOWED_DEVICE_PORTS`. Sem essa allowlist o status fica offline por
-falha fechada. Depois da migration 048, reexecute a ativação da instalação
+No PC industrial, cadastre o endereço e a porta de cada CLP na própria Dala.
+Ao salvar, o Trace tenta abrir uma conexão TCP para esse destino, limitado a
+IPv4 privado. `TRACE_ALLOWED_DEVICE_HOSTS` e `TRACE_ALLOWED_DEVICE_PORTS` são
+opcionais para a verificação direta feita por um servidor central. Depois da
+migration 048, reexecute a ativação da instalação
 para trocar o antigo código de ativação por um token aleatório de sincronização.
 
 Mantenha `WEB_BIND_ADDRESS=127.0.0.1` e `BIND_ADDRESS=127.0.0.1`. Assim a interface, MySQL e serviços técnicos não ficam expostos na rede industrial.

@@ -19,11 +19,8 @@ $validIdentifier = static function (string $code): bool {
     return (bool) preg_match('/^[a-z0-9_]{1,30}$/', $code);
 };
 
-// Verificação de comunicação com o serviço Modbus da dala.
-// Alvo: gateway público do cliente + porta externa (serviço dala-modbus na edge);
-// sem gateway configurado, testa a rede local do CLP diretamente.
-// PENDENTE DE CONFIRMAÇÃO: protocolo/endpoint real do serviço dala-modbus — por enquanto,
-// apenas conectividade TCP é verificada.
+// Verificação de conectividade TCP. Na instalação local, o destino vem sempre
+// do IP/nome e porta da Dala cadastrada. Isso não confirma o protocolo Modbus.
 if (
     $_SERVER["REQUEST_METHOD"] === "GET" &&
     ($_GET["check"] ?? "") === "status"
@@ -40,11 +37,22 @@ if (
     if (!$dala) {
         json_response(["error" => "Dala não encontrada."], 404);
     }
-    $host =
-        trim((string) ($dala["gateway_public_ip"] ?: "")) !== ""
-            ? $dala["gateway_public_ip"]
-            : $dala["plc_ip"];
-    $port = (int) ($dala["external_port"] ?: $dala["plc_port"] ?: 0);
+    $local = trace_e_instalacao_local();
+    if (!$local && (trim((string) ($dala["gateway_public_ip"] ?? "")) === ""
+        || !$dala["external_port"])) {
+        json_response([
+            "data" => [
+                "status" => "PENDENTE",
+                "message" => "A conexão com o CLP é verificada no PC industrial.",
+            ],
+        ]);
+    }
+    $host = $local
+        ? (string) $dala["plc_ip"]
+        : (string) $dala["gateway_public_ip"];
+    $port = $local
+        ? (int) $dala["plc_port"]
+        : (int) $dala["external_port"];
     if (!$host || $port < 1) {
         json_response([
             "data" => [
@@ -53,23 +61,24 @@ if (
             ],
         ]);
     }
-    if (!destino_dispositivo_permitido((string) $host, $port)) {
-        // Falha fechada: a configuração da empresa não pode transformar o
-        // servidor em um scanner TCP de endereços internos ou metadados.
+    $resolvedHost = $local ? resolver_destino_clp_local($host, $port) : $host;
+    if ($resolvedHost === null || (!$local && !destino_dispositivo_permitido($host, $port))) {
         json_response([
             "data" => [
                 "status" => "OFFLINE",
-                "message" => "Destino não autorizado pela configuração da implantação.",
+                "message" => $local
+                    ? "Endereço do CLP inválido ou fora da rede privada da instalação."
+                    : "Destino não autorizado pela configuração da implantação.",
             ],
         ]);
     }
-    $connection = @fsockopen($host, $port, $errno, $errstr, 2.0);
+    $connection = @fsockopen($resolvedHost, $port, $errno, $errstr, 2.0);
     if ($connection) {
         fclose($connection);
         json_response([
             "data" => [
                 "status" => "ONLINE",
-                "message" => "Serviço Modbus respondeu.",
+                "message" => "Conexão TCP estabelecida; protocolo Modbus ainda não verificado.",
                 "target" => "{$host}:{$port}",
             ],
         ]);
@@ -77,7 +86,7 @@ if (
     json_response([
         "data" => [
             "status" => "OFFLINE",
-            "message" => "Não foi possível conectar ao serviço Modbus.",
+            "message" => "Não foi possível abrir conexão TCP com o endereço cadastrado.",
             "target" => "{$host}:{$port}",
         ],
     ]);
@@ -109,7 +118,7 @@ $validatePayload = static function (array $payload) use (
     $code = trim((string) ($payload["equipment_code"] ?? ""));
     $name = trim((string) ($payload["name"] ?? ""));
     $ip = trim((string) ($payload["plc_ip"] ?? ""));
-    $port = filter_var($payload["plc_port"] ?? 502, FILTER_VALIDATE_INT);
+    $port = filter_var($payload["plc_port"] ?? null, FILTER_VALIDATE_INT);
     $externalPort =
         ($payload["external_port"] ?? "") === "" ||
         $payload["external_port"] === null

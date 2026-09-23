@@ -1676,31 +1676,52 @@ function bindForms() {
   if (dalaCreateForm)
     dalaCreateForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (dalaCreateForm.dataset.submitting === "1") return;
+      dalaCreateForm.dataset.submitting = "1";
+      dalaCreateForm.querySelectorAll("button").forEach((button) => { button.disabled = true; });
+      let created;
       try {
-        await store.createEquipment(
+        created = await store.createEquipment(
           Object.fromEntries(new FormData(dalaCreateForm)),
         );
-        alert("Dala cadastrada.");
-        store.state.dalaFormOpen = false;
-        render();
       } catch (error) {
         alert(error.message);
+        dalaCreateForm.dataset.submitting = "0";
+        dalaCreateForm.querySelectorAll("button").forEach((button) => { button.disabled = false; });
+        return;
+      }
+      store.state.dalaFormOpen = false;
+      render();
+      try {
+        const connection = await store.checkEquipmentStatus(created.id);
+        alert(`Dala cadastrada. ${connection.message}`);
+      } catch (error) {
+        alert(`Dala cadastrada, mas a verificação de conexão falhou: ${error.message}`);
       }
     });
   const dalaEditForm = document.querySelector("#dala-edit-form");
   if (dalaEditForm)
     dalaEditForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (dalaEditForm.dataset.submitting === "1") return;
+      dalaEditForm.dataset.submitting = "1";
+      dalaEditForm.querySelectorAll("button").forEach((button) => { button.disabled = true; });
       const raw = Object.fromEntries(new FormData(dalaEditForm));
       try {
         await store.updateEquipment({ id: dalaEditForm.dataset.id, ...raw });
-        alert("Dala atualizada.");
-        navigate(
-          "dala",
-          `?id=${dalaEditForm.dataset.id}&from=${queryReturnPage()}`,
-        );
       } catch (error) {
         alert(error.message);
+        dalaEditForm.dataset.submitting = "0";
+        dalaEditForm.querySelectorAll("button").forEach((button) => { button.disabled = false; });
+        return;
+      }
+      const equipmentId = dalaEditForm.dataset.id;
+      await navigate("dala", `?id=${equipmentId}&from=${queryReturnPage()}`);
+      try {
+        const connection = await store.checkEquipmentStatus(equipmentId);
+        alert(`Dala atualizada. ${connection.message}`);
+      } catch (error) {
+        alert(`Dala atualizada, mas a verificação de conexão falhou: ${error.message}`);
       }
     });
   const dalaActionForm = document.querySelector("#dala-action-form");
