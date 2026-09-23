@@ -12,8 +12,9 @@ $usuario = exigir_sessao_usuario();
 if ($usuario["company_id"] === null) {
     responder_json(["error" => "Usuário sem empresa vinculada."], 403);
 }
+session_write_close();
 
-// Conexões curtas atravessam proxies e releases; EventSource reconecta sozinho.
+// Conexões curtas atravessam proxies e releases; o cliente reconecta ao término.
 header("Content-Type: text/event-stream; charset=utf-8");
 header("Cache-Control: no-cache, no-store, must-revalidate");
 header("Connection: keep-alive");

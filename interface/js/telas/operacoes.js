@@ -60,7 +60,7 @@ export function manifestView(store) {
     !["FINALIZADO", "CANCELADO"].includes(manifest.status);
   const auditReport =
     ["FINALIZADO", "CANCELADO"].includes(manifest.status)
-      ? `<a class="button secondary" href="/api/relatorio_auditoria.php?romaneio_id=${encodeURIComponent(manifest.id)}">Baixar relatório de auditoria (PDF)</a>`
+      ? `<button class="button secondary" data-action="download-audit-report" data-id="${Number(manifest.id)}" type="button">Baixar relatório de auditoria (PDF)</button>`
       : "";
   const canCancel = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(store.state.userRole) && ["IMPORTADO", "AGUARDANDO"].includes(manifest.status);
   const canCancelInProgress = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(store.state.userRole) && manifest.status === "EM_ANDAMENTO" && manifest.active_loading_id;

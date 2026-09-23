@@ -92,5 +92,6 @@ responder_json([
     "authenticated" => true,
     "user" => $_SESSION["user"],
     "csrf_token" => gerar_token_csrf(),
+    "session_token" => session_id(),
     "password_change_required" => false,
 ]);

@@ -101,6 +101,22 @@ if (function_exists("ini_set")) {
     ini_set("session.cookie_samesite", "Strict");
 }
 
+function trace_id_sessao_da_aba(): ?string
+{
+    $token = trim((string) ($_SERVER["HTTP_X_TRACE_SESSION"] ?? ""));
+    if ($token === "") {
+        return null;
+    }
+    return preg_match('/\A[a-zA-Z0-9,-]{1,128}\z/', $token) === 1
+        ? $token
+        : null;
+}
+
+function trace_e_requisicao_de_login(): bool
+{
+    return basename((string) ($_SERVER["SCRIPT_NAME"] ?? "")) === "login.php";
+}
+
 session_name("dallogix_trace_session");
 $appUrl = strtolower(trim((string) (getenv("APP_URL") ?: "")));
 $isSecureSession =
@@ -115,6 +131,17 @@ session_set_cookie_params([
     "httponly" => true,
     "samesite" => "Strict",
 ]);
+$traceSessionHeader = trim((string) ($_SERVER["HTTP_X_TRACE_SESSION"] ?? ""));
+$traceSessionId = trace_id_sessao_da_aba();
+if (trace_e_requisicao_de_login()) {
+    // O cookie é compartilhado pelo navegador, mas cada novo login precisa
+    // começar uma sessão própria antes de a credencial ser validada.
+    session_id(bin2hex(random_bytes(32)));
+} elseif ($traceSessionHeader !== "") {
+    // Um identificador inválido não pode fazer a requisição voltar ao cookie
+    // compartilhado, pois isso reintroduziria a mistura entre abas.
+    session_id($traceSessionId ?? bin2hex(random_bytes(32)));
+}
 session_start();
 
 $sessionIdleTimeout = max(300, (int) (getenv("SESSION_IDLE_TIMEOUT") ?: 1800));

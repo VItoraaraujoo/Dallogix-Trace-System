@@ -1,3 +1,8 @@
+import {
+  configurarSessaoPorAba,
+  guardarTokenSessao,
+  limparTokenSessao,
+} from "./sessao.js?v=202609222100";
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609210400";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
@@ -29,6 +34,8 @@ import {
 } from "./telas/operacoes.js?v=202609210400";
 import { dashboard } from "./telas/painel.js?v=202609220100";
 import { users } from "./telas/usuarios.js?v=202609212000";
+
+configurarSessaoPorAba();
 
 const store = new ArmazenamentoTrace();
 let renderRequestId = 0;
@@ -967,7 +974,28 @@ function bindActions() {
           method: "POST",
           headers: store.csrfToken ? { "X-CSRF-Token": store.csrfToken } : {},
         });
+        limparTokenSessao();
         window.location.href = "index.html";
+        return;
+      }
+      if (action === "download-audit-report") {
+        try {
+          const id = Number(node.dataset.id);
+          if (!Number.isSafeInteger(id) || id <= 0) throw new Error("Romaneio inválido.");
+          const response = await fetch(`/api/relatorio_auditoria.php?romaneio_id=${id}`);
+          if (!response.ok) {
+            const result = await response.json().catch(() => ({}));
+            throw new Error(result.error || "Não foi possível baixar o relatório.");
+          }
+          const url = URL.createObjectURL(await response.blob());
+          const link = document.createElement("a");
+          link.href = url;
+          link.download = `romaneio-${id}.pdf`;
+          link.click();
+          window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+        } catch (error) {
+          alert(error.message || "Não foi possível baixar o relatório.");
+        }
         return;
       }
       if (action === "retry-sync") {
@@ -1515,6 +1543,7 @@ function bindLoginForm() {
       authenticatedUser = result.user;
       store.setUser(authenticatedUser);
       store.setCsrfToken(result.csrf_token);
+      guardarTokenSessao(result.session_token);
       window.location.replace(pagePath(defaultPage()));
     } catch (error) {
       renderLogin(
@@ -2199,6 +2228,7 @@ async function bootstrap() {
   const response = await fetch("/api/me.php");
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
+    limparTokenSessao();
     try {
       sessionStorage.setItem(
         "trace-login-message",

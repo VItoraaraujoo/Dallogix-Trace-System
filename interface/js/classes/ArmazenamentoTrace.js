@@ -113,17 +113,50 @@ export class ArmazenamentoTrace {
     return result;
   }
   subscribeOperationalEvents(onData, onError) {
-    if (typeof EventSource === "undefined") return null;
-    const source = new EventSource("/api/eventos_carregamento.php?period_days=30", { withCredentials: true });
-    source.addEventListener("carregamento", (event) => {
+    if (typeof ReadableStream === "undefined" || typeof TextDecoder === "undefined") return null;
+    const controller = new AbortController();
+    let closed = false;
+    const listen = async () => {
       try {
-        onData?.(JSON.parse(event.data));
+        const response = await fetch("/api/eventos_carregamento.php?period_days=30", {
+          headers: { Accept: "text/event-stream" },
+          signal: controller.signal,
+        });
+        if (!response.ok || !response.body) throw new Error("Conexão de eventos indisponível.");
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let pending = "";
+        let eventName = "";
+        let eventData = [];
+        while (!closed) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          pending += decoder.decode(value, { stream: true });
+          let newline;
+          while ((newline = pending.indexOf("\n")) !== -1) {
+            const line = pending.slice(0, newline).replace(/\r$/, "");
+            pending = pending.slice(newline + 1);
+            if (line === "") {
+              if (eventName === "carregamento" && eventData.length) {
+                onData?.(JSON.parse(eventData.join("\n")));
+              }
+              eventName = "";
+              eventData = [];
+            } else if (line.startsWith("event:")) {
+              eventName = line.slice(6).trim();
+            } else if (line.startsWith("data:")) {
+              eventData.push(line.slice(5).trimStart());
+            }
+          }
+        }
       } catch (error) {
-        onError?.(error);
+        if (!closed) onError?.(error);
+        return;
       }
-    });
-    source.onerror = (error) => onError?.(error);
-    return source;
+      if (!closed) onError?.(new Error("Conexão de eventos encerrada."));
+    };
+    void listen();
+    return { close() { closed = true; controller.abort(); } };
   }
   async loadManifests() {
     const params = new URLSearchParams();
