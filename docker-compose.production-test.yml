@@ -2,7 +2,11 @@
 name: dallogix-production-test
 services:
   mysql:
-    image: mysql:8.4@sha256:85b9bf2e29cf836ecb8c2a15a935d4ba0c606631dff1dd79531a11983c638f2a
+    image: trace-industrial-pc-mysql:8.4.12-patched
+    platform: linux/amd64
+    build:
+      context: ./docker/mysql
+      dockerfile: Dockerfile
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:?}
@@ -45,7 +49,7 @@ services:
       - ./scripts:/var/www/scripts:ro
       - ./armazenamento/producao-teste/storage:/var/www/armazenamento
   nginx:
-    image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+    image: nginx:1.30-alpine-slim@sha256:32463212baf0e7d91aded2e9b843a4f2b9e017804b8c9d5bae7b51dcef64389c
     restart: unless-stopped
     depends_on: [php]
     ports:

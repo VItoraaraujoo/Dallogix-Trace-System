@@ -1,8 +1,10 @@
-FROM python:3.12-alpine@sha256:b64631e04e4920160c50fbe8d8df828f7f35f06f425cb44aa09bca53e708a35a
+FROM python:3.12-alpine@sha256:4c47124a8391cb7a9f571164147d154777cf012a4ece5f86097130d7a4478111
 
 RUN addgroup -S app && adduser -S -G app app
 WORKDIR /app
 COPY server.py /app/server.py
+
+RUN python -m pip uninstall -y pip
 
 ENV PYTHONUNBUFFERED=1
 EXPOSE 1502

@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: nginx:1.27-alpine@sha256:65645c7bb6a0661892a8b03b89d0743208a18dd2f3f17a54ef4b76fb8e2f2a10
+    image: nginx:1.30-alpine-slim@sha256:32463212baf0e7d91aded2e9b843a4f2b9e017804b8c9d5bae7b51dcef64389c
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
@@ -28,7 +28,7 @@ services:
     build:
       context: ./docker/php
     restart: unless-stopped
-    user: "www-data"
+    user: "82:82"
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
@@ -87,7 +87,11 @@ services:
       retries: 10
 
   mysql:
-    image: mysql:8.4@sha256:85b9bf2e29cf836ecb8c2a15a935d4ba0c606631dff1dd79531a11983c638f2a
+    image: trace-industrial-pc-mysql:8.4.12-patched
+    platform: linux/amd64
+    build:
+      context: ./docker/mysql
+      dockerfile: Dockerfile
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-trace_local}
@@ -110,7 +114,10 @@ services:
 
   node-red-init:
     profiles: ["industrial"]
-    image: nodered/node-red:3.1.9@sha256:4872f67418a36ac2adf9f2793cfab1e3130796dd0c874acce7eddaca2e2e96e6
+    image: trace-industrial-pc-node-red:5.0.7-24-minimal-patched1
+    build:
+      context: .
+      dockerfile: integracoes/node-red/Dockerfile
     user: "0:0"
     entrypoint: ["/bin/sh", "-c"]
     command:
@@ -123,7 +130,10 @@ services:
 
   node-red:
     profiles: ["industrial"]
-    image: nodered/node-red:3.1.9@sha256:4872f67418a36ac2adf9f2793cfab1e3130796dd0c874acce7eddaca2e2e96e6
+    image: trace-industrial-pc-node-red:5.0.7-24-minimal-patched1
+    build:
+      context: .
+      dockerfile: integracoes/node-red/Dockerfile
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/seed/entrypoint.sh"]
     read_only: true
@@ -218,7 +228,7 @@ services:
       mysql:
         condition: service_healthy
     restart: unless-stopped
-    user: "www-data"
+    user: "82:82"
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
