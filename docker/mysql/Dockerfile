@@ -10,3 +10,7 @@ RUN microdnf remove --assumeyes mysql-shell \
     && groupmod --gid 999 mysql \
     && usermod --uid 999 --gid 999 mysql \
     && chown -R mysql:mysql /var/run/mysqld /var/lib/mysql-files /var/lib/mysql-keyring
+
+# The upstream entrypoint supports non-root initialization; keep the same UID
+# as existing data volumes while preventing the container from starting as root.
+USER mysql

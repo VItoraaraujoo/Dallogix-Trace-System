@@ -115,6 +115,8 @@ jobs:
               bash scripts/docker_compose.sh up -d --wait --wait-timeout 300 mysql && \
               mkdir -p armazenamento/backups && \
               bash scripts/backup_db.sh && \
+              bash scripts/docker_compose.sh build mysql && \
+              bash scripts/docker_compose.sh up -d --wait --wait-timeout 300 mysql && \
               bash scripts/migrate.sh && \
               bash scripts/docker_compose.sh up -d --build --no-deps php && \
               bash scripts/docker_compose.sh up -d --no-build --no-recreate && \
