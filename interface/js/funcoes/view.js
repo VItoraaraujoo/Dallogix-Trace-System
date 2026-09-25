@@ -140,6 +140,25 @@ export function operationalBadge(value) {
   return `<span class="badge ${tone}">${esc(label)}</span>`;
 }
 
+export function physicalStateBadge(machine = {}) {
+  const communication = String(machine.clp_status || "").toUpperCase();
+  let label = "Desconhecido · sem retorno físico do CLP";
+  let tone = "yellow";
+  if (communication !== "ONLINE") {
+    label = communication === "OFFLINE"
+      ? "Desconhecido · sem comunicação com o CLP"
+      : "Estado físico desconhecido";
+    tone = "red";
+  } else if (machine.physical_running === true) {
+    label = "Operação reportada pelo CLP";
+    tone = "green";
+  } else if (machine.physical_running === false) {
+    label = "Parada reportada pelo CLP";
+    tone = "blue";
+  }
+  return `<span class="badge ${tone}">${esc(label)}</span>`;
+}
+
 function machineCard(machine) {
   const loaded = Number(machine.valid_readings || 0);
   const planned = Number(machine.planned_quantity || 0);
@@ -152,7 +171,7 @@ function machineCard(machine) {
       <div><dt>Romaneio</dt><dd>${machine.romaneio_number ? "#" + esc(machine.romaneio_number) : "—"}</dd></div>
       <div><dt>Caminhão</dt><dd>${machine.plate ? esc(machine.plate) : "—"}</dd></div>
       <div><dt>Estado da operação</dt><dd>${esc(state)}</dd></div>
-      <div><dt>Estado físico</dt><dd>${operationalBadge(machine.operational_status)}</dd></div>
+      <div><dt>Estado físico</dt><dd>${physicalStateBadge(machine)}</dd></div>
       <div><dt>Último sinal</dt><dd data-relative-time="${esc(machine.last_seen_at || "")}">${esc(relativo(machine.last_seen_at))}</dd></div>
     </dl>
     <div class="progress"><i style="width:${pct}%"></i></div>

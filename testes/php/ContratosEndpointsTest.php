@@ -114,4 +114,16 @@ final class ContratosEndpointsTest extends TestCase
         self::assertStringContainsString("resolved_status_pc_error", $logs);
         self::assertStringContainsString("resolved_status_pc_error", $diagnostic);
     }
+
+    public function testDetalheCentralDaEmpresaNaoConfundeEstadoOperacionalComFisico(): void
+    {
+        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/empresas.php");
+
+        self::assertIsString($endpoint);
+        self::assertStringContainsString("d.details AS clp_details", $endpoint);
+        self::assertStringContainsString("EstadoFisicoClp::runningFromDetails(", $endpoint);
+        self::assertStringContainsString('$machine["physical_running"]', $endpoint);
+        self::assertStringContainsString('unset($machine["clp_details"])', $endpoint);
+        self::assertStringContainsString('"maquinas" => $maquinasData', $endpoint);
+    }
 }

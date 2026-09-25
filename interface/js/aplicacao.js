@@ -12,8 +12,8 @@ import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js";
 import { settings } from "./telas/configuracoes.js?v=202609220100";
-import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609191020";
-import { company } from "./telas/empresa.js?v=202609181200";
+import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609250900";
+import { company } from "./telas/empresa.js?v=202609250900";
 import { companies } from "./telas/empresas.js?v=202609220100";
 import { errorLogs } from "./telas/logs.js";
 import { masterHome } from "./telas/master.js?v=202609220100";
@@ -23,7 +23,7 @@ import {
     occurrences,
     products,
     summary,
-} from "./telas/monitoramento.js?v=202609210400";
+} from "./telas/monitoramento.js?v=202609250900";
 import {
     division,
     importScreen,
@@ -32,7 +32,7 @@ import {
     manifestView,
     work,
 } from "./telas/operacoes.js?v=202609210400";
-import { dashboard } from "./telas/painel.js?v=202609220100";
+import { dashboard } from "./telas/painel.js?v=202609250900";
 import { users } from "./telas/usuarios.js?v=202609212000";
 
 configurarSessaoPorAba();
@@ -355,7 +355,7 @@ function installLocalIndicator() {
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202609212000").catch(() => {
+  navigator.serviceWorker.register("/service-worker.js?v=202609250900").catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }
