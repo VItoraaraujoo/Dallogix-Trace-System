@@ -49,7 +49,7 @@ ${form}
       ? products
           .map(
             (product) => `<tr>
-\t<td data-label="Nome"><strong>${esc(product.name)}</strong></td>
+\t<td data-label="Nome">${esc(product.name)}</td>
 \t<td data-label="Código de barras">${esc(product.barcodes || "—")}</td>
 \t<td data-label="SKU">${esc(product.code || "—")}</td>
 \t<td data-label="Categoria">${esc(product.category || "—")}</td>
