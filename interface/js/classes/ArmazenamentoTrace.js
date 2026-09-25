@@ -961,14 +961,16 @@ export class ArmazenamentoTrace {
     this.state.selectedCompanyId = Number(id);
   }
   async loadCompanyDetail() {
-    if (!this.state.selectedCompanyId)
+    const companyId = Number(this.state.selectedCompanyId);
+    if (!Number.isInteger(companyId) || companyId <= 0)
       throw new Error("Nenhuma empresa selecionada.");
     const response = await fetch(
-      `/api/empresas.php?company_id=${this.state.selectedCompanyId}`,
+      `/api/empresas.php?company_id=${companyId}`,
     );
     const result = await response.json();
     if (!response.ok)
       throw new Error(result.error || "Não foi possível carregar a empresa.");
+    if (Number(this.state.selectedCompanyId) !== companyId) return;
     this.state.companyDetail = result.data;
   }
   async saveConfiguration(data) {

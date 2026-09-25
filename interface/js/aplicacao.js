@@ -7,6 +7,7 @@ import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=2026092104
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609160900";
+import { createCompanyRealtimeController } from "./controladores/company-realtime.js?v=202609251220";
 import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
@@ -190,6 +191,18 @@ const workRealtime = createOperationalRealtimeController({
   refreshWorkLiveView: () => refreshWorkLiveView(),
   workStructureSignature: () => workStructureSignature(),
   getViewSignature: () => workViewSignature,
+});
+const companyRealtime = createCompanyRealtimeController({
+  store,
+  getPage: () => currentPage,
+  render: () => render(),
+  shouldPauseRefresh: () => {
+    const form = document.querySelector("#company-rename-form");
+    return Boolean(
+      form &&
+      (form.dataset.submitting === "1" || form.contains(document.activeElement)),
+    );
+  },
 });
 
 function sidebarCollapsed() {
@@ -549,6 +562,8 @@ function render() {
   workViewSignature = currentPage === "work" ? workStructureSignature() : "";
   if (currentPage === "work") startWorkPolling();
   else stopWorkPolling();
+  if (currentPage === "company") companyRealtime.start();
+  else companyRealtime.stop();
 }
 function stopWorkPolling() {
   workRealtime.stop();
