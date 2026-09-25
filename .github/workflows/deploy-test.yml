@@ -118,6 +118,7 @@ jobs:
               bash scripts/migrate.sh && \
               bash scripts/docker_compose.sh up -d --build --no-deps php && \
               bash scripts/docker_compose.sh up -d --no-build --no-recreate && \
+              bash scripts/docker_compose.sh up -d --no-deps nginx && \
               bash scripts/docker_compose.sh exec -T nginx nginx -s reload && \
               printf '{\"version\":\"%s\",\"commit\":\"%s\"}\\n' '$GITHUB_SHA' '$GITHUB_SHA' > .release.json.tmp && \
               mv -f .release.json.tmp servidor/.release.json"
