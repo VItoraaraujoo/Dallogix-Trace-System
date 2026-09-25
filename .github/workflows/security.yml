@@ -13,7 +13,7 @@ permissions:
 
 jobs:
   quality-and-secrets:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -23,7 +23,7 @@ jobs:
         run: bash scripts/security_scan.sh
 
   codeql:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -37,7 +37,7 @@ jobs:
         uses: github/codeql-action/analyze@v4
 
   php-quality:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -61,7 +61,7 @@ jobs:
         run: composer audit --no-interaction
 
   dependencies-and-config:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -76,7 +76,7 @@ jobs:
           exit-code: '1'
 
   sbom:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -89,7 +89,7 @@ jobs:
           format: spdx-json
 
   secrets-history:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout full history
         uses: actions/checkout@v5
