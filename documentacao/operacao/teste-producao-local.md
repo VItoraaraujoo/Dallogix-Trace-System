@@ -30,8 +30,8 @@ padrão, atributos de cookies, proteção CSRF, criação/leitura de produto, lo
 e restrição do operador. Cria um produto identificado como teste por execução.
 O teste de backup valida checksum e restaura em um banco temporário, comparando
 as contagens de todas as tabelas. O banco temporário é removido ao final.
-A suíte legada `regressao_completa.sh` usa senhas padrão e não envia CSRF;
-não deve ser executada contra este ambiente de produção.
+A suíte `regressao_completa.sh` usa senhas padrão exclusivamente na fixture local
+descartável e envia tokens CSRF; não deve ser executada contra produção.
 
 Para parar preservando os dados:
 

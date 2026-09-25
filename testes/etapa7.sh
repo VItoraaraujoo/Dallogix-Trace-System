@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -u
+source "$(cd "$(dirname "$0")" && pwd)/lib/csrf.sh"
 
 base_url="${TRACE_BASE_URL:-http://localhost:8080}"
 cookie_file="/tmp/dallogix-trace-etapa7-cookie.txt"
@@ -12,11 +13,12 @@ if ! printf '%s' "$login" | grep -q '"authenticated":true'; then
   echo "FAIL: login falhou"
   exit 1
 fi
+csrf_header="$(trace_csrf_header "$login")" || exit 1
 
 loading_id="${TRACE_LOADING_ID:-$(ensure_loading_carregando)}"
 [ -n "$loading_id" ] || { echo "FAIL: nenhum carregamento CARREGANDO disponível"; exit 1; }
 
-reading="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"barcode\":\"7898250782592\"}" "$base_url/api/leituras.php")"
+reading="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"barcode\":\"7898250782592\"}" "$base_url/api/leituras.php")"
 if ! printf '%s' "$reading" | grep -q '"result":"VALIDO"'; then
   echo "FAIL: leitura operacional falhou: $reading"
   exit 1

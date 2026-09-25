@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -u
+source "$(cd "$(dirname "$0")" && pwd)/lib/csrf.sh"
 
 base_url="${TRACE_BASE_URL:-http://localhost:8080}"
 gateway_token="${TRACE_DEVICE_TOKEN:-}"
@@ -16,6 +17,7 @@ if ! printf '%s' "$login" | grep -q '"authenticated":true'; then
   echo "FAIL: login falhou"
   exit 1
 fi
+csrf_header="$(trace_csrf_header "$login")" || exit 1
 
 if [[ -n "${TRACE_LOADING_ID:-}" ]]; then
   loading_id="$TRACE_LOADING_ID"
@@ -26,13 +28,13 @@ fi
 
 curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" -d '{"equipment_id":1,"device_type":"CLP","status":"ONLINE"}' "$base_url/api/device_heartbeat.php" >/dev/null
 
-valid="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"barcode\":\"7898250782592\"}" "$base_url/api/leituras.php")"
+valid="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"barcode\":\"7898250782592\"}" "$base_url/api/leituras.php")"
 if ! printf '%s' "$valid" | grep -q '"result":"VALIDO"'; then
   echo "FAIL: barcode válido não foi aceito: $valid"
   exit 1
 fi
 
-invalid="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"barcode\":\"0000000000000\"}" "$base_url/api/leituras.php")"
+invalid="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"barcode\":\"0000000000000\"}" "$base_url/api/leituras.php")"
 if ! printf '%s' "$invalid" | grep -q '"result":"PRODUTO_INCORRETO"'; then
   echo "FAIL: barcode incorreto não foi classificado: $invalid"
   exit 1
@@ -56,12 +58,12 @@ if ! printf '%s' "$duplicate" | grep -q '"duplicate":true'; then
   exit 1
 fi
 
-if [[ "$(status -b "$cookie_file" -X PATCH -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php")" != "200" ]]; then
+if [[ "$(status -b "$cookie_file" -X PATCH -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php")" != "200" ]]; then
   echo "FAIL: transição válida não foi aceita"
   exit 1
 fi
 
-if [[ "$(status -b "$cookie_file" -X PATCH -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"state\":\"PREPARANDO\"}" "$base_url/api/estado_carregamento.php")" != "409" ]]; then
+if [[ "$(status -b "$cookie_file" -X PATCH -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"state\":\"PREPARANDO\"}" "$base_url/api/estado_carregamento.php")" != "409" ]]; then
   echo "FAIL: transição inválida foi aceita"
   exit 1
 fi

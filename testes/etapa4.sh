@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -u
+source "$(cd "$(dirname "$0")" && pwd)/lib/csrf.sh"
 
 base_url="${TRACE_BASE_URL:-http://localhost:8080}"
 cookie_file="/tmp/dallogix-trace-etapa4-cookie.txt"
@@ -20,6 +21,7 @@ if ! printf '%s' "$login" | grep -q '"authenticated":true'; then
   echo "FAIL: login da etapa 4 falhou"
   exit 1
 fi
+csrf_header="$(trace_csrf_header "$login")" || exit 1
 
 if [[ "$(status -b "$cookie_file" "$base_url/api/produtos.php")" != "200" ]]; then
   echo "FAIL: listagem de produtos falhou"
@@ -27,7 +29,7 @@ if [[ "$(status -b "$cookie_file" "$base_url/api/produtos.php")" != "200" ]]; th
 fi
 
 payload="{\"number\":\"${number}\",\"scheduled_date\":\"${scheduled_date}\",\"plate\":\"TST4$(date +%s | tail -c 5)\",\"product_code\":\"PROD3\",\"planned_quantity\":10}"
-created="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "$payload" "$base_url/api/romaneios.php")"
+created="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "$payload" "$base_url/api/romaneios.php")"
 if ! printf '%s' "$created" | grep -q '"status":"AGUARDANDO"'; then
   echo "FAIL: criação de romaneio falhou: $created"
   exit 1
@@ -37,7 +39,7 @@ romaneio_id="$(printf '%s' "$created" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p'
 product_id="$(curl -sS -b "$cookie_file" "$base_url/api/produtos.php" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const p=(JSON.parse(s).data||[]).find(x=>x.code==="PROD3");if(p)process.stdout.write(String(p.id))})')"
 updated_number="${number}-EDIT"
 update_payload="{\"action\":\"update\",\"romaneio_id\":${romaneio_id},\"number\":\"${updated_number}\",\"scheduled_date\":\"${scheduled_date}\",\"plate\":\"EDT4\",\"expedidor\":\"Expedidor editado\",\"driver_name\":\"Motorista editado\",\"items\":[{\"product_id\":${product_id},\"quantity\":12}]}"
-updated="$(curl -sS -b "$cookie_file" -X PATCH -H 'Content-Type: application/json' -d "$update_payload" "$base_url/api/romaneios.php")"
+updated="$(curl -sS -b "$cookie_file" -X PATCH -H "$csrf_header" -H 'Content-Type: application/json' -d "$update_payload" "$base_url/api/romaneios.php")"
 if ! printf '%s' "$updated" | grep -q "\"id\":${romaneio_id}"; then
   echo "FAIL: atualização de romaneio falhou: $updated"
   exit 1
@@ -49,7 +51,7 @@ if ! printf '%s' "$detail" | grep -q "$updated_number" || ! printf '%s' "$detail
 fi
 
 duplicate_payload="{\"number\":\"${updated_number}\",\"scheduled_date\":\"${scheduled_date}\",\"plate\":\"DUP4\",\"product_code\":\"PROD3\",\"planned_quantity\":10}"
-if [[ "$(status -b "$cookie_file" -H 'Content-Type: application/json' -d "$duplicate_payload" "$base_url/api/romaneios.php")" != "409" ]]; then
+if [[ "$(status -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "$duplicate_payload" "$base_url/api/romaneios.php")" != "409" ]]; then
   echo "FAIL: romaneio duplicado foi aceito"
   exit 1
 fi

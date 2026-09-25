@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -u
+source "$(cd "$(dirname "$0")" && pwd)/lib/csrf.sh"
 
 base_url="${TRACE_BASE_URL:-http://localhost:8080}"
 gateway_token="${TRACE_DEVICE_TOKEN:-}"
@@ -13,6 +14,7 @@ if ! printf '%s' "$login" | grep -q '"authenticated":true'; then
   echo "FAIL: login falhou"
   exit 1
 fi
+csrf_header="$(trace_csrf_header "$login")" || exit 1
 
 loading_id="${TRACE_LOADING_ID:-$(ensure_loading_carregando)}"
 [ -n "$loading_id" ] || { echo "FAIL: nenhum carregamento CARREGANDO disponível"; exit 1; }
@@ -20,7 +22,7 @@ equipment_id="${TRACE_EQUIPMENT_ID:-$(curl -sS -b "$cookie_file" "$base_url/api/
 
 normal="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" -d "{\"carregamento_id\":$loading_id,\"equipment_id\":$equipment_id,\"event_uuid\":\"$normal_uuid\"}" "$base_url/api/sensor_eventos.php")"
 normal_id="$(printf '%s' "$normal" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
-valid="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"sensor_event_id\":$normal_id,\"barcode\":\"7898250782592\"}" "$base_url/api/leituras.php")"
+valid="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"sensor_event_id\":$normal_id,\"barcode\":\"7898250782592\"}" "$base_url/api/leituras.php")"
 if ! printf '%s' "$valid" | grep -q 'NAO_SOLICITADA'; then
   echo "FAIL: leitura válida não deveria solicitar foto: $valid"
   exit 1
@@ -29,7 +31,7 @@ fi
 sleep 1
 incident="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" -d "{\"carregamento_id\":$loading_id,\"equipment_id\":$equipment_id,\"event_uuid\":\"$incident_uuid\"}" "$base_url/api/sensor_eventos.php")"
 incident_id="$(printf '%s' "$incident" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
-failed="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"sensor_event_id\":$incident_id}" "$base_url/api/leituras.php")"
+failed="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"sensor_event_id\":$incident_id}" "$base_url/api/leituras.php")"
 if ! printf '%s' "$failed" | grep -q 'CAPTURA_PENDENTE_INCIDENTE'; then
   echo "FAIL: captura do incidente não permaneceu pendente: $failed"
   exit 1
