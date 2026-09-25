@@ -23,6 +23,10 @@
   <dict>
     <key>PATH</key>
     <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    <key>TRACE_GITHUB_REMOTE</key>
+    <string>origin</string>
+    <key>TRACE_GITHUB_BLOCK_ACTIVE</key>
+    <string>1</string>
   </dict>
   <key>StandardOutPath</key>
   <string>__TRACE_ROOT__/armazenamento/logs/sync-master.launchd.log</string>

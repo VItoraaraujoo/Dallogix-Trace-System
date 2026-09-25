@@ -4,10 +4,10 @@ set -euo pipefail
 # Sincroniza uma instalação do servidor somente por fast-forward.
 # Não sobrescreve alterações locais, .env, armazenamento ou dados do Compose.
 root_dir="$(cd "$(dirname "$0")/.." && pwd)"
-remote_name="${TRACE_GITHUB_REMOTE:-empresa}"
+remote_name="${TRACE_GITHUB_REMOTE:-origin}"
 branch="${TRACE_GITHUB_BRANCH:-master}"
 dry_run="${TRACE_GITHUB_DRY_RUN:-0}"
-block_active="${TRACE_GITHUB_BLOCK_ACTIVE:-0}"
+block_active="${TRACE_GITHUB_BLOCK_ACTIVE:-1}"
 
 cd "$root_dir"
 [[ -d .git ]] || { echo "Repositório Git não encontrado: $root_dir" >&2; exit 2; }
