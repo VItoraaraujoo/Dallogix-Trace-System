@@ -17,15 +17,22 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
+          extensions: pdo_sqlite, sqlite3
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
+      - name: Install PHP test tools
+        run: composer install --no-interaction --prefer-dist --no-progress
+      - name: Run PHP unit tests
+        run: composer test
+      - name: Run PHP static analysis
+        run: composer analyse
       - name: Validate Trace
         run: |
           bash testes/qualidade.sh
           bash testes/etapa29.sh
           node testes/navegacao-isolada.mjs
-          node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs testes/estado-fisico.mjs testes/company-realtime.mjs
+          node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs testes/estado-fisico.mjs testes/company-realtime.mjs testes/dala-realtime.mjs testes/clp-provisorio-simulacao.mjs testes/clp-provisorio-ss2.mjs
           python3 testes/modbus-transporte.py
           php testes/api-permissoes-isoladas.php admin-target
           php testes/api-permissoes-isoladas.php foreign-action

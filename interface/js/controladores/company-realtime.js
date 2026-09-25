@@ -1,4 +1,13 @@
 /** Atualiza a situação da empresa sem reiniciar o shell da aplicação. */
+export function companyRenameNeedsPause(form, currentName, activeElement) {
+  if (!form) return false;
+  if (form.dataset?.submitting === "1" || form.contains(activeElement)) return true;
+  const nameInput = form.elements?.namedItem?.("name");
+  return Boolean(
+    nameInput && String(nameInput.value) !== String(currentName ?? ""),
+  );
+}
+
 export function createCompanyRealtimeController({
   store,
   getPage,

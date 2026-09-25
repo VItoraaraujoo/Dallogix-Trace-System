@@ -7,7 +7,11 @@ import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=2026092104
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609160900";
-import { createCompanyRealtimeController } from "./controladores/company-realtime.js?v=202609251220";
+import {
+  companyRenameNeedsPause,
+  createCompanyRealtimeController,
+} from "./controladores/company-realtime.js?v=202609251220";
+import { createDalaRealtimeController } from "./controladores/dala-realtime.js?v=202609251240";
 import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
@@ -198,11 +202,18 @@ const companyRealtime = createCompanyRealtimeController({
   render: () => render(),
   shouldPauseRefresh: () => {
     const form = document.querySelector("#company-rename-form");
-    return Boolean(
-      form &&
-      (form.dataset.submitting === "1" || form.contains(document.activeElement)),
+    return companyRenameNeedsPause(
+      form,
+      store.state.companyDetail?.name,
+      document.activeElement,
     );
   },
+});
+const dalaRealtime = createDalaRealtimeController({
+  store,
+  getPage: () => currentPage,
+  getEquipmentId: () => queryId(),
+  render: () => render(),
 });
 
 function sidebarCollapsed() {
@@ -564,6 +575,8 @@ function render() {
   else stopWorkPolling();
   if (currentPage === "company") companyRealtime.start();
   else companyRealtime.stop();
+  if (currentPage === "dala") dalaRealtime.start();
+  else dalaRealtime.stop();
 }
 function stopWorkPolling() {
   workRealtime.stop();

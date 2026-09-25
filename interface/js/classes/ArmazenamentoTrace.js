@@ -30,6 +30,7 @@ export class ArmazenamentoTrace {
       equipmentsLoaded: false,
       equipmentsLoading: false,
       equipmentsError: "",
+      selectedEquipmentId: null,
       dalaStatuses: [],
       companies: [],
       companyDetail: null,
@@ -302,9 +303,16 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async loadEquipment(id) {
-    const response = await fetch(`/api/equipamentos.php?id=${id}`);
+    const equipmentId = Number(id);
+    if (!Number.isInteger(equipmentId) || equipmentId <= 0)
+      throw new Error("Dala não encontrada.");
+    this.state.selectedEquipmentId = equipmentId;
+    const response = await fetch(
+      `/api/equipamentos.php?id=${encodeURIComponent(equipmentId)}`,
+    );
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Dala não encontrada.");
+    if (Number(this.state.selectedEquipmentId) !== equipmentId) return;
     this.state.equipmentDetail = result.data;
   }
   async checkEquipmentStatus(id) {
@@ -726,9 +734,16 @@ export class ArmazenamentoTrace {
     await this.loadActiveLoading(this.state.loadingId);
     return result.data;
   }
-  async loadMonitoring() {
+  async loadMonitoring({ requireSuccess = false } = {}) {
     const response = await fetch("/api/monitoramento.php");
-    if (response.ok) this.state.monitoring = (await response.json()).data;
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (requireSuccess)
+        throw new Error(result.error || "Não foi possível carregar o monitoramento.");
+      return this.state.monitoring;
+    }
+    this.state.monitoring = result.data;
+    return result.data;
   }
   async loadSyncStatus() {
     const response = await fetch("/api/sync_status.php");

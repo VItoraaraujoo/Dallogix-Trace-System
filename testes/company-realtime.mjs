@@ -1,6 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createCompanyRealtimeController } from "../interface/js/controladores/company-realtime.js";
+import {
+  companyRenameNeedsPause,
+  createCompanyRealtimeController,
+} from "../interface/js/controladores/company-realtime.js";
 import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js";
 
 function fixture(overrides = {}) {
@@ -117,4 +120,17 @@ test("descarta resposta atrasada quando outra empresa é selecionada", async () 
   } finally {
     globalThis.fetch = previousFetch;
   }
+});
+
+test("preserva nome da empresa alterado mesmo depois de o campo perder foco", () => {
+  const form = {
+    dataset: {},
+    contains: () => false,
+    elements: { namedItem: () => ({ value: "Nome em edição" }) },
+  };
+  assert.equal(companyRenameNeedsPause(form, "Nome salvo", null), true);
+  assert.equal(companyRenameNeedsPause(form, "Nome em edição", null), false);
+  form.dataset.submitting = "1";
+  assert.equal(companyRenameNeedsPause(form, "Nome em edição", null), true);
+  assert.equal(companyRenameNeedsPause(null, "Nome salvo", null), false);
 });
