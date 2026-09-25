@@ -1,7 +1,7 @@
-import { dataHora, numero } from "../funcoes/formato.js?v=202609170930";
+import { dataHora, numero } from "../funcoes/formato.js?v=202609251330";
 import { button, esc } from "../funcoes/html.js";
 import { rotuloComando, rotuloEstado, rotuloEvento, rotuloStatusComando } from "../funcoes/rotulos.js";
-import { pageHeader, physicalStateBadge } from "../funcoes/view.js?v=202609250900";
+import { pageHeader, physicalStateBadge } from "../funcoes/view.js?v=202609251330";
 
 function dalaStatusCell(equipment) {
   return `<div class="dala-status" data-equipment-id="${equipment.id}"><span class="status-dot"></span>Verificando…</div>`;

@@ -1,7 +1,7 @@
 import {
   configurarSessaoPorAba,
   guardarTokenSessao,
-} from "./sessao.js?v=202609222100";
+} from "./sessao.js?v=202609251330";
 
 configurarSessaoPorAba();
 

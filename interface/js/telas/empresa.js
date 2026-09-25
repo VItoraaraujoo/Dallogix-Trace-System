@@ -1,6 +1,6 @@
 import { button, esc } from "../funcoes/html.js";
-import { dataHora } from "../funcoes/formato.js?v=202609170930";
-import { pageHeader, machineGrid, deviceBadge } from "../funcoes/view.js?v=202609250900";
+import { dataHora } from "../funcoes/formato.js?v=202609251330";
+import { pageHeader, machineGrid, deviceBadge } from "../funcoes/view.js?v=202609251330";
 
 export function company(store) {
   const detail = store.state.companyDetail;

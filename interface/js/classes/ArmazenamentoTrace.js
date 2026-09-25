@@ -1,4 +1,4 @@
-import { OfflineOperationBuffer } from "./OfflineOperationBuffer.js?v=202609160900";
+import { OfflineOperationBuffer } from "./OfflineOperationBuffer.js?v=202609251330";
 
 export class ArmazenamentoTrace {
   constructor() {
@@ -19,6 +19,7 @@ export class ArmazenamentoTrace {
       equipmentCode: "—",
       equipmentId: null,
       monitoring: null,
+      monitoringRefreshError: false,
       syncStatus: null,
       products: [],
       productsLoaded: false,

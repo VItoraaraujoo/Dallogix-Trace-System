@@ -1,6 +1,6 @@
 import { button, esc } from "../funcoes/html.js";
-import { data, numero } from "../funcoes/formato.js?v=202609201000";
-import { agora } from "../funcoes/relogio.js?v=202609170015";
+import { data, numero } from "../funcoes/formato.js?v=202609251330";
+import { agora } from "../funcoes/relogio.js?v=202609251330";
 import { rotuloEstado, rotuloStatusComando } from "../funcoes/rotulos.js";
 import {
   pageHeader,
@@ -8,7 +8,7 @@ import {
   emergencyPanel,
   progress,
   statuses,
-} from "../funcoes/view.js?v=202609210400";
+} from "../funcoes/view.js?v=202609251330";
 
 const STATUS_OPTIONS = [
   ["", "Todos os status"],

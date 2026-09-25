@@ -2,33 +2,34 @@ import {
   configurarSessaoPorAba,
   guardarTokenSessao,
   limparTokenSessao,
-} from "./sessao.js?v=202609222100";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609210400";
-import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
+} from "./sessao.js?v=202609251330";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609251330";
+import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609251330";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
-import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609160900";
+import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609251330";
+import { createAlertsRealtimeController } from "./controladores/alerts-realtime.js?v=202609251330";
 import {
   companyRenameNeedsPause,
   createCompanyRealtimeController,
-} from "./controladores/company-realtime.js?v=202609251220";
-import { createDalaRealtimeController } from "./controladores/dala-realtime.js?v=202609251240";
-import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
+} from "./controladores/company-realtime.js?v=202609251330";
+import { createDalaRealtimeController } from "./controladores/dala-realtime.js?v=202609251330";
+import { numero, relativo } from "./funcoes/formato.js?v=202609251330";
 import { el, esc } from "./funcoes/html.js";
-import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
+import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609251330";
 import { rotuloEstado } from "./funcoes/rotulos.js";
-import { settings } from "./telas/configuracoes.js?v=202609220100";
-import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609250900";
-import { company } from "./telas/empresa.js?v=202609250900";
-import { companies } from "./telas/empresas.js?v=202609220100";
+import { settings } from "./telas/configuracoes.js?v=202609251330";
+import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609251330";
+import { company } from "./telas/empresa.js?v=202609251330";
+import { companies } from "./telas/empresas.js?v=202609251330";
 import { errorLogs } from "./telas/logs.js";
-import { masterHome } from "./telas/master.js?v=202609220100";
+import { masterHome } from "./telas/master.js?v=202609251330";
 import {
     alerts,
     emergency,
     occurrences,
     products,
     summary,
-} from "./telas/monitoramento.js?v=202609250900";
+} from "./telas/monitoramento.js?v=202609251330";
 import {
     division,
     importScreen,
@@ -36,9 +37,9 @@ import {
     manifests,
     manifestView,
     work,
-} from "./telas/operacoes.js?v=202609210400";
-import { dashboard } from "./telas/painel.js?v=202609250900";
-import { users } from "./telas/usuarios.js?v=202609212000";
+} from "./telas/operacoes.js?v=202609251330";
+import { dashboard } from "./telas/painel.js?v=202609251330";
+import { users } from "./telas/usuarios.js?v=202609251330";
 
 configurarSessaoPorAba();
 
@@ -215,6 +216,11 @@ const dalaRealtime = createDalaRealtimeController({
   getEquipmentId: () => queryId(),
   render: () => render(),
 });
+const alertsRealtime = createAlertsRealtimeController({
+  store,
+  getPage: () => currentPage,
+  render: () => render(),
+});
 
 function sidebarCollapsed() {
   try {
@@ -379,7 +385,7 @@ function installLocalIndicator() {
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202609250900").catch(() => {
+  navigator.serviceWorker.register("/service-worker.js?v=202609251330").catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }
@@ -402,7 +408,7 @@ function waitForDocumentStyles() {
 // inicial não é recarregado, então os estilos exclusivos de Dalas precisam ser
 // adicionados quando a rota muda a partir de outra tela.
 const DALA_PAGES = new Set(["dalas", "dala", "dala-edit", "dala-actions"]);
-const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609211120";
+const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609251330";
 async function ensureDalaScreenStyles(page) {
   if (!DALA_PAGES.has(page)) return;
   const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
@@ -577,6 +583,8 @@ function render() {
   else companyRealtime.stop();
   if (currentPage === "dala") dalaRealtime.start();
   else dalaRealtime.stop();
+  if (currentPage === "alerts") alertsRealtime.start();
+  else alertsRealtime.stop();
 }
 function stopWorkPolling() {
   workRealtime.stop();
@@ -2138,11 +2146,7 @@ async function loadPageData(page) {
     occurrences: () => [store.loadMonitoring(), store.loadActiveLoading()],
     summary: () => [store.loadMonitoring(), store.loadActiveLoading()],
     products: () => [store.loadProducts()],
-    alerts: () => [
-      store.loadMonitoring(),
-      store.loadEquipments(),
-      store.loadSyncStatus(),
-    ],
+    alerts: () => [alertsRealtime.refresh()],
     emergency: () => [store.loadActiveLoading(), store.loadMonitoring()],
     settings: () => [store.loadConfiguration(), store.loadEquipments(), store.loadSyncStatus(), store.loadDalaStatuses()],
     dalas: () => [store.loadEquipments()],
