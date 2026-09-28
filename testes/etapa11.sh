@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -u
+source "$(cd "$(dirname "$0")" && pwd)/lib/csrf.sh"
 
 base_url="${TRACE_BASE_URL:-http://localhost:8080}"
 cookie_file="/tmp/dallogix-trace-etapa11-cookie.txt"
@@ -12,8 +13,9 @@ if ! printf '%s' "$login" | grep -q '"authenticated":true'; then
   echo "FAIL: login falhou"
   exit 1
 fi
+csrf_header="$(trace_csrf_header "$login")" || exit 1
 
-result="$(curl -sS -b "$cookie_file" -F "file=@${temporary_csv}" "$base_url/api/importar_csv.php")"
+result="$(curl -sS -b "$cookie_file" -H "$csrf_header" -F "file=@${temporary_csv}" "$base_url/api/importar_csv.php")"
 if ! printf '%s' "$result" | grep -q '"items":1'; then
   echo "FAIL: importação CSV falhou: $result"
   exit 1

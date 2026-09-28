@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -u
+source "$(cd "$(dirname "$0")" && pwd)/lib/csrf.sh"
 
 base_url="${TRACE_BASE_URL:-http://localhost:8080}"
 equipment_id="${TRACE_TEST_EQUIPMENT_ID:-$(docker compose exec -T mysql mysql -N -utrace -p"${MYSQL_PASSWORD:-}" "${MYSQL_DATABASE:-trace_local}" -e "SELECT e.id FROM equipamentos e WHERE NOT EXISTS (SELECT 1 FROM carregamentos c WHERE c.equipment_id = e.id AND c.state <> 'FINALIZADO') ORDER BY e.id LIMIT 1" 2>/dev/null | tr -d '\r' | head -n 1)}"
@@ -11,25 +12,26 @@ fail() { echo "FAIL: $1"; exit 1; }
 
 login="$(curl -sS -c "$cookie_file" -H 'Content-Type: application/json' -d '{"email":"admin@dallogix.local","password":"password"}' "$base_url/api/login.php")"
 printf '%s' "$login" | grep -q '"authenticated":true' || fail "login falhou"
+csrf_header="$(trace_csrf_header "$login")" || fail "login sem CSRF"
 
-manifest="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"number\":\"$number\",\"scheduled_date\":\"$(date +%F)\",\"plate\":\"$plate\",\"product_code\":\"PROD3\",\"planned_quantity\":2}" "$base_url/api/romaneios.php")"
+manifest="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"number\":\"$number\",\"scheduled_date\":\"$(date +%F)\",\"plate\":\"$plate\",\"product_code\":\"PROD3\",\"planned_quantity\":2}" "$base_url/api/romaneios.php")"
 manifest_id="$(printf '%s' "$manifest" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
 truck_id="$(printf '%s' "$manifest" | sed -n 's/.*"truck_id":\([0-9][0-9]*\).*/\1/p')"
 [ -n "$manifest_id" ] && [ -n "$truck_id" ] || fail "romaneio de teste não foi criado: $manifest"
 
-prepared="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"romaneio_id\":$manifest_id,\"truck_id\":$truck_id,\"equipment_id\":$equipment_id}" "$base_url/api/carregamentos.php")"
+prepared="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"romaneio_id\":$manifest_id,\"truck_id\":$truck_id,\"equipment_id\":$equipment_id}" "$base_url/api/carregamentos.php")"
 loading_id="$(printf '%s' "$prepared" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
 printf '%s' "$prepared" | grep -q '"state":"PREPARANDO"' || fail "preparação falhou: $prepared"
 
 curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" -d "{\"equipment_id\":$equipment_id,\"device_type\":\"CLP\",\"status\":\"ONLINE\"}" "$base_url/api/device_heartbeat.php" >/dev/null
 
-duplicate_code="$(curl -sS -o /dev/null -w '%{http_code}' -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"romaneio_id\":$manifest_id,\"truck_id\":$truck_id,\"equipment_id\":$equipment_id}" "$base_url/api/carregamentos.php")"
+duplicate_code="$(curl -sS -o /dev/null -w '%{http_code}' -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"romaneio_id\":$manifest_id,\"truck_id\":$truck_id,\"equipment_id\":$equipment_id}" "$base_url/api/carregamentos.php")"
 [ "$duplicate_code" = "409" ] || fail "duplicidade de Dala/caminhão foi aceita"
 
-started="$(curl -sS -b "$cookie_file" -X PATCH -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php")"
+started="$(curl -sS -b "$cookie_file" -X PATCH -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php")"
 printf '%s' "$started" | grep -q '"state":"CARREGANDO"' || fail "transição para carregando falhou: $started"
 
-finished="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"justification\":\"Fixture local finalizada com divergência prevista.\"}" "$base_url/api/encerrar_carregamento.php")"
+finished="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"justification\":\"Fixture local finalizada com divergência prevista.\"}" "$base_url/api/encerrar_carregamento.php")"
 printf '%s' "$finished" | grep -q '"romaneio_finalizado":true' || fail "finalização não consolidou romaneio: $finished"
 
 detail="$(curl -sS -b "$cookie_file" "$base_url/api/romaneios.php?id=$manifest_id")"

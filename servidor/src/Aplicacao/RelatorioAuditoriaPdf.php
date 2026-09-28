@@ -591,8 +591,9 @@ final class RelatorioAuditoriaPdf
         float $size,
         bool $bold = false,
     ): void {
-        $encoded =
-            iconv("UTF-8", "Windows-1252//TRANSLIT//IGNORE", $text) ?: $text;
+        // The minimal production image has mbstring conversion tables but its
+        // iconv build cannot convert to Windows-1252, which is used by WinAnsi.
+        $encoded = mb_convert_encoding($text, "Windows-1252", "UTF-8");
         $encoded = str_replace(
             ["\\", "(", ")"],
             ["\\\\", "\\(", "\\)"],

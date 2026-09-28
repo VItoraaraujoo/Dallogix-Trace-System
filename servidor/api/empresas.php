@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
+require_once __DIR__ . "/../src/Aplicacao/EstadoFisicoClp.php";
+
+use App\Aplicacao\EstadoFisicoClp;
 
 exigir_metodo_http(["GET", "POST", "PUT", "DELETE"]);
 
@@ -525,7 +528,7 @@ $industrialPcStatus = static function (mixed $reportedStatus, mixed $lastSeenAt)
 };
 
 $machinesSql = "SELECT e.id, e.equipment_code, e.name,
-            {$freshClpStatus} AS clp_status, d.last_seen_at,
+            {$freshClpStatus} AS clp_status, d.last_seen_at, d.details AS clp_details,
             c.state AS carregamento_state, r.number AS romaneio_number, rt.plate,
             COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity,
             COALESCE(c.leituras_validas, 0) AS valid_readings
@@ -556,6 +559,13 @@ if ($requestedCompanyId !== null) {
 
     $maquinas = $pdo->prepare($machinesSql);
     $maquinas->execute(["company_id" => $requestedCompanyId]);
+    $maquinasData = array_map(static function (array $machine): array {
+        $machine["physical_running"] = EstadoFisicoClp::runningFromDetails(
+            $machine["clp_details"] ?? null,
+        );
+        unset($machine["clp_details"]);
+        return $machine;
+    }, $maquinas->fetchAll());
 
     $ocorrencias = $pdo->prepare(
         "SELECT type, quantity, description, created_at FROM ocorrencias WHERE company_id = :company_id ORDER BY id DESC LIMIT 10",
@@ -597,7 +607,7 @@ if ($requestedCompanyId !== null) {
             "created_at" => $empresa["created_at"],
             "archived_at" => $empresa["archived_at"],
             "archived" => $empresa["archived_at"] !== null,
-            "maquinas" => $maquinas->fetchAll(),
+            "maquinas" => $maquinasData,
             "ocorrencias_recentes" => $ocorrencias->fetchAll(),
             "romaneios" => $resumoRomaneios,
             "sync_pendente" => (int) ($sincronizacaoPendente->fetch()["total"] ?? 0),

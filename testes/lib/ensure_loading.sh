@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/csrf.sh"
 
 ensure_loading_carregando() {
-  local json loading_id prep_id manifest number plate manifest_id truck_id equipment_ids equipment_id prepared gateway_token
+  local json loading_id prep_id manifest number plate manifest_id truck_id equipment_ids equipment_id prepared gateway_token csrf_header
   gateway_token="${TRACE_DEVICE_TOKEN:-}"
+  csrf_header="$(trace_csrf_header "${login:-}")" || return 1
   if [[ "${TRACE_FORCE_NEW_LOADING:-0}" != "1" ]]; then
     json="$(curl -sS -b "$cookie_file" "$base_url/api/carregamentos.php")"
     loading_id="$(printf '%s' "$json" | sed -n 's/.*"id":\([0-9][0-9]*\),"state":"CARREGANDO".*/\1/p' | head -n 1)"
@@ -15,7 +17,7 @@ ensure_loading_carregando() {
           -d "{\"equipment_id\":$equipment_id,\"device_type\":\"CLP\",\"status\":\"ONLINE\"}" \
           "$base_url/api/device_heartbeat.php" >/dev/null
         sleep 1
-        curl -sS -b "$cookie_file" -X PATCH -H 'Content-Type: application/json' -d "{\"carregamento_id\":$prep_id,\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php" >/dev/null
+        curl -sS -b "$cookie_file" -X PATCH -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$prep_id,\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php" >/dev/null
         loading_id="$prep_id"
       fi
     fi
@@ -24,7 +26,7 @@ ensure_loading_carregando() {
   if [[ -z "$loading_id" ]]; then
     number="FIXTURE-$(date +%s%N)"
     plate="FIX$(date +%s%N | tail -c 8)"
-    manifest="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' \
+    manifest="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' \
       -d "{\"number\":\"$number\",\"scheduled_date\":\"$(date +%F)\",\"plate\":\"$plate\",\"product_code\":\"PROD3\",\"planned_quantity\":2}" \
       "$base_url/api/romaneios.php")"
     manifest_id="$(printf '%s' "$manifest" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
@@ -33,7 +35,7 @@ ensure_loading_carregando() {
       equipment_ids="$(curl -sS -b "$cookie_file" "$base_url/api/equipamentos.php" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const x of (JSON.parse(s).data||[]).reverse()) console.log(x.id)})')"
       while IFS= read -r equipment_id; do
         [[ -n "$equipment_id" ]] || continue
-        prepared="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' \
+        prepared="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' \
           -d "{\"romaneio_id\":$manifest_id,\"truck_id\":$truck_id,\"equipment_id\":$equipment_id}" \
           "$base_url/api/carregamentos.php")"
         if printf '%s' "$prepared" | grep -q '"state":"PREPARANDO"'; then
@@ -46,7 +48,7 @@ ensure_loading_carregando() {
           -d "{\"equipment_id\":$equipment_id,\"device_type\":\"CLP\",\"status\":\"ONLINE\"}" \
           "$base_url/api/device_heartbeat.php" >/dev/null
         sleep 1
-        curl -sS -b "$cookie_file" -X PATCH -H 'Content-Type: application/json' \
+        curl -sS -b "$cookie_file" -X PATCH -H "$csrf_header" -H 'Content-Type: application/json' \
           -d "{\"carregamento_id\":$loading_id,\"state\":\"CARREGANDO\"}" \
           "$base_url/api/estado_carregamento.php" >/dev/null
       fi
@@ -65,7 +67,7 @@ ensure_loading_carregando() {
           -d "{\"equipment_id\":$equipment_id,\"device_type\":\"CLP\",\"status\":\"ONLINE\"}" \
           "$base_url/api/device_heartbeat.php" >/dev/null
         sleep 1
-        curl -sS -b "$cookie_file" -X PATCH -H 'Content-Type: application/json' \
+        curl -sS -b "$cookie_file" -X PATCH -H "$csrf_header" -H 'Content-Type: application/json' \
           -d "{\"carregamento_id\":$prep_id,\"state\":\"CARREGANDO\"}" \
           "$base_url/api/estado_carregamento.php" >/dev/null
         loading_id="$prep_id"

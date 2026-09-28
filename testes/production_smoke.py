@@ -2,6 +2,7 @@
 """Smoke test HTTPS com CSRF ativo; somente ambiente isolado de homologação."""
 import http.cookiejar
 import json
+import os
 from pathlib import Path
 import ssl
 import time
@@ -9,8 +10,8 @@ import urllib.error
 import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
-STATE = ROOT / 'armazenamento/producao-teste'
-BASE = 'https://127.0.0.1:8443'
+STATE = Path(os.environ.get('TRACE_PRODUCTION_TEST_STATE_DIR', ROOT / 'armazenamento/producao-teste'))
+BASE = f'https://127.0.0.1:{os.environ.get("TRACE_TEST_HTTPS_PORT", "8443")}'
 context = ssl.create_default_context(cafile=str(STATE / 'tls/fullchain.pem'))
 credentials = json.loads((STATE / 'acessos.json').read_text())
 

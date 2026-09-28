@@ -5,12 +5,34 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 pass=0
 fail_count=0
 
+# Esta bateria cria um romaneio/carregamento e pode alterar a licença da fixture.
+# Exija alvo loopback explícito e confirmação de que ele é descartável para não
+# escrever acidentalmente na instalação real padrão em localhost:8080.
+if [[ -z "${TRACE_BASE_URL:-}" ]]; then
+  echo "FAIL: defina TRACE_BASE_URL para a URL loopback da fixture descartável." >&2
+  exit 2
+fi
+if [[ "${TRACE_REGRESSION_DISPOSABLE:-0}" != "1" ]]; then
+  echo "FAIL: confirme a fixture descartável com TRACE_REGRESSION_DISPOSABLE=1." >&2
+  exit 2
+fi
+base_url="${TRACE_BASE_URL%/}"
+if [[ ! "$base_url" =~ ^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$ ]]; then
+  echo "FAIL: regressão integrada só pode apontar para uma URL loopback." >&2
+  exit 2
+fi
+export TRACE_BASE_URL="$base_url"
+
 # Garante uma operação local de teste sem acionar nenhum equipamento físico.
 fixture_cookie="/tmp/dallogix-trace-regression-fixture.txt"
-base_url="${TRACE_BASE_URL:-http://localhost:8080}"
 login="$(curl -sS -c "$fixture_cookie" -H 'Content-Type: application/json' -d '{"email":"admin@dallogix.local","password":"password"}' "$base_url/api/login.php")"
 if printf '%s' "$login" | grep -q '"authenticated":true'; then
   company_id="$(printf '%s' "$login" | sed -n 's/.*"company_id":\([0-9][0-9]*\).*/\1/p')"
+  admin_csrf="$(printf '%s' "$login" | sed -n 's/.*"csrf_token":"\([^"]*\)".*/\1/p')"
+  if [[ -z "$admin_csrf" ]]; then
+    echo "FAIL: login local não retornou token CSRF para a fixture de regressão." >&2
+    exit 1
+  fi
   master_cookie="/tmp/dallogix-trace-regression-master.txt"
   master_login="$(curl -sS -c "$master_cookie" -H 'Content-Type: application/json' -d '{"email":"master@dallogix.local","password":"password"}' "$base_url/api/login.php")"
   master_csrf="$(printf '%s' "$master_login" | sed -n 's/.*"csrf_token":"\([^"]*\)".*/\1/p')"
@@ -31,20 +53,21 @@ if printf '%s' "$login" | grep -q '"authenticated":true'; then
     docker compose exec -T php php /var/www/scripts/provision_device.php \
       --equipment-id="$regression_equipment_id" --device-type=CAMERA \
       --device-code=CAM-EST-001 --token="$CAMERA_DEVICE_TOKEN" >/dev/null
+    export TRACE_EQUIPMENT_ID="$regression_equipment_id"
   fi
   active="$(curl -sS -b "$fixture_cookie" "$base_url/api/carregamentos.php")"
   if ! printf '%s' "$active" | grep -Eq '"state":"(PREPARANDO|CARREGANDO|EMERGENCIA|PAUSADO)"'; then
     number="FIXTURE-$(date +%s%N)"
     plate="FIX$(date +%s%N | tail -c 8)"
     manifest_date="$(date +%Y-%m-%d)"
-    manifest="$(curl -sS -b "$fixture_cookie" -H 'Content-Type: application/json' -d "{\"number\":\"$number\",\"scheduled_date\":\"$manifest_date\",\"plate\":\"$plate\",\"product_code\":\"PROD3\",\"planned_quantity\":20}" "$base_url/api/romaneios.php")"
+    manifest="$(curl -sS -b "$fixture_cookie" -H "X-CSRF-Token: $admin_csrf" -H 'Content-Type: application/json' -d "{\"number\":\"$number\",\"scheduled_date\":\"$manifest_date\",\"plate\":\"$plate\",\"product_code\":\"PROD3\",\"planned_quantity\":20}" "$base_url/api/romaneios.php")"
     manifest_id="$(printf '%s' "$manifest" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
     truck_id="$(printf '%s' "$manifest" | sed -n 's/.*"truck_id":\([0-9][0-9]*\).*/\1/p')"
     equipment_ids="$(curl -sS -b "$fixture_cookie" "$base_url/api/equipamentos.php" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const x of (JSON.parse(s).data||[]).reverse()) console.log(x.id)})')"
     prepared=""
     while IFS= read -r equipment_id; do
       [ -n "$equipment_id" ] || continue
-      candidate="$(curl -sS -b "$fixture_cookie" -H 'Content-Type: application/json' -d "{\"romaneio_id\":$manifest_id,\"truck_id\":$truck_id,\"equipment_id\":$equipment_id}" "$base_url/api/carregamentos.php")"
+      candidate="$(curl -sS -b "$fixture_cookie" -H "X-CSRF-Token: $admin_csrf" -H 'Content-Type: application/json' -d "{\"romaneio_id\":$manifest_id,\"truck_id\":$truck_id,\"equipment_id\":$equipment_id}" "$base_url/api/carregamentos.php")"
       if printf '%s' "$candidate" | grep -q '"state":"PREPARANDO"'; then
         prepared="$candidate"
         break
@@ -59,7 +82,7 @@ if printf '%s' "$login" | grep -q '"authenticated":true'; then
       curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: ${TRACE_DEVICE_TOKEN}" \
         -d "{\"equipment_id\":${equipment_id},\"device_type\":\"CLP\",\"status\":\"ONLINE\"}" \
         "$base_url/api/device_heartbeat.php" >/dev/null
-      curl -sS -b "$fixture_cookie" -X PATCH -H 'Content-Type: application/json' \
+      curl -sS -b "$fixture_cookie" -X PATCH -H "X-CSRF-Token: $admin_csrf" -H 'Content-Type: application/json' \
         -d "{\"carregamento_id\":${loading_id},\"state\":\"CARREGANDO\"}" \
         "$base_url/api/estado_carregamento.php" >/dev/null
     fi
@@ -69,12 +92,16 @@ fi
 for i in $(seq 1 39); do
   test_file="$root/testes/etapa${i}.sh"
   [ -f "$test_file" ] || continue
-  # O Nginx limita login a 2 req/s; o intervalo evita falsos 503 entre etapas.
-  sleep "${TRACE_REGRESSION_STAGE_DELAY:-1}"
+  # O backend limita tentativas por IP a 30/min; manter intervalo evita que
+  # a própria bateria de homologação acione a proteção legítima.
+  sleep "${TRACE_REGRESSION_STAGE_DELAY:-3}"
+  echo "[Etapa ${i}/39] ${test_file##*/}"
   if bash "$test_file"; then
     pass=$((pass + 1))
+    echo "[Etapa ${i}/39] APROVADA"
   else
     fail_count=$((fail_count + 1))
+    echo "[Etapa ${i}/39] FALHOU"
   fi
 done
 echo "Resultado da regressão: ${pass} aprovadas; ${fail_count} falhas."

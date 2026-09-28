@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -u
+source "$(cd "$(dirname "$0")" && pwd)/lib/csrf.sh"
 
 base_url="${TRACE_BASE_URL:-http://localhost:8080}"
 cookie_file="/tmp/dallogix-trace-etapa9-cookie.txt"
@@ -9,11 +10,12 @@ if ! printf '%s' "$login" | grep -q '"authenticated":true'; then
   echo "FAIL: login falhou"
   exit 1
 fi
+csrf_header="$(trace_csrf_header "$login")" || exit 1
 
 loading_id="${TRACE_LOADING_ID:-$(curl -sS -b "$cookie_file" "$base_url/api/carregamentos.php" | sed -n 's/.*"id":\([0-9][0-9]*\),"state":"[^"]*".*/\1/p' | head -n 1)}"
 [ -n "$loading_id" ] || { echo "FAIL: nenhum carregamento disponível"; exit 1; }
 
-created="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"type\":\"Parada de máquina\",\"quantity\":1,\"description\":\"Teste automatizado\",\"carregamento_id\":$loading_id}" "$base_url/api/ocorrencias.php")"
+created="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"type\":\"Parada de máquina\",\"quantity\":1,\"description\":\"Teste automatizado\",\"carregamento_id\":$loading_id}" "$base_url/api/ocorrencias.php")"
 if ! printf '%s' "$created" | grep -q '"type":"Parada de máquina"'; then
   echo "FAIL: ocorrência não foi criada: $created"
   exit 1

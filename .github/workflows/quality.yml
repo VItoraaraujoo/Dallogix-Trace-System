@@ -19,23 +19,24 @@ jobs:
           php-version: '8.3'
           coverage: none
           tools: composer
+          extensions: pdo_sqlite, sqlite3
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
-      - name: Install PHP dependencies
-        run: composer install --no-interaction --prefer-dist
+      - name: Install PHP test tools
+        run: composer install --no-interaction --prefer-dist --no-progress
       - name: Validate Composer manifest
         run: composer validate --no-check-publish
-      - name: Run PHPUnit
+      - name: Run PHP unit tests
         run: composer test
-      - name: Run PHPStan
+      - name: Run PHP static analysis
         run: composer analyse -- --no-progress
       - name: Validate Trace
         run: |
           bash testes/qualidade.sh
           bash testes/etapa29.sh
           node testes/navegacao-isolada.mjs
-          node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs
+          node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs testes/estado-fisico.mjs testes/company-realtime.mjs testes/dala-realtime.mjs testes/alerts-realtime.mjs testes/clp-provisorio-simulacao.mjs testes/clp-provisorio-ss2.mjs
           python3 testes/modbus-transporte.py
           php testes/api-permissoes-isoladas.php admin-target
           php testes/api-permissoes-isoladas.php foreign-action
@@ -53,13 +54,10 @@ jobs:
     timeout-minutes: 30
     env:
       TRACE_PRODUCTION_TEST_PROJECT: trace-pr-${{ github.run_id }}-${{ github.run_attempt }}
-      MYSQL_DATABASE: trace_local
-      MYSQL_USER: trace
-      MYSQL_PASSWORD: trace-pr-test-password
-      MYSQL_ROOT_PASSWORD: trace-pr-test-root-password
-      APP_URL: https://localhost:8443
-      TRACE_DEVICE_TOKEN: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
-      CAMERA_DEVICE_TOKEN: fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
+      TRACE_PRODUCTION_TEST_STATE_DIR: ${{ runner.temp }}/trace-pr-${{ github.run_id }}-${{ github.run_attempt }}
+      TRACE_PRODUCTION_TEST_ENV_FILE: ${{ runner.temp }}/trace-pr-${{ github.run_id }}-${{ github.run_attempt }}/.env.production-test
+      TRACE_TEST_STORAGE_PATH: ${{ runner.temp }}/trace-pr-${{ github.run_id }}-${{ github.run_attempt }}/storage
+      TRACE_TEST_HTTPS_PORT: '18443'
     steps:
       - uses: actions/checkout@v5
       - name: Run clean MySQL migrations and HTTPS application regression
@@ -69,7 +67,13 @@ jobs:
       - name: Remove this run's isolated containers and database volume
         if: always()
         run: |
-          docker compose \
-            --project-name "$TRACE_PRODUCTION_TEST_PROJECT" \
-            -f docker-compose.production-test.yml \
-            down --volumes --remove-orphans
+          if [ -f "$TRACE_PRODUCTION_TEST_ENV_FILE" ]; then
+            docker compose \
+              --project-name "$TRACE_PRODUCTION_TEST_PROJECT" \
+              --env-file "$TRACE_PRODUCTION_TEST_ENV_FILE" \
+              -f docker-compose.production-test.yml \
+              down --volumes --remove-orphans
+          fi
+          if [ -d "$TRACE_PRODUCTION_TEST_STATE_DIR" ]; then
+            rm -r -- "$TRACE_PRODUCTION_TEST_STATE_DIR"
+          fi

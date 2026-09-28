@@ -1,6 +1,6 @@
 import { button, esc } from "../funcoes/html.js";
-import { dataHora, numero, relativo } from "../funcoes/formato.js?v=202609201000";
-import { emergencyPanel, operationalBadge, pageHeader, progress } from "../funcoes/view.js?v=202609210400";
+import { dataHora, numero, relativo } from "../funcoes/formato.js?v=202609251330";
+import { emergencyPanel, pageHeader, physicalStateBadge, progress } from "../funcoes/view.js?v=202609251330";
 import { rotuloOcorrencia, rotuloStatusSincronizacao } from "../funcoes/rotulos.js";
 export function occurrences(store) {
   const recent = store.state.monitoring?.ocorrencias || [];
@@ -76,6 +76,9 @@ export function alerts(store) {
   };
   const summary = sync.summary || {};
   const centralSync = sync.central_sync || {};
+  const staleWarning = store.state.monitoringRefreshError
+    ? '<section class="panel" role="status"><strong>Atualização indisponível.</strong> Os dados de monitoramento podem estar desatualizados.</section><br>'
+    : "";
   const centralMessage = centralSync.last_error
     ? `Falha: ${centralSync.last_error}`
     : centralSync.central_url_configured && !centralSync.installation_registered
@@ -104,9 +107,9 @@ export function alerts(store) {
         })
         .join("")
     : '<tr><td colspan="4" class="empty-cell">Nenhum envio aguardando processamento.</td></tr>';
-  return `${pageHeader("Acompanhamento / máquina", "Alertas e sincronização", "Avisos dos periféricos e acompanhamento seguro da fila local-first.")}
+  return `${pageHeader("Acompanhamento / máquina", "Alertas e sincronização", "Avisos dos periféricos e acompanhamento seguro da fila local-first.")}${staleWarning}
   <section class="panel"><ul><li>Leituras válidas registradas: ${numero(data.leituras.VALIDO)}</li><li>Produtos incorretos: ${numero(data.leituras.PRODUTO_INCORRETO)}</li>${devices.map((device) => `<li>${esc(device.equipment_code)} · ${esc(device.device_type)}: <strong>${esc(device.status)}</strong><small>Último sinal: <span data-relative-time="${esc(device.last_seen_at || "")}">${esc(relativo(device.last_seen_at))}</span>${device.segundos_sem_sinal === null ? "" : ` · sem sinal há ${esc(device.segundos_sem_sinal)} s`}</small></li>`).join("")}</ul></section><br>
-  <section class="panel"><div class="panel-heading"><div><h3>Estado das Dalas</h3><p>O estado físico só aparece como confirmado quando o CLP enviar esse retorno.</p></div></div><div class="table-wrap"><table class="mobile-card-table"><thead><tr><th>Dala</th><th>Comunicação</th><th>Estado da operação</th><th>Estado físico</th></tr></thead><tbody>${machines.length ? machines.map((machine) => `<tr><td data-label="Dala"><strong>${esc(machine.name)}</strong><small>${esc(machine.equipment_code)}</small></td><td data-label="Comunicação">${esc(machine.clp_status || "DESCONHECIDO")}</td><td data-label="Estado da operação">${esc(machine.carregamento_state || "OCIOSA")}</td><td data-label="Estado físico">${operationalBadge(machine.operational_status)}</td></tr>`).join("") : '<tr><td colspan="4" class="empty-cell">Nenhuma Dala cadastrada.</td></tr>'}</tbody></table></div></section><br>
+  <section class="panel"><div class="panel-heading"><div><h3>Estado das Dalas</h3><p>O estado físico só aparece como confirmado quando o CLP enviar esse retorno.</p></div></div><div class="table-wrap"><table class="mobile-card-table"><thead><tr><th>Dala</th><th>Comunicação</th><th>Estado da operação</th><th>Estado físico</th></tr></thead><tbody>${machines.length ? machines.map((machine) => `<tr><td data-label="Dala"><strong>${esc(machine.name)}</strong><small>${esc(machine.equipment_code)}</small></td><td data-label="Comunicação">${esc(machine.clp_status || "DESCONHECIDO")}</td><td data-label="Estado da operação">${esc(machine.carregamento_state || "OCIOSA")}</td><td data-label="Estado físico">${physicalStateBadge(machine)}</td></tr>`).join("") : '<tr><td colspan="4" class="empty-cell">Nenhuma Dala cadastrada.</td></tr>'}</tbody></table></div></section><br>
   <section class="panel"><div class="panel-heading"><div><h3>Fila de sincronização</h3><p>${sync.remote_configured ? "Endpoint remoto configurado." : "Modo local: configure o endpoint remoto para enviar os eventos."}</p><p>${esc(centralMessage)}</p></div><span class="badge ${sync.remote_configured ? "green" : "yellow"}">${sync.remote_configured ? "Remota disponível" : "Somente local"}</span></div><div class="grid four"><div class="metric"><small>Pendentes</small><strong>${numero(summary.PENDENTE)}</strong></div><div class="metric"><small>Com erro</small><strong class="${summary.ERRO ? "metric-red" : "metric-green"}">${numero(summary.ERRO)}</strong></div><div class="metric"><small>Processando</small><strong>${numero(summary.PROCESSANDO)}</strong></div><div class="metric"><small>Enviados</small><strong class="metric-green">${numero(summary.ENVIADO)}</strong></div></div></section><br>
   <section class="panel table-wrap"><h3>Envios pendentes</h3><p>Os registros ficam na fila local até a conexão com o servidor estar disponível.</p><table class="mobile-card-table monitoring-table"><thead><tr><th>Registro</th><th>Situação</th><th>Próxima verificação</th><th>Ação</th></tr></thead><tbody>${syncRows}</tbody></table></section>`;
 }

@@ -40,7 +40,7 @@ jobs:
         run: bash testes/qualidade.sh
       - name: Validate Modbus and gateway integration
         run: |
-          node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs
+          node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs testes/alerts-realtime.mjs
           python3 testes/modbus-transporte.py
           php testes/api-conectividade-isolada.php online
           php testes/api-conectividade-isolada.php stale

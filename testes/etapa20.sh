@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 set -u
+source "$(cd "$(dirname "$0")" && pwd)/lib/csrf.sh"
 
 base_url="${TRACE_BASE_URL:-http://localhost:8080}"
 gateway_token="${TRACE_DEVICE_TOKEN:-}"
@@ -10,6 +11,7 @@ if ! printf '%s' "$login" | grep -q '"authenticated":true'; then
   echo "FAIL: login falhou"
   exit 1
 fi
+csrf_header="$(trace_csrf_header "$login")" || exit 1
 
 loading_id="${TRACE_LOADING_ID:-$(curl -sS -b "$cookie_file" "$base_url/api/carregamentos.php" | sed -n 's/.*"id":\([0-9][0-9]*\),"state":"CARREGANDO".*/\1/p' | head -n 1)}"
 [ -n "$loading_id" ] || { echo "FAIL: nenhum carregamento ativo disponível"; exit 1; }
@@ -18,7 +20,7 @@ equipment_id="${TRACE_EQUIPMENT_ID:-$(curl -sS -b "$cookie_file" "$base_url/api/
 
 curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" -d "{\"equipment_id\":$equipment_id,\"device_type\":\"CLP\",\"status\":\"ONLINE\"}" "$base_url/api/device_heartbeat.php" >/dev/null
 
-emergency="$(curl -sS -b "$cookie_file" -X PATCH -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"state\":\"EMERGENCIA\"}" "$base_url/api/estado_carregamento.php")"
+emergency="$(curl -sS -b "$cookie_file" -X PATCH -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"state\":\"EMERGENCIA\"}" "$base_url/api/estado_carregamento.php")"
 if ! printf '%s' "$emergency" | grep -q '"state":"EMERGENCIA"'; then
   echo "FAIL: emergência não foi ativada: $emergency"
   exit 1
@@ -35,7 +37,7 @@ if [[ -n "$emergency_request_id" ]]; then
     "$base_url/api/plc_gateway.php" >/dev/null
 fi
 
-unlock="$(curl -sS -b "$cookie_file" -X POST -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id}" "$base_url/api/desbloquear_maquina.php")"
+unlock="$(curl -sS -b "$cookie_file" -X POST -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id}" "$base_url/api/desbloquear_maquina.php")"
 if ! printf '%s' "$unlock" | grep -q '"command":"DESBLOQUEAR_MAQUINA"'; then
   echo "FAIL: desbloqueio não foi aceito: $unlock"
   exit 1
@@ -70,7 +72,7 @@ for attempt in 1 2 3 4 5 6 7 8 9 10; do
     "$base_url/api/camera_worker.php")"
   printf '%s' "$completed" | grep -q '"status":"CAPTURADA"' || { echo "FAIL: captura não confirmada: $completed"; exit 1; }
 done
-curl -sS -b "$cookie_file" -X PATCH -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php" >/dev/null
-  curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"justification\":\"Fixture local de teste encerrada pelo cenário de emergência.\"}" "$base_url/api/encerrar_carregamento.php" >/dev/null
+curl -sS -b "$cookie_file" -X PATCH -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php" >/dev/null
+  curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"justification\":\"Fixture local de teste encerrada pelo cenário de emergência.\"}" "$base_url/api/encerrar_carregamento.php" >/dev/null
 
 echo "OK: botão/API de desbloqueio liberam emergência, retornam a PREPARANDO e registram comando."

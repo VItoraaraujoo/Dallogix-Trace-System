@@ -8,8 +8,9 @@ import subprocess
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
-STATE = ROOT / 'armazenamento/producao-teste'
-ENV = ROOT / '.env.production-test'
+STATE = Path(os.environ.get('TRACE_PRODUCTION_TEST_STATE_DIR', ROOT / 'armazenamento/producao-teste'))
+ENV = Path(os.environ.get('TRACE_PRODUCTION_TEST_ENV_FILE', ROOT / '.env.production-test'))
+HTTPS_PORT = os.environ.get('TRACE_TEST_HTTPS_PORT', '8443')
 COMPOSE = ['docker', 'compose']
 if project_name := os.environ.get('TRACE_PRODUCTION_TEST_PROJECT'):
     COMPOSE.extend(['--project-name', project_name])
@@ -61,7 +62,7 @@ def main():
     storage.mkdir(exist_ok=True)
     storage.chmod(0o777)  # O usuário PHP do contêiner escreve neste bind isolado.
     if not ENV.exists():
-        run(['bash', 'scripts/setup_production_env.sh', str(ENV), 'https://localhost:8443'])
+        run(['bash', 'scripts/setup_production_env.sh', str(ENV), f'https://localhost:{HTTPS_PORT}'])
     else:
         env_text = ENV.read_text()
         missing = []
@@ -88,7 +89,9 @@ def main():
         if any(nginx_config.iterdir()):
             raise SystemExit(f'ERRO: caminho reservado para nginx.conf contém arquivos: {nginx_config}')
         nginx_config.rmdir()
-    nginx_config.write_text((ROOT / 'nginx/https.conf.example').read_text().replace('__APP_URL__', 'https://localhost:8443'))
+    nginx_config.write_text(
+        (ROOT / 'nginx/https.conf.example').read_text().replace('__APP_URL__', f'https://localhost:{HTTPS_PORT}')
+    )
     run(COMPOSE + ['up', '-d', '--build', '--wait', 'mysql', 'php'])
     sql('CREATE TABLE IF NOT EXISTS trace_deployment_migrations (name VARCHAR(190) PRIMARY KEY);')
     applied = set(sql('SELECT name FROM trace_deployment_migrations').splitlines())
@@ -131,7 +134,7 @@ def main():
     run(COMPOSE + ['run', '--rm', '--no-deps', 'nginx', 'nginx', '-t'])
     run(COMPOSE + ['up', '-d', '--wait', 'nginx'])
     run(COMPOSE + ['exec', '-T', 'nginx', 'nginx', '-s', 'reload'])
-    print('Pronto: https://localhost:8443 | Acessos: armazenamento/producao-teste/acessos.json')
+    print(f'Pronto: https://localhost:{HTTPS_PORT} | Acessos: {STATE / "acessos.json"}')
     print('Certificado local para homologação, válido por 30 dias; domínio público exige certificado confiável.')
 
 
