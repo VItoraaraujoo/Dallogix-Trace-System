@@ -10,7 +10,6 @@ services:
     mem_limit: 128m
     cpus: "0.50"
     tmpfs:
-      - /var/cache/nginx
       - /run:rw,nosuid,nodev,size=8m,uid=65532,gid=65532,mode=0755
       - /var/lib/nginx/tmp:rw,nosuid,nodev,size=16m,uid=65532,gid=65532,mode=0755
       - /var/cache/nginx:rw,nosuid,nodev,size=16m,uid=65532,gid=65532,mode=0755
