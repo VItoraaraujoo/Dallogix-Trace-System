@@ -213,6 +213,15 @@
   gap: 6px;
 }
 
+.dalas-screen-v2 .dala-actions-v2 {
+  flex-wrap: wrap;
+}
+
+body .dalas-screen-v2 .dala-action-v2 {
+  min-width: 0;
+  padding-inline: 10px;
+}
+
 .dala-action-v2 {
   min-height: 36px;
   padding: 7px 10px;
