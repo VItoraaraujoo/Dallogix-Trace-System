@@ -1,31 +1,30 @@
-import { configurarSessaoPorAba } from "./sessao.js?v=202609280100";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609251330";
-import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609251330";
-import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
-import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609251330";
-import { createAlertsRealtimeController } from "./controladores/alerts-realtime.js?v=202609251330";
 import {
-  companyRenameNeedsPause,
-  createCompanyRealtimeController,
-} from "./controladores/company-realtime.js?v=202609251330";
-import { createDalaRealtimeController } from "./controladores/dala-realtime.js?v=202609251330";
-import { numero, relativo } from "./funcoes/formato.js?v=202609251330";
+  configurarSessaoPorAba,
+  guardarTokenSessao,
+  limparTokenSessao,
+} from "./sessao.js?v=202609222100";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609280006";
+import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
+import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
+import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609240001";
+import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
-import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609251330";
-import { rotuloEstado } from "./funcoes/rotulos.js";
-import { settings } from "./telas/configuracoes.js?v=202609251330";
-import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609251330";
-import { company } from "./telas/empresa.js?v=202609251330";
-import { companies } from "./telas/empresas.js?v=202609251330";
+import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
+import { rotuloEstado } from "./funcoes/rotulos.js?v=202609240001";
+import { deviceStatusSummary } from "./funcoes/view.js?v=202609280006";
+import { settings } from "./telas/configuracoes.js?v=202609280006";
+import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609280006";
+import { company } from "./telas/empresa.js?v=202609280006";
+import { companies } from "./telas/empresas.js?v=202609280006";
 import { errorLogs } from "./telas/logs.js";
-import { masterHome } from "./telas/master.js?v=202609251330";
+import { masterHome } from "./telas/master.js?v=202609220100";
 import {
     alerts,
     emergency,
     occurrences,
     products,
     summary,
-} from "./telas/monitoramento.js?v=202609251330";
+} from "./telas/monitoramento.js?v=202609280006";
 import {
     division,
     importScreen,
@@ -33,9 +32,9 @@ import {
     manifests,
     manifestView,
     work,
-} from "./telas/operacoes.js?v=202609251330";
-import { dashboard } from "./telas/painel.js?v=202609251330";
-import { users } from "./telas/usuarios.js?v=202609251330";
+} from "./telas/operacoes.js?v=202609280006";
+import { dashboard } from "./telas/painel.js?v=202609280006";
+import { users } from "./telas/usuarios.js?v=202609212000";
 
 configurarSessaoPorAba();
 
@@ -193,30 +192,6 @@ const workRealtime = createOperationalRealtimeController({
   workStructureSignature: () => workStructureSignature(),
   getViewSignature: () => workViewSignature,
 });
-const companyRealtime = createCompanyRealtimeController({
-  store,
-  getPage: () => currentPage,
-  render: () => render(),
-  shouldPauseRefresh: () => {
-    const form = document.querySelector("#company-rename-form");
-    return companyRenameNeedsPause(
-      form,
-      store.state.companyDetail?.name,
-      document.activeElement,
-    );
-  },
-});
-const dalaRealtime = createDalaRealtimeController({
-  store,
-  getPage: () => currentPage,
-  getEquipmentId: () => queryId(),
-  render: () => render(),
-});
-const alertsRealtime = createAlertsRealtimeController({
-  store,
-  getPage: () => currentPage,
-  render: () => render(),
-});
 
 function sidebarCollapsed() {
   try {
@@ -268,6 +243,12 @@ async function navigate(page, query = "", { replace = false } = {}) {
 }
 function queryId() {
   return new URLSearchParams(window.location.search).get("id");
+}
+function isDashboardReturn() {
+  return new URLSearchParams(window.location.search).get("from") === "dashboard";
+}
+function dashboardReturnQuery() {
+  return isDashboardReturn() ? "?from=dashboard" : "";
 }
 function queryReturnPage() {
   const page = new URLSearchParams(window.location.search).get("from");
@@ -381,7 +362,7 @@ function installLocalIndicator() {
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202609251330").catch(() => {
+  navigator.serviceWorker.register("/service-worker.js?v=202609280006").catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }
@@ -404,7 +385,7 @@ function waitForDocumentStyles() {
 // inicial não é recarregado, então os estilos exclusivos de Dalas precisam ser
 // adicionados quando a rota muda a partir de outra tela.
 const DALA_PAGES = new Set(["dalas", "dala", "dala-edit", "dala-actions"]);
-const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609251330";
+const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609211120";
 async function ensureDalaScreenStyles(page) {
   if (!DALA_PAGES.has(page)) return;
   const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
@@ -575,12 +556,6 @@ function render() {
   workViewSignature = currentPage === "work" ? workStructureSignature() : "";
   if (currentPage === "work") startWorkPolling();
   else stopWorkPolling();
-  if (currentPage === "company") companyRealtime.start();
-  else companyRealtime.stop();
-  if (currentPage === "dala") dalaRealtime.start();
-  else dalaRealtime.stop();
-  if (currentPage === "alerts") alertsRealtime.start();
-  else alertsRealtime.stop();
 }
 function stopWorkPolling() {
   workRealtime.stop();
@@ -601,6 +576,8 @@ function workStructureSignature() {
     store.state.emergency,
     store.state.operationalState,
     pending,
+    command?.id || null,
+    command?.command || null,
     command?.status || null,
     command?.response_message || null,
     store.clpDisponivel(),
@@ -636,12 +613,15 @@ function refreshWorkLiveView() {
         item.device_type === type &&
         (!selectedEquipmentId || Number(item.equipment_id) === selectedEquipmentId),
       );
-      const value = device?.status || (type === "SERVER" ? "OK" : "NÃO REGISTRADO");
-      return [type, ["ONLINE", "LOCAL"].includes(value) ? "OK" : value];
+      const value = device?.status || (type === "SERVER" ? "LOCAL" : "NAO_REGISTRADO");
+      return [type, deviceStatusSummary(value)];
     }),
   );
   document.querySelectorAll("[data-live-status]").forEach((node) => {
-    node.textContent = statusByType[node.dataset.liveStatus] || "NÃO REGISTRADO";
+    const presentation =
+      statusByType[node.dataset.liveStatus] || deviceStatusSummary("NAO_REGISTRADO");
+    node.textContent = presentation.label;
+    node.className = `status-value status-${presentation.tone}`;
   });
 }
 let relativeTimeTimer = null;
@@ -1006,6 +986,7 @@ function bindActions() {
           method: "POST",
           headers: store.csrfToken ? { "X-CSRF-Token": store.csrfToken } : {},
         });
+        limparTokenSessao();
         window.location.href = "index.html";
         return;
       }
@@ -1091,7 +1072,7 @@ function bindActions() {
         return;
       }
       if (action === "prepare-manifest") {
-        navigate("division", `?id=${node.dataset.id}`);
+        navigate("division", `?id=${encodeURIComponent(node.dataset.id)}${isDashboardReturn() ? "&from=dashboard" : ""}`);
         return;
       }
       if (action === "cancel-manifest") {
@@ -1102,7 +1083,7 @@ function bindActions() {
         try {
           await store.cancelManifest(node.dataset.id || queryId(), reason.trim());
           alert("Romaneio cancelado.");
-          await navigate("manifests");
+          await navigate(isDashboardReturn() ? "dashboard" : "manifests");
           render();
         } catch (error) {
           alert(error.message);
@@ -1116,7 +1097,7 @@ function bindActions() {
         try {
           await store.cancelManifest(node.dataset.id || queryId(), reason.trim());
           alert("Operação cancelada e registrada na auditoria.");
-          await navigate("manifests");
+          await navigate(isDashboardReturn() ? "dashboard" : "manifests");
           render();
         } catch (error) {
           alert(error.message);
@@ -1124,12 +1105,12 @@ function bindActions() {
         return;
       }
       if (action === "back-manifest") {
-        navigate("manifest", `?id=${queryId()}`);
+        navigate("manifest", `?id=${encodeURIComponent(queryId() || "")}${isDashboardReturn() ? "&from=dashboard" : ""}`);
         return;
       }
       if (action === "resume-loading") {
         store.state.selectedLoadingId = Number(node.dataset.loadingId) || null;
-        navigate("work");
+        navigate("work", dashboardReturnQuery());
         return;
       }
       if (action === "select-loading") {
@@ -1352,9 +1333,10 @@ function bindActions() {
         }
         return;
       }
-      if (action === "start-machine" || action === "stop-machine") {
+      if (["start-machine", "stop-machine", "run", "stop"].includes(action)) {
+        const starting = action === "start-machine" || action === "run";
         if (
-          action === "start-machine" &&
+          starting &&
           !(await timedCommandConfirmation({
             title: "Iniciar carregamento?",
             message:
@@ -1363,15 +1345,11 @@ function bindActions() {
         )
           return;
         try {
-          await store.changeLoadingState(
-            action === "start-machine" ? "CARREGANDO" : "PAUSADO",
-            node.dataset.loadingId,
+          await store.requestMachineOperation(
+            starting ? "INICIAR_CARREGAMENTO" : "PAUSAR_CARREGAMENTO",
+            node.dataset.loadingId || store.state.loadingId,
           );
-          await Promise.all([
-            store.loadMonitoring(),
-            store.loadActiveLoading(),
-            store.loadDashboard(),
-          ]);
+          await store.loadActiveLoading(node.dataset.loadingId || store.state.loadingId);
           render();
         } catch (error) {
           alert(error.message);
@@ -1388,12 +1366,11 @@ function bindActions() {
         )
           return;
         try {
-          const result = await store.requestMachineReverse(
+          await store.requestMachineReverse(
             node.dataset.loadingId,
             "REVERSAO_ATIVAR",
           );
-          alert(result.message);
-          await store.loadMonitoring();
+          await store.loadActiveLoading(node.dataset.loadingId);
           render();
         } catch (error) {
           alert(error.message);
@@ -1411,38 +1388,13 @@ function bindActions() {
         return;
       }
       if (screens[action]) navigate(action);
-      else if (action === "run") {
-        if (
-          !(await timedCommandConfirmation({
-            title: "Iniciar carregamento?",
-            message:
-              "Confirme que a esteira está livre e pronta para carregar no sentido normal.",
-          }))
-        )
-          return;
-        try {
-          await store.changeLoadingState("CARREGANDO");
-          render();
-        } catch (error) {
-          alert(error.message);
-        }
-      } else if (action === "stop") {
-        try {
-          await store.changeLoadingState("PAUSADO");
-          render();
-        } catch (error) {
-          alert(error.message);
-        }
-      } else if (action === "reverse-on" || action === "reverse-off" || action === "reverse-toggle") {
+      else if (action === "reverse-on" || action === "reverse-off" || action === "reverse-toggle") {
         if (store.state.operationalState !== "PAUSADO") {
           alert("Para alterar a reversão, pause a esteira primeiro.");
           return;
         }
-        const activating = action === "reverse-on"
-          ? true
-          : action === "reverse-off"
-            ? false
-            : store.state.plcCommand?.command !== "REVERSAO_ATIVAR";
+        const activating = action === "reverse-on" ||
+          (action === "reverse-toggle" && store.state.plcCommand?.command !== "REVERSAO_ATIVAR");
         if (
           !(await timedCommandConfirmation({
             title: activating ? "Ativar reversão?" : "Desativar reversão?",
@@ -1453,20 +1405,19 @@ function bindActions() {
         )
           return;
         try {
-          const result = await store.requestMachineReverse(
+          await store.requestMachineReverse(
             store.state.loadingId,
             activating ? "REVERSAO_ATIVAR" : "REVERSAO_DESATIVAR",
           );
-          alert(result.message);
+          await store.loadActiveLoading();
           render();
         } catch (error) {
           alert(error.message);
         }
       } else if (action === "emergency") {
         try {
-          const result = await store.requestMachineEmergency();
-          alert(result.message);
-          await store.loadMonitoring();
+          await store.requestMachineEmergency();
+          await store.loadActiveLoading();
           render();
         } catch (error) {
           alert(error.message);
@@ -1474,13 +1425,7 @@ function bindActions() {
       } else if (action === "unlock") {
         node.disabled = true;
         try {
-          const result = await store.unlockMachine();
-          alert(
-            result?.alreadyUnlocked
-              ? "A emergência já havia sido liberada. O estado atual foi atualizado."
-              : "Emergência liberada. A máquina permanece em preparação até o próximo comando seguro.",
-          );
-          await navigate("work");
+          await store.unlockMachine();
           render();
         } catch (error) {
           alert(error.message);
@@ -1574,6 +1519,7 @@ function bindLoginForm() {
       authenticatedUser = result.user;
       store.setUser(authenticatedUser);
       store.setCsrfToken(result.csrf_token);
+      guardarTokenSessao(result.session_token);
       window.location.replace(pagePath(defaultPage()));
     } catch (error) {
       renderLogin(
@@ -1945,7 +1891,7 @@ function bindForms() {
         alert(
           `Operação #${result.id} preparada. Confirme as condições físicas antes de iniciar a esteira.`,
         );
-        await navigate("work");
+        await navigate("work", dashboardReturnQuery());
       } catch (error) {
         alert(error.message);
       } finally {
@@ -2140,7 +2086,11 @@ async function loadPageData(page) {
     occurrences: () => [store.loadMonitoring(), store.loadActiveLoading()],
     summary: () => [store.loadMonitoring(), store.loadActiveLoading()],
     products: () => [store.loadProducts()],
-    alerts: () => [alertsRealtime.refresh()],
+    alerts: () => [
+      store.loadMonitoring(),
+      store.loadEquipments(),
+      store.loadSyncStatus(),
+    ],
     emergency: () => [store.loadActiveLoading(), store.loadMonitoring()],
     settings: () => [store.loadConfiguration(), store.loadEquipments(), store.loadSyncStatus(), store.loadDalaStatuses()],
     dalas: () => [store.loadEquipments()],
@@ -2256,6 +2206,7 @@ async function bootstrap() {
   const response = await fetch("/api/me.php");
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
+    limparTokenSessao();
     try {
       sessionStorage.setItem(
         "trace-login-message",

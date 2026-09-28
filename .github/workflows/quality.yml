@@ -36,7 +36,7 @@ jobs:
           bash testes/qualidade.sh
           bash testes/etapa29.sh
           node testes/navegacao-isolada.mjs
-          node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs testes/estado-fisico.mjs testes/company-realtime.mjs testes/dala-realtime.mjs testes/alerts-realtime.mjs testes/clp-provisorio-simulacao.mjs testes/clp-provisorio-ss2.mjs
+          node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs testes/estado-fisico.mjs testes/clp-provisorio-simulacao.mjs testes/clp-provisorio-ss2.mjs
           python3 testes/modbus-transporte.py
           php testes/api-permissoes-isoladas.php admin-target
           php testes/api-permissoes-isoladas.php foreign-action

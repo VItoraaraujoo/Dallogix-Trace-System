@@ -1,6 +1,22 @@
 import { button, esc } from "./html.js";
-import { data, numero, relativo } from "./formato.js?v=202609251330";
-import { rotuloEstado, rotuloStatusComando, rotuloStatusRomaneio } from "./rotulos.js";
+import { data, numero, relativo } from "./formato.js?v=202609201000";
+import { rotuloEstado, rotuloStatusComando, rotuloStatusRomaneio } from "./rotulos.js?v=202609240001";
+
+export function deviceStatusSummary(value) {
+  const normalized = String(value || "DESCONHECIDO").trim().toUpperCase();
+  const known = {
+    ONLINE: ["OK", "green"],
+    LOCAL: ["OK", "green"],
+    OK: ["OK", "green"],
+    OFFLINE: ["SEM COMUNICAÇÃO", "red"],
+    ERRO: ["ERRO", "red"],
+    DESCONHECIDO: ["DESCONHECIDO", "yellow"],
+    NAO_REGISTRADO: ["NÃO REGISTRADO", "yellow"],
+    "NÃO REGISTRADO": ["NÃO REGISTRADO", "yellow"],
+  };
+  const [label, tone] = known[normalized] || [normalized, "yellow"];
+  return { label, tone };
+}
 
 export function pageHeader(kicker, title, description, action = "") {
   return `<div class="title-row"><div><span class="kicker">${esc(kicker)}</span><h2>${esc(title)}</h2><p>${esc(description)}</p></div>${action}</div>`;
@@ -21,21 +37,31 @@ export function statuses(store = null) {
   };
   const status = (type) =>
     devices.find((item) => item.device_type === type)?.status ||
-    (type === "SERVER" ? "LOCAL" : "NÃO REGISTRADO");
-  const tone = (value) => (["ONLINE", "LOCAL"].includes(value) ? "OK" : value);
-  return `<div class="status">${known.map((type) => `<span>● ${labels[type]} <b data-live-status="${type}">${esc(tone(status(type)))}</b></span>`).join("")}</div>`;
+    (type === "SERVER" ? "LOCAL" : "NAO_REGISTRADO");
+  return `<div class="status">${known.map((type) => {
+    const presentation = deviceStatusSummary(status(type));
+    return `<span>${labels[type]} <b class="status-value status-${presentation.tone}" data-live-status="${type}">${esc(presentation.label)}</b></span>`;
+  }).join("")}</div>`;
 }
 
 export function emergencyPanel({
-  loading = "Aguardando liberação do CLP",
+  loading = "Emergência registrada no Trace",
   canUnlock = false,
   buttonAttributes = "",
   commandStatus = null,
   compact = false,
 } = {}) {
-  const command = commandStatus?.status ? rotuloStatusComando(commandStatus.status) : "Aguardando retorno do gateway";
-  const commandTone = ["ERRO", "REJEITADO", "EXPIRADO"].includes(String(commandStatus?.status || "").toUpperCase()) ? "red" : commandStatus?.status === "APLICADO" ? "green" : "yellow";
-  return `<section class="emergency${compact ? " emergency-compact" : ""}" aria-live="assertive"><span class="kicker">Parada de segurança</span><h2>Emergência ativa</h2><p>Contagem bloqueada</p><strong>${esc(loading)}</strong><p>Parada física: <span class="badge ${commandTone}">${esc(command)}</span></p>${commandStatus?.response_message ? `<p>${esc(commandStatus.response_message)}</p>` : ""}${canUnlock ? button("Desbloquear máquina", "unlock", "secondary", buttonAttributes) : ""}<small>A liberação do software não substitui a confirmação dos intertravamentos no CLP.</small></section>`;
+  const status = String(commandStatus?.status || "").toUpperCase();
+  const command = status ? rotuloStatusComando(status) : "Aguardando retorno do gateway";
+  const commandTone = ["ERRO", "REJEITADO", "EXPIRADO"].includes(status)
+    ? "red"
+    : status === "APLICADO"
+      ? "blue"
+      : "yellow";
+  const acknowledgement = status === "APLICADO"
+    ? "O gateway reportou o comando como aplicado. Isso, sozinho, não confirma o estado físico da esteira."
+    : "A operação está bloqueada no Trace; a parada física depende do circuito de segurança e da confirmação do CLP.";
+  return `<section class="emergency${compact ? " emergency-compact" : ""}" aria-live="assertive"><span class="kicker">Solicitação de emergência</span><h2>Operação bloqueada</h2><p>Estado lógico do Trace: <strong>${esc(loading)}</strong></p><div class="work-command-feedback-status"><span>Retorno do gateway</span><span class="badge ${commandTone}">${esc(command)}</span></div>${commandStatus?.response_message ? `<p>${esc(commandStatus.response_message)}</p>` : ""}<p>${acknowledgement}</p>${canUnlock ? button("Solicitar liberação ao CLP", "unlock", "secondary", buttonAttributes) : ""}<small>Esta solicitação não substitui o botão físico de emergência. Liberar no software não religa a máquina; confira a condição segura na máquina e no CLP.</small></section>`;
 }
 export function progress(store) {
   const loaded = Number(store.state.loaded) || 0;
@@ -51,7 +77,7 @@ export function badge(status) {
     : ["CANCELADO", "Cancelado"].includes(status)
       ? "red"
       : "yellow";
-  return `<span class="badge ${tone}">${esc(label)}</span>`;
+  return `<span class="badge ${tone}">${label}</span>`;
 }
 
 // Badge de status no padrão da referência TracePlatform.
@@ -110,17 +136,17 @@ export function deviceBadge(value) {
   const normalized = String(value || "DESCONHECIDO").toUpperCase();
   const labels = {
     ONLINE: "Online",
-    OFFLINE: "Offline",
+    OFFLINE: "Sem comunicação",
     ERRO: "Erro",
-    DESCONHECIDO: "Sem sinal",
-    LOCAL: "Local",
+    DESCONHECIDO: "Desconhecido",
+    NAO_REGISTRADO: "Não registrado",
+    LOCAL: "OK",
   };
-  const tone =
-    normalized === "ONLINE" || normalized === "LOCAL"
-      ? "green"
-      : normalized === "ERRO"
-        ? "red"
-        : "yellow";
+  const tone = normalized === "ONLINE" || normalized === "LOCAL"
+    ? "green"
+    : ["OFFLINE", "ERRO"].includes(normalized)
+      ? "red"
+      : "yellow";
   return `<span class="badge ${tone}">${esc(labels[normalized] || normalized)}</span>`;
 }
 
@@ -132,6 +158,9 @@ export function operationalBadge(value) {
     PARADA_SOLICITADA: ["Parada solicitada", "yellow"],
     EMERGENCIA_SEM_CONFIRMACAO: ["Emergência · aguardando CLP", "red"],
     SEM_COMUNICACAO: ["Sem comunicação", "red"],
+    ERRO_COMUNICACAO: ["Erro de comunicação", "red"],
+    CLP_NAO_REGISTRADO: ["CLP não registrado", "yellow"],
+    STATUS_DESCONHECIDO: ["Status desconhecido", "yellow"],
     OPERACAO_SEM_RETORNO: ["Operação · sem retorno físico", "yellow"],
     PREPARANDO: ["Em preparação", "blue"],
     OCIOSA: ["Ociosa", "blue"],
@@ -140,20 +169,25 @@ export function operationalBadge(value) {
   return `<span class="badge ${tone}">${esc(label)}</span>`;
 }
 
-export function physicalStateBadge(machine = {}) {
+export function physicalStateBadge(machine = {}, { compact = false } = {}) {
   const communication = String(machine.clp_status || "").toUpperCase();
-  let label = "Desconhecido · sem retorno físico do CLP";
+  let label = compact ? "Sem retorno do CLP" : "Desconhecido · sem retorno físico do CLP";
   let tone = "yellow";
-  if (communication !== "ONLINE") {
-    label = communication === "OFFLINE"
-      ? "Desconhecido · sem comunicação com o CLP"
-      : "Estado físico desconhecido";
+  if (communication === "OFFLINE") {
+    label = compact ? "Desconhecido" : "Desconhecido · sem comunicação com o CLP";
     tone = "red";
+  } else if (communication === "ERRO") {
+    label = compact ? "Desconhecido" : "Desconhecido · erro de comunicação com o CLP";
+    tone = "red";
+  } else if (communication === "NAO_REGISTRADO") {
+    label = compact ? "CLP não registrado" : "Desconhecido · CLP não registrado";
+  } else if (communication !== "ONLINE") {
+    label = compact ? "Desconhecido" : "Estado físico desconhecido";
   } else if (machine.physical_running === true) {
-    label = "Operação reportada pelo CLP";
+    label = compact ? "Em operação" : "Operação reportada pelo CLP";
     tone = "green";
   } else if (machine.physical_running === false) {
-    label = "Parada reportada pelo CLP";
+    label = compact ? "Parada" : "Parada reportada pelo CLP";
     tone = "blue";
   }
   return `<span class="badge ${tone}">${esc(label)}</span>`;
@@ -165,7 +199,9 @@ function machineCard(machine) {
   const pct =
     planned > 0 ? Math.min(100, Math.round((loaded / planned) * 100)) : 0;
   const state = rotuloEstado(machine.carregamento_state, "Ociosa");
-  return `<article class="machine-card ${String(machine.clp_status || "").toUpperCase() === "ONLINE" ? "" : "is-offline"}">
+  const clpStatus = String(machine.clp_status || "").toUpperCase();
+  const offlineClass = ["OFFLINE", "ERRO"].includes(clpStatus) ? "is-offline" : "";
+  return `<article class="machine-card ${offlineClass}">
     <header><div><strong>${esc(machine.name)}</strong><small>${esc(machine.equipment_code)}</small></div><div class="company-card-statuses">${deviceBadge(machine.clp_status)}${operationalBadge(machine.operational_status)}</div></header>
     <dl>
       <div><dt>Romaneio</dt><dd>${machine.romaneio_number ? "#" + esc(machine.romaneio_number) : "—"}</dd></div>
@@ -195,7 +231,7 @@ export function companyCard(company, { compact = false } = {}) {
     ONLINE: ["PC industrial online", "green"],
     OFFLINE: ["PC industrial sem comunicação", "red"],
     ERRO: ["PC industrial com erro", "red"],
-    DESCONHECIDO: ["PC industrial não ativado", "yellow"],
+    DESCONHECIDO: ["PC industrial sem sinal", "yellow"],
   };
   const [industrialPcLabel, industrialPcTone] = industrialPcLabels[industrialPcStatus] || industrialPcLabels.DESCONHECIDO;
   const industrialPcBadge = `<span class="badge ${industrialPcTone}">${industrialPcLabel}</span>`;
@@ -205,7 +241,7 @@ export function companyCard(company, { compact = false } = {}) {
       ? "Offline"
       : industrialPcStatus === "ERRO"
         ? "Erro"
-        : "—";
+        : "Sem sinal";
   const industrialPcMetricClass = industrialPcStatus === "ONLINE"
     ? "metric-green"
     : ["OFFLINE", "ERRO"].includes(industrialPcStatus)
@@ -216,10 +252,13 @@ export function companyCard(company, { compact = false } = {}) {
   const archived = Boolean(company.archived);
   const connection = archived
     ? '<span class="badge yellow">Arquivada</span>'
-    :
-    online > 0
-      ? '<span class="badge green">Online</span>'
-      : '<span class="badge red">Sem conexão</span>';
+    : total === 0
+      ? '<span class="badge yellow">Sem Dalas</span>'
+      : online > 0
+        ? `<span class="badge green">${online}/${total} Dalas online</span>`
+        : industrialPcStatus === "OFFLINE" || industrialPcStatus === "ERRO"
+          ? '<span class="badge red">PC industrial sem comunicação</span>'
+          : '<span class="badge yellow">Dalas sem sinal</span>';
   const licenseStatus = String(company.license_status || "SEM_LICENCA");
   const licenseLabel = {
     ATIVA: "Licença ativa",

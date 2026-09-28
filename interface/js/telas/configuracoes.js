@@ -1,5 +1,5 @@
 import { button, esc } from "../funcoes/html.js";
-import { pageHeader } from "../funcoes/view.js?v=202609251330";
+import { pageHeader } from "../funcoes/view.js?v=202609280006";
 
 // Conectividade local/remota, Dalas (somente leitura) e importação de PDF.
 export function settings(store) {
@@ -7,20 +7,43 @@ export function settings(store) {
   const saved = config.settings || {};
   const sync = store.state.syncStatus || {};
   const centralSync = sync.central_sync || {};
-  const pcOnline = Boolean(centralSync.pc_online);
-  const syncTone = pcOnline ? "online" : "offline";
-  const syncLabel = pcOnline ? "PC industrial online" : "PC industrial offline";
+  const pcStatus = String(
+    centralSync.pc_status || (centralSync.pc_online ? "ONLINE" : "DESCONHECIDO"),
+  ).toUpperCase();
+  const pcPresentation = !store.state.syncStatus
+    ? ["unknown", "Status da sincronização indisponível"]
+    : !centralSync.configured
+      ? ["unknown", "Sincronização central não configurada"]
+      : !centralSync.installation_registered
+        ? ["unknown", "Instalação ainda não registrada"]
+        : {
+            ONLINE: ["online", "PC industrial online"],
+            OFFLINE: ["offline", "PC industrial sem comunicação"],
+            ERRO: ["offline", "PC industrial com erro"],
+            DESCONHECIDO: ["unknown", "PC industrial sem sinal"],
+          }[pcStatus] || ["unknown", "Status do PC industrial desconhecido"];
+  const [syncTone, syncLabel] = pcPresentation;
   const dalaStatuses = Array.isArray(store.state.dalaStatuses)
     ? store.state.dalaStatuses
     : [];
   const totalDalas = config.dalas.length;
   const onlineDalas = dalaStatuses.filter((dala) => dala.status === "ONLINE").length;
-  const dalaTone = totalDalas > 0 && onlineDalas === totalDalas ? "online" : totalDalas > 0 ? "offline" : "";
+  const offlineDalas = dalaStatuses.filter((dala) => ["OFFLINE", "ERRO"].includes(dala.status)).length;
+  const unknownDalas = Math.max(0, totalDalas - onlineDalas - offlineDalas);
+  const dalaTone = totalDalas === 0 || unknownDalas > 0 || (onlineDalas > 0 && offlineDalas > 0)
+    ? "unknown"
+    : offlineDalas > 0
+      ? "offline"
+      : "online";
   const dalaLabel = totalDalas === 0
-    ? "Máquinas/Dalas não cadastradas"
+    ? "Dalas não cadastradas"
     : onlineDalas === totalDalas
-      ? "Máquinas/Dalas online"
-      : "Máquinas/Dalas offline";
+      ? "Dalas online"
+      : offlineDalas === totalDalas
+        ? "Dalas sem comunicação"
+        : onlineDalas > 0
+          ? "Dalas parcialmente online"
+          : "Dalas sem status";
   const mapping = saved.pdf_field_mapping || {};
   const searchField = saved.pdf_search_field || "barcode";
   const fields = [
@@ -53,7 +76,7 @@ ${canManageUsers ? `<section class="panel settings-access-panel"><div class="pan
 <div class="table-wrap settings-dalas-table-wrap"><table class="settings-dalas-table"><thead><tr><th>Nome da Dala</th><th>Identificador da Dala</th><th>IP do CLP</th><th>Porta do CLP</th><th>Status</th></tr></thead><tbody>${dalaRows}</tbody></table></div></section><br>
 <section class="panel pdf-import-panel"><div class="panel-heading pdf-import-heading"><div><h3>Importação de romaneios (PDF)</h3><p class="compact-help">Informe apenas os nomes dos campos que existem no PDF. <b class="required">*</b> Obrigatório.</p></div></div>
 <form id="pdf-settings-form"><div class="pdf-import-fields">
-${fields.map(([key, label, required]) => `<label>${label}${required ? ' <b class="required">*</b>' : ""}<input name="pdf_${key}" maxlength="80" value="${esc(mapping[key] || "")}" placeholder="Nome do campo no PDF" /></label>`).join("")}
+${fields.map(([key, label, required]) => `<label>${label}${required ? ' <b class="required">*</b>' : ""}<input name="pdf_${key}" value="${esc(mapping[key] || "")}" placeholder="Nome do campo no PDF" /></label>`).join("")}
 </div>
 <div class="pdf-import-footer"><label>Buscar produtos por <b class="required">*</b><select name="pdf_search_field"><option value="barcode"${searchField === "barcode" ? " selected" : ""}>Código de barras</option><option value="sku"${searchField === "sku" ? " selected" : ""}>SKU</option></select></label><div class="actions">${button("Salvar parâmetros", "save-pdf-settings")}</div></div></form></section>`;
 }

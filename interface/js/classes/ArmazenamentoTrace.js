@@ -1,4 +1,4 @@
-import { OfflineOperationBuffer } from "./OfflineOperationBuffer.js?v=202609251330";
+import { OfflineOperationBuffer } from "./OfflineOperationBuffer.js?v=202609160900";
 
 export class ArmazenamentoTrace {
   constructor() {
@@ -19,7 +19,6 @@ export class ArmazenamentoTrace {
       equipmentCode: "—",
       equipmentId: null,
       monitoring: null,
-      monitoringRefreshError: false,
       syncStatus: null,
       products: [],
       productsLoaded: false,
@@ -31,7 +30,6 @@ export class ArmazenamentoTrace {
       equipmentsLoaded: false,
       equipmentsLoading: false,
       equipmentsError: "",
-      selectedEquipmentId: null,
       dalaStatuses: [],
       companies: [],
       companyDetail: null,
@@ -304,16 +302,9 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async loadEquipment(id) {
-    const equipmentId = Number(id);
-    if (!Number.isInteger(equipmentId) || equipmentId <= 0)
-      throw new Error("Dala não encontrada.");
-    this.state.selectedEquipmentId = equipmentId;
-    const response = await fetch(
-      `/api/equipamentos.php?id=${encodeURIComponent(equipmentId)}`,
-    );
+    const response = await fetch(`/api/equipamentos.php?id=${id}`);
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Dala não encontrada.");
-    if (Number(this.state.selectedEquipmentId) !== equipmentId) return;
     this.state.equipmentDetail = result.data;
   }
   async checkEquipmentStatus(id) {
@@ -533,6 +524,7 @@ export class ArmazenamentoTrace {
       this.state.romaneio = "—";
       this.state.equipmentCode = "—";
       this.state.equipmentId = null;
+      this.state.plcCommand = null;
       this.state.loadingItems = [];
       return null;
     }
@@ -565,28 +557,18 @@ export class ArmazenamentoTrace {
     const device = this.clpDaDalaAtual();
     const seconds = Number(device?.segundos_sem_sinal);
     const time = Number.isFinite(seconds) ? ` há ${seconds} segundos` : "";
+    if (!device || device.status === "NAO_REGISTRADO") {
+      return "CLP sem status registrado. Novos comandos estão bloqueados até chegar um heartbeat válido.";
+    }
+    if (device.status === "ERRO") {
+      return "O gateway reportou erro na comunicação com o CLP. Novos comandos estão bloqueados.";
+    }
+    if (device.status === "DESCONHECIDO") {
+      return "O status do CLP está desconhecido. Novos comandos estão bloqueados até chegar um heartbeat válido.";
+    }
     return `CLP sem comunicação${time}. Novos comandos estão bloqueados; reconectando a cada 2 segundos.`;
   }
-  async changeLoadingState(target, loadingId = this.state.loadingId) {
-    if (!loadingId) throw new Error("Nenhum carregamento ativo encontrado.");
-    const response = await fetch("/api/estado_carregamento.php", {
-      method: "PATCH",
-      headers: this.jsonHeaders(),
-      body: JSON.stringify({ carregamento_id: loadingId, state: target }),
-    });
-    const result = await response.json();
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível alterar o estado.");
-    if (Number(loadingId) === Number(this.state.loadingId)) {
-      this.state.operationalState = result.data.state;
-      this.state.running = ["CARREGANDO", "FINALIZANDO"].includes(
-        result.data.state,
-      );
-      this.state.emergency = result.data.state === "EMERGENCIA";
-    }
-    return result.data;
-  }
-  async requestMachineReverse(loadingId, command = "REVERSAO_ATIVAR") {
+  async requestMachineCommand(loadingId, command) {
     if (!loadingId)
       throw new Error("Nenhum carregamento ativo para esta Dala.");
     const response = await fetch("/api/comando_maquina.php", {
@@ -594,39 +576,34 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify({ carregamento_id: loadingId, command }),
     });
-    const result = await response.json();
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível solicitar a reversão.");
-    this.state.plcCommand = {
-      id: result.data.command_request_id,
-      command: result.data.command,
-      status: "PENDENTE",
-      response_message: null,
-    };
-    return result.data;
-  }
-  async requestMachineEmergency(loadingId = this.state.loadingId) {
-    if (!loadingId)
-      throw new Error("Nenhum carregamento ativo para esta Dala.");
-    const response = await fetch("/api/comando_maquina.php", {
-      method: "POST",
-      headers: this.jsonHeaders(),
-      body: JSON.stringify({ carregamento_id: loadingId, command: "EMERGENCIA" }),
-    });
     const result = await response.json().catch(() => ({}));
     if (!response.ok)
-      throw new Error(result.error || "Não foi possível registrar a emergência.");
-    this.state.operationalState = "EMERGENCIA";
-    this.state.emergency = true;
-    this.state.running = false;
-    this.state.returnMode = false;
+      throw new Error(result.error || "Não foi possível enviar o comando ao gateway industrial.");
     this.state.plcCommand = {
       id: result.data.command_request_id,
       command: result.data.command,
       status: result.data.status || "PENDENTE",
-      response_message: null,
+      response_message: result.data.message || null,
     };
     return result.data;
+  }
+  async requestMachineOperation(command, loadingId = this.state.loadingId) {
+    if (!["INICIAR_CARREGAMENTO", "PAUSAR_CARREGAMENTO"].includes(command))
+      throw new Error("Comando operacional inválido.");
+    return this.requestMachineCommand(loadingId, command);
+  }
+  async requestMachineReverse(loadingId, command = "REVERSAO_ATIVAR") {
+    if (!["REVERSAO_ATIVAR", "REVERSAO_DESATIVAR"].includes(command))
+      throw new Error("Comando de reversão inválido.");
+    return this.requestMachineCommand(loadingId, command);
+  }
+  async requestMachineEmergency(loadingId = this.state.loadingId) {
+    const result = await this.requestMachineCommand(loadingId, "EMERGENCIA");
+    this.state.operationalState = "EMERGENCIA";
+    this.state.emergency = true;
+    this.state.running = false;
+    this.state.returnMode = false;
+    return result;
   }
   async loadPlcCommandStatus(loadingId = this.state.loadingId) {
     if (!loadingId) {
@@ -664,7 +641,6 @@ export class ArmazenamentoTrace {
       );
     }
     await this.loadActiveLoading();
-    this.state.plcCommand = result.data;
     return result.data;
   }
   async finishLoading(justification = "") {
@@ -735,16 +711,9 @@ export class ArmazenamentoTrace {
     await this.loadActiveLoading(this.state.loadingId);
     return result.data;
   }
-  async loadMonitoring({ requireSuccess = false } = {}) {
+  async loadMonitoring() {
     const response = await fetch("/api/monitoramento.php");
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      if (requireSuccess)
-        throw new Error(result.error || "Não foi possível carregar o monitoramento.");
-      return this.state.monitoring;
-    }
-    this.state.monitoring = result.data;
-    return result.data;
+    if (response.ok) this.state.monitoring = (await response.json()).data;
   }
   async loadSyncStatus() {
     const response = await fetch("/api/sync_status.php");
@@ -977,16 +946,14 @@ export class ArmazenamentoTrace {
     this.state.selectedCompanyId = Number(id);
   }
   async loadCompanyDetail() {
-    const companyId = Number(this.state.selectedCompanyId);
-    if (!Number.isInteger(companyId) || companyId <= 0)
+    if (!this.state.selectedCompanyId)
       throw new Error("Nenhuma empresa selecionada.");
     const response = await fetch(
-      `/api/empresas.php?company_id=${companyId}`,
+      `/api/empresas.php?company_id=${this.state.selectedCompanyId}`,
     );
     const result = await response.json();
     if (!response.ok)
       throw new Error(result.error || "Não foi possível carregar a empresa.");
-    if (Number(this.state.selectedCompanyId) !== companyId) return;
     this.state.companyDetail = result.data;
   }
   async saveConfiguration(data) {

@@ -1,14 +1,19 @@
 import { button, esc } from "../funcoes/html.js";
-import { numero, relativo } from "../funcoes/formato.js?v=202609251330";
+import { numero, relativo } from "../funcoes/formato.js?v=202609201000";
 import { rotuloEstado } from "../funcoes/rotulos.js";
-import { deviceBadge, pageHeader, physicalStateBadge } from "../funcoes/view.js?v=202609251330";
+import { deviceBadge, pageHeader, physicalStateBadge } from "../funcoes/view.js?v=202609280006";
 
 function dalaAlbumCard(equipment, machines, role) {
   const machine =
     machines.find((item) => Number(item.id) === Number(equipment.id)) || {};
   const status = machine.clp_status || "DESCONHECIDO";
+  const normalizedStatus = String(status).toUpperCase();
+  const statusClass = normalizedStatus === "ONLINE"
+    ? "online"
+    : ["OFFLINE", "ERRO"].includes(normalizedStatus)
+      ? "offline"
+      : "unknown";
   const lastSignal = relativo(machine.last_seen_at);
-  const loadingId = machine.carregamento_id || "";
   const state = String(machine.carregamento_state || "AGUARDANDO").toUpperCase();
   const planned = Number(machine.planned_quantity || 0);
   const loaded = Number(machine.valid_readings || 0);
@@ -27,12 +32,12 @@ function dalaAlbumCard(equipment, machines, role) {
       <div><small>Romaneio</small><strong>${machine.romaneio_number ? `#${esc(machine.romaneio_number)}` : "Sem romaneio"}</strong></div>
       <div><small>Caminhão</small><strong>${esc(machine.plate || "—")}</strong></div>
       <div><small>Estado</small><strong>${esc(rotuloEstado(state))}</strong></div>
-      <div><small>Estado físico</small><strong>${physicalStateBadge(machine)}</strong></div>
+      <div><small>Estado físico</small><strong>${physicalStateBadge(machine, { compact: true })}</strong></div>
       <div><small>Carregado</small><strong>${numero(loaded)} / ${numero(planned)}</strong></div>
     </div>
     <div class="album-progress"><div class="progress"><i style="width:${percentage}%"></i></div><small>${percentage}% do romaneio</small></div>
     <footer>
-      <span data-relative-time="${esc(machine.last_seen_at || "")}"><i class="status-dot ${String(status).toUpperCase() === "ONLINE" ? "online" : "offline"}"></i>${esc(lastSignal)}</span>
+      <span data-relative-time="${esc(machine.last_seen_at || "")}"><i class="status-dot ${statusClass}"></i>${esc(lastSignal)}</span>
       <div class="dashboard-card-links"><button class="button secondary small" data-action="view-dala" data-id="${equipment.id}" type="button">Visualizar Dala e estatísticas</button>${machine.romaneio_id ? `<button class="button secondary small" data-action="view-manifest" data-id="${machine.romaneio_id}" type="button">Romaneio</button>` : ""}</div>
     </footer>
   </article>`;
@@ -50,10 +55,11 @@ function dashboardEquipmentPriority(equipment, machines) {
   const machine = machines.find((item) => Number(item.id) === Number(equipment.id)) || {};
   const status = String(machine.clp_status || "").toUpperCase();
   const state = String(machine.carregamento_state || "").toUpperCase();
-  const offline = status && status !== "ONLINE";
+  const offline = ["OFFLINE", "ERRO"].includes(status);
+  const unknown = ["", "NAO_REGISTRADO", "DESCONHECIDO"].includes(status);
   const emergency = state.includes("EMERGEN") || machine.emergency === true;
   const active = Boolean(machine.carregamento_id);
-  return (offline ? 100 : 0) + (emergency ? 50 : 0) + (active ? 10 : 0);
+  return (offline ? 100 : unknown ? 50 : 0) + (emergency ? 50 : 0) + (active ? 10 : 0);
 }
 
 // Dashboard no padrão da referência TracePlatform: somente informações das Dalas.

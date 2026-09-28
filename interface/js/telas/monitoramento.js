@@ -1,7 +1,7 @@
 import { button, esc } from "../funcoes/html.js";
-import { dataHora, numero, relativo } from "../funcoes/formato.js?v=202609251330";
-import { emergencyPanel, pageHeader, physicalStateBadge, progress } from "../funcoes/view.js?v=202609251330";
-import { rotuloOcorrencia, rotuloStatusSincronizacao } from "../funcoes/rotulos.js";
+import { dataHora, numero, relativo } from "../funcoes/formato.js?v=202609201000";
+import { deviceBadge, emergencyPanel, pageHeader, physicalStateBadge, progress } from "../funcoes/view.js?v=202609280006";
+import { rotuloEstado, rotuloOcorrencia, rotuloStatusSincronizacao } from "../funcoes/rotulos.js";
 export function occurrences(store) {
   const recent = store.state.monitoring?.ocorrencias || [];
   return `${pageHeader("Acompanhamento / qualidade", "Ocorrências", "Registre desvios e paradas relacionadas à carga atual.")}<div class="grid two"><section class="panel"><h3>Ocorrência do lote</h3><form id="occurrence-form"><label>Tipo<select name="type"><option value="SACA_RASGADA">Saca rasgada</option><option value="SACA_AVARIADA">Saca avariada</option><option value="PARADA_MAQUINA">Parada de máquina</option><option value="LIMPEZA_LINHA">Limpeza de linha</option><option value="QUEDA_ENERGIA">Queda de energia</option><option value="AJUSTE_EQUIPAMENTO">Ajuste de equipamento</option><option value="FALHA_ELETRICA">Falha elétrica</option></select></label><label>Quantidade<input name="quantity" type="number" min="1" max="9999" step="1" value="1" /></label><label>Observação<textarea name="description" placeholder="Descreva o que aconteceu..."></textarea></label>${button("Salvar ocorrência", "save-occurrence")}</form></section><section class="panel"><h3>Registros recentes</h3><ul>${recent.length ? recent.map((item) => `<li>${esc(rotuloOcorrencia(item.type))} — ${numero(item.quantity)} unidade(s)<small>${esc(dataHora(item.created_at))} · ${esc(item.description || "Sem observação")}</small></li>`).join("") : "<li>Nenhuma ocorrência registrada.</li>"}</ul></section></div>`;
@@ -49,7 +49,7 @@ ${form}
       ? products
           .map(
             (product) => `<tr>
-\t<td data-label="Nome">${esc(product.name)}</td>
+\t<td data-label="Nome"><strong>${esc(product.name)}</strong></td>
 \t<td data-label="Código de barras">${esc(product.barcodes || "—")}</td>
 \t<td data-label="SKU">${esc(product.code || "—")}</td>
 \t<td data-label="Categoria">${esc(product.category || "—")}</td>
@@ -76,9 +76,6 @@ export function alerts(store) {
   };
   const summary = sync.summary || {};
   const centralSync = sync.central_sync || {};
-  const staleWarning = store.state.monitoringRefreshError
-    ? '<section class="panel" role="status"><strong>Atualização indisponível.</strong> Os dados de monitoramento podem estar desatualizados.</section><br>'
-    : "";
   const centralMessage = centralSync.last_error
     ? `Falha: ${centralSync.last_error}`
     : centralSync.central_url_configured && !centralSync.installation_registered
@@ -88,7 +85,6 @@ export function alerts(store) {
       : centralSync.configured
         ? "Sincronização central configurada, aguardando primeira execução."
         : "Instalação sem sincronização central configurada.";
-  const canRetrySync = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(store.state.userRole);
   const syncRows = sync.recent?.length
     ? sync.recent
         .map((item) => {
@@ -100,16 +96,13 @@ export function alerts(store) {
           }[String(item.aggregate_type || "").toUpperCase()] || "Registro operacional";
           const status = rotuloStatusSincronizacao(item.status);
           const detail = item.status === "ERRO" ? "Falha no envio; tente novamente." : "Aguardando processamento seguro.";
-          const retry = canRetrySync
-            ? button("Tentar novamente", "retry-sync", "secondary small", `data-id="${item.id}"${sync.remote_configured ? "" : " disabled"}`)
-            : "—";
-          return `<tr><td data-label="Registro"><strong>${esc(kind)}</strong><small>Registro #${esc(item.aggregate_id || item.id)}</small></td><td data-label="Situação">${esc(status)}<small>${detail}</small></td><td data-label="Próxima verificação">${esc(dataHora(item.available_at, "agora"))}</td><td data-label="Ação">${retry}</td></tr>`;
+          return `<tr><td data-label="Registro"><strong>${esc(kind)}</strong><small>Registro #${esc(item.aggregate_id || item.id)}</small></td><td data-label="Situação">${esc(status)}<small>${detail}</small></td><td data-label="Próxima verificação">${esc(dataHora(item.available_at, "agora"))}</td><td data-label="Ação"><button class="button secondary small" data-action="retry-sync" data-id="${item.id}" type="button" ${sync.remote_configured ? "" : "disabled"}>Tentar novamente</button></td></tr>`;
         })
         .join("")
     : '<tr><td colspan="4" class="empty-cell">Nenhum envio aguardando processamento.</td></tr>';
-  return `${pageHeader("Acompanhamento / máquina", "Alertas e sincronização", "Avisos dos periféricos e acompanhamento seguro da fila local-first.")}${staleWarning}
+  return `${pageHeader("Acompanhamento / máquina", "Alertas e sincronização", "Avisos dos periféricos e acompanhamento seguro da fila local-first.")}
   <section class="panel"><ul><li>Leituras válidas registradas: ${numero(data.leituras.VALIDO)}</li><li>Produtos incorretos: ${numero(data.leituras.PRODUTO_INCORRETO)}</li>${devices.map((device) => `<li>${esc(device.equipment_code)} · ${esc(device.device_type)}: <strong>${esc(device.status)}</strong><small>Último sinal: <span data-relative-time="${esc(device.last_seen_at || "")}">${esc(relativo(device.last_seen_at))}</span>${device.segundos_sem_sinal === null ? "" : ` · sem sinal há ${esc(device.segundos_sem_sinal)} s`}</small></li>`).join("")}</ul></section><br>
-  <section class="panel"><div class="panel-heading"><div><h3>Estado das Dalas</h3><p>O estado físico só aparece como confirmado quando o CLP enviar esse retorno.</p></div></div><div class="table-wrap"><table class="mobile-card-table"><thead><tr><th>Dala</th><th>Comunicação</th><th>Estado da operação</th><th>Estado físico</th></tr></thead><tbody>${machines.length ? machines.map((machine) => `<tr><td data-label="Dala"><strong>${esc(machine.name)}</strong><small>${esc(machine.equipment_code)}</small></td><td data-label="Comunicação">${esc(machine.clp_status || "DESCONHECIDO")}</td><td data-label="Estado da operação">${esc(machine.carregamento_state || "OCIOSA")}</td><td data-label="Estado físico">${physicalStateBadge(machine)}</td></tr>`).join("") : '<tr><td colspan="4" class="empty-cell">Nenhuma Dala cadastrada.</td></tr>'}</tbody></table></div></section><br>
+  <section class="panel"><div class="panel-heading"><div><h3>Estado das Dalas</h3><p>O estado físico só aparece como confirmado quando o CLP enviar esse retorno.</p></div></div><div class="table-wrap"><table class="mobile-card-table"><thead><tr><th>Dala</th><th>Comunicação</th><th>Estado da operação</th><th>Estado físico</th></tr></thead><tbody>${machines.length ? machines.map((machine) => `<tr><td data-label="Dala"><strong>${esc(machine.name)}</strong><small>${esc(machine.equipment_code)}</small></td><td data-label="Comunicação">${deviceBadge(machine.clp_status)}</td><td data-label="Estado da operação">${esc(rotuloEstado(machine.carregamento_state, "Ociosa"))}</td><td data-label="Estado físico">${physicalStateBadge(machine)}</td></tr>`).join("") : '<tr><td colspan="4" class="empty-cell">Nenhuma Dala cadastrada.</td></tr>'}</tbody></table></div></section><br>
   <section class="panel"><div class="panel-heading"><div><h3>Fila de sincronização</h3><p>${sync.remote_configured ? "Endpoint remoto configurado." : "Modo local: configure o endpoint remoto para enviar os eventos."}</p><p>${esc(centralMessage)}</p></div><span class="badge ${sync.remote_configured ? "green" : "yellow"}">${sync.remote_configured ? "Remota disponível" : "Somente local"}</span></div><div class="grid four"><div class="metric"><small>Pendentes</small><strong>${numero(summary.PENDENTE)}</strong></div><div class="metric"><small>Com erro</small><strong class="${summary.ERRO ? "metric-red" : "metric-green"}">${numero(summary.ERRO)}</strong></div><div class="metric"><small>Processando</small><strong>${numero(summary.PROCESSANDO)}</strong></div><div class="metric"><small>Enviados</small><strong class="metric-green">${numero(summary.ENVIADO)}</strong></div></div></section><br>
   <section class="panel table-wrap"><h3>Envios pendentes</h3><p>Os registros ficam na fila local até a conexão com o servidor estar disponível.</p><table class="mobile-card-table monitoring-table"><thead><tr><th>Registro</th><th>Situação</th><th>Próxima verificação</th><th>Ação</th></tr></thead><tbody>${syncRows}</tbody></table></section>`;
 }

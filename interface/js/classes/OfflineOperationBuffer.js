@@ -1,4 +1,4 @@
-import { agora } from "../funcoes/relogio.js?v=202609251330";
+import { agora } from "../funcoes/relogio.js?v=202609170015";
 
 /**
  * Fila pequena e idempotente para gravações operacionais feitas sem rede.

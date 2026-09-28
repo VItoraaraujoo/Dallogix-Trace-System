@@ -1,14 +1,13 @@
 import { button, esc } from "../funcoes/html.js";
-import { data, numero } from "../funcoes/formato.js?v=202609251330";
-import { agora } from "../funcoes/relogio.js?v=202609251330";
-import { rotuloEstado, rotuloStatusComando } from "../funcoes/rotulos.js";
+import { data, numero } from "../funcoes/formato.js?v=202609201000";
+import { agora } from "../funcoes/relogio.js?v=202609170015";
+import { rotuloComando, rotuloEstado, rotuloStatusComando, rotuloStatusRomaneio } from "../funcoes/rotulos.js?v=202609240001";
 import {
   pageHeader,
   manifestsTable,
   emergencyPanel,
-  progress,
   statuses,
-} from "../funcoes/view.js?v=202609251330";
+} from "../funcoes/view.js?v=202609280006";
 
 const STATUS_OPTIONS = [
   ["", "Todos os status"],
@@ -55,27 +54,48 @@ export function manifestView(store) {
   if (!manifest)
     return `${pageHeader("Operação / romaneios", "Romaneio", "Carregando…")}`;
   const items = manifest.items || [];
-  const canPrepare =
-    ["ADMIN_EMPRESA", "SUPERVISOR"].includes(store.state.userRole) &&
-    !["FINALIZADO", "CANCELADO"].includes(manifest.status);
+  const status = String(manifest.status || "").toUpperCase();
+  const activeLoadingId = Number(manifest.active_loading_id) || null;
+  const canManage = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(store.state.userRole);
+  const canPrepare = canManage && !activeLoadingId && ["IMPORTADO", "AGUARDANDO"].includes(status);
+  const canAccessLoading = Boolean(activeLoadingId) && !["FINALIZADO", "CANCELADO"].includes(status);
+  const statusTone = {
+    IMPORTADO: "blue",
+    AGUARDANDO: "yellow",
+    EM_ANDAMENTO: "blue",
+    FINALIZADO: "green",
+    CANCELADO: "red",
+  }[status] || "yellow";
   const auditReport =
-    ["FINALIZADO", "CANCELADO"].includes(manifest.status)
+    ["FINALIZADO", "CANCELADO"].includes(status)
       ? `<button class="button secondary" data-action="download-audit-report" data-id="${Number(manifest.id)}" type="button">Baixar relatório de auditoria (PDF)</button>`
       : "";
-  const canCancel = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(store.state.userRole) && ["IMPORTADO", "AGUARDANDO"].includes(manifest.status);
-  const canCancelInProgress = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(store.state.userRole) && manifest.status === "EM_ANDAMENTO" && manifest.active_loading_id;
-  return `<div class="title-row with-actions has-back"><button class="button secondary page-back" data-action="goto-manifests" type="button">← Voltar</button><div><h2>Romaneio ${esc(manifest.number)}</h2></div><div class="actions">${auditReport}${canPrepare ? `<button class="button primary" data-action="prepare-manifest" data-id="${manifest.id}" type="button">Preparar carregamento</button>` : ""}${canCancelInProgress ? `<button class="button danger" data-action="cancel-manifest-progress" data-id="${manifest.id}" type="button">Cancelar operação</button>` : ""}</div></div>
-<div class="grid two detail-cards">
-<div class="panel detail-card"><small>Data do carregamento</small><strong>${data(manifest.scheduled_date)}</strong></div>
-<div class="panel detail-card"><small>Expedidor</small><strong>${esc(manifest.expedidor || "—")}</strong></div>
-<div class="panel detail-card"><small>Placa do caminhão</small><strong>${esc(manifest.plate || "—")}</strong></div>
-<div class="panel detail-card"><small>Motorista</small><strong>${esc(manifest.driver_name || "—")}</strong></div>
-<div class="panel detail-card"><small>Programado</small><strong>${numero(manifest.planned_quantity)}</strong></div>
-<div class="panel detail-card"><small>Carregado</small><strong>${numero(manifest.loaded_quantity)}</strong></div>
-</div><br>
-<section class="panel"><h3>Itens do Romaneio</h3><div class="table-wrap"><table class="mobile-card-table"><thead><tr><th>Produto</th><th>Código</th><th>Quantidade</th></tr></thead><tbody>
+  const canCancel = canManage && ["IMPORTADO", "AGUARDANDO"].includes(status);
+  const canCancelInProgress = canManage && status === "EM_ANDAMENTO" && activeLoadingId;
+  const prepareAction = canPrepare
+    ? `<button class="button primary" data-action="prepare-manifest" data-id="${Number(manifest.id)}" type="button">Preparar carregamento</button>`
+    : "";
+  const accessAction = canAccessLoading
+    ? `<button class="button primary" data-action="resume-loading" data-loading-id="${activeLoadingId}" type="button">Acessar operação</button>`
+    : "";
+  const cancelLoadingAction = canCancelInProgress
+    ? `<button class="button danger" data-action="cancel-manifest-progress" data-id="${Number(manifest.id)}" type="button">Cancelar operação</button>`
+    : "";
+  const returnButton = `<button class="button secondary" data-action="goto-manifests" type="button">← Voltar</button>`;
+  const quantitySummary = `<div class="manifest-detail-quantity"><span><small>Programado</small><strong>${numero(manifest.planned_quantity)}</strong></span><span><small>Carregado</small><strong>${numero(manifest.loaded_quantity)}</strong></span></div>`;
+  return `<div class="manifest-detail-screen">
+<header class="manifest-detail-header"><h2>Romaneio ${esc(manifest.number)}</h2><div class="manifest-detail-actions">${auditReport}${prepareAction}${accessAction}${cancelLoadingAction}${returnButton}</div></header>
+<div class="manifest-detail-grid">
+<article class="manifest-detail-card"><small>Data do carregamento</small><strong>${data(manifest.scheduled_date)}</strong></article>
+<article class="manifest-detail-card"><small>Expedidor</small><strong>${esc(manifest.expedidor || "—")}</strong></article>
+<article class="manifest-detail-card"><small>Status</small><strong><span class="badge ${statusTone}">${esc(rotuloStatusRomaneio(status))}</span></strong></article>
+<article class="manifest-detail-card"><small>Motorista</small><strong>${esc(manifest.driver_name || "—")}</strong></article>
+<article class="manifest-detail-card"><small>Placa</small><strong>${esc(manifest.plate || "—")}</strong></article>
+<article class="manifest-detail-card manifest-detail-quantity-card"><small>Carregamento</small>${quantitySummary}</article>
+</div>
+<section class="panel manifest-items-panel"><h3>Itens do Romaneio</h3><div class="table-wrap"><table class="mobile-card-table manifest-items-table"><thead><tr><th>Produto</th><th>Código de Barras</th><th>Qtd. Prevista</th></tr></thead><tbody>
 ${items.length ? items.map((item) => `<tr><td data-label="Produto"><strong>${esc(item.name)}</strong></td><td data-label="Código"><code>${esc(item.code || "—")}</code></td><td data-label="Quantidade">${numero(item.planned_quantity)}</td></tr>`).join("") : '<tr><td colspan="3" class="empty-cell">Nenhum item cadastrado.</td></tr>'}
-</tbody></table></div></section>${canCancel ? `<section class="panel"><div class="actions"><div><strong>Cancelamento do romaneio</strong><p>Use somente se o carregamento ainda não tiver começado.</p></div>${button("Cancelar romaneio", "cancel-manifest", "danger")}</div></section>` : ""}`;
+</tbody></table></div></section>${canCancel ? `<section class="panel manifest-cancel-panel"><div><strong>Cancelamento do romaneio</strong><p>Use somente se o carregamento ainda não tiver começado.</p></div>${button("Cancelar romaneio", "cancel-manifest", "danger")}</section>` : ""}</div>`;
 }
 
 const itemRow = (products, selectedId = "", quantity = 1) => `<tr class="manifest-item">
@@ -198,11 +218,36 @@ function loadingSelection(store) {
     .join("");
   return `${pageHeader("Operação", "Selecionar Dala", "Escolha a Dala que será acompanhada e controlada nesta tela.")}<section class="dala-selection-screen"><div class="dala-selection-heading"><span class="kicker">Operações disponíveis</span><h3>Qual Dala você deseja operar?</h3><p>Cada seleção mantém contagem, comandos e emergência separados.</p></div>${detached ? `<div class="detached-loading-list">${detached}</div>` : ""}<div class="dala-selection-grid">${cards || (detached ? "" : '<p class="empty-cell">Nenhum carregamento disponível.</p>')}</div></section>`;
 }
+function commandFeedback(command) {
+  if (!command) return "";
+  const status = String(command.status || "").toUpperCase();
+  const tone = ["ERRO", "REJEITADO", "EXPIRADO"].includes(status)
+    ? "red"
+    : status === "APLICADO"
+      ? "blue"
+      : "yellow";
+  const fallback = {
+    PENDENTE: "Comando registrado; aguardando o gateway do PC industrial.",
+    PROCESSANDO: "O gateway reservou o comando e está aguardando o resultado do CLP.",
+    APLICADO: "O gateway reportou o comando como aplicado. Este retorno não confirma sozinho o estado físico da máquina.",
+    REJEITADO: "O gateway rejeitou o comando. Não considere a máquina ligada ou parada com base apenas nesta solicitação.",
+    ERRO: "O gateway não conseguiu concluir o comando.",
+    EXPIRADO: "O gateway não confirmou o comando dentro do prazo.",
+  };
+  const detail = command.response_message || fallback[status] || "Aguardando retorno do gateway industrial.";
+  return `<aside class="work-command-feedback" role="status" aria-live="polite"><div class="work-command-feedback-heading"><div><span class="kicker">Última comunicação</span><strong>${esc(rotuloComando(command.command))}</strong></div><span class="badge ${tone}">${esc(rotuloStatusComando(status))}</span></div><p>${esc(detail)}</p>${status === "APLICADO" ? '<small>O estado real deve ser confirmado pelos sinais de retorno aprovados do CLP; esse mapa ainda não está disponível.</small>' : ""}</aside>`;
+}
+
 function workControls(store) {
-  const left = Math.max(0, store.state.planned - store.state.loaded);
   const loadingItems = Array.isArray(store.state.loadingItems)
     ? store.state.loadingItems
     : [];
+  const loadedTotal = Number(store.state.loaded) || 0;
+  const plannedTotal = Number(store.state.planned) || 0;
+  const remainingTotal = Math.max(0, plannedTotal - loadedTotal);
+  const totalPercent = plannedTotal > 0
+    ? Math.min(100, Math.round((loadedTotal / plannedTotal) * 100))
+    : 0;
   const canUnlock = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(
     store.state.userRole,
   );
@@ -210,27 +255,35 @@ function workControls(store) {
     store.state.userRole,
   );
   const clpDisponivel = store.clpDisponivel();
-  const bloqueioComando = clpDisponivel && store.state.loadingId
-    ? ""
-    : `disabled aria-disabled="true" title="${store.state.loadingId ? "CLP sem comunicação" : "Nenhum carregamento selecionado"}"`;
+  const state = store.state.operationalState;
+  const pendingCommand = ["PENDENTE", "PROCESSANDO"].includes(
+    String(store.state.plcCommand?.status || "").toUpperCase(),
+  );
+  const bloqueioComando = (allowedStates, stateMessage) => {
+    const reason = !store.state.loadingId
+      ? "Nenhum carregamento selecionado"
+      : !clpDisponivel
+        ? store.mensagemClpIndisponivel()
+        : pendingCommand
+          ? "Aguarde o retorno do comando atual"
+          : !allowedStates.includes(state)
+            ? stateMessage
+            : "";
+    return reason ? `disabled aria-disabled="true" title="${reason}"` : "";
+  };
   const bloqueioEmergencia = store.state.loadingId
     ? ""
     : `disabled aria-disabled="true" title="Nenhum carregamento selecionado"`;
-  const loadingPicker = `<div class="work-back-row"><button class="button secondary" data-action="goto-manifests" type="button">← Voltar</button></div>`;
+  const loadingPicker = `<button class="button secondary small work-back-button" data-action="goto-manifests" type="button">← Romaneios</button>`;
   const pendingReadings = store.state.pendingReadings || [];
   const manualIdentification = pendingReadings.length
     ? `<section class="panel alert-box"><h3>Leituras sem código</h3><p>Identifique manualmente cada saca após conferência física.</p>${pendingReadings.map((reading) => `<form class="manual-reading-form" data-reading-id="${reading.id}"><label>Leitura #${reading.id}<input name="barcode" required maxlength="80" /></label>${button("Identificar leitura", "identify-reading", "secondary")}</form>`).join("")}</section>`
     : "";
   const command = store.state.plcCommand;
-  const reverseActive = store.state.plcCommand?.command === "REVERSAO_ATIVAR" &&
-    !["ERRO", "REJEITADO", "EXPIRADO"].includes(store.state.plcCommand?.status);
-  const reverse = canReverse
-    ? button(reverseActive ? "Desativar reversão" : "Ativar reversão", "reverse-toggle", reverseActive ? "warning" : "secondary", bloqueioComando)
-    : "";
   const finalized = store.state.operationalState === "FINALIZADO";
   const controls = finalized
     ? ""
-    : `<div class="work-controls"><div class="work-routine-controls">${button("Iniciar", "run", "primary", bloqueioComando)}${button("Parar", "stop", "ghost", bloqueioComando)}${reverse}</div><div class="work-emergency-zone">${button("Emergência", "emergency", "danger", bloqueioEmergencia)}</div></div>`;
+    : `<div class="work-controls"><div class="work-routine-controls">${button("Iniciar", "run", "primary", bloqueioComando(["PREPARANDO", "PAUSADO"], "Só é possível iniciar em preparação ou com a máquina pausada."))}${button("Parar", "stop", "ghost", bloqueioComando(["PREPARANDO", "CARREGANDO"], "A máquina não está em um estado que permita solicitar parada."))}${canReverse ? button("Ligar reversão", "reverse-on", "secondary", bloqueioComando(["PAUSADO"], "Pause a máquina antes de pedir a reversão.")) : ""}${canReverse ? button("Desligar reversão", "reverse-off", "secondary", bloqueioComando(["PAUSADO"], "Pause a máquina antes de desligar a reversão.")) : ""}</div><div class="work-emergency-zone">${button("Solicitar emergência", "emergency", "danger", bloqueioEmergencia)}<small>O pedido no sistema não substitui o botão físico nem o circuito de segurança.</small></div></div>`;
   const summaryReady = ["FINALIZANDO", "FINALIZADO"].includes(
     store.state.operationalState,
   );
@@ -239,32 +292,32 @@ function workControls(store) {
     : "";
   const badge =
     store.state.operationalState === "EMERGENCIA"
-      ? '<span class="badge red">Emergência ativa</span>'
+      ? '<span class="badge red">Emergência solicitada · operação bloqueada</span>'
       : `<span class="badge yellow">${esc(rotuloEstado(store.state.operationalState))}</span>`;
-  const commandPanel =
-    canReverse && command
-      ? `<li>Reversão <small>${esc(rotuloStatusComando(command.status))}${command.response_message ? ` • ${esc(command.response_message)}` : ""}</small></li>`
-      : "";
   const activeEmergencyPanel = emergencyPanel({
     canUnlock,
-    buttonAttributes: bloqueioComando,
+    buttonAttributes: bloqueioComando(["EMERGENCIA"], "Aguarde a confirmação do CLP antes de solicitar liberação."),
     commandStatus: store.state.plcCommand,
     compact: true,
   });
   const avisoClp = clpDisponivel
     ? ""
     : `<div class="alert-box" role="alert"><strong>Comandos bloqueados.</strong> ${esc(store.mensagemClpIndisponivel())}</div>`;
-  const itemBreakdown = `<section class="panel work-items-panel"><div class="panel-heading"><div><span class="kicker">Conferência do romaneio</span><h3>Itens carregados por produto</h3></div><small>${numero(loadingItems.length)} produto(s)</small></div><div class="table-wrap"><table class="mobile-card-table"><thead><tr><th>Produto</th><th>Código</th><th>Carregado</th><th>Planejado</th><th>Faltam</th><th>Situação</th></tr></thead><tbody>${loadingItems.length ? loadingItems.map((item) => {
+  const itemProgress = `<section class="panel work-items-panel"><div class="panel-heading"><div><span class="kicker">Acompanhamento do caminhão</span><h3>Progresso por produto</h3></div><div class="work-items-summary"><small>${numero(loadingItems.length)} produto(s) · <strong data-live="loaded">${numero(loadedTotal)}</strong> / <strong data-live="planned">${numero(plannedTotal)}</strong> sacas · faltam <strong data-live="remaining">${numero(remainingTotal)}</strong></small></div></div><div class="work-item-progress-list">${loadingItems.length ? loadingItems.map((item) => {
     const loaded = Number(item.loaded_quantity) || 0;
     const planned = Number(item.planned_quantity) || 0;
     const remaining = Math.max(0, Number(item.remaining_quantity) || planned - loaded);
+    const percent = planned > 0 ? Math.min(100, Math.round((loaded / planned) * 100)) : 0;
     const status = loaded >= planned ? ["Concluído", "green"] : loaded > 0 ? ["Em andamento", "blue"] : ["Pendente", "yellow"];
-    return `<tr><td data-label="Produto"><strong>${esc(item.name || "Produto")}</strong></td><td data-label="Código"><code>${esc(item.code || "—")}</code></td><td data-label="Carregado">${numero(loaded)}</td><td data-label="Planejado">${numero(planned)}</td><td data-label="Faltam"><strong>${numero(remaining)}</strong></td><td data-label="Situação"><span class="badge ${status[1]}">${status[0]}</span></td></tr>`;
-  }).join("") : '<tr><td colspan="6" class="empty-cell">Nenhum item detalhado para este carregamento.</td></tr>'}</tbody></table></div></section>`;
+    return `<article class="work-item-progress-card"><div class="work-item-progress-heading"><div class="work-item-identity"><strong>${esc(item.name || "Produto")}</strong><code>${esc(item.code || "—")}</code></div><span class="badge ${status[1]}">${status[0]}</span></div><div class="work-item-progress-values"><strong>${numero(loaded)} <span>/ ${numero(planned)}</span></strong><span>${percent}%</span></div><div class="work-item-progress-track" role="progressbar" aria-label="Progresso de ${esc(item.name || "produto")}" aria-valuemin="0" aria-valuemax="${planned}" aria-valuenow="${Math.min(loaded, planned)}"><i style="width:${percent}%"></i></div><div class="work-item-progress-foot"><span>Carregado</span><span>Faltam <strong>${numero(remaining)}</strong></span></div></article>`;
+  }).join("") : '<p class="empty-cell">Nenhum item detalhado para este carregamento.</p>'}</div></section>`;
   const workTitle = store.state.romaneio && store.state.romaneio !== "—"
-    ? `Romaneio #${esc(store.state.romaneio)} · ${equipmentLabel(store)}`
+    ? `Romaneio #${store.state.romaneio} · ${equipmentLabel(store)}`
     : "Operação";
-  return `${pageHeader(`Operação / ${equipmentLabel(store)}`, workTitle, `Caminhão ${esc(store.state.truck)}.`, badge)}${loadingPicker}${statuses(store)}${avisoClp}${manualIdentification}${store.state.emergency ? activeEmergencyPanel : `<div class="grid two"><section class="panel"><span class="kicker">Produto atual</span><h3>Contagem do romaneio</h3><p>Leituras vinculadas ao carregamento atual</p><div class="grid three"><div class="metric"><small>Programado</small><strong data-live="planned">${numero(store.state.planned)}</strong></div><div class="metric work-critical-metric"><small>Carregado</small><strong data-live="loaded">${numero(store.state.loaded)}</strong></div><div class="metric work-critical-metric"><small>Faltam</small><strong data-live="remaining">${numero(left)}</strong></div></div>${progress(store)}${left <= 5 && left > 0 ? '<div class="alert-box">Faltam 5 sacas ou menos. Reduza o envio.</div>' : ""}<div class="actions">${controls}</div></section><aside class="panel"><h3>Estado atual</h3><ul><li>Estado <small data-live="operational-state">${esc(rotuloEstado(store.state.operationalState))}</small></li>${commandPanel}<li>Leituras válidas <small data-live="loaded-secondary">${numero(store.state.loaded)}</small></li><li>Carregamento #${esc(store.state.loadingId || "—")}</li></ul>${summaryAction ? `<div class="actions work-summary-action">${summaryAction}</div>` : ""}</aside></div>`}${itemBreakdown}`;
+  const totalSummary = `<section class="work-live-summary" aria-label="Resumo do carregamento"><div class="work-live-summary-heading"><strong>Progresso do caminhão</strong><span data-live="progress-percent">${totalPercent}% concluído</span></div><div class="progress work-live-progress"><i data-live="progress-bar" style="width:${totalPercent}%"></i></div><div class="work-total-metrics"><div><small>Programado</small><strong data-live="planned">${numero(plannedTotal)}</strong></div><div><small>Carregado</small><strong data-live="loaded">${numero(loadedTotal)}</strong></div><div><small>Faltam</small><strong data-live="remaining">${numero(remainingTotal)}</strong></div></div><div class="work-machine-state-inline"><div><small>Estado da operação</small><strong data-live="operational-state">${esc(rotuloEstado(store.state.operationalState))}</strong></div><div><small>Leituras válidas</small><strong data-live="loaded-secondary">${numero(loadedTotal)}</strong></div><div><small>Carregamento</small><strong>#${esc(store.state.loadingId || "—")}</strong></div></div>${remainingTotal <= 5 && remainingTotal > 0 ? '<p class="work-low-remaining">Faltam 5 sacas ou menos. Reduza o envio.</p>' : ""}</section>`;
+  const machinePanel = `<section class="panel work-machine-panel"><div class="panel-heading"><div><span class="kicker">Ações da máquina</span><h3>Operar máquina</h3></div></div>${store.state.emergency ? activeEmergencyPanel : `<div class="work-machine-controls">${controls}</div>${commandFeedback(command)}`}${totalSummary}</section>`;
+  const workHeader = `<header class="work-screen-header"><div class="work-screen-heading"><span class="kicker">Operação · ${esc(equipmentLabel(store))}</span><h2>${esc(workTitle)}</h2><p>Caminhão ${esc(store.state.truck)}.</p></div><div class="work-screen-actions">${badge}${summaryAction}${loadingPicker}</div></header>`;
+  return `<div class="work-operation-screen">${workHeader}<div class="work-device-status" aria-label="Status dos dispositivos">${statuses(store)}</div>${avisoClp}${manualIdentification}<div class="work-operation-layout">${machinePanel}${itemProgress}</div></div>`;
 }
 export function work(store) {
   if (

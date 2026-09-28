@@ -24,11 +24,13 @@ const EVENTOS = {
 
 const STATUS_COMANDO = {
   PENDENTE: "Pendente",
-  PROCESSANDO: "Processando",
+  PROCESSANDO: "Em processamento no gateway",
+  APLICADO: "Aplicado pelo gateway",
+  REJEITADO: "Rejeitado pelo gateway",
   CONCLUIDO: "Concluído",
   SUCESSO: "Concluído",
   ERRO: "Erro",
-  EXPIRADO: "Expirado",
+  EXPIRADO: "Tempo de resposta esgotado",
   CANCELADO: "Cancelado",
 };
 

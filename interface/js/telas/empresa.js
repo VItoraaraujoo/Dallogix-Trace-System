@@ -1,6 +1,6 @@
 import { button, esc } from "../funcoes/html.js";
-import { dataHora } from "../funcoes/formato.js?v=202609251330";
-import { pageHeader, machineGrid, deviceBadge } from "../funcoes/view.js?v=202609251330";
+import { dataHora } from "../funcoes/formato.js?v=202609170930";
+import { pageHeader, machineGrid, deviceBadge } from "../funcoes/view.js?v=202609280006";
 
 export function company(store) {
   const detail = store.state.companyDetail;
@@ -12,7 +12,7 @@ export function company(store) {
   const online = machines.filter(
     (machine) => String(machine.clp_status || "").toUpperCase() === "ONLINE",
   ).length;
-  const offline = total - online;
+  const notOnline = total - online;
   const occurrences = detail.ocorrencias_recentes || [];
   const romaneios = detail.romaneios || {};
   const openRomaneios =
@@ -32,8 +32,8 @@ export function company(store) {
   const activationCodeContent = !licenseActive
     ? "<p>Ative a licença da empresa para liberar o código de ativação do PC industrial.</p>"
     : visibleActivationCode
-    ? `<strong class="company-activation-code">${esc(visibleActivationCode)}</strong><small>Uso único; expira em 7 dias. Informe-o no PC industrial.</small>`
-    : `<p>${detail.activation_code_preview ? `Código disponível (final ${esc(detail.activation_code_preview)}), válido por 7 dias.` : detail.activation_code_used_at ? "O código anterior já foi utilizado. Gere outro somente se precisar ativar uma instalação." : "Não há código ativo. Gere um para ativar o PC industrial."}</p>`;
+    ? `<strong class="company-activation-code">${esc(visibleActivationCode)}</strong><small>Guarde este código para ativar o PC industrial.</small>`
+    : `<p>${detail.activation_code_preview ? `Código permanente já emitido (final ${esc(detail.activation_code_preview)}).` : "O código ainda não foi gerado para esta empresa."}</p>`;
   const activationActions = licenseActive
     ? `<button class="button primary" data-action="generate-company-activation" data-id="${detail.id}" type="button">${activationButtonLabel}</button>${visibleActivationCode ? `<button class="button secondary" data-action="copy-company-activation" data-code="${esc(visibleActivationCode)}" type="button">Copiar código</button>` : ""}`
     : "";
@@ -44,7 +44,7 @@ export function company(store) {
     <div class="grid four dashboard-metrics">
       <div class="panel metric"><small>Máquinas</small><strong>${total}</strong></div>
       <div class="panel metric"><small>Online</small><strong class="metric-green">${online}</strong></div>
-      <div class="panel metric"><small>Sem sinal</small><strong class="${offline > 0 ? "metric-red" : ""}">${offline}</strong></div>
+      <div class="panel metric"><small>Não online</small><strong class="${notOnline > 0 ? "metric-red" : ""}">${notOnline}</strong></div>
       <div class="panel metric"><small>Romaneios abertos</small><strong>${openRomaneios}</strong></div>
     </div><br>
     ${machineGrid(machines, "Nenhuma máquina cadastrada para esta empresa.")}<br>

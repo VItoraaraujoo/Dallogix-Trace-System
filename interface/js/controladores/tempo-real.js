@@ -31,9 +31,16 @@ export function createOperationalRealtimeController({ store, getPage, render, re
   };
   const start = () => {
     if (eventSource || fallbackTimer || getPage() !== "work") return;
-    const consume = (payload) => {
+    const consume = async (payload) => {
       store.state.monitoring = payload?.monitoring || store.state.monitoring;
       store.applyActiveLoadingSnapshot(payload?.active_loadings || [], store.state.selectedLoadingId);
+      if (store.state.loadingId) {
+        try {
+          await store.loadPlcCommandStatus(store.state.loadingId);
+        } catch (_) {
+          /* Mantém o último retorno visível se a consulta falhar. */
+        }
+      }
       if (workStructureSignature() !== getViewSignature()) render();
       else refreshWorkLiveView();
     };

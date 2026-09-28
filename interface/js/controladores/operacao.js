@@ -7,6 +7,11 @@ export function linhaItemRomaneio(store, selectedId = "", quantity = 1) {
 
 export async function atualizarStatusDasDalas(store) {
   const cells = document.querySelectorAll(".dala-status[data-equipment-id]");
+  const statusTone = (value) => {
+    if (value === "ONLINE") return "online";
+    if (value === "OFFLINE" || value === "ERRO") return "offline";
+    return "unknown";
+  };
   try {
     const statuses = await store.loadDalaStatuses();
     const byEquipmentId = new Map(
@@ -14,12 +19,12 @@ export async function atualizarStatusDasDalas(store) {
     );
     cells.forEach((cell) => {
       const status = byEquipmentId.get(String(cell.dataset.equipmentId));
-      const tone = status?.status === "ONLINE" ? "online" : "offline";
+      const tone = statusTone(status?.status);
       cell.innerHTML = `<span class="status-dot ${tone}"></span>${esc(status?.message || "Status indisponível.")}`;
     });
   } catch (error) {
     cells.forEach((cell) => {
-      cell.innerHTML = `<span class="status-dot offline"></span>${esc(error.message)}`;
+      cell.innerHTML = `<span class="status-dot unknown"></span>${esc(error.message)}`;
     });
   }
   const viewStatus = document.querySelector("#dala-view-status[data-equipment-id]");
@@ -28,6 +33,6 @@ export async function atualizarStatusDasDalas(store) {
     (item) => String(item.equipment_id) === String(viewStatus.dataset.equipmentId),
   );
   if (status) {
-    viewStatus.innerHTML = `<span class="status-dot ${status.status === "ONLINE" ? "online" : "offline"}"></span>${esc(status.message || status.status)}`;
+    viewStatus.innerHTML = `<span class="status-dot ${statusTone(status.status)}"></span>${esc(status.message || status.status)}`;
   }
 }

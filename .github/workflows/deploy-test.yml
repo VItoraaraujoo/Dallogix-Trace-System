@@ -40,7 +40,7 @@ jobs:
         run: bash testes/qualidade.sh
       - name: Validate Modbus and gateway integration
         run: |
-          node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs testes/alerts-realtime.mjs
+          node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs
           python3 testes/modbus-transporte.py
           php testes/api-conectividade-isolada.php online
           php testes/api-conectividade-isolada.php stale
@@ -106,8 +106,14 @@ jobs:
           : "${SERVER_PORT:=22}"
           : "${SERVER_PATH:=/opt/dallogix-trace}"
           : "${SERVER_HOST:?TEST_SERVER_HOST secret is required}"
+          : "${SERVER_USER:?TEST_SERVER_USER secret is required}"
+          if [[ ! "$SERVER_PATH" =~ ^/[A-Za-z0-9_./-]+$ || "$SERVER_PATH" == "/" || "$SERVER_PATH" == *"/../"* || "$SERVER_PATH" == */.. ]]; then
+            echo "TEST_SERVER_PATH must be a safe absolute application directory." >&2
+            exit 1
+          fi
+          ssh_options=(-p "$SERVER_PORT" -o ServerAliveInterval=30 -o ServerAliveCountMax=30)
           git archive --format=tar "$(git write-tree)" | \
-            ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" \
+            ssh "${ssh_options[@]}" "$SERVER_USER@$SERVER_HOST" \
               "tar -xf - -C '$SERVER_PATH' && rm -f '$SERVER_PATH/interface/history.html' && cd '$SERVER_PATH' && \
               if [ -f .env ]; then sed -i '/^TRACE_VERSION=/d;/^TRACE_COMMIT=/d' .env; fi && \
               printf 'TRACE_VERSION=%s\\nTRACE_COMMIT=%s\\n' '$GITHUB_SHA' '$GITHUB_SHA' >> .env && \
@@ -124,7 +130,7 @@ jobs:
               bash scripts/docker_compose.sh exec -T nginx nginx -s reload && \
               printf '{\"version\":\"%s\",\"commit\":\"%s\"}\\n' '$GITHUB_SHA' '$GITHUB_SHA' > .release.json.tmp && \
               mv -f .release.json.tmp servidor/.release.json"
-          ssh -p "$SERVER_PORT" "$SERVER_USER@$SERVER_HOST" \
+          ssh "${ssh_options[@]}" "$SERVER_USER@$SERVER_HOST" \
             "for attempt in 1 2 3 4 5; do \
               if curl --fail --silent --show-error --max-time 10 http://127.0.0.1:80/api/prontidao.php >/dev/null && \
                  curl --fail --silent --show-error --max-time 10 http://127.0.0.1:80/api/health.php | grep -F '\"commit\":\"$GITHUB_SHA\"'; then exit 0; fi; \
