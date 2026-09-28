@@ -317,7 +317,7 @@ final class ServicoSincronizacao
             }
             $headers[] = "Authorization: Bearer " . $token;
         }
-        $handle = curl_init($remoteUrl);
+        $handle = \curl_init_url_remota_segura($remoteUrl);
         if ($handle === false) {
             return ["ok" => false, "error" => "Não foi possível inicializar o cliente HTTP.", "http_code" => 0];
         }

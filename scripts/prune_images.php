@@ -19,9 +19,12 @@ $pdo = new PDO(
 );
 $cutoff = (new DateTimeImmutable("-{$days} days"))->format("Y-m-d H:i:s");
 $statement = $pdo->prepare(
-    "SELECT id, path FROM imagens WHERE captured_at < :cutoff",
+    "SELECT path FROM imagens WHERE captured_at < :image_cutoff
+     UNION
+     SELECT evidence_pdf_path AS path FROM solicitacoes_captura_camera
+     WHERE evidence_pdf_path IS NOT NULL AND COALESCE(captured_at, requested_at) < :request_cutoff",
 );
-$statement->execute(["cutoff" => $cutoff]);
+$statement->execute(["image_cutoff" => $cutoff, "request_cutoff" => $cutoff]);
 $removed = 0;
 $failed = 0;
 foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $image) {
@@ -32,8 +35,25 @@ foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $image) {
         $failed++;
         continue;
     }
-    $delete = $pdo->prepare("DELETE FROM imagens WHERE id = :id");
-    $delete->execute(["id" => $image["id"]]);
+    $pdo->beginTransaction();
+    try {
+        $clearCapturePath = $pdo->prepare(
+            "UPDATE solicitacoes_captura_camera SET evidence_pdf_path = NULL
+             WHERE evidence_pdf_path = :path AND COALESCE(captured_at, requested_at) < :request_cutoff",
+        );
+        $clearCapturePath->execute(["path" => $image["path"], "request_cutoff" => $cutoff]);
+        $delete = $pdo->prepare(
+            "DELETE FROM imagens WHERE path = :path AND captured_at < :image_cutoff",
+        );
+        $delete->execute(["path" => $image["path"], "image_cutoff" => $cutoff]);
+        $pdo->commit();
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        $failed++;
+        continue;
+    }
     $removed++;
 }
-echo "Removed {$removed} image records older than {$days} days; {$failed} file(s) retained after a deletion error.\n";
+echo "Removed {$removed} intermediate capture evidence file(s) older than {$days} days; {$failed} file(s) retained after a deletion error.\n";

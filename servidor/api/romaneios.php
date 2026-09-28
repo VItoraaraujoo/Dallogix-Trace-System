@@ -67,8 +67,19 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $number = trim((string) ($_GET["number"] ?? ""));
     $expedidor = trim((string) ($_GET["expedidor"] ?? ""));
     $status = strtoupper(trim((string) ($_GET["status"] ?? "")));
-    $page = max(1, (int) ($_GET["page"] ?? 1));
-    $perPage = max(10, min(100, (int) ($_GET["per_page"] ?? 50)));
+    $page = filter_var(
+        $_GET["page"] ?? 1,
+        FILTER_VALIDATE_INT,
+        ["options" => ["min_range" => 1, "max_range" => 1000000]],
+    );
+    $perPage = filter_var(
+        $_GET["per_page"] ?? 50,
+        FILTER_VALIDATE_INT,
+        ["options" => ["min_range" => 10, "max_range" => 100]],
+    );
+    if ($page === false || $perPage === false) {
+        responder_json(["error" => "Paginação inválida."], 422);
+    }
     $offset = ($page - 1) * $perPage;
     $allowedStatuses = ["IMPORTADO", "AGUARDANDO", "EM_ANDAMENTO", "FINALIZADO", "CANCELADO"];
 
@@ -90,10 +101,16 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
         $params["date_to"] = $dateTo;
     }
     if ($number !== "") {
+        if (mb_strlen($number, "UTF-8") > 80) {
+            responder_json(["error" => "O número pode ter no máximo 80 caracteres."], 422);
+        }
         $conditions[] = "r.number LIKE :number";
         $params["number"] = "%" . addcslashes($number, "%_\\") . "%";
     }
     if ($expedidor !== "") {
+        if (mb_strlen($expedidor, "UTF-8") > 160) {
+            responder_json(["error" => "O expedidor pode ter no máximo 160 caracteres."], 422);
+        }
         $conditions[] = "r.expedidor LIKE :expedidor";
         $params["expedidor"] = "%" . addcslashes($expedidor, "%_\\") . "%";
     }
@@ -225,8 +242,8 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
         }
 
         $items = $payload["items"] ?? [];
-        if (!is_array($items) || $items === []) {
-            responder_json(["error" => "Informe ao menos um item com produto e quantidade."], 422);
+        if (!is_array($items) || $items === [] || count($items) > 100) {
+            responder_json(["error" => "Informe entre 1 e 100 itens com produto e quantidade."], 422);
         }
 
         $normalizedItems = [];
@@ -375,6 +392,9 @@ if (!is_array($items) || $items === []) {
 }
 if (!is_array($items) || $items === []) {
     responder_json(["error" => "Informe ao menos um item com produto e quantidade."], 422);
+}
+if (count($items) > 100) {
+    responder_json(["error" => "Um romaneio pode conter no máximo 100 itens."], 422);
 }
 
 $normalizedItems = [];

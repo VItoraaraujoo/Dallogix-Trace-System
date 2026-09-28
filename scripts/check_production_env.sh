@@ -29,6 +29,13 @@ if [[ "${APP_ENV:-}" != "production" ]]; then
   echo "ERRO: APP_ENV deve ser production para esta verificação." >&2
   failures=$((failures + 1))
 fi
+case "${TRACE_INSTALLATION_MODE:-}" in
+  local|industrial|central|remoto|server) ;;
+  *)
+    echo "ERRO: TRACE_INSTALLATION_MODE deve identificar explicitamente local ou central em produção." >&2
+    failures=$((failures + 1))
+    ;;
+esac
 if [[ "${SESSION_SECURE:-}" != "true" ]]; then
   echo "ERRO: SESSION_SECURE deve ser true em produção." >&2
   failures=$((failures + 1))

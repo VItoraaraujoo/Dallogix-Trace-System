@@ -7,7 +7,7 @@ require_once __DIR__ . "/../src/Aplicacao/ServicoSincronizacao.php";
 
 use App\Aplicacao\ServicoSincronizacao;
 
-$user = require_session_user();
+$user = exigir_perfil(["ADMIN_EMPRESA", "SUPERVISOR"]);
 if ($user["company_id"] === null) {
     json_response(["error" => "Usuário sem empresa vinculada."], 403);
 }

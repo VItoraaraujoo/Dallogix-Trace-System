@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+define("TRACE_SKIP_SESSION", true);
+
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 require_once __DIR__ . "/../src/Aplicacao/InicializadorAcoesDala.php";
 

@@ -68,10 +68,12 @@ O worker deverá chamar `/api/camera_worker.php` com `X-Device-Token` igual ao t
 
 1. `POST {"action":"CLAIM"}` para reservar a próxima captura da própria Dala;
 2. disparar a câmera conforme o protocolo confirmado;
-3. enviar o JPEG ou PNG real, de até 5 MB, em `POST /api/camera_upload.php` com `multipart/form-data`, campos `request_id` e `file`, e o mesmo token de câmera. A API devolve `image_path` e SHA-256;
-4. `POST {"action":"COMPLETE","request_id":N,"image_path":"<caminho retornado>"}`. A conclusão só é aceita se o arquivo enviado existir, corresponder à solicitação reservada e estiver na pasta da empresa/Dala correta.
+3. enviar o JPEG ou PNG real, de até 5 MB, em `POST /api/camera_upload.php` com `multipart/form-data`, campos `request_id` e `file`, e o mesmo token de câmera. A API converte a imagem em um PDF de evidência e devolve `evidence_pdf_path` e o SHA-256 do PDF; o arquivo JPEG/PNG não é mantido no armazenamento;
+4. `POST {"action":"COMPLETE","request_id":N,"evidence_pdf_path":"<caminho retornado>"}`. A conclusão só é aceita se o PDF existir, corresponder à solicitação reservada e estiver na pasta da empresa/Dala correta.
 
-O protocolo de acionamento da câmera ainda precisa ser confirmado com o fabricante e o worker físico não está implementado. O contrato de upload não substitui a captura física; o servidor não considera uma captura concluída sem arquivo válido e callback `COMPLETE`.
+Quando o relatório final do romaneio é solicitado, o Trace incorpora as evidências ao relatório PDF, salva esse PDF em `armazenamento/company_<id>/reports/` e remove os PDFs intermediários e referências temporárias. O PDF final permanece no servidor e é reutilizado nos próximos downloads. A retenção de evidências intermediárias segue `IMAGE_RETENTION_DAYS` caso o relatório ainda não tenha sido solicitado.
+
+O protocolo de acionamento da câmera ainda precisa ser confirmado com o fabricante e o worker físico não está implementado. O contrato de upload não substitui a captura física; o servidor não considera uma captura concluída sem PDF de evidência válido e callback `COMPLETE`.
 
 ## Fila de comandos do CLP
 

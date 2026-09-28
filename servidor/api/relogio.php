@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+define("TRACE_SKIP_SESSION", true);
+
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 
 /**
@@ -45,7 +47,7 @@ function consultar_horario_central(string $centralUrl): ?array
         return null;
     }
 
-    $handle = curl_init($centralUrl . "/api/relogio.php");
+    $handle = curl_init_url_remota_segura($centralUrl . "/api/relogio.php");
     if ($handle === false) {
         return null;
     }

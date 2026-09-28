@@ -43,8 +43,8 @@ function trace_detalhes_prontidao_autorizados(): bool
         return true;
     }
 
-    $user = isset($_SESSION["user"]) && is_array($_SESSION["user"])
-        ? $_SESSION["user"]
+    $user = session_status() === PHP_SESSION_ACTIVE && function_exists("obter_usuario_sessao")
+        ? obter_usuario_sessao()
         : null;
     return is_array($user) && in_array(
         strtoupper((string) ($user["role"] ?? "")),

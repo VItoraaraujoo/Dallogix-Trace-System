@@ -81,6 +81,29 @@ if (($gatewayIp !== "" && strlen($gatewayIp) > 255) || ($gatewayIp !== "" && !$v
 if (!is_array($mapping)) {
     json_response(["error" => "Mapeamento PDF inválido."], 422);
 }
+$mappingNormalizado = [];
+if (count($mapping) > 32) {
+    json_response(["error" => "O mapeamento PDF excede o limite de campos."], 422);
+}
+foreach ($mapping as $key => $label) {
+    if (!is_string($key) || preg_match('/\A[a-zA-Z0-9_-]{1,32}\z/', $key) !== 1 || !is_string($label)) {
+        json_response(["error" => "Mapeamento PDF inválido."], 422);
+    }
+    $label = trim($label);
+    if (mb_strlen($label, "UTF-8") > 80) {
+        json_response(["error" => "Cada rótulo PDF pode ter no máximo 80 caracteres."], 422);
+    }
+    if ($label !== "") {
+        $mappingNormalizado[$key] = $label;
+    }
+}
+$mappingJson = json_encode(
+    $mappingNormalizado,
+    JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
+);
+if (strlen($mappingJson) > 4096) {
+    json_response(["error" => "O mapeamento PDF excede o limite permitido."], 422);
+}
 
 $pdo->beginTransaction();
 try {
@@ -91,10 +114,7 @@ try {
         "company_id" => $usuarioAtor["company_id"],
         "gateway_public_ip" => $gatewayIp !== "" ? $gatewayIp : null,
         "sync_remote_url" => $syncUrl !== "" ? $syncUrl : null,
-        "pdf_field_mapping" => json_encode(
-            $mapping,
-            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES,
-        ),
+        "pdf_field_mapping" => $mappingJson,
         "pdf_search_field" => $pdfSearchField,
         "updated_by" => $usuarioAtor["id"],
     ]);
@@ -107,7 +127,7 @@ try {
         [
             "gateway_public_ip" => $gatewayIp,
             "sync_remote_url_configurada" => $syncUrl !== "",
-            "pdf_fields" => array_keys($mapping),
+            "pdf_fields" => array_keys($mappingNormalizado),
             "pdf_search_field" => $pdfSearchField,
         ],
     );

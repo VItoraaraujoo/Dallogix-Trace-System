@@ -66,3 +66,38 @@ function trace_camera_evidence_path(
     }
     return $resolved;
 }
+
+/** Confirma que a evidência PDF pertence exatamente à captura reservada. */
+function trace_camera_evidence_pdf_path(
+    string $storageDirectory,
+    int $companyId,
+    int $equipmentId,
+    int $requestId,
+    string $storedPath,
+): ?string {
+    $prefix = "company_{$companyId}/equipment_{$equipmentId}/";
+    if (!str_starts_with($storedPath, $prefix)) {
+        return null;
+    }
+    $basename = substr($storedPath, strlen($prefix));
+    if (preg_match('/\Acapture-' . $requestId . '-([a-f0-9]{64})\.pdf\z/', $basename, $matches) !== 1) {
+        return null;
+    }
+    $resolved = trace_image_storage_path($storageDirectory, $storedPath);
+    if ($resolved === null) {
+        return null;
+    }
+    $size = filesize($resolved);
+    if ($size === false || $size < 1 || $size > 12 * 1024 * 1024) {
+        return null;
+    }
+    $header = file_get_contents($resolved, false, null, 0, 8);
+    if (!is_string($header) || !str_starts_with($header, "%PDF-")) {
+        return null;
+    }
+    $expectedHash = $matches[1];
+    if (hash_file('sha256', $resolved) !== $expectedHash) {
+        return null;
+    }
+    return $resolved;
+}

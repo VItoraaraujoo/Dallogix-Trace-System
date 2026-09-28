@@ -8,7 +8,7 @@ HTML, CSS, JavaScript, PHP, MySQL, Node-RED, Nginx, Docker e Docker Compose.
 
 ## Estado atual
 
-Operação local-first integrada. Cada tela possui seu próprio HTML (`interface/*.html`) com núcleo compartilhado em `js/aplicacao.js`; login em `index.html`. O ambiente base, operação persistida, auditoria, fila de sincronização, monitoramento, ocorrências, catálogo, importação transacional, preparação e encerramento de carregamentos, solicitação de captura seletiva de evidências, retenção de imagens e dados operacionais, relatório CSV e controles por perfil estão disponíveis. A captura física da câmera e a leitura USB/serial do scanner ainda exigem adaptadores e homologação com os dispositivos reais.
+Operação local-first integrada. Cada tela possui seu próprio HTML (`interface/*.html`) com núcleo compartilhado em `js/aplicacao.js`; login em `index.html`. O ambiente base, operação persistida, auditoria, fila de sincronização, monitoramento, ocorrências, catálogo, importação transacional, preparação e encerramento de carregamentos, solicitação de captura seletiva, PDFs de evidência e relatórios de auditoria persistidos, retenção de dados operacionais, relatório CSV e controles por perfil estão disponíveis. As fotos enviadas são incorporadas em PDFs e não ficam como arquivos de imagem nem como conteúdo binário no banco. A captura física da câmera e a leitura USB/serial do scanner ainda exigem adaptadores e homologação com os dispositivos reais.
 
 A reversão e as ações configuráveis por Dala usam uma fila própria para o gateway industrial: o painel só registra a solicitação; o gateway autenticado confirma ou rejeita o comando após validar o CLP. Gatilhos, como atingir 100% da quantidade planejada, seguem a mesma fila. Nenhuma escrita física é feita pelo servidor. A ligação real ainda depende do mapa de I/O homologado, do programa Ladder e dos testes de bancada.
 
@@ -59,12 +59,17 @@ Com os containers ativos, aplique somente as migrations controladas:
 ./scripts/migrate.sh
 ```
 
-Em uma instalação já existente, `scripts/migrate.sh` cria o controle de versão e registra o schema legado sem reaplicar migrations históricas. As migrations mais recentes adicionam o código de ativação permanente, o arquivamento separado da exclusão definitiva e o índice composto da listagem de usuários.
+Em uma instalação já existente, `scripts/migrate.sh` cria o controle de versão e registra o schema legado sem reaplicar migrations históricas. O script aplica somente as versões ausentes em `schema_migrations`; não é necessário reaplicar SQL manualmente. As migrations 054–057 fortalecem o código de ativação, preservam o horário informado pelo dispositivo como metadado, indexam a retenção dos limites de login e renomeiam o caminho temporário de imagem para caminho de PDF de evidência.
 
 As credenciais técnicas não possuem valor padrão público. Defina `TRACE_DEVICE_TOKEN` e `CAMERA_DEVICE_TOKEN` no `.env` e, depois de cadastrar a Dala real, provisione os dispositivos com tokens próprios usando `php scripts/provision_device.php`.
 Cada reprovisionamento gera um novo `token_id`, invalida a credencial anterior e registra a criação e o último uso sem armazenar o token em texto puro. A expiração e a revogação ficam associadas somente ao dispositivo provisionado.
 
-O código `TRC-....-....` serve somente para a ativação assistida. A ativação
+O código de ativação usa 130 bits aleatórios, é de uso único e expira após
+7 dias, no formato
+`TRC-XXXXXX-XXXXX-XXXXX-XXXXX-XXXXX`. A migration 054 invalida os códigos
+curtos anteriores; gere um novo pelo gerenciamento da empresa. O código é
+consumido após a autenticação do administrador e o registro do token da
+instalação. A ativação
 gera uma credencial aleatória separada para a sincronização da instalação; por
 isso, instalações existentes devem ser ativadas novamente após aplicar a
 migration 048. No servidor central, o status do CLP vem do heartbeat
@@ -77,12 +82,16 @@ Modbus fixa; a verificação TCP não substitui o heartbeat Modbus do gateway.
 
 Não existe uma tela remota no PC industrial. Todo gerenciamento fora da máquina deve ser feito pelo servidor central. O PC industrial inicia as conexões de saída HTTPS para heartbeat e sincronização; não há port forwarding. A operação PC industrial ↔ CLP e o banco/fila local continuam disponíveis durante quedas de internet.
 
-O serviço `sync-worker` reserva eventos em lotes, envia com timeout e backoff e recupera reservas abandonadas. Quando `SYNC_REMOTE_BATCH_URL` é configurada, o worker usa o contrato HTTP de lote; sem ela, mantém compatibilidade com o endpoint individual `SYNC_REMOTE_URL`. O serviço `image-retention` executa diariamente a limpeza de imagens e a retenção segura de leituras, eventos de sensor, auditoria confirmada, fila enviada e logs de erro. Os prazos podem ser ajustados no `.env`; registros de auditoria só são removidos quando existe entrega confirmada e nenhuma tentativa pendente.
+O serviço `sync-worker` reserva eventos em lotes, envia com timeout e backoff e recupera reservas abandonadas. Quando `SYNC_REMOTE_BATCH_URL` é configurada, o worker usa o contrato HTTP de lote; sem ela, mantém compatibilidade com o endpoint individual `SYNC_REMOTE_URL`. O serviço `image-retention` executa diariamente a limpeza dos PDFs intermediários de evidência ainda não incorporados a um relatório e a retenção segura de leituras, eventos de sensor, auditoria confirmada, fila enviada e logs de erro. `IMAGE_RETENTION_DAYS` controla esses PDFs intermediários; o relatório final de auditoria fica salvo em `armazenamento/company_<id>/reports/`. Os demais prazos podem ser ajustados no `.env`; registros de auditoria só são removidos quando existe entrega confirmada e nenhuma tentativa pendente.
 
 O horário da aplicação segue o relógio do PC industrial quando a internet está indisponível. Com conexão, `/api/relogio.php` consulta o servidor central e a interface aplica somente a diferença de horário enquanto a conexão permanecer disponível; ao perder a conexão, volta imediatamente ao relógio do PC. O Trace não altera o relógio do Windows ou do macOS. Para registros persistidos, a instalação local continua usando o horário local offline e o servidor central usa o próprio horário ao receber os eventos.
 
 O relatório da última homologação, com o esperado e o resultado observado em
 cada fluxo, está em [homologação completa de 17/09/2026](documentacao/testes/homologacao-2026-09-17.md).
+
+O [histórico de alterações](CHANGELOG.md) lista mudanças a partir desta
+formalização; as decisões de hardware e hospedagem permanecem pendentes até
+serem documentadas em [decisões de arquitetura](documentacao/arquitetura/decisoes/README.md).
 
 `/api/health.php` informa a versão e o SHA implantados. `/api/prontidao.php` informa profundidade/idade da fila, heartbeats, comandos travados, schema e espaço livre. Fila pendente sem erro pode ser normal quando a sincronização remota está desabilitada; o healthcheck degrada quando há erro, atraso acima do limite ou risco operacional.
 
@@ -92,9 +101,9 @@ A senha definida no cadastro da empresa é válida imediatamente e não exige tr
 
 ## Ativação do PC industrial
 
-Ao criar uma empresa no site com o perfil Master, primeiro ative a licença. Só depois disso o Trace libera o código de ativação único e permanente em **Ver código**. No primeiro acesso da instalação local, informe esse código e o login do administrador da empresa. O PC envia o código ao servidor central, que calcula o hash e confirma a empresa; depois valida as credenciais do administrador da mesma empresa, cria o acesso local e registra a ativação. Nas aberturas seguintes, a tela de login mostra `Licença ativa` e não solicita o código novamente. Bloquear a licença encerra as sessões dos usuários da empresa, bloqueia o acesso da instalação ao Trace e oculta novamente o código até o desbloqueio. O perfil Master permanece restrito à administração da licença e não opera a instalação.
+Ao criar uma empresa no site com o perfil Master, primeiro ative a licença. Só depois disso o Trace libera um código de ativação aleatório, de uso único e válido por 7 dias. No primeiro acesso da instalação local, informe esse código e o login do administrador da empresa. O PC valida o código no servidor central, autentica o administrador e registra o token da instalação; nesse momento o código é consumido. Se expirar ou já tiver sido usado, gere outro no gerenciamento da empresa. Nas aberturas seguintes, a tela de login mostra `Licença ativa` e não solicita o código novamente. Bloquear a licença encerra as sessões dos usuários da empresa, bloqueia o acesso da instalação ao Trace e oculta novamente o código até o desbloqueio. O perfil Master permanece restrito à administração da licença e não opera a instalação.
 
-No PC industrial, configure `TRACE_INSTALLATION_MODE=local` e `TRACE_CENTRAL_URL` com a URL base do servidor central. No servidor remoto, configure `TRACE_INSTALLATION_MODE=central`; nesse ambiente o formulário de ativação não aparece e o login remoto permanece normal. Se o modo ficar vazio, o Trace considera ambientes diferentes de produção como locais e produção como central. O servidor central consulta a licença em cada sincronização: se ela for bloqueada, rejeita heartbeat, eventos e comandos, e a instalação local grava o estado bloqueado, encerra sessões dos usuários da empresa e impede novo acesso da empresa ao Trace até a licença ser reativada.
+No PC industrial, configure `TRACE_INSTALLATION_MODE=local` e `TRACE_CENTRAL_URL` com a URL base do servidor central. No servidor remoto, configure `TRACE_INSTALLATION_MODE=central`; nesse ambiente o formulário de ativação não aparece e o login remoto permanece normal. Se o modo estiver vazio ou inválido, o Trace assume o comportamento central e bloqueia fluxos exclusivos da instalação local. O servidor central consulta a licença em cada sincronização: se ela for bloqueada, rejeita heartbeat, eventos e comandos, e a instalação local grava o estado bloqueado, encerra sessões dos usuários da empresa e impede novo acesso da empresa ao Trace até a licença ser reativada.
 
 ## Parar e reiniciar
 
@@ -140,7 +149,7 @@ systemctl list-timers dallogix-trace-backup.timer
 systemctl status dallogix-trace-backup.timer
 ```
 
-Esse mecanismo protege o banco do próprio servidor. Para proteção contra falha do disco ou do servidor, copie periodicamente esses arquivos para armazenamento externo ou remoto e teste a restauração nesse destino.
+Esse mecanismo protege somente o banco. Os PDFs finais ficam em `armazenamento/company_<id>/reports/` e precisam ser incluídos separadamente na cópia externa ou remota; teste a restauração dos dois tipos de arquivo.
 
 ## Pendências técnicas
 

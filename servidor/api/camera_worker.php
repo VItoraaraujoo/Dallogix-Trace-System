@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+define("TRACE_SKIP_SESSION", true);
+
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 require_once __DIR__ . "/../../scripts/image_storage_path.php";
 
@@ -67,23 +69,23 @@ if ($action !== "COMPLETE") {
     json_response(["error" => "Ação inválida."], 422);
 }
 $requestId = filter_var($payload["request_id"] ?? null, FILTER_VALIDATE_INT);
-$imagePath = trim((string) ($payload["image_path"] ?? ""));
-if (!$requestId || $imagePath === "") {
-    json_response(["error" => "request_id e image_path são obrigatórios."], 422);
+$evidencePdfPath = trim((string) ($payload["evidence_pdf_path"] ?? ""));
+if (!$requestId || $evidencePdfPath === "") {
+    json_response(["error" => "request_id e evidence_pdf_path são obrigatórios."], 422);
 }
 if (
-    strlen($imagePath) > 500 ||
-    str_contains($imagePath, "..") ||
-    str_starts_with($imagePath, "/") ||
-    !preg_match('/^[a-zA-Z0-9._\/-]+$/', $imagePath)
+    strlen($evidencePdfPath) > 500 ||
+    str_contains($evidencePdfPath, "..") ||
+    str_starts_with($evidencePdfPath, "/") ||
+    !preg_match('/^[a-zA-Z0-9._\/-]+$/', $evidencePdfPath)
 ) {
-    json_response(["error" => "image_path inválido. Use um caminho relativo permitido."], 422);
+    json_response(["error" => "evidence_pdf_path inválido. Use um caminho relativo permitido."], 422);
 }
 
 $pdo->beginTransaction();
 try {
     $request = $pdo->prepare(
-        "SELECT r.id, r.carregamento_id, r.equipment_id, r.reason, c.company_id
+        "SELECT r.id, r.carregamento_id, r.equipment_id, r.reason, r.evidence_pdf_path, c.company_id
          FROM solicitacoes_captura_camera r
          JOIN carregamentos c ON c.id = r.carregamento_id
          WHERE r.id = :id AND r.equipment_id = :equipment_id
@@ -100,27 +102,31 @@ try {
         $pdo->rollBack();
         json_response(["error" => "Pedido de captura não está reservado por este dispositivo."], 404);
     }
-    $requiredPrefix = "company_" . (int) $capture["company_id"] . "/equipment_" . (int) $capture["equipment_id"] . "/";
-    if (!str_starts_with($imagePath, $requiredPrefix)) {
+    if (!is_string($capture["evidence_pdf_path"] ?? null) || $capture["evidence_pdf_path"] !== $evidencePdfPath) {
         $pdo->rollBack();
-        json_response(["error" => "image_path deve pertencer à empresa e ao equipamento da captura."], 422);
+        json_response(["error" => "O PDF concluído não corresponde ao arquivo enviado por esta captura."], 409);
     }
-    if (trace_camera_evidence_path(
+    $requiredPrefix = "company_" . (int) $capture["company_id"] . "/equipment_" . (int) $capture["equipment_id"] . "/";
+    if (!str_starts_with($evidencePdfPath, $requiredPrefix)) {
+        $pdo->rollBack();
+        json_response(["error" => "evidence_pdf_path deve pertencer à empresa e ao equipamento da captura."], 422);
+    }
+    if (trace_camera_evidence_pdf_path(
         __DIR__ . '/../../armazenamento',
         (int) $capture['company_id'],
         (int) $capture['equipment_id'],
         (int) $requestId,
-        $imagePath,
+        $evidencePdfPath,
     ) === null) {
         $pdo->rollBack();
-        json_response(['error' => 'Imagem não enviada, inválida ou fora da pasta de evidências.'], 422);
+        json_response(['error' => 'PDF de evidência não enviado, inválido ou fora da pasta da captura.'], 422);
     }
     $update = $pdo->prepare(
         "UPDATE solicitacoes_captura_camera
-         SET status = 'CAPTURADA', captured_at = NOW(3), image_path = :image_path, error_message = NULL
+         SET status = 'CAPTURADA', captured_at = NOW(3), evidence_pdf_path = :evidence_pdf_path, error_message = NULL
          WHERE id = :id AND claimed_by_device_id = :device_id AND status = 'CAPTURANDO'",
     );
-    $update->execute(["image_path" => $imagePath, "id" => $requestId, "device_id" => $device["id"]]);
+    $update->execute(["evidence_pdf_path" => $evidencePdfPath, "id" => $requestId, "device_id" => $device["id"]]);
     if ($update->rowCount() !== 1) {
         throw new RuntimeException("Pedido de captura já foi concluído.");
     }
@@ -132,7 +138,7 @@ try {
         "company_id" => $capture["company_id"],
         "carregamento_id" => $capture["carregamento_id"],
         "equipment_id" => $capture["equipment_id"],
-        "path" => $imagePath,
+        "path" => $evidencePdfPath,
         "reason" => $capture["reason"],
     ]);
     $imageId = (int) $pdo->lastInsertId();
@@ -147,7 +153,7 @@ try {
             "carregamento_id" => (int) $capture["carregamento_id"],
             "equipment_id" => (int) $capture["equipment_id"],
             "device_id" => $device["id"],
-            "image_path" => $imagePath,
+            "evidence_pdf_path" => $evidencePdfPath,
             "reason" => $capture["reason"],
         ],
     );

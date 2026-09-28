@@ -115,7 +115,7 @@ final class ServicoSincronizacaoRemota
     /** @return array<string,mixed> */
     private function request(string $url, string $token, string $method, ?array $payload = null): array
     {
-        $handle = curl_init($url);
+        $handle = \curl_init_url_remota_segura($url);
         if ($handle === false) {
             throw new RuntimeException("Não foi possível iniciar a sincronização remota.");
         }
@@ -997,30 +997,26 @@ final class ServicoSincronizacaoRemota
         $normalizedStatus = strtoupper(trim($status)) === "ATIVA" ? "ATIVA" : "BLOQUEADA";
         $blockedReason = trim((string) ($reason ?? ""));
 
-        try {
-            $companyId = (int) ($this->connection->query(
-                "SELECT company_id FROM instalacoes_locais WHERE id = 1 LIMIT 1",
-            )->fetchColumn() ?: 0);
-            if ($companyId < 1) {
-                return;
-            }
-
-            $statement = $this->connection->prepare(
-                "INSERT INTO licencas (company_id, plan_name, billing_period, status, blocked_at, blocked_reason)
-                 VALUES (:company_id, 'Trace Mensal', 'MENSAL', :status, :blocked_at, :blocked_reason)
-                 ON DUPLICATE KEY UPDATE status = VALUES(status), blocked_at = VALUES(blocked_at),
-                     blocked_reason = VALUES(blocked_reason)",
-            );
-            $statement->execute([
-                "company_id" => $companyId,
-                "status" => $normalizedStatus,
-                "blocked_at" => $normalizedStatus === "ATIVA" ? null : date("Y-m-d H:i:s"),
-                "blocked_reason" => $normalizedStatus === "ATIVA"
-                    ? null
-                    : mb_substr($blockedReason !== "" ? $blockedReason : "Licença bloqueada no servidor central.", 0, 255),
-            ]);
-        } catch (Throwable $exception) {
-            error_log("Não foi possível atualizar o estado local da licença: " . $exception->getMessage());
+        $companyId = (int) ($this->connection->query(
+            "SELECT company_id FROM instalacoes_locais WHERE id = 1 LIMIT 1",
+        )->fetchColumn() ?: 0);
+        if ($companyId < 1) {
+            throw new RuntimeException("A instalação local não possui empresa vinculada para atualizar a licença.");
         }
+
+        $statement = $this->connection->prepare(
+            "INSERT INTO licencas (company_id, plan_name, billing_period, status, blocked_at, blocked_reason)
+             VALUES (:company_id, 'Trace Mensal', 'MENSAL', :status, :blocked_at, :blocked_reason)
+             ON DUPLICATE KEY UPDATE status = VALUES(status), blocked_at = VALUES(blocked_at),
+                 blocked_reason = VALUES(blocked_reason)",
+        );
+        $statement->execute([
+            "company_id" => $companyId,
+            "status" => $normalizedStatus,
+            "blocked_at" => $normalizedStatus === "ATIVA" ? null : date("Y-m-d H:i:s"),
+            "blocked_reason" => $normalizedStatus === "ATIVA"
+                ? null
+                : mb_substr($blockedReason !== "" ? $blockedReason : "Licença bloqueada no servidor central.", 0, 255),
+        ]);
     }
 }

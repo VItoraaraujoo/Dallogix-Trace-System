@@ -111,53 +111,69 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         if (!$companyId) {
             responder_json(["error" => "Empresa não informada."], 422);
         }
-        $company = obter_conexao_banco()->prepare(
-            "SELECT id, name, login_domain, activation_code, activation_code_hash, archived_at,
-                    (SELECT l.status FROM licencas l WHERE l.company_id = empresas.id ORDER BY l.id DESC LIMIT 1) AS license_status
-             FROM empresas WHERE id = :id LIMIT 1",
-        );
-        $company->execute(["id" => $companyId]);
-        $empresa = $company->fetch();
-        if (!$empresa) {
-            responder_json(["error" => "Empresa não encontrada."], 404);
-        }
-        if ($empresa["archived_at"] !== null) {
-            responder_json(["error" => "Não é possível gerar ativação para uma empresa arquivada."], 409);
-        }
-        if (($empresa["license_status"] ?? "") !== "ATIVA") {
-            responder_json(["error" => "Ative a licença da empresa antes de liberar o código de ativação."], 409);
-        }
-        if (trim((string) ($empresa["activation_code"] ?? "")) !== "") {
-            responder_json([
-                "data" => [
-                    "id" => (int) $empresa["id"],
-                    "name" => $empresa["name"],
-                    "login_domain" => $empresa["login_domain"],
-                    "activation_code" => $empresa["activation_code"],
-                ],
-            ]);
-        }
-        if (trim((string) ($empresa["activation_code_hash"] ?? "")) !== "") {
-            responder_json(
-                ["error" => "Esta empresa já possui um código permanente, mas ele não está disponível para exibição."],
-                409,
+        $pdo = obter_conexao_banco();
+        $pdo->beginTransaction();
+        try {
+            $company = $pdo->prepare(
+                "SELECT id, name, login_domain, activation_code, activation_code_hash,
+                        activation_code_used_at,
+                        (activation_code_expires_at IS NOT NULL AND activation_code_expires_at > NOW()) AS activation_code_unexpired,
+                        archived_at,
+                        (SELECT l.status FROM licencas l WHERE l.company_id = empresas.id ORDER BY l.id DESC LIMIT 1) AS license_status
+                 FROM empresas WHERE id = :id LIMIT 1 FOR UPDATE",
             );
+            $company->execute(["id" => $companyId]);
+            $empresa = $company->fetch();
+            if (!$empresa) {
+                $pdo->rollBack();
+                responder_json(["error" => "Empresa não encontrada."], 404);
+            }
+            if ($empresa["archived_at"] !== null) {
+                $pdo->rollBack();
+                responder_json(["error" => "Não é possível gerar ativação para uma empresa arquivada."], 409);
+            }
+            if (($empresa["license_status"] ?? "") !== "ATIVA") {
+                $pdo->rollBack();
+                responder_json(["error" => "Ative a licença da empresa antes de liberar o código de ativação."], 409);
+            }
+            $codePending = trim((string) ($empresa["activation_code"] ?? "")) !== ""
+                && empty($empresa["activation_code_used_at"])
+                && (bool) ($empresa["activation_code_unexpired"] ?? false);
+            if ($codePending) {
+                $pdo->commit();
+                responder_json([
+                    "data" => [
+                        "id" => (int) $empresa["id"],
+                        "name" => $empresa["name"],
+                        "login_domain" => $empresa["login_domain"],
+                        "activation_code" => $empresa["activation_code"],
+                    ],
+                ]);
+            }
+            $activation = gerar_codigo_ativacao_empresa();
+            $update = $pdo->prepare(
+                "UPDATE empresas
+                 SET activation_code = :code,
+                     activation_code_hash = :code_hash,
+                     activation_code_preview = :code_preview,
+                     activation_code_created_at = NOW(),
+                     activation_code_expires_at = DATE_ADD(NOW(), INTERVAL 7 DAY),
+                     activation_code_used_at = NULL
+                 WHERE id = :id",
+            );
+            $update->execute([
+                "code" => $activation["code"],
+                "code_hash" => $activation["hash"],
+                "code_preview" => $activation["preview"],
+                "id" => $empresa["id"],
+            ]);
+            $pdo->commit();
+        } catch (Throwable $exception) {
+            if ($pdo->inTransaction()) {
+                $pdo->rollBack();
+            }
+            throw $exception;
         }
-        $activation = gerar_codigo_ativacao_empresa();
-        $update = obter_conexao_banco()->prepare(
-            "UPDATE empresas
-             SET activation_code = :code,
-                 activation_code_hash = :code_hash,
-                 activation_code_preview = :code_preview,
-                 activation_code_created_at = NOW()
-             WHERE id = :id",
-        );
-        $update->execute([
-            "code" => $activation["code"],
-            "code_hash" => $activation["hash"],
-            "code_preview" => $activation["preview"],
-            "id" => $empresa["id"],
-        ]);
         responder_json([
             "data" => [
                 "id" => (int) $empresa["id"],
@@ -523,7 +539,10 @@ $machinesSql = "SELECT e.id, e.equipment_code, e.name,
 
 if ($requestedCompanyId !== null) {
     $companyStatement = $pdo->prepare(
-        "SELECT id, name, login_domain, activation_code, activation_code_preview, activation_code_created_at, created_at, archived_at,
+        "SELECT id, name, login_domain, activation_code, activation_code_preview, activation_code_created_at,
+                activation_code_expires_at, activation_code_used_at,
+                (activation_code_expires_at IS NOT NULL AND activation_code_expires_at > NOW() AND activation_code_used_at IS NULL) AS activation_code_pending,
+                created_at, archived_at,
                 (SELECT l.status FROM licencas l WHERE l.company_id = empresas.id ORDER BY l.id DESC LIMIT 1) AS license_status,
                 {$industrialPcStatusSelect} AS industrial_pc_reported_status,
                 {$industrialPcLastSeenSelect} AS industrial_pc_last_seen_at
@@ -570,9 +589,11 @@ if ($requestedCompanyId !== null) {
                 $empresa["industrial_pc_last_seen_at"] ?? null,
             ),
             "industrial_pc_last_seen_at" => $empresa["industrial_pc_last_seen_at"] ?? null,
-            "activation_code" => $isAdminDallogix && $activationAvailable ? $empresa["activation_code"] : null,
-            "activation_code_preview" => $activationAvailable ? $empresa["activation_code_preview"] : null,
+            "activation_code" => $isAdminDallogix && $activationAvailable && (bool) $empresa["activation_code_pending"] ? $empresa["activation_code"] : null,
+            "activation_code_preview" => $activationAvailable && (bool) $empresa["activation_code_pending"] ? $empresa["activation_code_preview"] : null,
             "activation_code_created_at" => $activationAvailable ? $empresa["activation_code_created_at"] : null,
+            "activation_code_expires_at" => $activationAvailable && (bool) $empresa["activation_code_pending"] ? $empresa["activation_code_expires_at"] : null,
+            "activation_code_used_at" => $activationAvailable ? $empresa["activation_code_used_at"] : null,
             "created_at" => $empresa["created_at"],
             "archived_at" => $empresa["archived_at"],
             "archived" => $empresa["archived_at"] !== null,
@@ -586,7 +607,10 @@ if ($requestedCompanyId !== null) {
 
 $includeArchived = $isAdminDallogix && ($_GET["include_archived"] ?? "") === "1";
 $empresas = $pdo->prepare(
-    "SELECT c.id, c.name, c.login_domain, c.activation_code_preview, c.activation_code_created_at, c.created_at, c.archived_at,
+    "SELECT c.id, c.name, c.login_domain, c.activation_code_preview, c.activation_code_created_at,
+            c.activation_code_expires_at, c.activation_code_used_at,
+            (c.activation_code_expires_at IS NOT NULL AND c.activation_code_expires_at > NOW() AND c.activation_code_used_at IS NULL) AS activation_code_pending,
+            c.created_at, c.archived_at,
             (SELECT l.status FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_status,
             (SELECT l.blocked_reason FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_reason,
             " . ($industrialPcTableAvailable
@@ -617,8 +641,9 @@ $rows = array_map(static function (array $row) use ($industrialPcStatus): array 
         "id" => (int) $row["id"],
         "name" => $row["name"],
         "login_domain" => $row["login_domain"],
-        "activation_code_preview" => $licenseStatus === "ATIVA" ? $row["activation_code_preview"] : null,
+        "activation_code_preview" => $licenseStatus === "ATIVA" && (bool) $row["activation_code_pending"] ? $row["activation_code_preview"] : null,
         "activation_code_created_at" => $row["activation_code_created_at"],
+        "activation_code_expires_at" => $row["activation_code_pending"] ? $row["activation_code_expires_at"] : null,
         "created_at" => $row["created_at"],
         "archived_at" => $row["archived_at"],
         "archived" => $row["archived_at"] !== null,

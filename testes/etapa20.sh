@@ -63,10 +63,10 @@ for attempt in 1 2 3 4 5 6 7 8 9 10; do
   uploaded="$(curl -sS -H "X-Device-Token: ${CAMERA_DEVICE_TOKEN:-}" \
     -F "request_id=${request_id}" -F "file=@${camera_fixture};type=image/png" \
     "$base_url/api/camera_upload.php")"
-  image_path="$(printf '%s' "$uploaded" | php -r '$v=json_decode(stream_get_contents(STDIN),true); echo $v["data"]["image_path"]??"";')"
-  [ -n "$image_path" ] || { echo "FAIL: upload da evidência: $uploaded"; exit 1; }
+  evidence_pdf_path="$(printf '%s' "$uploaded" | php -r '$v=json_decode(stream_get_contents(STDIN),true); echo $v["data"]["evidence_pdf_path"]??"";')"
+  [ -n "$evidence_pdf_path" ] || { echo "FAIL: upload da evidência: $uploaded"; exit 1; }
   completed="$(curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: ${CAMERA_DEVICE_TOKEN:-}" \
-    -d "{\"action\":\"COMPLETE\",\"request_id\":${request_id},\"image_path\":\"${image_path}\"}" \
+    -d "{\"action\":\"COMPLETE\",\"request_id\":${request_id},\"evidence_pdf_path\":\"${evidence_pdf_path}\"}" \
     "$base_url/api/camera_worker.php")"
   printf '%s' "$completed" | grep -q '"status":"CAPTURADA"' || { echo "FAIL: captura não confirmada: $completed"; exit 1; }
 done

@@ -40,7 +40,7 @@ Impacto: o fluxo `SEM_LEITURA` já está persistido. O driver do PC industrial m
 - Conta e região:
 - URL pública da API:
 - Estratégia de banco: gerenciado ou container:
-- Armazenamento de imagens:
+- Armazenamento remoto e backup dos PDFs de auditoria:
 - Domínio e certificado:
 - Política de retenção e backup:
 

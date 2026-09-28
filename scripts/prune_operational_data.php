@@ -133,8 +133,20 @@ if ($errorDays > 0) {
     } while ($count === $batch);
 }
 
+do {
+    $statement = $pdo->prepare(
+        "DELETE FROM limites_login
+         WHERE (blocked_until IS NULL AND window_started_at < DATE_SUB(NOW(), INTERVAL 24 HOUR))
+            OR (blocked_until IS NOT NULL AND blocked_until <= NOW())
+         LIMIT {$batch}",
+    );
+    $statement->execute();
+    $count = $statement->rowCount();
+    $removed["limites_login"] = ($removed["limites_login"] ?? 0) + $count;
+} while ($count === $batch);
+
 $parts = [];
-foreach (["leituras", "eventos_sensor", "fila_sincronizacao", "logs_auditoria", "logs_erros"] as $table) {
+foreach (["leituras", "eventos_sensor", "fila_sincronizacao", "logs_auditoria", "logs_erros", "limites_login"] as $table) {
     $parts[] = $table . "=" . (int) ($removed[$table] ?? 0);
 }
 echo "Retenção operacional: " . implode(" ", $parts) . ".\n";

@@ -61,11 +61,12 @@ try {
 }
 
 session_regenerate_id(true);
-$_SESSION["user"] = $usuarioAtualizado;
-$_SESSION["auth_version"] = (int) $stored["auth_version"] + 1;
-$_SESSION["user_validated_at"] = time();
+$session =& trace_contexto_sessao();
+$session["user"] = $usuarioAtualizado;
+$session["auth_version"] = (int) $stored["auth_version"] + 1;
+$session["user_validated_at"] = time();
 json_response([
     "data" => ["updated" => true],
-    "user" => $_SESSION["user"],
+    "user" => $session["user"],
     "csrf_token" => gerar_token_csrf(),
 ]);

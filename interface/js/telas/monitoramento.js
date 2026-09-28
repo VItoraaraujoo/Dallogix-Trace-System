@@ -85,6 +85,7 @@ export function alerts(store) {
       : centralSync.configured
         ? "Sincronização central configurada, aguardando primeira execução."
         : "Instalação sem sincronização central configurada.";
+  const canRetrySync = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(store.state.userRole);
   const syncRows = sync.recent?.length
     ? sync.recent
         .map((item) => {
@@ -96,7 +97,10 @@ export function alerts(store) {
           }[String(item.aggregate_type || "").toUpperCase()] || "Registro operacional";
           const status = rotuloStatusSincronizacao(item.status);
           const detail = item.status === "ERRO" ? "Falha no envio; tente novamente." : "Aguardando processamento seguro.";
-          return `<tr><td data-label="Registro"><strong>${esc(kind)}</strong><small>Registro #${esc(item.aggregate_id || item.id)}</small></td><td data-label="Situação">${esc(status)}<small>${detail}</small></td><td data-label="Próxima verificação">${esc(dataHora(item.available_at, "agora"))}</td><td data-label="Ação"><button class="button secondary small" data-action="retry-sync" data-id="${item.id}" type="button" ${sync.remote_configured ? "" : "disabled"}>Tentar novamente</button></td></tr>`;
+          const retry = canRetrySync
+            ? button("Tentar novamente", "retry-sync", "secondary small", `data-id="${item.id}"${sync.remote_configured ? "" : " disabled"}`)
+            : "—";
+          return `<tr><td data-label="Registro"><strong>${esc(kind)}</strong><small>Registro #${esc(item.aggregate_id || item.id)}</small></td><td data-label="Situação">${esc(status)}<small>${detail}</small></td><td data-label="Próxima verificação">${esc(dataHora(item.available_at, "agora"))}</td><td data-label="Ação">${retry}</td></tr>`;
         })
         .join("")
     : '<tr><td colspan="4" class="empty-cell">Nenhum envio aguardando processamento.</td></tr>';

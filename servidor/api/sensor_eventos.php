@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+define("TRACE_SKIP_SESSION", true);
+
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 
 exigir_metodo_http(["POST"]);
@@ -27,65 +29,87 @@ if ((int) $equipmentId !== (int) $device["equipment_id"]) {
     json_response(["error" => "O dispositivo só pode registrar eventos da própria Dala."], 403);
 }
 
-$loadingStatement = db()->prepare(
-    'SELECT c.id FROM carregamentos c
-     JOIN equipamentos e ON e.id = c.equipment_id AND e.id = :equipment_id
-     WHERE c.id = :loading_id AND c.company_id = :company_id LIMIT 1',
-);
-$loadingStatement->execute([
-    "equipment_id" => $equipmentId,
-    "loading_id" => $loadingId,
-    "company_id" => $device["company_id"],
-]);
-if (!$loadingStatement->fetch()) {
-    json_response(
-        ["error" => "Carregamento e esteira não pertencem à empresa."],
-        422,
-    );
+$deviceDetectedAt = null;
+if ($detectedAt !== "") {
+    $parsedDeviceDate = DateTime::createFromFormat("!Y-m-d H:i:s.v", $detectedAt);
+    $dateErrors = DateTime::getLastErrors();
+    if (
+        !$parsedDeviceDate ||
+        ($dateErrors !== false && ($dateErrors["warning_count"] > 0 || $dateErrors["error_count"] > 0)) ||
+        $parsedDeviceDate->format("Y-m-d H:i:s.v") !== $detectedAt
+    ) {
+        json_response(["error" => "Data do evento inválida."], 422);
+    }
+    if (abs($parsedDeviceDate->getTimestamp() - time()) <= 300) {
+        $deviceDetectedAt = $parsedDeviceDate->format("Y-m-d H:i:s.v");
+    }
 }
 
-$eventDate =
-    $detectedAt !== ""
-        ? DateTime::createFromFormat("Y-m-d H:i:s.v", $detectedAt)
-        : new DateTime();
-if (!$eventDate) {
-    json_response(["error" => "Data do evento inválida."], 422);
-}
+$rawDebounce = getenv("TRACE_DEBOUNCE_MS");
+$configuredDebounce = filter_var(
+    $rawDebounce === false || $rawDebounce === "" ? 400 : $rawDebounce,
+    FILTER_VALIDATE_INT,
+);
+$debounceMs = max(0, min(5000, $configuredDebounce === false ? 400 : (int) $configuredDebounce));
+$debounceMicroseconds = $debounceMs * 1000;
 
 $pdo = db();
 $pdo->beginTransaction();
 try {
+    // Lock the loading so simultaneous sensor events use one authoritative
+    // server-time debounce window.
+    $loadingStatement = $pdo->prepare(
+        'SELECT c.id FROM carregamentos c
+         JOIN equipamentos e ON e.id = c.equipment_id AND e.id = :equipment_id
+         WHERE c.id = :loading_id AND c.company_id = :company_id LIMIT 1 FOR UPDATE',
+    );
+    $loadingStatement->execute([
+        "equipment_id" => $equipmentId,
+        "loading_id" => $loadingId,
+        "company_id" => $device["company_id"],
+    ]);
+    if (!$loadingStatement->fetch()) {
+        $pdo->rollBack();
+        json_response(
+            ["error" => "Carregamento e esteira não pertencem à empresa."],
+            422,
+        );
+    }
+
     $debounce = $pdo->prepare(
         "SELECT id FROM eventos_sensor
          WHERE carregamento_id = :carregamento_id
            AND equipment_id = :equipment_id
-           AND TIMESTAMPDIFF(MICROSECOND, detected_at, :detected_at) BETWEEN 0 AND 400000
+           AND detected_at >= DATE_SUB(NOW(3), INTERVAL {$debounceMicroseconds} MICROSECOND)
+           AND detected_at <= NOW(3)
          ORDER BY detected_at DESC LIMIT 1",
     );
     $debounce->execute([
         "carregamento_id" => $loadingId,
         "equipment_id" => $equipmentId,
-        "detected_at" => $eventDate->format("Y-m-d H:i:s.v"),
     ]);
     $debouncedId = $debounce->fetchColumn();
     if ($debouncedId !== false) {
+        $pdo->rollBack();
         json_response([
             "data" => [
                 "id" => (int) $debouncedId,
                 "duplicate" => true,
                 "debounced" => true,
-                "debounce_ms" => 400,
+                "debounce_ms" => $debounceMs,
             ],
         ]);
     }
     $insert = $pdo->prepare(
-        "INSERT INTO eventos_sensor (carregamento_id, equipment_id, event_uuid, detected_at, debounce_ms) VALUES (:carregamento_id, :equipment_id, :event_uuid, :detected_at, 400)",
+        "INSERT INTO eventos_sensor (carregamento_id, equipment_id, event_uuid, detected_at, device_detected_at, debounce_ms)
+         VALUES (:carregamento_id, :equipment_id, :event_uuid, NOW(3), :device_detected_at, :debounce_ms)",
     );
     $insert->execute([
         "carregamento_id" => $loadingId,
         "equipment_id" => $equipmentId,
         "event_uuid" => $eventUuid,
-        "detected_at" => $eventDate->format("Y-m-d H:i:s.v"),
+        "device_detected_at" => $deviceDetectedAt,
+        "debounce_ms" => $debounceMs,
     ]);
     $eventId = (int) $pdo->lastInsertId();
     record_operational_event(

@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/../../scripts/image_storage_path.php';
+require_once __DIR__ . '/../../servidor/src/Aplicacao/RelatorioAuditoriaPdf.php';
 
 class CameraUploadResponse extends RuntimeException
 {
@@ -22,10 +23,14 @@ class CameraUploadStatement extends PDOStatement
     public function fetch(int $mode = PDO::FETCH_DEFAULT, int $orientation = PDO::FETCH_ORI_NEXT, int $offset = 0): mixed
     {
         if (str_contains($this->sql, 'r.reason')) {
-            return ($this->params['id'] ?? null) === 42
-                ? ['id' => 42, 'carregamento_id' => 5, 'equipment_id' => 7,
-                    'reason' => 'SEM_LEITURA', 'company_id' => 1]
-                : false;
+            $requestId = $this->params['id'] ?? $this->params['request_id'] ?? null;
+            if ($requestId !== 42) {
+                return false;
+            }
+            $files = glob(TRACE_CAMERA_TEST_STORAGE . '/company_1/equipment_7/capture-42-*.pdf') ?: [];
+            $imagePath = $files === [] ? null : 'company_1/equipment_7/' . basename($files[0]);
+            return ['id' => 42, 'carregamento_id' => 5, 'equipment_id' => 7,
+                'reason' => 'SEM_LEITURA', 'company_id' => 1, 'evidence_pdf_path' => $imagePath];
         }
         return $this->params === [
             'request_id' => 42, 'equipment_id' => 7, 'company_id' => 1, 'device_id' => 3,

@@ -34,7 +34,7 @@
           <h2 id="local-activation-title">Ativar instalação</h2>
           <p>Informe o código da empresa e o login do administrador criado no servidor central.</p>
           <form id="local-activation-form">
-            <label>Código da empresa<input name="activation_code" type="text" inputmode="text" autocomplete="one-time-code" placeholder="TRC-XXXX-XXXX" required /></label>
+            <label>Código da empresa<input name="activation_code" type="text" inputmode="text" autocomplete="one-time-code" maxlength="34" placeholder="TRC-XXXXXX-XXXXX-XXXXX-XXXXX-XXXXX" required /></label>
             <label>Login do administrador<input name="email" type="email" autocomplete="username" placeholder="admin@dallogix.empresa-chat" required /></label>
             <label>Senha do administrador<input name="password" type="password" autocomplete="current-password" required /></label>
             <button class="button secondary" type="submit">Ativar este PC</button>

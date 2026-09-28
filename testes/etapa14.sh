@@ -2,7 +2,13 @@
 set -u
 
 base_url="${TRACE_BASE_URL:-http://localhost:8080}"
+gateway_token="${TRACE_DEVICE_TOKEN:-}"
 cookie_file="/tmp/dallogix-trace-etapa14-cookie.txt"
+
+if [[ -z "$gateway_token" ]]; then
+  echo "FAIL: defina TRACE_DEVICE_TOKEN com o token provisionado para a Dala"
+  exit 1
+fi
 
 login="$(curl -sS -c "$cookie_file" -H 'Content-Type: application/json' -d '{"email":"admin@dallogix.local","password":"password"}' "$base_url/api/login.php")"
 if ! printf '%s' "$login" | grep -q '"authenticated":true'; then
@@ -10,7 +16,7 @@ if ! printf '%s' "$login" | grep -q '"authenticated":true'; then
   exit 1
 fi
 
-heartbeat="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -d '{"equipment_id":1,"device_type":"CLP","status":"ONLINE","details":{"source":"teste"}}' "$base_url/api/dispositivos.php")"
+heartbeat="$(curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" -d '{"equipment_id":1,"device_type":"CLP","status":"ONLINE","details":{"source":"teste"}}' "$base_url/api/device_heartbeat.php")"
 if ! printf '%s' "$heartbeat" | grep -q '"status":"ONLINE"'; then
   echo "FAIL: heartbeat não foi aceito: $heartbeat"
   exit 1
@@ -28,4 +34,4 @@ if ! printf '%s' "$monitoring" | grep -q '"dispositivos"'; then
   exit 1
 fi
 
-echo "OK: heartbeat e status dos dispositivos persistidos e monitorados."
+echo "OK: heartbeat autenticado e status dos dispositivos listados e monitorados."

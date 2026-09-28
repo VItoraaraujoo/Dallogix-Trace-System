@@ -1,6 +1,8 @@
 <?php
 declare(strict_types=1);
 
+define("TRACE_SKIP_SESSION", true);
+
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 
 exigir_metodo_http(["POST"]);
@@ -12,7 +14,7 @@ $code = strtoupper(trim((string) ($payload["activation_code"] ?? "")));
 $email = strtolower(trim((string) ($payload["email"] ?? "")));
 $password = (string) ($payload["password"] ?? "");
 $installationToken = bin2hex(random_bytes(32));
-if (!preg_match('/^TRC-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/', $code)) {
+if (!codigo_ativacao_empresa_valido($code)) {
     responder_json([
         "error" => "Código de ativação incorreto.",
         "error_code" => "ACTIVATION_CODE_INVALID",
@@ -36,7 +38,7 @@ if (url_remota_segura($centralUrl) === "") {
 
 $sessionCookies = [];
 $postJson = static function (string $url, array $body, array $extraHeaders = []) use (&$sessionCookies): array {
-    $handle = curl_init($url);
+    $handle = curl_init_url_remota_segura($url);
     if ($handle === false) {
         throw new RuntimeException("Não foi possível iniciar a conexão com o servidor central.");
     }

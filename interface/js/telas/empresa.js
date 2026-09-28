@@ -32,8 +32,8 @@ export function company(store) {
   const activationCodeContent = !licenseActive
     ? "<p>Ative a licença da empresa para liberar o código de ativação do PC industrial.</p>"
     : visibleActivationCode
-    ? `<strong class="company-activation-code">${esc(visibleActivationCode)}</strong><small>Guarde este código para ativar o PC industrial.</small>`
-    : `<p>${detail.activation_code_preview ? `Código permanente já emitido (final ${esc(detail.activation_code_preview)}).` : "O código ainda não foi gerado para esta empresa."}</p>`;
+    ? `<strong class="company-activation-code">${esc(visibleActivationCode)}</strong><small>Uso único; expira em 7 dias. Informe-o no PC industrial.</small>`
+    : `<p>${detail.activation_code_preview ? `Código disponível (final ${esc(detail.activation_code_preview)}), válido por 7 dias.` : detail.activation_code_used_at ? "O código anterior já foi utilizado. Gere outro somente se precisar ativar uma instalação." : "Não há código ativo. Gere um para ativar o PC industrial."}</p>`;
   const activationActions = licenseActive
     ? `<button class="button primary" data-action="generate-company-activation" data-id="${detail.id}" type="button">${activationButtonLabel}</button>${visibleActivationCode ? `<button class="button secondary" data-action="copy-company-activation" data-code="${esc(visibleActivationCode)}" type="button">Copiar código</button>` : ""}`
     : "";

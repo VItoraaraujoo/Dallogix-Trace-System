@@ -14,6 +14,8 @@ Para testes novos, use nomes descritivos por funcionalidade, por exemplo:
 
 `qualidade.sh` valida a sintaxe e referências essenciais. `regressao_completa.sh`
 executa toda a suíte integrada quando os serviços locais estiverem ativos.
+O validador de módulos JS verifica imports relativos e módulos acessíveis a
+partir das telas HTML; não classifica dependências PHP ou carregamento dinâmico.
 
 As regressões isoladas `gateway-clp.mjs`, `operacoes-offline.mjs`,
 `camera-upload-http.mjs` e `modbus-transporte.py` não precisam do banco da

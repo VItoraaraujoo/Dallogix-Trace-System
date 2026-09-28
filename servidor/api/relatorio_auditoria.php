@@ -3,8 +3,66 @@ declare(strict_types=1);
 
 require_once __DIR__ . "/../configuracao/bootstrap.php";
 require_once __DIR__ . "/../src/Aplicacao/RelatorioAuditoriaPdf.php";
+require_once __DIR__ . "/../../scripts/image_storage_path.php";
 
 use App\Aplicacao\RelatorioAuditoriaPdf;
+
+/** Remove só os arquivos de captura intermediários mantidos dentro do armazenamento. */
+function trace_cleanup_report_evidence(PDO $pdo, array $loadIds, int $companyId, string $storageRoot): void
+{
+    if ($loadIds === []) {
+        return;
+    }
+    $placeholders = implode(",", array_fill(0, count($loadIds), "?"));
+    $pathsQuery = $pdo->prepare(
+        "SELECT i.path FROM imagens i JOIN carregamentos c ON c.id = i.carregamento_id
+         WHERE c.company_id = ? AND i.carregamento_id IN ({$placeholders})
+         UNION ALL
+         SELECT r.evidence_pdf_path FROM solicitacoes_captura_camera r
+         JOIN carregamentos c ON c.id = r.carregamento_id
+         WHERE c.company_id = ? AND r.carregamento_id IN ({$placeholders}) AND r.evidence_pdf_path IS NOT NULL",
+    );
+    $pathsQuery->execute([$companyId, ...$loadIds, $companyId, ...$loadIds]);
+    $paths = array_unique(array_filter(array_map(
+        static fn(array $row): string => trim((string) ($row["path"] ?? "")),
+        $pathsQuery->fetchAll(PDO::FETCH_ASSOC),
+    )));
+    foreach ($paths as $storedPath) {
+        $relativePath = ltrim($storedPath, "/");
+        if (str_starts_with($relativePath, "armazenamento/")) {
+            $relativePath = substr($relativePath, strlen("armazenamento/"));
+        }
+        if (preg_match(
+            '/\\Acompany_' . $companyId . '\/equipment_[0-9]+\/capture-[0-9]+-[a-f0-9]{64}\\.(pdf|jpg|png)\\z/',
+            $relativePath,
+        ) !== 1) {
+            continue;
+        }
+        $absolutePath = trace_image_storage_path($storageRoot, $relativePath);
+        if ($absolutePath !== null && !unlink($absolutePath) && is_file($absolutePath)) {
+            throw new RuntimeException("Não foi possível remover um arquivo de captura após salvar o PDF final.");
+        }
+    }
+    $pdo->beginTransaction();
+    try {
+        $deleteImages = $pdo->prepare(
+            "DELETE i FROM imagens i JOIN carregamentos c ON c.id = i.carregamento_id
+             WHERE c.company_id = ? AND i.carregamento_id IN ({$placeholders})",
+        );
+        $deleteImages->execute([$companyId, ...$loadIds]);
+        $clearCapturePaths = $pdo->prepare(
+            "UPDATE solicitacoes_captura_camera r JOIN carregamentos c ON c.id = r.carregamento_id
+             SET r.evidence_pdf_path = NULL WHERE c.company_id = ? AND r.carregamento_id IN ({$placeholders})",
+        );
+        $clearCapturePaths->execute([$companyId, ...$loadIds]);
+        $pdo->commit();
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        throw $exception;
+    }
+}
 
 $user = require_session_user();
 $romaneioId = filter_var($_GET["romaneio_id"] ?? null, FILTER_VALIDATE_INT);
@@ -39,6 +97,55 @@ $loads = $pdo->prepare('SELECT c.id, c.state, c.started_at, c.finished_at, e.nam
 $loads->execute(["id" => $romaneioId]);
 $loadRows = $loads->fetchAll();
 $loadIds = array_map(static fn(array $row): int => (int) $row["id"], $loadRows);
+if ($loadIds !== []) {
+    $pendingCaptures = $pdo->prepare(
+        "SELECT COUNT(*) FROM solicitacoes_captura_camera
+         WHERE carregamento_id IN (" . implode(",", array_fill(0, count($loadIds), "?")) . ")
+           AND status IN ('PENDENTE', 'CAPTURANDO')",
+    );
+    $pendingCaptures->execute($loadIds);
+    if ((int) $pendingCaptures->fetchColumn() > 0) {
+        json_response(["error" => "Aguarde a conclusão das capturas de câmera antes de gerar o PDF."], 409);
+    }
+}
+$storageRoot = realpath(__DIR__ . "/../../armazenamento");
+if ($storageRoot === false) {
+    json_response(["error" => "Armazenamento de relatórios indisponível."], 503);
+}
+$reportRelativeDirectory = "company_" . (int) $user["company_id"] . "/reports";
+$reportDirectory = $storageRoot . "/" . $reportRelativeDirectory;
+if (!is_dir($reportDirectory) && !mkdir($reportDirectory, 0700, true) && !is_dir($reportDirectory)) {
+    json_response(["error" => "Não foi possível preparar a pasta do relatório."], 503);
+}
+$resolvedReportDirectory = realpath($reportDirectory);
+if ($resolvedReportDirectory === false
+    || !str_starts_with($resolvedReportDirectory, $storageRoot . DIRECTORY_SEPARATOR)) {
+    json_response(["error" => "Pasta do relatório inválida."], 503);
+}
+$reportRelativePath = $reportRelativeDirectory . "/romaneio-" . (int) $romaneioId . "-auditoria.pdf";
+$reportPath = $resolvedReportDirectory . DIRECTORY_SEPARATOR . basename($reportRelativePath);
+if (is_link($reportPath)) {
+    json_response(["error" => "Destino do relatório inválido."], 503);
+}
+$savedReport = trace_image_storage_path($storageRoot, $reportRelativePath);
+if ($savedReport !== null) {
+    $savedPdf = file_get_contents($savedReport);
+    if (!is_string($savedPdf) || !str_starts_with($savedPdf, "%PDF-")) {
+        json_response(["error" => "O PDF salvo está inválido; as evidências foram preservadas."], 503);
+    }
+    trace_cleanup_report_evidence($pdo, $loadIds, (int) $user["company_id"], $storageRoot);
+    record_operational_event($pdo, $user, "RELATORIO_AUDITORIA_BAIXADO", "romaneio", (int) $romaneioId, []);
+    header_remove("Content-Type");
+    header("Content-Type: application/pdf");
+    header(
+        'Content-Disposition: attachment; filename="romaneio-' .
+            preg_replace("/[^A-Za-z0-9_-]/", "-", (string) $romaneio["number"]) .
+            '-auditoria.pdf"',
+    );
+    header("Cache-Control: no-store");
+    echo $savedPdf;
+    exit();
+}
 $placeholders = implode(",", array_fill(0, count($loadIds), "?"));
 $formatDate = static function (?string $value): string {
     if (!$value) {
@@ -87,22 +194,37 @@ if ($loadIds !== []) {
 
 $evidenceImages = [];
 if ($incidentImages !== []) {
-    $storageRoot = realpath(__DIR__ . "/../../armazenamento") ?: "";
     foreach ($incidentImages as $image) {
         $relativePath = ltrim((string) $image["path"], "/");
         if (str_starts_with($relativePath, "armazenamento/")) {
             $relativePath = substr($relativePath, strlen("armazenamento/"));
         }
-        $absolutePath = $storageRoot !== "" ? realpath($storageRoot . "/" . $relativePath) : false;
-        if (
-            $absolutePath !== false &&
-            $storageRoot !== "" &&
-            str_starts_with($absolutePath, $storageRoot . DIRECTORY_SEPARATOR)
-        ) {
-            $evidenceImages[] = [
-                "path" => $absolutePath,
-                "caption" => (string) $image["reason"] . " · " . (string) $image["captured_at"],
-            ];
+        $absolutePath = trace_image_storage_path($storageRoot, $relativePath);
+        if ($absolutePath === null) {
+            throw new RuntimeException("Uma evidência do romaneio não foi encontrada; o PDF não foi finalizado.");
+        }
+        $caption = (string) $image["reason"] . " · " . (string) $image["captured_at"];
+        $mime = (new finfo(FILEINFO_MIME_TYPE))->file($absolutePath);
+        if ($mime === "application/pdf") {
+            $evidencePdf = file_get_contents($absolutePath);
+            if (!is_string($evidencePdf) || !str_starts_with($evidencePdf, "%PDF-")) {
+                throw new RuntimeException("Um PDF de evidência está inválido; nenhuma captura foi removida.");
+            }
+            $sourceImages = RelatorioAuditoriaPdf::extractSourceImagesFromPdf($evidencePdf);
+            if ($sourceImages === []) {
+                throw new RuntimeException("Um PDF de evidência não contém uma imagem recuperável.");
+            }
+            foreach ($sourceImages as $sourceImage) {
+                $evidenceImages[] = ["bytes" => $sourceImage["bytes"], "mime" => $sourceImage["mime"], "caption" => $caption];
+            }
+        } elseif (in_array($mime, ["image/jpeg", "image/png"], true)) {
+            $sourceImage = file_get_contents($absolutePath);
+            if (!is_string($sourceImage)) {
+                throw new RuntimeException("Não foi possível ler uma evidência do romaneio.");
+            }
+            $evidenceImages[] = ["bytes" => $sourceImage, "mime" => $mime, "caption" => $caption];
+        } else {
+            throw new RuntimeException("Formato de evidência não suportado; nenhuma captura foi removida.");
         }
     }
 }
@@ -203,17 +325,22 @@ if ($occurrences !== []) {
 if ($evidenceImages !== []) {
     $report->heading("Evidências");
     foreach ($evidenceImages as $image) {
-        $report->incidentImage($image["path"], $image["caption"]);
+        if (!$report->incidentImageData($image["bytes"], $image["mime"], $image["caption"])) {
+            throw new RuntimeException("Não foi possível incorporar uma evidência ao PDF final.");
+        }
     }
 }
-record_operational_event(
-    $pdo,
-    $user,
-    "RELATORIO_AUDITORIA_BAIXADO",
-    "romaneio",
-    (int) $romaneioId,
-    [],
-);
+$pdfBytes = $report->output();
+$temporaryReportPath = $reportPath . ".tmp-" . bin2hex(random_bytes(8));
+if (file_put_contents($temporaryReportPath, $pdfBytes, LOCK_EX) !== strlen($pdfBytes)
+    || !chmod($temporaryReportPath, 0600) || !rename($temporaryReportPath, $reportPath)) {
+    if (is_file($temporaryReportPath)) {
+        unlink($temporaryReportPath);
+    }
+    json_response(["error" => "Não foi possível salvar o PDF final no servidor; as evidências foram preservadas."], 503);
+}
+trace_cleanup_report_evidence($pdo, $loadIds, (int) $user["company_id"], $storageRoot);
+record_operational_event($pdo, $user, "RELATORIO_AUDITORIA_BAIXADO", "romaneio", (int) $romaneioId, []);
 header_remove("Content-Type");
 header("Content-Type: application/pdf");
 header(
@@ -222,4 +349,4 @@ header(
         '-auditoria.pdf"',
 );
 header("Cache-Control: no-store");
-echo $report->output();
+echo $pdfBytes;

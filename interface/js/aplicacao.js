@@ -1,8 +1,4 @@
-import {
-  configurarSessaoPorAba,
-  guardarTokenSessao,
-  limparTokenSessao,
-} from "./sessao.js?v=202609222100";
+import { configurarSessaoPorAba } from "./sessao.js?v=202609280100";
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609210400";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
@@ -974,7 +970,6 @@ function bindActions() {
           method: "POST",
           headers: store.csrfToken ? { "X-CSRF-Token": store.csrfToken } : {},
         });
-        limparTokenSessao();
         window.location.href = "index.html";
         return;
       }
@@ -1543,7 +1538,6 @@ function bindLoginForm() {
       authenticatedUser = result.user;
       store.setUser(authenticatedUser);
       store.setCsrfToken(result.csrf_token);
-      guardarTokenSessao(result.session_token);
       window.location.replace(pagePath(defaultPage()));
     } catch (error) {
       renderLogin(
@@ -2230,7 +2224,6 @@ async function bootstrap() {
   const response = await fetch("/api/me.php");
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
-    limparTokenSessao();
     try {
       sessionStorage.setItem(
         "trace-login-message",

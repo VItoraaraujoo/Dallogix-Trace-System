@@ -37,7 +37,9 @@ if ($plan === "" || mb_strlen($plan) > 100 || mb_strlen($reason) > 255) {
     json_response(["error" => "Dados da licença inválidos."], 422);
 }
 $company = $pdo->prepare(
-    "SELECT id, archived_at, activation_code, activation_code_preview
+    "SELECT id, archived_at, activation_code, activation_code_preview,
+            activation_code_used_at,
+            (activation_code_expires_at IS NULL OR activation_code_expires_at <= NOW()) AS activation_code_expired
      FROM empresas WHERE id = :id LIMIT 1",
 );
 $company->execute(["id" => $companyId]);
@@ -62,14 +64,18 @@ try {
         "blocked_at" => $status === "ATIVA" ? null : date("Y-m-d H:i:s"),
         "reason" => $reason !== "" ? $reason : null,
     ]);
-    if ($status === "ATIVA" && trim((string) ($companyRow["activation_code"] ?? "")) === "") {
+    if ($status === "ATIVA"
+        && empty($companyRow["activation_code_used_at"])
+        && (trim((string) ($companyRow["activation_code"] ?? "")) === "" || (bool) $companyRow["activation_code_expired"])) {
         $activation = gerar_codigo_ativacao_empresa();
         $activationUpdate = $pdo->prepare(
             "UPDATE empresas
              SET activation_code = :code,
                  activation_code_hash = :code_hash,
                  activation_code_preview = :code_preview,
-                 activation_code_created_at = NOW()
+                 activation_code_created_at = NOW(),
+                 activation_code_expires_at = DATE_ADD(NOW(), INTERVAL 7 DAY),
+                 activation_code_used_at = NULL
              WHERE id = :id",
         );
         $activationUpdate->execute([

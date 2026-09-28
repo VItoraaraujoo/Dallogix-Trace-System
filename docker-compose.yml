@@ -55,6 +55,7 @@ services:
       TRACE_CENTRAL_URL: ${TRACE_CENTRAL_URL:-}
       TRACE_READINESS_TOKEN: ${TRACE_READINESS_TOKEN:-}
       TRACE_INSTALLATION_MODE: ${TRACE_INSTALLATION_MODE:-}
+      TRACE_DEBOUNCE_MS: ${TRACE_DEBOUNCE_MS:-400}
       TRACE_LOCAL_SIMULATION: ${TRACE_LOCAL_SIMULATION:-0}
       TRACE_VERSION: ${TRACE_VERSION:-development}
       TRACE_COMMIT: ${TRACE_COMMIT:-unknown}
@@ -68,8 +69,6 @@ services:
       ERROR_LOG_RETENTION_DAYS: ${ERROR_LOG_RETENTION_DAYS:-365}
       TRACE_DEVICE_TOKEN: ${TRACE_DEVICE_TOKEN:?TRACE_DEVICE_TOKEN é obrigatório}
       CAMERA_DEVICE_TOKEN: ${CAMERA_DEVICE_TOKEN:?CAMERA_DEVICE_TOKEN é obrigatório}
-      TRACE_TESTING_DISABLE_CSRF: ${TRACE_TESTING_DISABLE_CSRF:-0}
-      TRACE_TESTING_DISABLE_LOGIN_RATE_LIMIT: ${TRACE_TESTING_DISABLE_LOGIN_RATE_LIMIT:-0}
       LOGIN_EMAIL_DOMAIN: ${LOGIN_EMAIL_DOMAIN:-dallogix.local}
       LOGIN_EMAIL_BASE_DOMAIN: ${LOGIN_EMAIL_BASE_DOMAIN:-dallogix}
     volumes:
@@ -93,6 +92,14 @@ services:
       context: ./docker/mysql
       dockerfile: Dockerfile
     restart: unless-stopped
+    user: "999:999"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    tmpfs:
+      - /tmp:rw,nosuid,nodev,mode=1777
+      - /var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999
+      - /var/lib/mysql-files:rw,nosuid,nodev,uid=999,gid=999
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:-trace_local}
       MYSQL_USER: ${MYSQL_USER:-trace}
@@ -118,6 +125,8 @@ services:
     build:
       context: .
       dockerfile: integracoes/node-red/Dockerfile
+    # Executa uma vez como root apenas para preparar o volume persistente
+    # para o processo Node-RED (UID 1000); não possui acesso à rede.
     user: "0:0"
     entrypoint: ["/bin/sh", "-c"]
     command:

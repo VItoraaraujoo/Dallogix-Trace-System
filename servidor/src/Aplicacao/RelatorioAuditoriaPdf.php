@@ -20,7 +20,7 @@ final class RelatorioAuditoriaPdf
     private array $pages = [];
     /** @var list<string> */
     private array $content = [];
-    /** @var array<string, array{data:string,width:int,height:int}> */
+    /** @var array<string, array{data:string,width:int,height:int,colorSpace:string,filter:string,colors:int,alpha?:array{data:string,width:int,height:int,colorSpace:string,filter:string,colors:int},sourceData?:string,sourceMime?:string}> */
     private array $images = [];
     private int $imageSequence = 0;
     private float $y = self::TOP;
@@ -132,7 +132,7 @@ final class RelatorioAuditoriaPdf
     }
 
     /**
-     * Adds a JPEG evidence image to the report. Unsupported or unreadable files
+     * Adds a JPEG or PNG evidence image to the report. Unsupported or unreadable files
      * are deliberately ignored so one bad camera file cannot break the PDF.
      */
     public function incidentImage(string $path, string $caption = ""): bool
@@ -140,20 +140,56 @@ final class RelatorioAuditoriaPdf
         if (!is_file($path) || !is_readable($path)) {
             return false;
         }
-        $info = @getimagesize($path);
-        if ($info === false || $info["mime"] !== "image/jpeg") {
-            return false;
-        }
         $data = @file_get_contents($path);
         if ($data === false || $data === "") {
             return false;
         }
+        $info = @getimagesizefromstring($data);
+        if ($info === false || !in_array($info["mime"], ["image/jpeg", "image/png"], true)) {
+            return false;
+        }
+        return $this->incidentImageData($data, $info["mime"], $caption);
+    }
+
+    /**
+     * Embeds a JPEG or PNG directly in the PDF. When $preserveSource is true,
+     * the source bytes are also kept as a private PDF stream so a later report
+     * can be rebuilt without ever persisting a standalone image file.
+     */
+    public function incidentImageData(
+        string $data,
+        string $mime,
+        string $caption = "",
+        bool $preserveSource = false,
+    ): bool {
+        if ($data === "" || strlen($data) > 5 * 1024 * 1024) {
+            return false;
+        }
+        $info = @getimagesizefromstring($data);
+        if ($info === false || $info["mime"] !== $mime
+            || !in_array($mime, ["image/jpeg", "image/png"], true)
+            || $info[0] < 1 || $info[1] < 1 || $info[0] > 10000 || $info[1] > 10000) {
+            return false;
+        }
+        $image = $mime === "image/jpeg"
+            ? [
+                "data" => $data,
+                "width" => (int) $info[0],
+                "height" => (int) $info[1],
+                "colorSpace" => (($info["channels"] ?? 3) === 4 ? "/DeviceCMYK" : "/DeviceRGB"),
+                "filter" => "DCTDecode",
+                "colors" => (($info["channels"] ?? 3) === 4 ? 4 : 3),
+            ]
+            : self::pngImageResource($data);
+        if ($image === null) {
+            return false;
+        }
+        if ($preserveSource) {
+            $image["sourceData"] = $data;
+            $image["sourceMime"] = $mime;
+        }
         $alias = "Im" . (++$this->imageSequence);
-        $this->images[$alias] = [
-            "data" => $data,
-            "width" => (int) $info[0],
-            "height" => (int) $info[1],
-        ];
+        $this->images[$alias] = $image;
         $maxWidth = 245.0;
         $maxHeight = 170.0;
         $scale = min($maxWidth / $info[0], $maxHeight / $info[1], 1.0);
@@ -183,24 +219,273 @@ final class RelatorioAuditoriaPdf
         return true;
     }
 
+    /** @return list<array{bytes:string,mime:string}> */
+    public static function extractSourceImagesFromPdf(string $pdf): array
+    {
+        $images = [];
+        $cursor = 0;
+        while (($marker = strpos($pdf, "/Type /TraceSourceImage", $cursor)) !== false) {
+            $tail = substr($pdf, $marker);
+            if (preg_match(
+                '/\\A\/Type \/TraceSourceImage \/Subtype \/(JPEG|PNG) \/Length ([0-9]+) >>\\nstream\\n/',
+                $tail,
+                $matches,
+            ) !== 1) {
+                $cursor = $marker + 1;
+                continue;
+            }
+            $length = (int) $matches[2];
+            $dataStart = $marker + strlen($matches[0]);
+            if ($length < 1 || $length > 5 * 1024 * 1024 || $dataStart + $length > strlen($pdf)) {
+                $cursor = $marker + 1;
+                continue;
+            }
+            $bytes = substr($pdf, $dataStart, $length);
+            $mime = $matches[1] === "JPEG" ? "image/jpeg" : "image/png";
+            $info = @getimagesizefromstring($bytes);
+            if ($info !== false && $info["mime"] === $mime) {
+                $images[] = ["bytes" => $bytes, "mime" => $mime];
+            }
+            $cursor = $dataStart + $length;
+        }
+        return $images;
+    }
+
+    /** @return array{data:string,width:int,height:int,colorSpace:string,filter:string,colors:int,alpha?:array{data:string,width:int,height:int,colorSpace:string,filter:string,colors:int}}|null */
+    private static function pngImageResource(string $png): ?array
+    {
+        if (!str_starts_with($png, "\x89PNG\r\n\x1a\n")) {
+            return null;
+        }
+        $offset = 8;
+        $width = $height = $bitDepth = $colorType = $interlace = null;
+        $palette = "";
+        $transparency = "";
+        $compressed = "";
+        $length = strlen($png);
+        while ($offset + 12 <= $length) {
+            $chunkLength = unpack("N", substr($png, $offset, 4))[1];
+            $type = substr($png, $offset + 4, 4);
+            $offset += 8;
+            if ($chunkLength > $length - $offset - 4) {
+                return null;
+            }
+            $chunk = substr($png, $offset, $chunkLength);
+            $offset += $chunkLength + 4;
+            if ($type === "IHDR" && $chunkLength === 13) {
+                $header = unpack("Nwidth/Nheight/CbitDepth/CcolorType/Ccompression/Cfilter/Cinterlace", $chunk);
+                $width = (int) $header["width"];
+                $height = (int) $header["height"];
+                $bitDepth = (int) $header["bitDepth"];
+                $colorType = (int) $header["colorType"];
+                $interlace = (int) $header["interlace"];
+                if ($header["compression"] !== 0 || $header["filter"] !== 0) {
+                    return null;
+                }
+            } elseif ($type === "PLTE") {
+                $palette = $chunk;
+            } elseif ($type === "tRNS") {
+                $transparency = $chunk;
+            } elseif ($type === "IDAT") {
+                $compressed .= $chunk;
+            } elseif ($type === "IEND") {
+                break;
+            }
+        }
+        if (!$width || !$height || $width > 10000 || $height > 10000 || $width * $height > 6_000_000
+            || $bitDepth !== 8 || $interlace !== 0 || $compressed === "") {
+            return null;
+        }
+        $channels = match ($colorType) {
+            0 => 1,
+            2 => 3,
+            3 => 1,
+            4 => 2,
+            6 => 4,
+            default => 0,
+        };
+        if ($channels === 0 || ($colorType === 3 && ($palette === "" || strlen($palette) % 3 !== 0))) {
+            return null;
+        }
+        $rowLength = $width * $channels;
+        $expectedLength = ($rowLength + 1) * $height;
+        if ($expectedLength > 48 * 1024 * 1024) {
+            return null;
+        }
+        $decoded = @gzuncompress($compressed, $expectedLength);
+        if (!is_string($decoded) || strlen($decoded) !== $expectedLength) {
+            return null;
+        }
+        $rgbRows = "";
+        $grayRows = "";
+        $alphaRows = "";
+        $hasAlpha = false;
+        $previous = str_repeat("\0", $rowLength);
+        $dataOffset = 0;
+        for ($rowIndex = 0; $rowIndex < $height; $rowIndex++) {
+            $filter = ord($decoded[$dataOffset++]);
+            $row = substr($decoded, $dataOffset, $rowLength);
+            $dataOffset += $rowLength;
+            if ($filter > 4) {
+                return null;
+            }
+            for ($i = 0; $i < $rowLength; $i++) {
+                $value = ord($row[$i]);
+                $left = $i >= $channels ? ord($row[$i - $channels]) : 0;
+                $up = ord($previous[$i]);
+                $upperLeft = $i >= $channels ? ord($previous[$i - $channels]) : 0;
+                $predictor = match ($filter) {
+                    0 => 0,
+                    1 => $left,
+                    2 => $up,
+                    3 => intdiv($left + $up, 2),
+                    4 => self::paethPredictor($left, $up, $upperLeft),
+                };
+                $row[$i] = chr(($value + $predictor) & 0xff);
+            }
+            $previous = $row;
+            if ($colorType === 0 || $colorType === 2) {
+                if ($colorType === 0) {
+                    $grayRows .= "\0" . $row;
+                    if (strlen($transparency) === 2) {
+                        $transparentGray = unpack("n", $transparency)[1];
+                        $alpha = "";
+                        for ($i = 0; $i < $width; $i++) {
+                            $sample = ord($row[$i]);
+                            $alpha .= chr($sample === $transparentGray ? 0 : 255);
+                        }
+                        $alphaRows .= "\0" . $alpha;
+                        $hasAlpha = $hasAlpha || str_contains($alpha, "\0");
+                    }
+                } else {
+                    $rgbRows .= "\0" . $row;
+                    if (strlen($transparency) === 6) {
+                        $transparent = unpack("nred/ngreen/nblue", $transparency);
+                        $alpha = "";
+                        for ($i = 0; $i < $width; $i++) {
+                            $pixel = substr($row, $i * 3, 3);
+                            $matches = ord($pixel[0]) === $transparent["red"]
+                                && ord($pixel[1]) === $transparent["green"]
+                                && ord($pixel[2]) === $transparent["blue"];
+                            $alpha .= chr($matches ? 0 : 255);
+                        }
+                        $alphaRows .= "\0" . $alpha;
+                        $hasAlpha = $hasAlpha || str_contains($alpha, "\0");
+                    }
+                }
+                continue;
+            }
+            $colorRow = "";
+            $alphaRow = "";
+            if ($colorType === 3) {
+                $paletteSize = intdiv(strlen($palette), 3);
+                for ($i = 0; $i < $width; $i++) {
+                    $index = ord($row[$i]);
+                    if ($index >= $paletteSize) {
+                        return null;
+                    }
+                    $colorRow .= substr($palette, $index * 3, 3);
+                    $alpha = $index < strlen($transparency) ? ord($transparency[$index]) : 255;
+                    $alphaRow .= chr($alpha);
+                    $hasAlpha = $hasAlpha || $alpha !== 255;
+                }
+            } elseif ($colorType === 4) {
+                for ($i = 0; $i < $width; $i++) {
+                    $colorRow .= $row[$i * 2];
+                    $alpha = $row[$i * 2 + 1];
+                    $alphaRow .= $alpha;
+                    $hasAlpha = $hasAlpha || ord($alpha) !== 255;
+                }
+            } else {
+                for ($i = 0; $i < $width; $i++) {
+                    $colorRow .= substr($row, $i * 4, 3);
+                    $alpha = $row[$i * 4 + 3];
+                    $alphaRow .= $alpha;
+                    $hasAlpha = $hasAlpha || ord($alpha) !== 255;
+                }
+            }
+            if ($colorType === 4) {
+                $grayRows .= "\0" . $colorRow;
+            } else {
+                $rgbRows .= "\0" . $colorRow;
+            }
+            $alphaRows .= "\0" . $alphaRow;
+        }
+        $colorSpace = $colorType === 0 || $colorType === 4 ? "/DeviceGray" : "/DeviceRGB";
+        $colors = $colorSpace === "/DeviceGray" ? 1 : 3;
+        $imageData = @gzcompress($colorSpace === "/DeviceGray" ? $grayRows : $rgbRows, 6);
+        if (!is_string($imageData)) {
+            return null;
+        }
+        $resource = [
+            "data" => $imageData,
+            "width" => $width,
+            "height" => $height,
+            "colorSpace" => $colorSpace,
+            "filter" => "FlateDecode",
+            "colors" => $colors,
+        ];
+        if ($hasAlpha) {
+            $alphaData = @gzcompress($alphaRows, 6);
+            if (!is_string($alphaData)) {
+                return null;
+            }
+            $resource["alpha"] = [
+                "data" => $alphaData,
+                "width" => $width,
+                "height" => $height,
+                "colorSpace" => "/DeviceGray",
+                "filter" => "FlateDecode",
+                "colors" => 1,
+            ];
+        }
+        return $resource;
+    }
+
+    private static function paethPredictor(int $left, int $up, int $upperLeft): int
+    {
+        $base = $left + $up - $upperLeft;
+        $leftDistance = abs($base - $left);
+        $upDistance = abs($base - $up);
+        $upperLeftDistance = abs($base - $upperLeft);
+        if ($leftDistance <= $upDistance && $leftDistance <= $upperLeftDistance) {
+            return $left;
+        }
+        return $upDistance <= $upperLeftDistance ? $up : $upperLeft;
+    }
+
+    /** @param array{data:string,width:int,height:int,colorSpace:string,filter:string,colors:int} $image */
+    private static function pdfImageObject(array $image, ?int $alphaReference = null): string
+    {
+        $decodeParameters = $image["filter"] === "FlateDecode"
+            ? " /DecodeParms << /Predictor 15 /Colors {$image["colors"]} /BitsPerComponent 8 /Columns {$image["width"]} >>"
+            : "";
+        $softMask = $alphaReference === null ? "" : " /SMask {$alphaReference} 0 R";
+        return "<< /Type /XObject /Subtype /Image /Width {$image["width"]} /Height {$image["height"]}"
+            . " /ColorSpace {$image["colorSpace"]} /BitsPerComponent 8 /Filter /{$image["filter"]}"
+            . $decodeParameters . $softMask . " /Length " . strlen($image["data"]) . " >>\nstream\n"
+            . $image["data"] . "\nendstream";
+    }
+
     public function output(): string
     {
         $this->finishPage();
         $objects = ["<< /Type /Catalog /Pages 2 0 R >>", ""];
         $imageRefs = [];
         foreach ($this->images as $alias => $image) {
+            $alphaReference = null;
+            if (isset($image["alpha"])) {
+                $alphaReference = count($objects) + 1;
+                $objects[] = self::pdfImageObject($image["alpha"]);
+            }
             $imageId = count($objects) + 1;
             $imageRefs[$alias] = $imageId;
-            $objects[] =
-                "<< /Type /XObject /Subtype /Image /Width " .
-                $image["width"] .
-                " /Height " .
-                $image["height"] .
-                " /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length " .
-                strlen($image["data"]) .
-                " >>\nstream\n" .
-                $image["data"] .
-                "\nendstream";
+            $objects[] = self::pdfImageObject($image, $alphaReference);
+            if (isset($image["sourceData"], $image["sourceMime"])) {
+                $subtype = $image["sourceMime"] === "image/jpeg" ? "JPEG" : "PNG";
+                $objects[] = "<< /Type /TraceSourceImage /Subtype /{$subtype} /Length "
+                    . strlen($image["sourceData"]) . " >>\nstream\n" . $image["sourceData"] . "\nendstream";
+            }
         }
         $pageRefs = [];
         foreach ($this->pages as $page) {

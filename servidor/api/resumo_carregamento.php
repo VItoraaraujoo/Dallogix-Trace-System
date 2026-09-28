@@ -53,7 +53,7 @@ $data["capturas_pendentes"] = $count(
 );
 $data["imagens_incidentes"] = $count(
     $pdo,
-    "SELECT COUNT(*) FROM imagens WHERE carregamento_id = :id AND reason <> 'NORMAL'",
+    "SELECT COUNT(*) FROM solicitacoes_captura_camera WHERE carregamento_id = :id AND status = 'CAPTURADA' AND reason <> 'NORMAL'",
     ["id" => $loadingId],
 );
 json_response(["data" => $data]);

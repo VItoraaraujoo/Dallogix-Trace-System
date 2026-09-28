@@ -42,6 +42,9 @@ $attemptNumber = filter_var(
 if (!$loadingId) {
     json_response(["error" => "Carregamento obrigatório."], 422);
 }
+if (mb_strlen($barcode, "UTF-8") > 128 || preg_match('/[\x00-\x1F\x7F]/', $barcode) === 1) {
+    json_response(["error" => "Código de barras inválido ou longo demais."], 422);
+}
 if ($attemptNumber !== 1) {
     json_response(
         ["error" => "Cada saco possui uma única tentativa de leitura."],

@@ -75,8 +75,7 @@ Docker/Nginx, fila de sincronização).
    tentativas na mesma camada, verifique as outras antes de continuar
    ali. Ordem de suspeita sugerida para este projeto quando um teste de
    comunicação ou sincronização falha:
-   - `.env` / variáveis de ambiente (tokens, `TRACE_ALLOWED_DEVICE_HOSTS`,
-     `TRACE_INSTALLATION_MODE`, URLs de sync)
+   - `.env` / variáveis de ambiente (tokens, `TRACE_INSTALLATION_MODE`, URLs de sync)
    - Docker/rede (containers ativos, porta `127.0.0.1:1502` do CLP
      virtual, Nginx)
    - Banco/migrations (`scripts/migrate.sh`, schema desatualizado)

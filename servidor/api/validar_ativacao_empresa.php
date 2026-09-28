@@ -10,7 +10,7 @@ $installationToken = strtolower(trim((string) ($payload["installation_token"] ??
 $hasInstallationToken = $installationToken !== "";
 $normalized = str_replace("-", "", $code);
 verificar_taxa_de_ativacao($code);
-if (!preg_match('/^TRC-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}$/', $code)) {
+if (!codigo_ativacao_empresa_valido($code)) {
     responder_json([
         "error" => "Código de ativação incorreto.",
         "error_code" => "ACTIVATION_CODE_INVALID",
@@ -28,6 +28,8 @@ $statement = obter_conexao_banco()->prepare(
             (SELECT l.status FROM licencas l WHERE l.company_id = empresas.id ORDER BY l.id DESC LIMIT 1) AS license_status
      FROM empresas
      WHERE activation_code_hash = :code_hash
+       AND activation_code_used_at IS NULL
+       AND activation_code_expires_at > NOW()
        AND archived_at IS NULL
      LIMIT 1",
 );
@@ -56,12 +58,26 @@ if ($hasInstallationToken) {
         ], 403);
     }
     $updateToken = obter_conexao_banco()->prepare(
-        "UPDATE empresas SET installation_token_hash = :token_hash WHERE id = :id",
+        "UPDATE empresas
+         SET installation_token_hash = :token_hash,
+             activation_code = NULL,
+             activation_code_hash = NULL,
+             activation_code_preview = NULL,
+             activation_code_used_at = NOW()
+         WHERE id = :id AND activation_code_hash = :code_hash
+           AND activation_code_used_at IS NULL AND activation_code_expires_at > NOW()",
     );
     $updateToken->execute([
         "token_hash" => hash("sha256", $installationToken),
+        "code_hash" => hash("sha256", $normalized),
         "id" => $empresa["id"],
     ]);
+    if ($updateToken->rowCount() !== 1) {
+        responder_json([
+            "error" => "O código de ativação expirou ou já foi utilizado.",
+            "error_code" => "ACTIVATION_CODE_INVALID",
+        ], 409);
+    }
 }
 
 responder_json([

@@ -234,7 +234,7 @@ foreach (
     as $key
 ) {
     $label = trim((string) ($mapping[$key] ?? $defaultMapping[$key]));
-    if ($label === "") {
+    if ($label === "" || mb_strlen($label, "UTF-8") > 80) {
         continue;
     }
     $value = pdf_field_value($normalized, $label);

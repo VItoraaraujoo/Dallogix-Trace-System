@@ -18,7 +18,8 @@ function trace_e_instalacao_local(): bool
     if ($modo === "central" || $modo === "remoto" || $modo === "server") {
         return false;
     }
-    return ambiente_atual() !== "production";
+    // An omitted or unknown mode must never silently enable local-only flows.
+    return false;
 }
 
 function url_remota_segura(string $url): string
@@ -61,14 +62,57 @@ function url_remota_segura(string $url): string
     if ($records === false || $records === []) {
         return "";
     }
+    $resolvedIps = [];
     foreach ($records as $record) {
         $ip = (string) ($record["ip"] ?? $record["ipv6"] ?? "");
         if ($ip === "" || !$publicIp($ip)) {
             return "";
         }
+        $resolvedIps[] = $ip;
     }
 
+    // Reuse the validated DNS answers when opening the connection to prevent
+    // a second, attacker-controlled resolution between validation and cURL.
+    $GLOBALS["trace_remote_dns"] ??= [];
+    $GLOBALS["trace_remote_dns"][strtolower($host)] = array_values(array_unique($resolvedIps));
     return rtrim($url, "/");
+}
+
+/** @return CurlHandle|false */
+function curl_init_url_remota_segura(string $url)
+{
+    $safeUrl = url_remota_segura($url);
+    if ($safeUrl === "") {
+        return false;
+    }
+    $parts = parse_url($safeUrl);
+    if (!is_array($parts)) {
+        return false;
+    }
+    $host = strtolower(trim((string) ($parts["host"] ?? ""), "[]"));
+    $handle = curl_init($safeUrl);
+    if ($handle === false || filter_var($host, FILTER_VALIDATE_IP) !== false) {
+        return $handle;
+    }
+
+    $ips = $GLOBALS["trace_remote_dns"][$host] ?? [];
+    if ($ips === []) {
+        curl_close($handle);
+        return false;
+    }
+    $addresses = array_map(
+        static fn (string $ip): string => filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV6) !== false
+            ? "[{$ip}]"
+            : $ip,
+        $ips,
+    );
+    $port = (int) ($parts["port"] ?? 443);
+    if (!curl_setopt($handle, CURLOPT_RESOLVE, ["{$host}:{$port}:" . implode(",", $addresses)])) {
+        curl_close($handle);
+        return false;
+    }
+
+    return $handle;
 }
 
 function metadados_release(): array
@@ -151,26 +195,26 @@ if (function_exists("ini_set")) {
     ini_set("session.cookie_samesite", "Strict");
 }
 
-function trace_id_sessao_da_aba(): ?string
+function trace_id_aba_da_sessao(): string
 {
-    $token = trim((string) ($_SERVER["HTTP_X_TRACE_SESSION"] ?? ""));
-    if ($token === "") {
-        return null;
-    }
-    return preg_match('/\A[a-zA-Z0-9,-]{1,128}\z/', $token) === 1
-        ? $token
-        : null;
+    $tabId = strtolower(trim((string) ($_SERVER["HTTP_X_TRACE_TAB"] ?? "")));
+    return preg_match('/\A[a-f0-9]{32}\z/', $tabId) === 1 ? $tabId : "default";
 }
 
-function trace_e_requisicao_de_login(): bool
+function &trace_contexto_sessao(): array
 {
-    return basename((string) ($_SERVER["SCRIPT_NAME"] ?? "")) === "login.php";
+    $tabId = (string) ($GLOBALS["trace_tab_id"] ?? "default");
+    if (!isset($_SESSION["_trace_tabs"][$tabId]) || !is_array($_SESSION["_trace_tabs"][$tabId])) {
+        $_SESSION["_trace_tabs"][$tabId] = [];
+    }
+    return $_SESSION["_trace_tabs"][$tabId];
 }
 
 session_name("dallogix_trace_session");
 $appUrl = strtolower(trim((string) (getenv("APP_URL") ?: "")));
 $isSecureSession =
     str_starts_with($appUrl, "https://") ||
+    !trace_e_instalacao_local() ||
     ambiente_atual() === "production" ||
     filter_var(getenv("SESSION_SECURE") ?: "false", FILTER_VALIDATE_BOOLEAN);
 session_set_cookie_params([
@@ -181,26 +225,30 @@ session_set_cookie_params([
     "httponly" => true,
     "samesite" => "Strict",
 ]);
-$traceSessionHeader = trim((string) ($_SERVER["HTTP_X_TRACE_SESSION"] ?? ""));
-$traceSessionId = trace_id_sessao_da_aba();
-if (trace_e_requisicao_de_login()) {
-    // O cookie é compartilhado pelo navegador, mas cada novo login precisa
-    // começar uma sessão própria antes de a credencial ser validada.
-    session_id(bin2hex(random_bytes(32)));
-} elseif ($traceSessionHeader !== "") {
-    // Um identificador inválido não pode fazer a requisição voltar ao cookie
-    // compartilhado, pois isso reintroduziria a mistura entre abas.
-    session_id($traceSessionId ?? bin2hex(random_bytes(32)));
-}
-session_start();
-
-$sessionIdleTimeout = max(300, (int) (getenv("SESSION_IDLE_TIMEOUT") ?: 1800));
-if (isset($_SESSION["last_activity"]) && time() - (int) $_SESSION["last_activity"] > $sessionIdleTimeout) {
-    $_SESSION = [];
-    session_destroy();
+$skipSession = defined("TRACE_SKIP_SESSION") && TRACE_SKIP_SESSION === true;
+if (!$skipSession) {
     session_start();
+    $traceTabId = trace_id_aba_da_sessao();
+    $GLOBALS["trace_tab_id"] = $traceTabId;
+    if (!isset($_SESSION["_trace_tabs"]) || !is_array($_SESSION["_trace_tabs"])) {
+        // Move a pre-upgrade session into the first tab context without
+        // changing its cookie or silently logging the operator out.
+        $legacySession = $_SESSION;
+        unset($legacySession["_trace_tabs"]);
+        $_SESSION = ["_trace_tabs" => [$traceTabId => $legacySession]];
+    } elseif (!isset($_SESSION["_trace_tabs"][$traceTabId]) || !is_array($_SESSION["_trace_tabs"][$traceTabId])) {
+        $_SESSION["_trace_tabs"][$traceTabId] = [];
+    }
+    $sessionIdleTimeout = max(300, (int) (getenv("SESSION_IDLE_TIMEOUT") ?: 1800));
+    foreach ($_SESSION["_trace_tabs"] as $tabId => $context) {
+        if (!is_array($context) || !isset($context["last_activity"]) || time() - (int) $context["last_activity"] > $sessionIdleTimeout) {
+            unset($_SESSION["_trace_tabs"][$tabId]);
+        }
+    }
+    $sessionContext =& trace_contexto_sessao();
+    $sessionContext["last_activity"] = time();
+    unset($sessionContext);
 }
-$_SESSION["last_activity"] = time();
 trace_correlation_id();
 
 function responder_json(array $dados, int $status = 200): never
@@ -215,6 +263,12 @@ function responder_json(array $dados, int $status = 200): never
 function encerrar_sessao_atual(): void
 {
     if (session_status() !== PHP_SESSION_ACTIVE) {
+        return;
+    }
+
+    $tabId = (string) ($GLOBALS["trace_tab_id"] ?? "default");
+    unset($_SESSION["_trace_tabs"][$tabId]);
+    if (!empty($_SESSION["_trace_tabs"])) {
         return;
     }
 
@@ -256,11 +310,8 @@ function obter_conexao_banco(): PDO
         throw new RuntimeException("DB_PASSWORD não configurado.");
     }
 
-    if (
-        ambiente_atual() === "production" &&
-        in_array($password, ["", "change-me-local", "change-me-root"], true)
-    ) {
-        throw new RuntimeException("DB_PASSWORD de produção não configurado.");
+    if (in_array(strtolower($password), ["password", "password1234", "change-me-local", "change-me-root"], true)) {
+        throw new RuntimeException("DB_PASSWORD não pode usar uma credencial padrão.");
     }
 
     $connection = new PDO(
@@ -367,11 +418,10 @@ function require_device_token(array $allowedDeviceTypes = []): array
         responder_json(["error" => "Credencial do dispositivo ausente."], 401);
     }
 
-    // O SHA-256 é somente um seletor indexável. A credencial continua sendo
-    // validada pelo bcrypt, mas uma tentativa inválida não percorre todos os
-    // dispositivos ativos da instalação.
+    // Provisioned device tokens contain 256 random bits, so their indexed
+    // SHA-256 digest can be compared directly without bcrypt per request.
     $statement = obter_conexao_banco()->prepare(
-        "SELECT id, company_id, equipment_id, device_code, device_type, token_hash
+        "SELECT id, company_id, equipment_id, device_code, device_type, token_lookup_hash
          FROM dispositivos
          WHERE active = 1 AND token_lookup_hash = :token_lookup_hash
            AND (token_revoked_at IS NULL OR token_revoked_at > NOW())
@@ -380,7 +430,7 @@ function require_device_token(array $allowedDeviceTypes = []): array
     );
     $statement->execute(["token_lookup_hash" => hash("sha256", $provided)]);
     $device = $statement->fetch();
-    if (!$device || !password_verify($provided, (string) $device["token_hash"])) {
+    if (!$device || !hash_equals((string) $device["token_lookup_hash"], hash("sha256", $provided))) {
         responder_json(["error" => "Credencial do dispositivo inválida."], 401);
     }
     if ($allowedDeviceTypes !== [] && !in_array($device["device_type"], $allowedDeviceTypes, true)) {
@@ -542,24 +592,25 @@ function require_active_license(PDO $pdo, int $companyId): array
 
 function gerar_token_csrf(): string
 {
-    if (empty($_SESSION["csrf_token"])) {
-        $_SESSION["csrf_token"] = bin2hex(random_bytes(32));
+    $session =& trace_contexto_sessao();
+    if (empty($session["csrf_token"])) {
+        $session["csrf_token"] = bin2hex(random_bytes(32));
     }
-    return (string) $_SESSION["csrf_token"];
+    return (string) $session["csrf_token"];
 }
 
 /** @return array{code:string,hash:string,preview:string} */
 function gerar_codigo_ativacao_empresa(): array
 {
     $alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-    $part = static function () use ($alphabet): string {
+    $part = static function (int $length) use ($alphabet): string {
         $value = "";
-        for ($index = 0; $index < 4; $index++) {
+        for ($index = 0; $index < $length; $index++) {
             $value .= $alphabet[random_int(0, strlen($alphabet) - 1)];
         }
         return $value;
     };
-    $code = "TRC-{$part()}-{$part()}";
+    $code = "TRC-" . implode("-", [$part(6), $part(5), $part(5), $part(5), $part(5)]);
     $normalized = str_replace("-", "", $code);
     return [
         "code" => $code,
@@ -568,12 +619,16 @@ function gerar_codigo_ativacao_empresa(): array
     ];
 }
 
+function codigo_ativacao_empresa_valido(string $codigo): bool
+{
+    return preg_match(
+        '/\ATRC-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}(?:-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{5}){4}\z/',
+        strtoupper(trim($codigo)),
+    ) === 1;
+}
+
 function exigir_csrf(): void
 {
-    if (getenv("TRACE_TESTING_DISABLE_CSRF") === "1") {
-        return;
-    }
-
     $provided = (string) ($_SERVER["HTTP_X_CSRF_TOKEN"] ?? "");
     if ($provided === "" || !hash_equals(gerar_token_csrf(), $provided)) {
         responder_json(["error" => "Token CSRF inválido ou ausente."], 419);
@@ -586,14 +641,16 @@ function require_csrf(): void
     exigir_csrf();
 }
 
-function hash_limite_login_conta(string $identidade): string
+function hash_limite_login_origem(string $identidade): string
 {
-    return hash("sha256", strtolower(trim($identidade)));
+    $ip = trim((string) ($_SERVER["REMOTE_ADDR"] ?? "unknown"));
+    return hash("sha256", "login|" . $ip . "|" . strtolower(trim($identidade)));
 }
 
 function hash_limite_ativacao(string $codigo): string
 {
-    return hash("sha256", "activation|" . strtoupper(trim($codigo)));
+    $ip = trim((string) ($_SERVER["REMOTE_ADDR"] ?? "unknown"));
+    return hash("sha256", "activation|" . $ip . "|" . strtoupper(trim($codigo)));
 }
 
 function hash_limite_login_ip(): string
@@ -670,17 +727,13 @@ function registrar_tentativa_limitada_de_login(
 
 function verificar_taxa_de_login(string $identidade): void
 {
-    if (getenv("TRACE_TESTING_DISABLE_LOGIN_RATE_LIMIT") === "1") {
-        return;
-    }
-
     $connection = obter_conexao_banco();
     try {
         $connection->beginTransaction();
         $retryAfter = null;
         foreach ([
             [hash_limite_login_ip(), 30],
-            [hash_limite_login_conta($identidade), 10],
+            [hash_limite_login_origem($identidade), 10],
         ] as [$bucket, $maxAttempts]) {
             $retryAfter = registrar_tentativa_limitada_de_login(
                 $connection,
@@ -706,19 +759,14 @@ function verificar_taxa_de_login(string $identidade): void
 
 function verificar_taxa_de_ativacao(string $codigo): void
 {
-    if (getenv("TRACE_TESTING_DISABLE_LOGIN_RATE_LIMIT") === "1") {
-        return;
-    }
-
     $connection = obter_conexao_banco();
     try {
         $connection->beginTransaction();
         $retryAfter = null;
         foreach ([
             [hash_limite_login_ip(), 30],
-            // A ativação legítima faz uma validação inicial e outra para
-            // registrar o token seguro; dez tentativas permitem retries sem
-            // abrir espaço para enumeração sustentada do código.
+            // Pair the code bucket with the source IP to avoid global lockout
+            // of an activation code by an unrelated client.
             [hash_limite_ativacao($codigo), 10],
         ] as [$bucket, $maxAttempts]) {
             $retryAfter = registrar_tentativa_limitada_de_login(
@@ -745,16 +793,13 @@ function verificar_taxa_de_ativacao(string $codigo): void
 
 function registrar_login_sucesso(string $identidade): void
 {
-    if (getenv("TRACE_TESTING_DISABLE_LOGIN_RATE_LIMIT") === "1") {
-        return;
-    }
     $statement = obter_conexao_banco()->prepare(
         "UPDATE limites_login
          SET attempts = 0, window_started_at = NOW(), blocked_until = NULL, violation_count = 0
          WHERE identity_hash = :identity_hash",
     );
     $statement->execute([
-        "identity_hash" => hash_limite_login_conta($identidade),
+        "identity_hash" => hash_limite_login_origem($identidade),
     ]);
 }
 
@@ -807,8 +852,9 @@ function gerar_dominio_login_empresa(PDO $pdo, string $nome): string
 
 function obter_usuario_sessao(): ?array
 {
-    return isset($_SESSION["user"]) && is_array($_SESSION["user"])
-        ? $_SESSION["user"]
+    $session =& trace_contexto_sessao();
+    return isset($session["user"]) && is_array($session["user"])
+        ? $session["user"]
         : null;
 }
 
@@ -819,6 +865,7 @@ function sessao_auth_version_compativel(int $sessionVersion, int $currentVersion
 
 function exigir_sessao_usuario(bool $permitirTrocaSenha = false): array
 {
+    $session =& trace_contexto_sessao();
     $usuario = obter_usuario_sessao();
     if ($usuario === null) {
         responder_json(["error" => "Autenticação necessária."], 401);
@@ -835,17 +882,15 @@ function exigir_sessao_usuario(bool $permitirTrocaSenha = false): array
     $consulta->execute(["id" => (int) ($usuario["id"] ?? 0)]);
     $usuarioAtual = $consulta->fetch();
     if (!$usuarioAtual || !(bool) $usuarioAtual["active"]) {
-        $_SESSION = [];
-        session_destroy();
+        encerrar_sessao_atual();
         responder_json(["error" => "Sessão expirada ou acesso desativado."], 401);
     }
-    $sessionAuthVersion = (int) ($_SESSION["auth_version"] ?? 0);
+    $sessionAuthVersion = (int) ($session["auth_version"] ?? 0);
     // Sessões criadas antes do versionamento não carregam auth_version. Elas
     // precisam ser rejeitadas, nunca promovidas silenciosamente para uma
     // sessão atual, para que a rotação de senha/perfil invalide todo o legado.
     if (!sessao_auth_version_compativel($sessionAuthVersion, (int) $usuarioAtual["auth_version"])) {
-        $_SESSION = [];
-        session_destroy();
+        encerrar_sessao_atual();
         responder_json(["error" => "A sessão foi encerrada porque as credenciais foram alteradas."], 401);
     }
     $usuarioPublico = usuario_publico($usuarioAtual);
@@ -861,9 +906,9 @@ function exigir_sessao_usuario(bool $permitirTrocaSenha = false): array
             );
         }
     }
-    $_SESSION["user"] = $usuarioPublico;
-    $_SESSION["auth_version"] = (int) $usuarioAtual["auth_version"];
-    $_SESSION["user_validated_at"] = time();
+    $session["user"] = $usuarioPublico;
+    $session["auth_version"] = (int) $usuarioAtual["auth_version"];
+    $session["user_validated_at"] = time();
     return $usuarioPublico;
 }
 

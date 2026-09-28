@@ -36,10 +36,10 @@ test("upload de câmera exige token, reserva e imagem real; retry não duplica",
     const response = await fetch(url, { method: "POST", headers: { "X-Device-Token": token }, body: form });
     return { status: response.status, body: await response.json() };
   }
-  async function complete(imagePath) {
+  async function complete(evidencePdfPath) {
     const response = await fetch(`http://127.0.0.1:${port}/api/camera_worker.php`, {
       method: "POST", headers: { "X-Device-Token": "test-camera-token", "Content-Type": "application/json" },
-      body: JSON.stringify({ action: "COMPLETE", request_id: 42, image_path: imagePath }),
+      body: JSON.stringify({ action: "COMPLETE", request_id: 42, evidence_pdf_path: evidencePdfPath }),
     });
     return { status: response.status, body: await response.json() };
   }
@@ -54,19 +54,20 @@ test("upload de câmera exige token, reserva e imagem real; retry não duplica",
     assert.equal((await upload(42, png, "wrong-token")).status, 401);
     assert.equal((await upload(43)).status, 404);
     assert.equal((await upload(42, Buffer.from("not an image"))).status, 422);
-    const expectedPath = `company_1/equipment_7/capture-42-${(await import("node:crypto")).createHash("sha256").update(png).digest("hex")}.png`;
-    assert.equal((await complete(expectedPath)).status, 422);
+    const expectedPathPattern = /^company_1\/equipment_7\/capture-42-[a-f0-9]{64}\.pdf$/;
+    const expectedPath = `company_1/equipment_7/capture-42-${"0".repeat(64)}.pdf`;
+    assert.equal((await complete(expectedPath)).status, 409);
     const first = await upload(42);
     assert.equal(first.status, 201, JSON.stringify(first.body));
-    assert.match(first.body.data.image_path, /^company_1\/equipment_7\/capture-42-[a-f0-9]{64}\.png$/);
+    assert.match(first.body.data.evidence_pdf_path, expectedPathPattern);
     const retry = await upload(42);
     assert.equal(retry.status, 201, JSON.stringify(retry.body));
-    assert.equal(retry.body.data.image_path, first.body.data.image_path);
-    const completed = await complete(first.body.data.image_path);
+    assert.equal(retry.body.data.evidence_pdf_path, first.body.data.evidence_pdf_path);
+    const completed = await complete(first.body.data.evidence_pdf_path);
     assert.equal(completed.status, 200, JSON.stringify(completed.body));
     assert.equal(completed.body.data.status, "CAPTURADA");
     const files = await readdir(path.join(storage, "company_1", "equipment_7"));
-    assert.deepEqual(files, [path.basename(first.body.data.image_path)]);
+    assert.deepEqual(files, [path.basename(first.body.data.evidence_pdf_path)]);
   } finally {
     server.kill("SIGTERM");
     await new Promise((resolve) => server.once("exit", resolve));

@@ -1,52 +1,37 @@
-const SESSION_STORAGE_KEY = "trace-session-token";
+const TAB_STORAGE_KEY = "trace-tab-id";
 
-function obterTokenSessao() {
+function obterIdAba() {
   try {
-    return String(sessionStorage.getItem(SESSION_STORAGE_KEY) || "").trim();
+    const existente = String(sessionStorage.getItem(TAB_STORAGE_KEY) || "").toLowerCase();
+    if (/^[a-f0-9]{32}$/.test(existente)) return existente;
+    if (!globalThis.crypto?.getRandomValues) return "default";
+    const bytes = new Uint8Array(16);
+    globalThis.crypto.getRandomValues(bytes);
+    const id = Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+    sessionStorage.setItem(TAB_STORAGE_KEY, id);
+    return id;
   } catch (error) {
-    return "";
-  }
-}
-
-export function guardarTokenSessao(token) {
-  const valor = String(token || "").trim();
-  if (!valor) return false;
-  try {
-    sessionStorage.setItem(SESSION_STORAGE_KEY, valor);
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
-
-export function limparTokenSessao() {
-  try {
-    sessionStorage.removeItem(SESSION_STORAGE_KEY);
-  } catch (error) {
-    // O fluxo continua protegido pelo cookie quando o armazenamento não está disponível.
+    return "default";
   }
 }
 
 export function configurarSessaoPorAba() {
   if (typeof window === "undefined" || typeof window.fetch !== "function") return;
-  if (window.__traceSessionFetchConfigured === true) return;
+  if (window.__traceTabFetchConfigured === true) return;
 
   const fetchOriginal = window.fetch.bind(window);
   window.fetch = (input, init) => {
-    const token = obterTokenSessao();
-    if (!token) return fetchOriginal(input, init);
-
     const inputUrl =
       typeof Request !== "undefined" && input instanceof Request
         ? input.url
         : String(input);
-    let destino;
+    let destination;
     try {
-      destino = new URL(inputUrl, window.location.href);
+      destination = new URL(inputUrl, window.location.href);
     } catch (error) {
       return fetchOriginal(input, init);
     }
-    if (destino.origin !== window.location.origin) {
+    if (destination.origin !== window.location.origin) {
       return fetchOriginal(input, init);
     }
 
@@ -58,8 +43,8 @@ export function configurarSessaoPorAba() {
     if (init?.headers) {
       new Headers(init.headers).forEach((value, name) => headers.set(name, value));
     }
-    headers.set("X-Trace-Session", token);
+    headers.set("X-Trace-Tab", obterIdAba());
     return fetchOriginal(input, { ...(init || {}), headers });
   };
-  window.__traceSessionFetchConfigured = true;
+  window.__traceTabFetchConfigured = true;
 }

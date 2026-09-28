@@ -48,11 +48,15 @@ $statement = obter_conexao_banco()->prepare(
 );
 $statement->execute(["email" => $email]);
 $usuario = $statement->fetch();
+$hashComparacao = is_array($usuario)
+    ? (string) $usuario["password_hash"]
+    : '$2y$10$KyYdGXeTDGHkxm8b83po0OrNc6y90vZqVfUreYwjbQU4ptOOeHcB2';
+$senhaValida = password_verify($password, $hashComparacao);
 
 if (
     !$usuario ||
     !(bool) $usuario["active"] ||
-    !password_verify($password, $usuario["password_hash"])
+    !$senhaValida
 ) {
     usleep(200000);
     responder_json(["error" => "Credenciais inválidas."], 401);
@@ -84,14 +88,14 @@ if (password_needs_rehash($usuario["password_hash"], PASSWORD_DEFAULT)) {
 }
 
 session_regenerate_id(true);
-$_SESSION["user"] = usuario_publico($usuario);
-$_SESSION["auth_version"] = (int) $usuario["auth_version"];
-$_SESSION["user_validated_at"] = time();
+$session =& trace_contexto_sessao();
+$session["user"] = usuario_publico($usuario);
+$session["auth_version"] = (int) $usuario["auth_version"];
+$session["user_validated_at"] = time();
 
 responder_json([
     "authenticated" => true,
-    "user" => $_SESSION["user"],
+    "user" => $session["user"],
     "csrf_token" => gerar_token_csrf(),
-    "session_token" => session_id(),
     "password_change_required" => false,
 ]);
