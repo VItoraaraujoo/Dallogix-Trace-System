@@ -494,6 +494,7 @@ function setMobileMenuState(open) {
 }
 
 function hydrateChrome() {
+  document.body.classList.toggle("work-page", currentPage === "work");
   const shell = document.getElementById("shell");
   const menuToggle = document.querySelector('[data-action="toggle-menu"]');
   const nav = document.querySelector(".sidebar nav");
