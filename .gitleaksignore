@@ -1,0 +1,4 @@
+# These fingerprints are isolated regression fixtures and SSH key delimiters, not credentials.
+2d5ca7c71a0d47a35c15753994d76870101eeaa0:.github/workflows/quality.yml:generic-api-key:61
+2d5ca7c71a0d47a35c15753994d76870101eeaa0:.github/workflows/quality.yml:generic-api-key:62
+7639387ed3eb66b6db93b963e3b8bc3019616e69:.github/workflows/deploy-test.yml:private-key:32

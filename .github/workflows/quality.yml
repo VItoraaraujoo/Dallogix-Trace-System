@@ -52,20 +52,25 @@ jobs:
   mysql-integration:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
-    env:
-      TRACE_PRODUCTION_TEST_PROJECT: trace-pr-${{ github.run_id }}-${{ github.run_attempt }}
-      TRACE_PRODUCTION_TEST_STATE_DIR: ${{ runner.temp }}/trace-pr-${{ github.run_id }}-${{ github.run_attempt }}
-      TRACE_PRODUCTION_TEST_ENV_FILE: ${{ runner.temp }}/trace-pr-${{ github.run_id }}-${{ github.run_attempt }}/.env.production-test
-      TRACE_TEST_STORAGE_PATH: ${{ runner.temp }}/trace-pr-${{ github.run_id }}-${{ github.run_attempt }}/storage
-      TRACE_TEST_HTTPS_PORT: '18443'
     steps:
       - uses: actions/checkout@v5
-      - name: Run clean MySQL migrations and HTTPS application regression
+      - name: Run clean MySQL migrations, HTTPS application, and backup regression
+        env:
+          TRACE_PRODUCTION_TEST_PROJECT: trace-pr-${{ github.run_id }}-${{ github.run_attempt }}
+          TRACE_PRODUCTION_TEST_STATE_DIR: ${{ runner.temp }}/trace-pr-${{ github.run_id }}-${{ github.run_attempt }}
+          TRACE_PRODUCTION_TEST_ENV_FILE: ${{ runner.temp }}/trace-pr-${{ github.run_id }}-${{ github.run_attempt }}/.env.production-test
+          TRACE_TEST_STORAGE_PATH: ${{ runner.temp }}/trace-pr-${{ github.run_id }}-${{ github.run_attempt }}/storage
+          TRACE_TEST_HTTPS_PORT: '18443'
         run: |
           python3 scripts/production_test.py
           python3 testes/production_smoke.py
+          python3 testes/production_backup.py
       - name: Remove this run's isolated containers and database volume
         if: always()
+        env:
+          TRACE_PRODUCTION_TEST_PROJECT: trace-pr-${{ github.run_id }}-${{ github.run_attempt }}
+          TRACE_PRODUCTION_TEST_STATE_DIR: ${{ runner.temp }}/trace-pr-${{ github.run_id }}-${{ github.run_attempt }}
+          TRACE_PRODUCTION_TEST_ENV_FILE: ${{ runner.temp }}/trace-pr-${{ github.run_id }}-${{ github.run_attempt }}/.env.production-test
         run: |
           if [ -f "$TRACE_PRODUCTION_TEST_ENV_FILE" ]; then
             docker compose \
