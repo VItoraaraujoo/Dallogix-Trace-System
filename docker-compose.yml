@@ -181,6 +181,12 @@ services:
       - "${BIND_ADDRESS:-127.0.0.1}:${MODBUS_VIRTUAL_PORT:-1502}:1502"
     environment:
       MODBUS_PORT: 1502
+      MODBUS_LOG_LEVEL: ${MODBUS_LOG_LEVEL:-INFO}
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]

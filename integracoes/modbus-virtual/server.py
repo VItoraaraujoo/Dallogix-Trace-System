@@ -94,7 +94,7 @@ class ModbusHandler(socketserver.BaseRequestHandler):
             address, quantity = struct.unpack(">HH", payload)
             values = COILS if function == 1 else DISCRETE_INPUTS
             bits = read_bits(values, address, quantity)
-            logging.info("read bits function=%s address=%s quantity=%s", function, address, quantity)
+            logging.debug("read bits function=%s address=%s quantity=%s", function, address, quantity)
             return bytes([function, len(bits)]) + bits
         if function in (3, 4):
             if len(payload) != 4:
@@ -106,7 +106,7 @@ class ModbusHandler(socketserver.BaseRequestHandler):
             if address + quantity > len(values):
                 raise ModbusError(2)
             data = b"".join(struct.pack(">H", value) for value in values[address : address + quantity])
-            logging.info("read registers function=%s address=%s quantity=%s", function, address, quantity)
+            logging.debug("read registers function=%s address=%s quantity=%s", function, address, quantity)
             return bytes([function, len(data)]) + data
         if function == 5:
             if len(payload) != 4:
@@ -117,7 +117,7 @@ class ModbusHandler(socketserver.BaseRequestHandler):
             if address >= len(COILS):
                 raise ModbusError(2)
             COILS[address] = 1 if value else 0
-            logging.info("coil[%s] = %s", address, COILS[address])
+            logging.debug("coil[%s] = %s", address, COILS[address])
             return bytes([function]) + payload
         if function == 6:
             if len(payload) != 4:
@@ -126,7 +126,7 @@ class ModbusHandler(socketserver.BaseRequestHandler):
             if address >= len(HOLDING_REGISTERS):
                 raise ModbusError(2)
             HOLDING_REGISTERS[address] = value
-            logging.info("holding[%s] = %s", address, value)
+            logging.debug("holding[%s] = %s", address, value)
             return bytes([function]) + payload
         raise ModbusError(1)
 
@@ -137,7 +137,11 @@ class ReusableServer(socketserver.ThreadingTCPServer):
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
+    configured_level = os.getenv("MODBUS_LOG_LEVEL", "INFO").upper()
+    logging.basicConfig(
+        level=getattr(logging, configured_level, logging.INFO),
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
     with ReusableServer((HOST, PORT), ModbusHandler) as server:
         logging.info("Modbus virtual local listening on %s", PORT)
         server.serve_forever()

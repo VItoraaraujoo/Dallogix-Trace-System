@@ -1,5 +1,6 @@
 """Regressões com servidor descartável em loopback; nunca acessa o CLP real."""
 import importlib.util
+import logging
 from pathlib import Path
 import socket
 import struct
@@ -52,6 +53,12 @@ class ModbusTransportTest(unittest.TestCase):
 
     def test_read_fragmented_tcp(self):
         self.assertEqual(self.request(3, struct.pack(">HH", 0, 1), True), b"\x03\x02\x00\x00")
+
+    def test_successful_reads_do_not_log_at_info_level(self):
+        with self.assertLogs(level=logging.DEBUG) as captured:
+            self.request(3, struct.pack(">HH", 0, 1))
+        self.assertTrue(captured.records)
+        self.assertTrue(all(record.levelno == logging.DEBUG for record in captured.records))
 
     def test_unsupported_function(self):
         self.assertEqual(self.request(65, b""), b"\xc1\x01")
