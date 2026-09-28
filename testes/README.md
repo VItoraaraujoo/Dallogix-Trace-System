@@ -14,6 +14,10 @@ Para testes novos, use nomes descritivos por funcionalidade, por exemplo:
 
 `qualidade.sh` valida a sintaxe e referências essenciais. `regressao_completa.sh`
 executa toda a suíte integrada quando os serviços locais estiverem ativos.
+Essa bateria cria romaneio/carregamento e pode alterar a licença da fixture;
+para evitar escrita acidental na instalação operacional, exige `TRACE_BASE_URL`
+loopback explícita e `TRACE_REGRESSION_DISPOSABLE=1`. Use somente uma fixture
+descartável; a URL padrão `localhost:8080` não é mais assumida.
 
 As regressões isoladas `gateway-clp.mjs`, `operacoes-offline.mjs`,
 `camera-upload-http.mjs` e `modbus-transporte.py` não precisam do banco da

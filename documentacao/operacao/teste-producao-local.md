@@ -31,7 +31,10 @@ e restrição do operador. Cria um produto identificado como teste por execuçã
 O teste de backup valida checksum e restaura em um banco temporário, comparando
 as contagens de todas as tabelas. O banco temporário é removido ao final.
 A suíte `regressao_completa.sh` usa senhas padrão exclusivamente na fixture local
-descartável e envia tokens CSRF; não deve ser executada contra produção.
+descartável e envia tokens CSRF; não deve ser executada contra produção. Antes
+de qualquer chamada à API, ela exige `TRACE_REGRESSION_DISPOSABLE=1` e uma
+`TRACE_BASE_URL` loopback explícita. A suíte cria romaneio/carregamento de teste
+e pode ativar a licença da fixture; nunca a aponte para os dados operacionais.
 
 Para parar preservando os dados:
 
