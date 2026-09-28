@@ -98,9 +98,9 @@ final class ContratosEndpointsTest extends TestCase
         self::assertStringContainsString("remote_product_id", $migration);
     }
 
-    public function testStatusDoPcNaoQuebraSemMigrationEFiltraErroResolvido(): void
+    public function testStatusDoPcNaoQuebraSemMigrationEMantemErrosReaisVisiveis(): void
     {
-        foreach (["empresas.php", "sync_status.php", "diagnostico.php", "logs_erros.php"] as $endpoint) {
+        foreach (["empresas.php", "sync_status.php", "diagnostico.php"] as $endpoint) {
             $source = file_get_contents(__DIR__ . "/../../servidor/api/" . $endpoint);
 
             self::assertIsString($source);
@@ -111,7 +111,8 @@ final class ContratosEndpointsTest extends TestCase
         $diagnostic = file_get_contents(__DIR__ . "/../../servidor/api/diagnostico.php");
         self::assertIsString($logs);
         self::assertIsString($diagnostic);
-        self::assertStringContainsString("resolved_status_pc_error", $logs);
-        self::assertStringContainsString("resolved_status_pc_error", $diagnostic);
+        self::assertStringNotContainsString("information_schema.tables", $logs);
+        self::assertStringNotContainsString("resolved_status_pc_error", $logs);
+        self::assertStringNotContainsString("resolved_status_pc_error", $diagnostic);
     }
 }

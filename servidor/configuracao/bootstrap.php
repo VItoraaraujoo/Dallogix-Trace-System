@@ -225,7 +225,7 @@ session_set_cookie_params([
     "httponly" => true,
     "samesite" => "Strict",
 ]);
-$skipSession = defined("TRACE_SKIP_SESSION") && TRACE_SKIP_SESSION === true;
+$skipSession = defined("TRACE_SKIP_SESSION");
 if (!$skipSession) {
     session_start();
     $traceTabId = trace_id_aba_da_sessao();

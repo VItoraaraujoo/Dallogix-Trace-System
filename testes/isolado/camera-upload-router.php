@@ -18,6 +18,9 @@ class CameraUploadStatement extends PDOStatement
     public function execute(?array $params = null): bool
     {
         $this->params = $params ?? [];
+        if (str_contains($this->sql, 'UPDATE solicitacoes_captura_camera')) {
+            CameraUploadDatabase::$evidencePdfPath = $this->params['evidence_pdf_path'] ?? null;
+        }
         return true;
     }
     public function fetch(int $mode = PDO::FETCH_DEFAULT, int $orientation = PDO::FETCH_ORI_NEXT, int $offset = 0): mixed
@@ -37,9 +40,16 @@ class CameraUploadStatement extends PDOStatement
         ] ? ['id' => 42] : false;
     }
     public function rowCount(): int { return 1; }
+    public function fetchColumn(int $column = 0): mixed
+    {
+        return str_contains($this->sql, 'SELECT evidence_pdf_path')
+            ? CameraUploadDatabase::$evidencePdfPath
+            : false;
+    }
 }
 class CameraUploadDatabase extends PDO
 {
+    public static ?string $evidencePdfPath = null;
     private bool $transaction = false;
     public function __construct() {}
     public function prepare(string $query, array $options = []): PDOStatement|false

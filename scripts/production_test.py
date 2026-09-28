@@ -10,7 +10,10 @@ import time
 ROOT = Path(__file__).resolve().parents[1]
 STATE = ROOT / 'armazenamento/producao-teste'
 ENV = ROOT / '.env.production-test'
-COMPOSE = ['docker', 'compose', '--env-file', str(ENV), '-f', str(ROOT / 'docker-compose.production-test.yml')]
+COMPOSE = ['docker', 'compose']
+if project_name := os.environ.get('TRACE_PRODUCTION_TEST_PROJECT'):
+    COMPOSE.extend(['--project-name', project_name])
+COMPOSE.extend(['--env-file', str(ENV), '-f', str(ROOT / 'docker-compose.production-test.yml')])
 
 
 def run(args, **kwargs):

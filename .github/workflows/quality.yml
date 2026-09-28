@@ -17,9 +17,19 @@ jobs:
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
+          coverage: none
+          tools: composer
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
+      - name: Install PHP dependencies
+        run: composer install --no-interaction --prefer-dist
+      - name: Validate Composer manifest
+        run: composer validate --no-check-publish
+      - name: Run PHPUnit
+        run: composer test
+      - name: Run PHPStan
+        run: composer analyse -- --no-progress
       - name: Validate Trace
         run: |
           bash testes/qualidade.sh
@@ -31,8 +41,35 @@ jobs:
           php testes/api-permissoes-isoladas.php foreign-action
           php testes/api-permissoes-isoladas.php created-id
           php testes/api-permissoes-isoladas.php sync-reserved
+          php testes/api-permissoes-isoladas.php sync-operator
           php testes/api-conectividade-isolada.php online
           php testes/api-conectividade-isolada.php stale
           php testes/api-conectividade-isolada.php missing
           php testes/api-sensor-idempotencia-isolada.php same
           php testes/api-sensor-idempotencia-isolada.php foreign
+
+  mysql-integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      TRACE_PRODUCTION_TEST_PROJECT: trace-pr-${{ github.run_id }}-${{ github.run_attempt }}
+      MYSQL_DATABASE: trace_local
+      MYSQL_USER: trace
+      MYSQL_PASSWORD: trace-pr-test-password
+      MYSQL_ROOT_PASSWORD: trace-pr-test-root-password
+      APP_URL: https://localhost:8443
+      TRACE_DEVICE_TOKEN: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      CAMERA_DEVICE_TOKEN: fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210
+    steps:
+      - uses: actions/checkout@v5
+      - name: Run clean MySQL migrations and HTTPS application regression
+        run: |
+          python3 scripts/production_test.py
+          python3 testes/production_smoke.py
+      - name: Remove this run's isolated containers and database volume
+        if: always()
+        run: |
+          docker compose \
+            --project-name "$TRACE_PRODUCTION_TEST_PROJECT" \
+            -f docker-compose.production-test.yml \
+            down --volumes --remove-orphans

@@ -38,8 +38,18 @@ class TestDatabase extends PDO {
 $database = new TestDatabase();
 $queries = [];
 function db(): PDO { return $GLOBALS['database']; }
-function require_session_user(): array { return ['id' => 1, 'role' => 'ADMIN_EMPRESA', 'company_id' => 1]; }
+function require_session_user(): array
+{
+    $role = $GLOBALS['scenario'] === 'sync-operator' ? 'OPERADOR' : 'ADMIN_EMPRESA';
+    return ['id' => 1, 'role' => $role, 'company_id' => 1];
+}
 function exigir_sessao_usuario(): array { return require_session_user(); }
+function exigir_perfil(array $roles): array
+{
+    $user = require_session_user();
+    if (!in_array($user['role'], $roles, true)) json_response(['error' => 'Acesso negado.'], 403);
+    return $user;
+}
 function require_csrf(): void {}
 function exigir_csrf(): void {}
 function request_json(): array { return $GLOBALS['input']; }
@@ -71,6 +81,11 @@ if ($scenario === 'admin-target') {
     $input = ['id' => 7];
     putenv('SYNC_REMOTE_URL=https://example.invalid/events');
     $expected = 409;
+} elseif ($scenario === 'sync-operator') {
+    $endpoint = 'sync_queue.php';
+    $_SERVER['REQUEST_METHOD'] = 'POST';
+    $input = ['id' => 7];
+    $expected = 403;
 } else { throw new RuntimeException('Cenário inválido.'); }
 $code = file_get_contents(__DIR__ . '/../servidor/api/' . $endpoint);
 $code = preg_replace('/^require_once .*bootstrap\.php";$/m', '', $code);
