@@ -385,7 +385,7 @@ function waitForDocumentStyles() {
 // inicial não é recarregado, então os estilos exclusivos de Dalas precisam ser
 // adicionados quando a rota muda a partir de outra tela.
 const DALA_PAGES = new Set(["dalas", "dala", "dala-edit", "dala-actions"]);
-const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609211120";
+const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609291040";
 async function ensureDalaScreenStyles(page) {
   if (!DALA_PAGES.has(page)) return;
   const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
