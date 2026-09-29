@@ -1802,6 +1802,13 @@ table {
   margin: 0;
 }
 
+.work-page .manual-reading-blocked {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: #76520a;
+  font-size: 12px;
+}
+
 .work-page .work-scanner-corrections {
   display: grid;
   min-width: 0;
