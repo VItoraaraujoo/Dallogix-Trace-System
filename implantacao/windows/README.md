@@ -2,21 +2,33 @@
 
 O Windows pode apresentar o Trace como um único aplicativo para o operador. O arquivo `TraceLauncher.cmd` inicia os containers locais, aguarda o healthcheck e abre Edge/Chrome/Chromium em modo quiosque. Se o navegador fechar, ele é reaberto automaticamente.
 
+## Homologacao: instalacao e atualizacao da master
+
+Crie o ZIP oficial de um commit limpo com `python3 scripts/build_windows_zip.py`. Ele inclui `.trace-source-commit`, usado para vincular a instalacao ao GitHub sem descartar arquivos locais. Extraia o ZIP em `C:\` e execute no **CMD**:
+
+```cmd
+cd /d C:\DallogixTrace
+Instalar-PC-Windows.cmd
+```
+
+O comando prepara o `.env`, inicia o Docker, aplica as migrations, configura a ativacao local e registra uma tarefa que consulta a versao **realmente servida pelo Central** a cada cinco minutos enquanto a conta tecnica estiver conectada. O commit informado pela API do Central deve pertencer a `master`; o PC nao avanca para um commit do GitHub que ainda nao chegou ao servidor. Alteracoes locais e carregamentos ativos adiam a atualizacao. Os detalhes ficam em `C:\DallogixTrace\armazenamento\updates\master-homologacao\atualizacao.log`.
+
+Um ZIP comum baixado pelo botao do GitHub nao traz `.trace-source-commit`; para novas instalacoes, use o ZIP criado pelo comando acima. Uma instalacao antiga pode ser vinculada uma vez com `Configurar.cmd -OriginalCommit <sha-do-zip>`. Se os arquivos forem diferentes daquele commit, o configurador para e lista as diferencas sem apagar dados.
+
 ## Instalação
 
-O pacote de instalação da equipe técnica é compilado a partir de `TraceSetup.iss` com o Inno Setup e gera `TraceSetup.exe`. O operador final não recebe esse arquivo.
+O pacote de produção é compilado com `Build-TraceSetup.ps1` a partir de uma **tag aprovada** (`vN.N.N`). O build grava a versão inicial no instalador e gera `TraceSetup.exe`; ele recusa código local alterado.
 
 1. Instale Windows 10/11 IoT Enterprise ou Windows Pro, Docker Desktop e Edge/Chrome.
-2. Copie o repositório para `C:\ProgramData\DallogixTrace`.
-3. Copie `.env.example` para `.env` e preencha os valores reais da instalação.
-   Mantenha `WEB_BIND_ADDRESS=127.0.0.1`. Nenhum acesso remoto entra no PC industrial; todo gerenciamento remoto ocorre no servidor central.
+2. Execute o `TraceSetup.exe` aprovado com a conta técnica administradora. O assistente cria o `.env` com segredos aleatórios quando necessário, aplica migrations e prepara a máquina.
+3. Mantenha `WEB_BIND_ADDRESS=127.0.0.1`. Nenhum acesso remoto entra no PC industrial; todo gerenciamento remoto ocorre no servidor central.
 4. Teste `TraceLauncher.cmd` com a conta técnica.
 5. Configure a conta `trace-operator` para login automático e use Windows Assigned Access/Shell Launcher para iniciar `TraceLauncher.cmd`.
 6. Mantenha uma conta técnica administrativa separada da conta do operador.
 
 O sistema será apresentado ao operador como `TraceLauncher`, equivalente ao `Trace.exe`. A transformação opcional do `.cmd` em um `.exe` deve ser feita somente no instalador oficial da empresa; o comportamento e os serviços continuam os mesmos.
 
-Para a preparação técnica, a Dallogix entrega um `machine.json` preenchido e executa `Install-TraceMachine.ps1` com uma conta administrativa. O instalador sobe o Trace, registra o `Dallogix Agent` e a tarefa de atualização como tarefas automáticas do Windows, e vincula a máquina ao servidor central. A tarefa consulta a release assinada derivada da `master` a cada minuto, seguindo a mesma regra do macOS. O arquivo `machine-config.example.json` é apenas um modelo; tokens reais nunca devem entrar no repositório.
+O assistente registra o `Dallogix Agent` e a tarefa `Dallogix Trace Atualizacao Estavel`. Ela consulta às 03:30 a última release assinada, exige que o Central já sirva a mesma versão e o mesmo commit, instala somente um manifesto com assinatura e SHA-256 válidos e nunca volta para uma versão anterior. O processo de publicação atualiza o Central antes de disponibilizar a release aos PCs. `machine-config.example.json` é apenas um modelo; tokens reais nunca devem entrar no repositório.
 
 ## Segurança do PC
 
@@ -36,10 +48,12 @@ Invoke-WebRequest http://127.0.0.1:8080/api/health.php
 
 O launcher não cobra, não bloqueia o Windows e não altera dados de produção. O bloqueio mensal continua sendo manual pelo administrador Master dentro do Trace.
 
-Enquanto o mapa de I/O não estiver aprovado, `operation_mode` deve permanecer `SIMULATED`, `physical_clp_enabled` deve ser `false` e `io_map_status` deve ser `CONFIRMAR`. Nessa condição, o Agent envia presença e saúde, mas nenhuma escrita física no CLP é permitida.
+O assistente de instalação nunca aprova o mapa de I/O. Até a aprovação documental e de bancada, `physical_clp_enabled` permanece `false` e `io_map_status` permanece `CONFIRMAR`; a seleção de uma conexão física prevista pode identificar o modo `PHYSICAL`, mas não habilita escrita. Nessa condição, o Agent envia presença e saúde, mas nenhuma escrita física no CLP é permitida.
 
 O `TraceAgent` mantém a presença da máquina no servidor central por HTTPS/443, iniciado pelo PC industrial. O heartbeat não depende de conexões recebidas e não exige abertura de porta no roteador. Se a internet cair, o Agent registra a falha, enquanto o Trace continua operando localmente com o CLP e a fila de sincronização.
 
 ## Atualizações remotas
 
-O `Setup-TraceMachine.ps1` configura o manifesto estável e a chave pública que acompanham o pacote. `Install-TraceMachine.ps1` agenda a execução de `TraceUpdater.ps1` a cada minuto como `SYSTEM`, sem sobreposição; a tarefa pode ser instalada ou corrigida novamente ao executar o instalador técnico em uma instalação existente. O atualizador valida manifesto por HTTPS, assinatura e SHA-256, bloqueia a instalação durante carregamento, faz backup dos arquivos e do banco e só registra a versão depois do healthcheck. Se a nova versão falhar, restaura os arquivos e o banco anteriores e confirma o healthcheck. O operador não deve ter permissão administrativa para alterar a tarefa. O contrato completo está em [documentacao/operacao/atualizacoes-remotas.md](../../documentacao/operacao/atualizacoes-remotas.md).
+`TraceUpdater.ps1` valida manifesto, assinatura e SHA-256, bloqueia a troca durante carregamentos, para os escritores, faz backup, aplica migrations e só registra a versão depois de verificar PHP e MySQL. Em falha, tenta restaurar arquivos e banco e registra a versão falha para evitar tentativas repetidas. A tarefa roda como `SYSTEM`; o log fica em `armazenamento\logs\update-stable.log`. O contrato completo está em [documentacao/operacao/atualizacoes-remotas.md](../../documentacao/operacao/atualizacoes-remotas.md).
+
+Instalacoes Windows anteriores precisam receber uma vez o novo instalador de release para obter a tarefa e o marcador da versão. Publicar uma tag no GitHub nao altera PCs que ainda nao foram preparados para atualizacao automatica.

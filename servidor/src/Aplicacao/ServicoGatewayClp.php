@@ -75,7 +75,7 @@ final class ServicoGatewayClp
 
             $statement = $this->connection->prepare(
                 "SELECT r.id, r.company_id, r.equipment_id, r.carregamento_id, r.command, r.requested_at,
-                        r.remote_command_id, c.remote_carregamento_id,
+                        r.remote_command_id, c.remote_carregamento_id, c.state AS loading_state,
                         e.remote_equipment_id, e.equipment_code
                  FROM solicitacoes_comandos_clp r
                  JOIN carregamentos c ON c.id = r.carregamento_id

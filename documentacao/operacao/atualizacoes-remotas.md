@@ -6,9 +6,10 @@ O Trace pode receber versões remotamente, mas a máquina industrial só instala
 
 1. O servidor de distribuição publica um pacote imutável e um manifesto assinado.
 2. A máquina consulta o manifesto por HTTPS e valida canal, versão, SHA-256 e assinatura com uma chave pública instalada localmente.
-3. O agente verifica no banco se há carregamento `PREPARANDO`, `CARREGANDO`, `PAUSADO`, `FINALIZANDO` ou `EMERGENCIA`. Se houver, a atualização é recusada e pode ser tentada novamente depois.
-4. Sem operação ativa, cria backup do banco e dos arquivos, instala a versão em uma área de releases e reinicia os serviços.
-5. O healthcheck precisa responder. Caso contrário, a versão anterior é restaurada automaticamente.
+3. Antes de instalar, confirma que a API do Central ja serve a mesma versao e o mesmo commit incorporado ao pacote.
+4. O agente verifica no banco se há carregamento `PREPARANDO`, `CARREGANDO`, `PAUSADO`, `FINALIZANDO` ou `EMERGENCIA`. Se houver, a atualização é recusada e pode ser tentada novamente depois.
+5. Sem operação ativa, cria backup do banco e dos arquivos, instala a versão em uma área de releases e reinicia os serviços.
+6. O healthcheck local precisa confirmar a mesma versao e commit do Central. Caso contrário, o atualizador tenta restaurar a versão anterior e mantém o PC em manutenção se a recuperação falhar.
 
 O horário recomendado é uma janela de manutenção, por exemplo 03:30. O operador não precisa abrir terminal e não vê serviços técnicos; a equipe técnica continua podendo executar `TRACE_UPDATE_DRY_RUN=1` para validar um pacote sem instalar.
 
@@ -17,9 +18,9 @@ O horário recomendado é uma janela de manutenção, por exemplo 03:30. O opera
 ```json
 {
   "channel": "stable",
-  "version": "2026.08.30.1",
-  "artifact_url": "https://updates.exemplo.dallogix/trace-2026.08.30.1.tar.gz",
-  "sha256": "064c...256 caracteres hexadecimais...e91a",
+  "version": "v1.2.3",
+  "artifact_url": "https://updates.exemplo.dallogix/trace-v1.2.3.tar.gz",
+  "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
   "signature": "BASE64_DA_ASSINATURA_RSA_SHA256"
 }
 ```
@@ -59,9 +60,17 @@ TRACE_UPDATE_DRY_RUN=1 bash scripts/update_trace.sh
 
 ## Publicação pelo GitHub
 
-O workflow `.github/workflows/release-production.yml` publica automaticamente uma release assinada a partir de cada commit da `master` depois das validações de qualidade, segurança e integração. Ele incrementa a versão patch SemVer e publica um pacote imutável, manifesto assinado e SBOM. O gatilho por tag SemVer continua disponível para uma publicação técnica explícita, desde que a tag aponte para um commit incorporado à `master`.
+O workflow `.github/workflows/release-production.yml` é manual. Primeiro incorpore o código aprovado à `master` e crie uma tag SemVer (`v1.2.3`, por exemplo). Em seguida, execute o workflow a partir da `master` e informe essa tag. Ele confirma que a tag existe e aponta para um commit incorporado à `master`, executa as validações, compila o instalador Windows e monta um único pacote assinado para Linux e Windows.
 
-Configure no ambiente protegido `production-release` do GitHub o segredo `UPDATE_SIGNING_PRIVATE_KEY`. A chave privada nunca deve entrar no repositório. O projeto distribui a chave pública em `servidor/configuracao/trace-update-public.pem`; a instalação industrial deve apontar `UPDATE_PUBLIC_KEY_FILE` para a cópia local desse arquivo e consultar o manifesto da última release estável:
+O workflow atualiza o Central usando `scripts/update_trace.sh`, que bloqueia novas preparações, recusa cargas ativas, faz backup, aplica as migrations e valida a aplicação local. O workflow consulta então `/api/health.php` e só publica a release do GitHub quando o Central informa a mesma versão e o mesmo commit. Assim os PCs não recebem a release antes do Central. O workflow `deploy-test.yml` agora executa somente a checagem de qualidade e não altera servidores.
+
+Configure no ambiente protegido `production-release` do GitHub os seguintes itens:
+
+- Segredos `UPDATE_SIGNING_PRIVATE_KEY`, `CENTRAL_SERVER_SSH_KEY` e `CENTRAL_SERVER_SSH_KNOWN_HOSTS`. O último deve conter a chave de host SSH obtida e conferida pela equipe; o workflow exige correspondência e não usa `ssh-keyscan` durante o deploy.
+- Variáveis `CENTRAL_SERVER_SSH_HOST`, `CENTRAL_SERVER_SSH_USER`, `CENTRAL_SERVER_SSH_PORT`, `CENTRAL_SERVER_PATH` e `CENTRAL_HEALTH_URL`. A última deve apontar por HTTPS para `/api/health.php` do Central.
+- A conta SSH precisa gravar no caminho configurado e acessar o Docker e o banco utilizados pelo Central. Configure também as proteções e os revisores exigidos pela política de mudança de produção.
+
+A chave privada de assinatura e a chave SSH nunca devem entrar no repositório. O projeto distribui a chave pública de atualização em `servidor/configuracao/trace-update-public.pem`; a instalação industrial deve apontar `UPDATE_PUBLIC_KEY_FILE` para a cópia local desse arquivo e consultar o manifesto da última release estável:
 
 ```dotenv
 UPDATE_MANIFEST_URL=https://github.com/VItoraaraujoo/Dallogix-Trace-System/releases/latest/download/manifest.json
@@ -69,16 +78,16 @@ UPDATE_PUBLIC_KEY_FILE=/opt/dallogix-trace/servidor/configuracao/trace-update-pu
 UPDATE_CHANNEL=stable
 ```
 
-Para publicar uma correção, basta incorporar o commit à `master`; o workflow executa os gates e publica a versão. Não é necessário criar uma tag manual. O procedimento por tag continua disponível quando a equipe técnica precisa escolher uma versão explícita:
+Para publicar uma correção, incorpore o commit à `master`, crie e envie uma nova tag, e então execute o workflow manual com essa tag:
 
 ```bash
 git checkout master
 git pull --ff-only origin master
 git tag -a v1.2.3 -m "Dallogix Trace v1.2.3"
-git push origin v1.2.3
+git push origin master v1.2.3
 ```
 
-Em macOS, o LaunchAgent consulta a `master` diretamente a cada 60 segundos. Linux usa o timer systemd e Windows usa a tarefa `Dallogix Trace Atualizacao`; ambos consultam a release assinada criada a partir da mesma `master` a cada minuto. Todos adiam a atualização durante carregamento ativo. Linux/Windows verificam assinatura, integridade, backup e healthcheck, com rollback automático se a nova versão falhar. Para manter a publicação automática, o ambiente `production-release` deve armazenar `UPDATE_SIGNING_PRIVATE_KEY` e não exigir aprovação manual por release. Se já houver PCs Linux/Windows instalados sem timer/tarefa, a equipe técnica precisa ativar o mecanismo uma vez em cada PC; novas instalações já recebem essa configuração.
+Em macOS, o LaunchAgent consulta a `master` diretamente a cada 60 segundos. Linux usa o timer systemd e Windows usa a tarefa `Dallogix Trace Atualizacao`; ambos consultam a última release assinada a cada minuto, depois que o workflow a publica. Todos adiam a atualização durante carregamento ativo. Linux/Windows verificam assinatura, integridade, backup e healthcheck, com rollback automático se a nova versão falhar. Se já houver PCs Linux/Windows instalados sem timer/tarefa, a equipe técnica precisa ativar o mecanismo uma vez em cada PC; novas instalações já recebem essa configuração.
 
 ## Sincronização remota em lote
 
@@ -108,7 +117,13 @@ parcial implícita. O token é enviado como `Authorization: Bearer` nos dois mod
 
 ## Windows industrial
 
-O `Setup-TraceMachine.ps1` configura URL e chave pública padrão; o `Install-TraceMachine.ps1` registra a tarefa `Dallogix Trace Atualizacao`, executada como `SYSTEM` a cada minuto e sem sobreposição. Se uma versão falhar, ela fica marcada para impedir tentativas automáticas repetidas até a equipe técnica investigar e remover a marca. O launcher continua abrindo o Trace em quiosque após a atualização. A conta do operador não deve ter permissão administrativa para alterar a tarefa. Para PC já instalado, a equipe técnica precisa cadastrar os valores `UPDATE_*` no `.env` e executar novamente o instalador de máquina para registrar a tarefa.
+O `TraceSetup.exe` de produção é compilado de uma tag aprovada por `Build-TraceSetup.ps1`. O instalador grava `trace-build-version.txt` e `trace-build-commit.txt`, exige que o Central sirva os mesmos identificadores, preenche apenas campos vazios de `UPDATE_MANIFEST_URL`, `UPDATE_PUBLIC_KEY_FILE` e `UPDATE_CHANNEL` no `.env` e registra a tarefa `Dallogix Trace Atualizacao Estavel` para 03:30, executada pela conta de sistema. Antes de criar a tarefa, ele confirma que essa conta consegue acessar o Docker Linux; se não conseguir, a instalação informa a falha. A tarefa usa `TraceUpdater.ps1` e escreve `armazenamento/logs/update-stable.log`. Git for Windows é instalado na preparação para executar os scripts existentes de backup e migrations.
+
+O atualizador compara versões SemVer e não instala uma release igual ou anterior. Com uma versão nova, valida a assinatura e o SHA-256, bloqueia novas preparações, confirma ausência de carregamentos ativos, interrompe os escritores antes do backup, aplica migrations e verifica a API local com MySQL. Se a troca falhar, tenta restaurar os arquivos e o banco; uma falha de rollback mantém o marcador de manutenção e exige atendimento técnico. Uma versão que falhou não é tentada repetidamente sem revisão.
+
+Um PC já instalado por ZIP não passa a atualizar só porque a tarefa foi adicionada ao código no GitHub. Ele precisa receber o instalador correspondente uma vez. O ZIP de homologação procura na `master` o commit efetivamente servido pelo Central; máquinas de operação real recebem somente releases aprovadas e aguardam o Central servir a mesma release antes de instalar. O launcher continuará abrindo o Trace em quiosque após a atualização.
+
+Nenhum mecanismo de atualização pode garantir troca instantânea em PCs desligados, sem rede ou com carregamento ativo. Durante esse intervalo, o PC conserva a versão local e a fila de sincronização; a equipe técnica deve acompanhar os PCs pendentes antes de considerar a implantação concluída.
 
 ## Limites importantes
 

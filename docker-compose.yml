@@ -160,10 +160,12 @@ services:
     environment:
       TRACE_API_URL: ${TRACE_API_URL:-http://nginx}
       TRACE_DEVICE_TOKEN: ${TRACE_DEVICE_TOKEN:?TRACE_DEVICE_TOKEN é obrigatório}
+      TRACE_INSTALLATION_MODE: ${TRACE_INSTALLATION_MODE:-}
+      TRACE_LOCAL_SIMULATION: ${TRACE_LOCAL_SIMULATION:-0}
+      TRACE_SIMULATOR_ONLY_COMMANDS: ${TRACE_SIMULATOR_ONLY_COMMANDS:-0}
       TRACE_MODBUS_UNIT_ID: ${TRACE_MODBUS_UNIT_ID:-}
       TRACE_MODBUS_HEARTBEAT_FUNCTION: ${TRACE_MODBUS_HEARTBEAT_FUNCTION:-}
       TRACE_MODBUS_HEARTBEAT_REGISTER: ${TRACE_MODBUS_HEARTBEAT_REGISTER:-}
-      CAMERA_DEVICE_TOKEN: ${CAMERA_DEVICE_TOKEN:?CAMERA_DEVICE_TOKEN é obrigatório}
     volumes:
       - node_red_data:/data
       - ./integracoes/node-red:/seed:ro
@@ -172,6 +174,54 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
+
+  camera-worker:
+    profiles: ["industrial"]
+    image: trace-industrial-pc-camera-worker:1.0
+    build:
+      context: .
+      dockerfile: integracoes/camera-worker/Dockerfile
+    restart: unless-stopped
+    init: true
+    user: "1000:1000"
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      nginx:
+        condition: service_healthy
+    pids_limit: 128
+    mem_limit: 384m
+    cpus: "1.50"
+    stop_grace_period: 20s
+    environment:
+      TRACE_API_URL: http://nginx
+      CAMERA_DEVICE_TOKEN: ${CAMERA_DEVICE_TOKEN:?CAMERA_DEVICE_TOKEN é obrigatório}
+      CAMERA_RTSP_HOST: ${CAMERA_RTSP_HOST:-}
+      CAMERA_RTSP_PORT: ${CAMERA_RTSP_PORT:-554}
+      CAMERA_RTSP_CHANNEL: ${CAMERA_RTSP_CHANNEL:-101}
+      CAMERA_RTSP_USERNAME: ${CAMERA_RTSP_USERNAME:-}
+      CAMERA_RTSP_PASSWORD: ${CAMERA_RTSP_PASSWORD:-}
+      CAMERA_JOB_POLL_MS: ${CAMERA_JOB_POLL_MS:-200}
+      CAMERA_FRAME_FRESH_MS: ${CAMERA_FRAME_FRESH_MS:-750}
+      CAMERA_HEARTBEAT_INTERVAL_MS: ${CAMERA_HEARTBEAT_INTERVAL_MS:-5000}
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:8090/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"
 
   modbus-virtual:
     profiles: ["simulation"]

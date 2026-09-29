@@ -1,52 +1,96 @@
 name: Publicar versão de produção
 
 on:
-  push:
-    branches:
-      - master
-    tags:
-      - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Tag SemVer já incorporada à master, por exemplo v1.2.3"
+        required: true
+        type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: dallogix-trace-production-release
   cancel-in-progress: false
 
 jobs:
-  release:
-    runs-on: ubuntu-24.04
-    environment: production-release
+  windows-installer:
+    runs-on: windows-2022
     steps:
-      - name: Checkout da versão
+      - name: Checkout da tag solicitada
         uses: actions/checkout@v5
         with:
+          ref: ${{ inputs.release_tag }}
           fetch-depth: 0
 
-      - name: Confirmar que a versão veio da master
+      - name: Preparar .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Instalar Inno Setup
+        shell: pwsh
+        run: choco install innosetup -y --no-progress
+
+      - name: Gerar instalador da release
+        shell: powershell
+        run: .\implantacao\windows\Build-TraceSetup.ps1
+
+      - name: Guardar instalador para publicação conjunta
+        uses: actions/upload-artifact@v4
+        with:
+          name: trace-windows-installer
+          path: implantacao/windows/Output/TraceSetup.exe
+          if-no-files-found: error
+
+      - name: Guardar aplicativo Windows para o pacote de atualização
+        uses: actions/upload-artifact@v4
+        with:
+          name: trace-windows-runtime
+          path: desktop/DallogixTrace/bin/Release/net8.0-windows/win-x64/publish/*
+          if-no-files-found: error
+
+  release:
+    needs: windows-installer
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    environment: production-release
+    steps:
+      - name: Checkout da tag solicitada
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.release_tag }}
+          fetch-depth: 0
+
+      - name: Validar a tag e o commit de produção
+        id: release
+        env:
+          VERSION: ${{ inputs.release_tag }}
         run: |
+          [[ "$GITHUB_REF" == "refs/heads/master" ]] || {
+            echo "Execute este workflow a partir da branch master." >&2
+            exit 1
+          }
+          [[ "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "Informe uma tag no formato vN.N.N." >&2
+            exit 1
+          }
           git fetch origin master --no-tags
-          if ! git merge-base --is-ancestor "$GITHUB_SHA" "origin/master"; then
+          commit="$(git rev-parse "$VERSION^{commit}")"
+          checked_out_commit="$(git rev-parse HEAD)"
+          [[ "$commit" == "$checked_out_commit" ]] || {
+            echo "A tag selecionada não aponta para o commit carregado." >&2
+            exit 1
+          }
+          git merge-base --is-ancestor "$commit" origin/master || {
             echo "A versão precisa apontar para um commit já incorporado à master." >&2
             exit 1
-          fi
-
-      - name: Definir versão da publicação
-        id: release_version
-        run: |
-          if [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
-            version="$GITHUB_REF_NAME"
-          else
-            latest="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' --sort=-version:refname | awk '/^v[0-9]+\.[0-9]+\.[0-9]+$/ {print; exit}')"
-            if [[ -z "$latest" ]]; then
-              version="v1.0.0"
-            else
-              IFS=. read -r major minor patch <<< "${latest#v}"
-              version="v${major}.${minor}.$((patch + 1))"
-            fi
-          fi
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          }
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
       - name: Configurar PHP
         uses: shivammathur/setup-php@v2
@@ -87,16 +131,25 @@ jobs:
           bash testes/qualidade.sh
           bash scripts/security_scan.sh
 
+      - name: Obter aplicativo Windows da mesma tag
+        uses: actions/download-artifact@v4
+        with:
+          name: trace-windows-runtime
+          path: dist/windows-runtime
+
       - name: Montar pacote imutável
         env:
-          VERSION: ${{ steps.release_version.outputs.version }}
+          VERSION: ${{ steps.release.outputs.version }}
+          COMMIT: ${{ steps.release.outputs.commit }}
         run: |
           mkdir -p dist/stage
-          git archive --format=tar "$GITHUB_SHA" | tar -xf - -C dist/stage
-          php scripts/version_assets.php "$GITHUB_SHA" dist/stage
+          git archive --format=tar "$COMMIT" | tar -xf - -C dist/stage
+          php scripts/version_assets.php "$COMMIT" dist/stage
+          cp -a dist/windows-runtime/. dist/stage/
+          printf '%s\n' "$VERSION" > dist/stage/trace-build-version.txt
+          printf '%s\n' "$COMMIT" > dist/stage/trace-build-commit.txt
           tar -czf "dist/trace-${VERSION}.tar.gz" -C dist/stage .
-          sha256sum "dist/trace-${VERSION}.tar.gz" \
-            | awk '{print $1}' > dist/sha256.txt
+          sha256sum "dist/trace-${VERSION}.tar.gz" | awk '{print $1}' > dist/sha256.txt
 
       - name: Gerar SBOM do release
         uses: anchore/sbom-action@v0.24.0
@@ -110,7 +163,8 @@ jobs:
         env:
           UPDATE_SIGNING_PRIVATE_KEY: ${{ secrets.UPDATE_SIGNING_PRIVATE_KEY }}
           REPOSITORY: ${{ github.repository }}
-          VERSION: ${{ steps.release_version.outputs.version }}
+          VERSION: ${{ steps.release.outputs.version }}
+          COMMIT: ${{ steps.release.outputs.commit }}
         run: |
           test -n "$UPDATE_SIGNING_PRIVATE_KEY" || {
             echo "Configure UPDATE_SIGNING_PRIVATE_KEY no ambiente production-release." >&2
@@ -125,34 +179,142 @@ jobs:
           printf '%s\n%s\n%s\n' "$VERSION" "$artifact_url" "$sha256" > dist/payload.txt
           openssl dgst -sha256 -sign "$key_file" -out dist/signature.bin dist/payload.txt
           signature="$(base64 --wrap=0 dist/signature.bin)"
-          python3 - "$VERSION" "$artifact_url" "$sha256" "$signature" > dist/manifest.json <<'PY'
+          python3 - "$VERSION" "$COMMIT" "$artifact_url" "$sha256" "$signature" > dist/manifest.json <<'PY'
           import json
           import sys
 
-          version, artifact_url, sha256, signature = sys.argv[1:]
+          version, commit, artifact_url, sha256, signature = sys.argv[1:]
           print(json.dumps({
               "channel": "stable",
               "version": version,
+              "commit": commit,
               "artifact_url": artifact_url,
               "sha256": sha256,
               "signature": signature,
           }, ensure_ascii=False, indent=2))
           PY
 
-      - name: Publicar release
+      - name: Obter instalador Windows da mesma tag
+        uses: actions/download-artifact@v4
+        with:
+          name: trace-windows-installer
+          path: dist
+
+      - name: Atualizar o Central pelo atualizador protegido
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.CENTRAL_SERVER_SSH_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.CENTRAL_SERVER_SSH_KNOWN_HOSTS }}
+          SERVER_HOST: ${{ vars.CENTRAL_SERVER_SSH_HOST }}
+          SERVER_USER: ${{ vars.CENTRAL_SERVER_SSH_USER }}
+          SERVER_PORT: ${{ vars.CENTRAL_SERVER_SSH_PORT }}
+          SERVER_PATH: ${{ vars.CENTRAL_SERVER_PATH }}
+          CENTRAL_HEALTH_URL: ${{ vars.CENTRAL_HEALTH_URL }}
+          VERSION: ${{ steps.release.outputs.version }}
+          COMMIT: ${{ steps.release.outputs.commit }}
+        run: |
+          : "${SERVER_HOST:?Configure CENTRAL_SERVER_SSH_HOST no ambiente production-release.}"
+          : "${SERVER_USER:?Configure CENTRAL_SERVER_SSH_USER no ambiente production-release.}"
+          : "${SERVER_PATH:?Configure CENTRAL_SERVER_PATH no ambiente production-release.}"
+          : "${SSH_PRIVATE_KEY:?Configure CENTRAL_SERVER_SSH_KEY no ambiente production-release.}"
+          : "${SSH_KNOWN_HOSTS:?Configure CENTRAL_SERVER_SSH_KNOWN_HOSTS no ambiente production-release.}"
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from urllib.parse import urlparse
+
+          url = os.environ.get("CENTRAL_HEALTH_URL", "").strip()
+          parsed = urlparse(url)
+          if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.path != "/api/health.php" or parsed.query or parsed.fragment:
+              raise SystemExit("Configure CENTRAL_HEALTH_URL como a URL HTTPS de /api/health.php do Central de produção.")
+          with urllib.request.urlopen(url, timeout=15) as response:
+              health = json.load(response)
+          if health.get("status") != "ok" or health.get("installation_mode") != "central":
+              raise SystemExit("O Central não está saudável ou não está identificado como instalação Central; atualização cancelada.")
+          PY
+          SERVER_PORT="${SERVER_PORT:-22}"
+          [[ "$SERVER_HOST" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "Host SSH inválido." >&2; exit 1; }
+          [[ "$SERVER_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || { echo "Usuário SSH inválido." >&2; exit 1; }
+          [[ "$SERVER_PORT" =~ ^[0-9]{1,5}$ ]] && (( SERVER_PORT >= 1 && SERVER_PORT <= 65535 )) || {
+            echo "Porta SSH inválida." >&2; exit 1;
+          }
+          [[ "$SERVER_PATH" =~ ^/[A-Za-z0-9_./-]+$ && "$SERVER_PATH" != "/" && "$SERVER_PATH" != *"/../"* && "$SERVER_PATH" != */.. ]] || {
+            echo "CENTRAL_SERVER_PATH precisa ser um diretório absoluto seguro." >&2; exit 1;
+          }
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > "$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" >/dev/null
+          printf '%s\n' "$SSH_KNOWN_HOSTS" | tr -d '\r' > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+          known_host="$SERVER_HOST"
+          if [[ "$SERVER_PORT" != "22" ]]; then known_host="[$SERVER_HOST]:$SERVER_PORT"; fi
+          ssh-keygen -F "$known_host" -f "$HOME/.ssh/known_hosts" >/dev/null || {
+            echo "A chave SSH fixada não corresponde ao host e à porta configurados." >&2; exit 1;
+          }
+          ssh_options=(-p "$SERVER_PORT" -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts")
+          remote_stage="/tmp/dallogix-trace-release-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          remote="$SERVER_USER@$SERVER_HOST"
+          cleanup_remote_stage() {
+            ssh "${ssh_options[@]}" "$remote" "rm -rf -- '$remote_stage'" >/dev/null 2>&1 || true
+          }
+          trap cleanup_remote_stage EXIT
+          ssh "${ssh_options[@]}" "$remote" "mkdir -m 700 -p '$remote_stage'"
+          scp -P "$SERVER_PORT" -i "$HOME/.ssh/id_ed25519" -o BatchMode=yes -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile="$HOME/.ssh/known_hosts" \
+            dist/manifest.json "dist/trace-${VERSION}.tar.gz" scripts/update_trace.sh "$remote:$remote_stage/"
+          ssh "${ssh_options[@]}" "$remote" bash -s -- "$SERVER_PATH" "$remote_stage" "$VERSION" "$COMMIT" <<'REMOTE'
+          set -euo pipefail
+          app_root="$1"
+          stage="$2"
+          version="$3"
+          commit="$4"
+          trap 'rm -rf -- "$stage"' EXIT
+          export TRACE_UPDATE_ROOT="$app_root"
+          export TRACE_UPDATE_MANIFEST_FILE="$stage/manifest.json"
+          export TRACE_UPDATE_ARTIFACT_FILE="$stage/trace-$version.tar.gz"
+          export TRACE_UPDATE_EXPECT_VERSION="$version"
+          export TRACE_UPDATE_EXPECT_COMMIT="$commit"
+          bash "$stage/update_trace.sh"
+          REMOTE
+
+      - name: Confirmar que o Central serve a versão publicada
+        env:
+          CENTRAL_HEALTH_URL: ${{ vars.CENTRAL_HEALTH_URL }}
+          VERSION: ${{ steps.release.outputs.version }}
+          COMMIT: ${{ steps.release.outputs.commit }}
+        run: |
+          python3 - <<'PY'
+          import json
+          import os
+          import urllib.request
+          from urllib.parse import urlparse
+
+          url = os.environ.get("CENTRAL_HEALTH_URL", "").strip()
+          parsed = urlparse(url)
+          if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.path != "/api/health.php" or parsed.query or parsed.fragment:
+              raise SystemExit("Configure CENTRAL_HEALTH_URL como a URL HTTPS de /api/health.php do Central de produção.")
+          with urllib.request.urlopen(url, timeout=15) as response:
+              health = json.load(response)
+          expected = (os.environ["VERSION"], os.environ["COMMIT"])
+          actual = (health.get("version"), health.get("commit"))
+          if health.get("status") != "ok" or health.get("installation_mode") != "central" or actual != expected:
+              raise SystemExit(f"Central não serve a release solicitada: esperado {expected}, recebido {actual}.")
+          print(f"Central confirmado na versão {expected[0]} e no commit {expected[1]}.")
+          PY
+
+      - name: Publicar a versão liberada pelo Central
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.release_version.outputs.version }}
+          VERSION: ${{ steps.release.outputs.version }}
+          COMMIT: ${{ steps.release.outputs.commit }}
         run: |
-          target_args=()
-          if [[ "$GITHUB_REF_TYPE" == "branch" ]]; then
-            target_args=(--target "$GITHUB_SHA")
-          fi
           gh release create "$VERSION" \
             "dist/trace-${VERSION}.tar.gz" \
             dist/manifest.json \
+            dist/TraceSetup.exe \
             dist/dallogix-trace-sbom.spdx.json \
             --repo "$GITHUB_REPOSITORY" \
+            --target "$COMMIT" \
+            --verify-tag \
             --title "Dallogix Trace ${VERSION}" \
-            --generate-notes \
-            "${target_args[@]}"
+            --generate-notes

@@ -1,15 +1,13 @@
-name: Deploy test server
+name: Quality gate (manual)
 
 on:
-  push:
-    branches: [master]
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: dallogix-trace-test-deploy
+  group: dallogix-trace-quality-manual
   cancel-in-progress: false
 
 jobs:
@@ -29,7 +27,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install PHP dependencies
-        run: composer install --no-interaction --prefer-dist
+        run: composer install --no-interaction --prefer-dist --no-progress
       - name: Validate Composer manifest
         run: composer validate --no-check-publish
       - name: Run PHPUnit
@@ -49,90 +47,3 @@ jobs:
           php testes/api-sensor-idempotencia-isolada.php foreign
       - name: Scan for high-risk secrets
         run: bash scripts/security_scan.sh
-
-  deploy:
-    needs: quality-gate
-    runs-on: ubuntu-24.04
-    environment: test
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v5
-
-      - name: Configure PHP for asset versioning
-        uses: shivammathur/setup-php@v2
-        with:
-          php-version: '8.3'
-          coverage: none
-
-      - name: Version static assets in the deploy archive
-        run: |
-          php scripts/version_assets.php "$GITHUB_SHA"
-          git add -u -- interface
-
-      - name: Configure SSH
-        env:
-          DEPLOY_KEY: ${{ secrets.TEST_SERVER_SSH_KEY }}
-          SERVER_PORT: ${{ secrets.TEST_SERVER_SSH_PORT }}
-          SERVER_HOST: ${{ secrets.TEST_SERVER_HOST }}
-        run: |
-          : "${SERVER_HOST:?TEST_SERVER_HOST secret is required}"
-          install -d -m 700 "$HOME/.ssh"
-          # GitHub's textarea can preserve CRLF, escaped leading slashes, or receive only the Base64 body.
-          # Normalize all supported forms before handing the key to OpenSSH.
-          NORMALIZED_KEY=$(printf '%s\n' "$DEPLOY_KEY" | sed -E 's/^\\+//' | tr -d '\r' | tr -d '\\')
-          key_header="$(printf '%s' 'LS0tLS1CRUdJTiBPUEVOU1NIIFBSSVZBVEUgS0VZLS0tLS0=' | base64 -d)"
-          key_footer="$(printf '%s' 'LS0tLS1FTkQgT1BFTlNTSCBQUklWQVRFIEtFWS0tLS0t' | base64 -d)"
-          if printf '%s' "$NORMALIZED_KEY" | grep -q -- 'OPENSSH'; then
-            printf '%s\n' "$NORMALIZED_KEY" > "$HOME/.ssh/id_ed25519"
-          else
-            {
-              printf '%s\n' "$key_header"
-              printf '%s\n' "$NORMALIZED_KEY" | tr -d '\n '
-              printf '%s\n' "$key_footer"
-            } > "$HOME/.ssh/id_ed25519"
-          fi
-          chmod 600 "$HOME/.ssh/id_ed25519"
-          ssh-keygen -y -f "$HOME/.ssh/id_ed25519" > /dev/null
-          ssh-keyscan -H -p "${SERVER_PORT:-22}" "$SERVER_HOST" > "$HOME/.ssh/known_hosts"
-          chmod 644 "$HOME/.ssh/known_hosts"
-
-      - name: Deploy through the server synchronizer
-        env:
-          SERVER_USER: ${{ secrets.TEST_SERVER_USER }}
-          SERVER_PATH: ${{ secrets.TEST_SERVER_PATH }}
-          SERVER_PORT: ${{ secrets.TEST_SERVER_SSH_PORT }}
-          SERVER_HOST: ${{ secrets.TEST_SERVER_HOST }}
-        run: |
-          : "${SERVER_PORT:=22}"
-          : "${SERVER_PATH:=/opt/dallogix-trace}"
-          : "${SERVER_HOST:?TEST_SERVER_HOST secret is required}"
-          : "${SERVER_USER:?TEST_SERVER_USER secret is required}"
-          if [[ ! "$SERVER_PATH" =~ ^/[A-Za-z0-9_./-]+$ || "$SERVER_PATH" == "/" || "$SERVER_PATH" == *"/../"* || "$SERVER_PATH" == */.. ]]; then
-            echo "TEST_SERVER_PATH must be a safe absolute application directory." >&2
-            exit 1
-          fi
-          ssh_options=(-p "$SERVER_PORT" -o ServerAliveInterval=30 -o ServerAliveCountMax=30)
-          git archive --format=tar "$(git write-tree)" | \
-            ssh "${ssh_options[@]}" "$SERVER_USER@$SERVER_HOST" \
-              "tar -xf - -C '$SERVER_PATH' && rm -f '$SERVER_PATH/interface/history.html' && cd '$SERVER_PATH' && \
-              if [ -f .env ]; then sed -i '/^TRACE_VERSION=/d;/^TRACE_COMMIT=/d' .env; fi && \
-              printf 'TRACE_VERSION=%s\\nTRACE_COMMIT=%s\\n' '$GITHUB_SHA' '$GITHUB_SHA' >> .env && \
-              bash scripts/ensure_device_secrets.sh .env && \
-              bash scripts/docker_compose.sh up -d --wait --wait-timeout 300 mysql && \
-              mkdir -p armazenamento/backups && \
-              bash scripts/backup_db.sh && \
-              bash scripts/docker_compose.sh build mysql && \
-              bash scripts/docker_compose.sh up -d --wait --wait-timeout 300 mysql && \
-              bash scripts/migrate.sh && \
-              bash scripts/docker_compose.sh up -d --build --no-deps php && \
-              bash scripts/docker_compose.sh up -d --no-build --no-recreate && \
-              bash scripts/docker_compose.sh up -d --no-deps nginx && \
-              bash scripts/docker_compose.sh exec -T nginx nginx -s reload && \
-              printf '{\"version\":\"%s\",\"commit\":\"%s\"}\\n' '$GITHUB_SHA' '$GITHUB_SHA' > .release.json.tmp && \
-              mv -f .release.json.tmp servidor/.release.json"
-          ssh "${ssh_options[@]}" "$SERVER_USER@$SERVER_HOST" \
-            "for attempt in 1 2 3 4 5; do \
-              if curl --fail --silent --show-error --max-time 10 http://127.0.0.1:80/api/prontidao.php >/dev/null && \
-                 curl --fail --silent --show-error --max-time 10 http://127.0.0.1:80/api/health.php | grep -F '\"commit\":\"$GITHUB_SHA\"'; then exit 0; fi; \
-              sleep 2; \
-            done; exit 1"

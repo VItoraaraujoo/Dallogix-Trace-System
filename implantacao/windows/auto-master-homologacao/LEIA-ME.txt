@@ -1,0 +1,32 @@
+ATUALIZACAO ALINHADA AO SERVIDOR CENTRAL - SOMENTE HOMOLOGACAO
+
+Use somente em PC de homologacao. Pacotes Windows oficiais incluem o commit
+de origem automaticamente. Para o PC antigo instalado com o ZIP 8d4af7e,
+informe esse commit ao executar o configurador.
+
+1. Copie o ZIP para a pasta Downloads do PC Windows.
+2. Abra o CMD (a linha comeca com C:\...>, nao PS C:\...>).
+3. Execute:
+
+cd /d C:\DallogixTrace
+powershell.exe -NoProfile -Command "Expand-Archive -LiteralPath (Join-Path $env:USERPROFILE 'Downloads\DallogixTrace-AutoUpdate-Homologacao-v4.zip') -DestinationPath 'C:\DallogixTrace' -Force"
+armazenamento\updates\master-homologacao\Configurar.cmd -OriginalCommit 8d4af7e
+
+O configurador vincula o ZIP ao repositorio publico, verifica os arquivos
+existentes e cria uma tarefa que confere o commit servido pelo Central a cada cinco minutos
+enquanto esta conta do Windows estiver conectada. Tambem executa a primeira
+verificacao. O PC nunca avanca alem do commit servido pelo Central. O banco e o
+arquivo .env sao preservados.
+
+Se aparecer 'arquivos locais diferentes', nenhuma tarefa e criada. Envie a
+lista exibida para avaliar as alteracoes antes de atualizar. Nao execute
+git reset, git clean ou docker compose down -v.
+
+Para consultar a tarefa no CMD:
+schtasks.exe /Query /TN "Dallogix Trace Master Homologacao" /V /FO LIST
+
+Para ver o registro da atualizacao no CMD:
+type C:\DallogixTrace\armazenamento\updates\master-homologacao\atualizacao.log
+
+Para interromper a atualizacao automatica no CMD:
+schtasks.exe /Change /TN "Dallogix Trace Master Homologacao" /Disable

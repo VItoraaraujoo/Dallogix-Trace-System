@@ -7,6 +7,9 @@ const byId = new Map(nodes.map((node) => [node.id, node]));
 const configuration = {
   TRACE_API_URL: "http://api.local",
   TRACE_DEVICE_TOKEN: "test-device-token",
+  TRACE_INSTALLATION_MODE: "local",
+  TRACE_LOCAL_SIMULATION: "0",
+  TRACE_SIMULATOR_ONLY_COMMANDS: "0",
   TRACE_MODBUS_UNIT_ID: "7",
   TRACE_MODBUS_HEARTBEAT_FUNCTION: "4",
   TRACE_MODBUS_HEARTBEAT_REGISTER: "23",
@@ -26,6 +29,13 @@ function response(transaction = 42, unit = 7, fc = 4) {
 function resultMessage(frame) {
   return { payload: frame, equipmentId: 5, traceToken: "test-device-token", modbusHost: "192.168.4.8", modbusPort: 1502,
     modbusTransaction: 42, modbusUnit: 7, modbusFunction: 4, modbusRegister: 23, modbusStartedAt: Date.now() };
+}
+function commandResponse(command, loadingState = "AGUARDANDO") {
+  return {
+    statusCode: 200,
+    traceToken: "test-device-token",
+    payload: { data: { id: 91, carregamento_id: 17, command, loading_state: loadingState } },
+  };
 }
 
 test("consulta de comandos executa GET antes de interpretar a resposta", () => {
@@ -79,4 +89,61 @@ test("falha HTTP não é tratada como cadastro válido", () => {
   const msg = { statusCode: 500, traceToken: "test-device-token", payload: { data: [{ id: 5, plc_ip: "192.168.4.8", plc_port: 1502 }] } };
   const result = runtime()("heartbeat-dispatch", msg);
   assert.equal(result?.[0]?.length || 0, 0);
+});
+
+test("comandos físicos continuam rejeitados sem habilitar o simulador isolado", () => {
+  const result = runtime()("command-safe-gate", commandResponse("INICIAR_CARREGAMENTO"));
+  assert.equal(result.payload.status, "REJEITADO");
+  assert.match(result.payload.message, /nenhuma escrita foi executada/i);
+});
+
+test("comandos fictícios só são confirmados com os dois flags e modo local", () => {
+  const values = {
+    ...configuration,
+    TRACE_LOCAL_SIMULATION: "1",
+    TRACE_SIMULATOR_ONLY_COMMANDS: "1",
+  };
+  const call = runtime(values);
+  const result = call("command-safe-gate", commandResponse("INICIAR_CARREGAMENTO"));
+  assert.equal(result.payload.status, "APLICADO");
+  assert.match(result.payload.message, /SIMULAÇÃO LOCAL/);
+  assert.match(result.payload.message, /Nenhuma escrita Modbus ou saída física/);
+});
+
+test("modo central não aceita habilitar o confirmador de comandos simulados", () => {
+  const values = {
+    ...configuration,
+    TRACE_INSTALLATION_MODE: "central",
+    TRACE_LOCAL_SIMULATION: "1",
+    TRACE_SIMULATOR_ONLY_COMMANDS: "1",
+  };
+  const result = runtime(values)("command-safe-gate", commandResponse("INICIAR_CARREGAMENTO"));
+  assert.equal(result.payload.status, "REJEITADO");
+});
+
+test("simulador local acompanha transições e recusa comando fora de ordem", () => {
+  const call = runtime({
+    ...configuration,
+    TRACE_LOCAL_SIMULATION: "1",
+    TRACE_SIMULATOR_ONLY_COMMANDS: "1",
+  });
+  assert.equal(call("command-safe-gate", commandResponse("INICIAR_CARREGAMENTO")).payload.status, "APLICADO");
+  assert.equal(call("command-safe-gate", commandResponse("PAUSAR_CARREGAMENTO")).payload.status, "APLICADO");
+  const invalid = runtime({
+    ...configuration,
+    TRACE_LOCAL_SIMULATION: "1",
+    TRACE_SIMULATOR_ONLY_COMMANDS: "1",
+  })("command-safe-gate", commandResponse("PAUSAR_CARREGAMENTO"));
+  assert.equal(invalid.payload.status, "REJEITADO");
+  assert.match(invalid.payload.message, /não permitido no estado AGUARDANDO/i);
+});
+
+test("emergência continua física mesmo com a simulação de comandos ativa", () => {
+  const result = runtime({
+    ...configuration,
+    TRACE_LOCAL_SIMULATION: "1",
+    TRACE_SIMULATOR_ONLY_COMMANDS: "1",
+  })("command-safe-gate", commandResponse("EMERGENCIA"));
+  assert.equal(result.payload.status, "REJEITADO");
+  assert.match(result.payload.message, /acionada fisicamente/i);
 });

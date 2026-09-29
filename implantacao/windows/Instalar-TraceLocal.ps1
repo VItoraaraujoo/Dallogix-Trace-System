@@ -1,0 +1,253 @@
+param(
+    [string]$PackageRoot = (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)),
+    [string]$CentralUrl = '',
+    [switch]$NoBrowser,
+    [switch]$ProductionMachine
+)
+
+Set-StrictMode -Version Latest
+$ErrorActionPreference = "Stop"
+$PackageRoot = (Resolve-Path -LiteralPath $PackageRoot).Path
+
+function Assert-Success([string]$Stage, [int]$Code) {
+    if ($Code -ne 0) {
+        throw "$Stage falhou (codigo $Code). A instalacao parou sem apagar o banco ou a configuracao."
+    }
+}
+
+function Find-GitBash {
+    $candidates = @(
+        (Join-Path $env:ProgramFiles "Git\bin\bash.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\Git\bin\bash.exe")
+    )
+    $programFilesX86 = [Environment]::GetEnvironmentVariable("ProgramFiles(x86)")
+    if ($programFilesX86) {
+        $candidates += Join-Path $programFilesX86 "Git\bin\bash.exe"
+    }
+    $git = Get-Command git.exe -ErrorAction SilentlyContinue
+    if ($git) {
+        $candidates += Join-Path (Split-Path -Parent (Split-Path -Parent $git.Source)) "bin\bash.exe"
+    }
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return $candidate
+        }
+    }
+    return $null
+}
+
+function Read-EnvValues([string]$Path) {
+    $values = @{}
+    foreach ($line in [System.IO.File]::ReadAllLines($Path)) {
+        if ($line -match '^([A-Za-z_][A-Za-z0-9_]*)=(.*)$') {
+            $key = $matches[1]
+            if ($values.ContainsKey($key)) {
+                throw "O arquivo .env contem a variavel $key mais de uma vez. Corrija antes de continuar."
+            }
+            $values[$key] = $matches[2]
+        }
+    }
+    return $values
+}
+
+function New-HexSecret([Security.Cryptography.RandomNumberGenerator]$Generator) {
+    $bytes = New-Object byte[] 32
+    $Generator.GetBytes($bytes)
+    return [System.BitConverter]::ToString($bytes).Replace("-", "")
+}
+
+function Get-CentralBaseUrl([string]$InputUrl) {
+    $parsed = $null
+    if (-not [Uri]::TryCreate($InputUrl.Trim(), [UriKind]::Absolute, [ref]$parsed) -or
+        $parsed.Scheme -ne "https" -or -not $parsed.Host -or
+        $parsed.UserInfo -or $parsed.Query -or $parsed.Fragment) {
+        throw "Informe uma URL HTTPS do servidor central, sem usuario, senha, parametros ou fragmento."
+    }
+    $baseUrl = $parsed.GetLeftPart([UriPartial]::Authority)
+    if ($parsed.AbsolutePath -ne "/") {
+        Write-Host "Usando apenas a origem do servidor central: $baseUrl"
+    }
+    return $baseUrl
+}
+
+function Test-DockerEngine {
+    # A falha nesta sonda e esperada enquanto o Docker Desktop inicia.
+    $ErrorActionPreference = "Continue"
+    $engineType = & docker.exe info --format '{{.OSType}}' 2> $null
+    return $LASTEXITCODE -eq 0 -and $engineType -eq "linux"
+}
+
+function Check-DockerReady {
+    if (Test-DockerEngine) { return $true }
+
+    $desktop = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"
+    if (Test-Path -LiteralPath $desktop -PathType Leaf) {
+        Write-Host "Iniciando Docker Desktop e aguardando o mecanismo Linux..."
+        Start-Process -FilePath $desktop | Out-Null
+        for ($attempt = 1; $attempt -le 24; $attempt++) {
+            Start-Sleep -Seconds 5
+            if (Test-DockerEngine) { return $true }
+        }
+    }
+    return $false
+}
+
+try {
+    if (-not (Test-Path -LiteralPath (Join-Path $PackageRoot "docker-compose.yml") -PathType Leaf) -or
+        -not (Test-Path -LiteralPath (Join-Path $PackageRoot ".env.example") -PathType Leaf) -or
+        -not (Test-Path -LiteralPath (Join-Path $PackageRoot "scripts\migrate.sh") -PathType Leaf)) {
+        throw "Pacote incompleto. Extraia o ZIP inteiro e execute Instalar-PC-Windows.cmd na pasta extraida."
+    }
+    if (-not (Get-Command docker.exe -ErrorAction SilentlyContinue)) {
+        throw "Docker Desktop nao encontrado. Instale pelo CMD com: winget install --exact --id Docker.DockerDesktop --accept-source-agreements --accept-package-agreements. Inicie o Docker Desktop e execute este instalador novamente."
+    }
+    if (-not (Check-DockerReady)) {
+        throw "Docker Desktop nao iniciou o mecanismo Linux. Abra o Docker Desktop, conclua a configuracao do WSL/reinicio se solicitado e execute este instalador novamente."
+    }
+    & docker.exe compose version
+    Assert-Success "Docker Compose" $LASTEXITCODE
+
+    $gitBash = Find-GitBash
+    if (-not $gitBash) {
+        $winget = Get-Command winget.exe -ErrorAction SilentlyContinue
+        if (-not $winget) {
+            throw "Git for Windows nao encontrado. Instale-o e execute este instalador novamente."
+        }
+        Write-Host "Instalando Git for Windows para executar as migracoes do banco..."
+        & $winget.Source install --exact --id Git.Git --accept-source-agreements --accept-package-agreements
+        $gitBash = Find-GitBash
+        if (-not $gitBash) {
+            throw "Git for Windows nao foi localizado apos a instalacao. Reabra o CMD e execute este instalador novamente."
+        }
+    }
+
+    $envPath = Join-Path $PackageRoot ".env"
+    if (-not (Test-Path -LiteralPath $envPath)) {
+        $defaultCentral = "https://trace.santocloud.com.br"
+        $answer = if ($CentralUrl) { $CentralUrl } else { Read-Host "URL HTTPS do servidor central [$defaultCentral]" }
+        if ([string]::IsNullOrWhiteSpace($answer)) { $answer = $defaultCentral }
+        $centralUrl = Get-CentralBaseUrl $answer
+
+        $generator = [Security.Cryptography.RandomNumberGenerator]::Create()
+        try {
+            $replacement = @{
+                MYSQL_PASSWORD = (New-HexSecret $generator)
+                MYSQL_ROOT_PASSWORD = (New-HexSecret $generator)
+                TRACE_DEVICE_TOKEN = (New-HexSecret $generator)
+                CAMERA_DEVICE_TOKEN = (New-HexSecret $generator)
+                TRACE_CENTRAL_URL = $centralUrl
+                TRACE_INSTALLATION_MODE = "local"
+                WEB_BIND_ADDRESS = "127.0.0.1"
+                BIND_ADDRESS = "127.0.0.1"
+            }
+            if ($ProductionMachine) { $replacement.COMPOSE_PROFILES = 'industrial' }
+        } finally {
+            $generator.Dispose()
+        }
+
+        $source = Join-Path $PackageRoot ".env.example"
+        $seen = @{}
+        $lines = New-Object 'System.Collections.Generic.List[string]'
+        foreach ($line in [System.IO.File]::ReadAllLines($source)) {
+            $key = ($line -split "=", 2)[0]
+            if ($line.StartsWith("$key=") -and $replacement.ContainsKey($key)) {
+                if ($seen.ContainsKey($key)) { throw "A configuracao de exemplo repete $key." }
+                $seen[$key] = $true
+                $lines.Add("$key=$($replacement[$key])")
+            } else {
+                $lines.Add($line)
+            }
+        }
+        foreach ($key in $replacement.Keys) {
+            if (-not $seen.ContainsKey($key)) { throw "A configuracao de exemplo nao contem $key." }
+        }
+        $utf8 = New-Object System.Text.UTF8Encoding($false)
+        [System.IO.File]::WriteAllLines($envPath, $lines, $utf8)
+        Write-Host "Arquivo .env criado com credenciais aleatorias. Os valores nao serao exibidos."
+    } else {
+        Write-Host "Arquivo .env existente preservado. Conferindo campos obrigatorios..."
+    }
+
+    $values = Read-EnvValues $envPath
+    foreach ($key in @("MYSQL_PASSWORD", "MYSQL_ROOT_PASSWORD", "TRACE_DEVICE_TOKEN", "CAMERA_DEVICE_TOKEN", "TRACE_CENTRAL_URL")) {
+        if (-not $values.ContainsKey($key) -or [string]::IsNullOrWhiteSpace($values[$key])) {
+            throw "O campo $key esta vazio em .env. Preencha-o sem alterar os demais valores e execute o instalador novamente."
+        }
+    }
+    foreach ($key in @("WEB_BIND_ADDRESS", "BIND_ADDRESS")) {
+        if (-not $values.ContainsKey($key) -or $values[$key] -ne "127.0.0.1") {
+            throw "Mantenha $key=127.0.0.1 em .env antes de continuar."
+        }
+    }
+    if (-not $values.ContainsKey("TRACE_INSTALLATION_MODE") -or $values["TRACE_INSTALLATION_MODE"] -ne "local") {
+        throw "Defina TRACE_INSTALLATION_MODE=local em .env antes de continuar."
+    }
+    if ($ProductionMachine -and (-not $values.ContainsKey('COMPOSE_PROFILES') -or
+        $values['COMPOSE_PROFILES'] -notmatch '(^|,)industrial(,|$)')) {
+        throw "Defina COMPOSE_PROFILES=industrial em .env para este PC de producao."
+    }
+    $centralUrl = Get-CentralBaseUrl $values["TRACE_CENTRAL_URL"]
+    if ($centralUrl -ne $values["TRACE_CENTRAL_URL"].TrimEnd('/')) {
+        throw "TRACE_CENTRAL_URL deve conter apenas a origem HTTPS do servidor, sem caminho de pagina."
+    }
+    if ($CentralUrl -and (Get-CentralBaseUrl $CentralUrl) -ne $centralUrl) {
+        throw "O .env existente aponta para outro servidor central. Corrija TRACE_CENTRAL_URL conscientemente antes de continuar."
+    }
+
+    Set-Location -LiteralPath $PackageRoot
+    & docker.exe compose config --quiet
+    Assert-Success "Configuracao do Docker Compose" $LASTEXITCODE
+
+    Write-Host "[1/3] Iniciando banco e PHP..."
+    & docker.exe compose up -d --build mysql php
+    Assert-Success "Inicializacao do banco e PHP" $LASTEXITCODE
+
+    Write-Host "[2/3] Aplicando migracoes antes de iniciar os demais servicos..."
+    & $gitBash "scripts/migrate.sh"
+    Assert-Success "Migracoes do banco" $LASTEXITCODE
+
+    Write-Host "[3/3] Iniciando os servicos locais..."
+    & docker.exe compose up -d --build
+    Assert-Success "Inicializacao do Trace" $LASTEXITCODE
+
+    $webPort = 8080
+    if ($values.ContainsKey("WEB_PORT") -and $values["WEB_PORT"] -ne "") {
+        if (-not [int]::TryParse($values["WEB_PORT"], [ref]$webPort) -or $webPort -lt 1 -or $webPort -gt 65535) {
+            throw "WEB_PORT invalida em .env."
+        }
+    }
+    $localUrl = "http://127.0.0.1:$webPort"
+    $activationUrl = "$localUrl/api/ativacao_local.php"
+    $lastProbeError = "A API de ativacao ainda nao respondeu."
+    $ready = $false
+    for ($attempt = 1; $attempt -le 18; $attempt++) {
+        try {
+            $response = Invoke-WebRequest -UseBasicParsing -Uri $activationUrl -TimeoutSec 5
+            $data = $response.Content | ConvertFrom-Json
+            if ($response.StatusCode -eq 200 -and $data.data.enabled -eq $true) {
+                $ready = $true
+                break
+            }
+            $lastProbeError = "A API respondeu, mas a ativacao local nao esta habilitada."
+        } catch {
+            $lastProbeError = $_.Exception.Message
+        }
+        Start-Sleep -Seconds 3
+    }
+    if (-not $ready) {
+        throw "Os containers iniciaram, mas a ativacao local nao ficou pronta: $lastProbeError. Consulte: docker compose ps"
+    }
+
+    Write-Host "OK: Trace local pronto para ativacao em $localUrl"
+    Write-Host "Use o codigo de ativacao e o administrador da empresa cadastrados no servidor central."
+    if (-not $NoBrowser) {
+        try {
+            Start-Process $localUrl | Out-Null
+        } catch {
+            Write-Host "Nao foi possivel abrir o navegador automaticamente. Abra $localUrl manualmente."
+        }
+    }
+} catch {
+    [Console]::Error.WriteLine("ERRO: $($_.Exception.Message)")
+    exit 1
+}

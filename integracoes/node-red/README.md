@@ -13,7 +13,7 @@ necessário.
 - testa uma leitura Modbus TCP do CLP e só publica `ONLINE` quando a resposta é válida;
 - publica `OFFLINE` quando o CLP não responde, o endereço/porta são inválidos ou a resposta Modbus é inválida;
 - consulta a fila de comandos a cada 2 segundos;
-- reserva comandos pela API, prioriza `EMERGENCIA` e os conclui como `REJEITADO` enquanto o mapa de I/O estiver como `CONFIRMAR`;
+- reserva comandos pela API, prioriza `EMERGENCIA` e os conclui como `REJEITADO` por padrão enquanto o mapa de I/O estiver como `CONFIRMAR`;
 - não executa escrita em bobina, registrador ou saída física;
 - não acessa o banco diretamente.
 
@@ -30,6 +30,14 @@ TRACE_MODBUS_HEARTBEAT_REGISTER=registrador-confirmado
 Cada PC industrial é dedicado a uma Dala e usa o token do seu próprio gateway. A API devolve somente a Dala vinculada a esse dispositivo e fornece um destino IPv4 privado validado. O endereço da API deve apontar para a instalação local, nunca para a URL pública. Provisione o token com `php scripts/provision_device.php`. A unidade, função e registrador de diagnóstico devem ser confirmados no mapa do CLP; sem os três valores a sonda permanece desabilitada. Os valores `2049` e `2050` dos fluxos de teste não são mapa oficial de I/O.
 
 O nó `Modbus Read/Write` só deve ser acrescentado depois de confirmar em bancada a variante do Delta DVP14SS, IP, porta, unidade Modbus, registradores, bobinas e intertravamentos do Ladder. A ausência dessas informações é intencionalmente tratada como bloqueio seguro.
+
+Para validar a fila de comandos em uma instalação descartável, habilite somente
+nesse `.env` local `TRACE_LOCAL_SIMULATION=1` e
+`TRACE_SIMULATOR_ONLY_COMMANDS=1`. O gateway verifica as transições simuladas,
+registra a resposta como teste e nunca envia escrita Modbus ou saída física.
+`EMERGENCIA` continua rejeitada pelo Trace e deve ser acionada fisicamente. A
+validação de produção recusa esses dois flags; não os habilite em uma máquina
+de operação.
 
 ## Simulação no PC
 
@@ -64,16 +72,28 @@ local-first. O endpoint de lote recebe `{"events":[...]}` e só deve responder
 
 ## Captura imediata
 
-O worker deverá chamar `/api/camera_worker.php` com `X-Device-Token` igual ao token do dispositivo de câmera provisionado:
+Para a Hikvision DS-2CD2121G0-I, a interface física é RJ45/Ethernet e o protocolo de mídia usado aqui é RTSP sobre TCP. O fluxo direto não depende de ONVIF ou ISAPI. No PC industrial, o serviço `camera-worker` mantém uma conexão RTSP com a câmera. O FFmpeg decodifica o fluxo em memória e o worker conserva o JPEG mais recente. Quando chega uma solicitação, esse quadro é enviado ao Trace; o JPEG fica somente em memória/tmpfs durante o processamento e não é retido. A API gera e mantém apenas o PDF de evidência. Nenhum arquivo de vídeo é criado.
 
-1. `POST {"action":"CLAIM"}` para reservar a próxima captura da própria Dala;
-2. disparar a câmera conforme o protocolo confirmado;
-3. enviar o JPEG ou PNG real, de até 5 MB, em `POST /api/camera_upload.php` com `multipart/form-data`, campos `request_id` e `file`, e o mesmo token de câmera. A API converte a imagem em um PDF de evidência e devolve `evidence_pdf_path` e o SHA-256 do PDF; o arquivo JPEG/PNG não é mantido no armazenamento;
-4. `POST {"action":"COMPLETE","request_id":N,"evidence_pdf_path":"<caminho retornado>"}`. A conclusão só é aceita se o PDF existir, corresponder à solicitação reservada e estiver na pasta da empresa/Dala correta.
+O ciclo automático usa o token do dispositivo CAMERA provisionado para a Dala:
+
+1. Consulta `/api/camera_worker.php` a cada 200 ms e reserva a solicitação pendente mais antiga da própria Dala.
+2. Envia um JPEG de até 4 MiB para `/api/camera_upload.php`; a API valida a captura, gera o PDF e devolve `evidence_pdf_path`.
+3. Confirma a conclusão em `/api/camera_worker.php`. Se o processo reiniciar entre o upload e a confirmação, a reserva expira em 30 segundos e o worker conclui usando o PDF já guardado, sem criar outra foto.
+4. Publica o estado da câmera a cada 5 segundos. A indisponibilidade do fluxo RTSP aparece como OFFLINE; a reconexão é automática, com espera crescente limitada a 30 segundos.
+
+### Preparação única da câmera
+
+1. Alimente a câmera pela entrada de 12 V indicada na etiqueta ou por um equipamento PoE 802.3af. A porta USB-Ethernet do PC transporta dados e não fornece energia à câmera.
+2. Ligue a porta RJ45 da câmera a uma interface Ethernet dedicada do PC, de preferência o adaptador USB-Ethernet separado do enlace do CLP. Mantenha a rede da câmera em uma sub-rede privada própria, sem gateway ou acesso à internet; não reutilize o endereço do CLP.
+3. Defina um endereço IP privado fixo para câmera e adaptador, na mesma sub-rede. Habilite RTSP, configure o fluxo principal em H.264 a 15 fps e crie um usuário de visualização dedicado com senha forte. Não use a senha administrativa da câmera no sistema.
+4. Preencha no `.env` local `CAMERA_RTSP_HOST`, `CAMERA_RTSP_PORT`, `CAMERA_RTSP_CHANNEL`, `CAMERA_RTSP_USERNAME` e `CAMERA_RTSP_PASSWORD`. O canal `101` seleciona o fluxo principal; `102`, o secundário. A porta padrão configurada no Trace é `554`; ajuste-a se a câmera estiver configurada com outra porta.
+5. Inicie o PC pelo `TraceLauncher.cmd` ou execute o Compose com o perfil `industrial`. O serviço inicia junto do Trace e tenta recuperar o fluxo sem intervenção.
+
+Se a interface da câmera não tiver sido inicializada, faça essa configuração uma vez com a ferramenta SADP da Hikvision ou pela interface web da câmera, antes de iniciar a operação. A rede precisa permitir que o worker em Docker alcance o endereço configurado; confirme esse caminho na bancada do PC que receberá o adaptador.
 
 Quando o relatório final do romaneio é solicitado, o Trace incorpora as evidências ao relatório PDF, salva esse PDF em `armazenamento/company_<id>/reports/` e remove os PDFs intermediários e referências temporárias. O PDF final permanece no servidor e é reutilizado nos próximos downloads. A retenção de evidências intermediárias segue `IMAGE_RETENTION_DAYS` caso o relatório ainda não tenha sido solicitado.
 
-O protocolo de acionamento da câmera ainda precisa ser confirmado com o fabricante e o worker físico não está implementado. O contrato de upload não substitui a captura física; o servidor não considera uma captura concluída sem PDF de evidência válido e callback `COMPLETE`.
+O fluxo contínuo evita abrir uma conexão RTSP nova a cada solicitação e reduz a espera inicial. Não existe captura sem atraso: a latência final depende da exposição, codificação da câmera, rede, processamento do PC e geração do PDF. Meça esse tempo com a câmera, adaptador e PC definitivos antes de fixar um limite de aceitação.
 
 ## Fila de comandos do CLP
 

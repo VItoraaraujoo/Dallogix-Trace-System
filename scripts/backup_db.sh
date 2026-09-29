@@ -24,11 +24,11 @@ fi
 case "${TRACE_COMPOSE_PRODUCTION:-0}" in
   0) ;;
   1)
-    compose_args+=(
-      --profile industrial
-      -f "$root_dir/docker-compose.yml"
-      -f "$root_dir/docker-compose.production.yml"
-    )
+    installation_mode="$(printf '%s' "${TRACE_INSTALLATION_MODE:-}" | tr '[:upper:]' '[:lower:]')"
+    if [[ "$installation_mode" == "local" || "$installation_mode" == "industrial" ]]; then
+      compose_args+=(--profile industrial)
+    fi
+    compose_args+=(-f "$root_dir/docker-compose.yml" -f "$root_dir/docker-compose.production.yml")
     ;;
   *)
     printf 'TRACE_COMPOSE_PRODUCTION deve ser 0 ou 1.\n' >&2
