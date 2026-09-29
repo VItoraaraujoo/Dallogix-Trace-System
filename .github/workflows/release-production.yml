@@ -289,7 +289,7 @@ jobs:
             if [[ "$updater_status" == "9" && "$lock_diagnostics_done" == "0" ]]; then
               lock_diagnostics_done=1
               diagnostics_status=0
-              if diagnostic_output="$(ssh "${ssh_options[@]}" "$remote" bash -s -- "$SERVER_PATH" <<'REMOTE_DIAGNOSTICS'
+              if diagnostic_output="$(bash -s -- "$app_root" <<'REMOTE_DIAGNOSTICS'
           set -euo pipefail
           app_root="$1"
           lock_dir="$app_root/armazenamento/updates/.install.lock"
