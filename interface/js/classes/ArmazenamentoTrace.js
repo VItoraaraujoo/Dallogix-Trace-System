@@ -5,6 +5,7 @@ export class ArmazenamentoTrace {
     this.state = {
       page: "manifests",
       loaded: 0,
+      detectedBags: 0,
       planned: 0,
       running: false,
       emergency: false,
@@ -471,6 +472,7 @@ export class ArmazenamentoTrace {
       this.state.selectedLoadingId = null;
       this.state.returnMode = false;
       this.state.loaded = 0;
+      this.state.detectedBags = 0;
       this.state.planned = 0;
       this.state.running = false;
       this.state.emergency = false;
@@ -490,6 +492,7 @@ export class ArmazenamentoTrace {
     this.state.running = ["CARREGANDO", "FINALIZANDO"].includes(loading.state);
     this.state.planned = Number(loading.planned_quantity) || 0;
     this.state.loaded = Number(loading.valid_readings) || 0;
+    this.state.detectedBags = Number(loading.detected_bags) || 0;
     this.state.truck = loading.plate || "—";
     this.state.romaneio = loading.romaneio_number || "—";
     this.state.equipmentCode = loading.equipment_code || "—";
@@ -516,6 +519,7 @@ export class ArmazenamentoTrace {
       this.state.selectedLoadingId = null;
       this.state.returnMode = false;
       this.state.loaded = 0;
+      this.state.detectedBags = 0;
       this.state.planned = 0;
       this.state.running = false;
       this.state.emergency = false;
@@ -535,6 +539,7 @@ export class ArmazenamentoTrace {
     this.state.running = ["CARREGANDO", "FINALIZANDO"].includes(loading.state);
     this.state.planned = Number(loading.planned_quantity) || 0;
     this.state.loaded = Number(loading.valid_readings) || 0;
+    this.state.detectedBags = Number(loading.detected_bags) || 0;
     this.state.truck = loading.plate || "—";
     this.state.romaneio = loading.romaneio_number || "—";
     this.state.equipmentCode = loading.equipment_code || "—";
@@ -673,6 +678,22 @@ export class ArmazenamentoTrace {
     if (!response.ok) throw new Error(result.error || "Não foi possível carregar leituras pendentes.");
     this.state.pendingReadings = result.data || [];
     return this.state.pendingReadings;
+  }
+  async registerManualReading(barcode) {
+    const loadingId = Number(this.state.loadingId) || 0;
+    const code = String(barcode || "").trim();
+    if (!loadingId) throw new Error("Nenhum carregamento selecionado.");
+    if (!code) throw new Error("Informe o código de barras.");
+    const response = await fetch("/api/leituras.php", {
+      method: "POST",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({ carregamento_id: loadingId, barcode: code, attempt_number: 1 }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(result.error || "Não foi possível registrar a leitura manual.");
+    await this.loadActiveLoading(loadingId);
+    await this.loadPendingReadings();
+    return result.data;
   }
   async identifyReading(readingId, barcode) {
     const response = await this.requestWithOfflineQueue("/api/identificar_leitura.php", { method: "POST", headers: this.jsonHeaders(), body: JSON.stringify({ leitura_id: readingId, barcode }) });

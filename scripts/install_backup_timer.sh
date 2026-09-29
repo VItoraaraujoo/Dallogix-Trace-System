@@ -12,8 +12,8 @@ if [[ "$root_dir" != "/opt/dallogix-trace" ]]; then
   exit 1
 fi
 
-if [[ ! -x "$project_dir/scripts/backup_db.sh" ]]; then
-  printf 'O backup_db.sh precisa estar presente e executável em %s\n' "$project_dir" >&2
+if [[ ! -x "$project_dir/scripts/backup_db.sh" || ! -x "$project_dir/scripts/backup_snapshot.sh" ]]; then
+  printf 'backup_db.sh e backup_snapshot.sh precisam estar presentes e executáveis em %s\n' "$project_dir" >&2
   exit 1
 fi
 

@@ -13,9 +13,32 @@ filename="trace_local_${timestamp}_${staging_dir##*.}.sql"
 staging_file="$staging_dir/$filename"
 output_file="$output_dir/$filename"
 
+compose_args=(--project-directory "$root_dir")
+if [[ -n "${TRACE_COMPOSE_ENV_FILE:-}" ]]; then
+  [[ -f "$TRACE_COMPOSE_ENV_FILE" ]] || {
+    printf 'Arquivo de ambiente do Compose não encontrado: %s\n' "$TRACE_COMPOSE_ENV_FILE" >&2
+    exit 2
+  }
+  compose_args+=(--env-file "$TRACE_COMPOSE_ENV_FILE")
+fi
+case "${TRACE_COMPOSE_PRODUCTION:-0}" in
+  0) ;;
+  1)
+    compose_args+=(
+      --profile industrial
+      -f "$root_dir/docker-compose.yml"
+      -f "$root_dir/docker-compose.production.yml"
+    )
+    ;;
+  *)
+    printf 'TRACE_COMPOSE_PRODUCTION deve ser 0 ou 1.\n' >&2
+    exit 2
+    ;;
+esac
+
 # As credenciais pertencem ao contêiner MySQL. Executar a expansão lá evita
 # depender de variáveis existentes no host do servidor e não expõe a senha.
-bash "$root_dir/scripts/docker_compose.sh" --project-directory "$root_dir" exec -T mysql sh -lc 'mysqldump --single-transaction --routines --events --triggers --no-tablespaces -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' > "$staging_file"
+bash "$root_dir/scripts/docker_compose.sh" "${compose_args[@]}" exec -T mysql sh -lc 'mysqldump --single-transaction --routines --events --triggers --no-tablespaces -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' > "$staging_file"
 
 test -s "$staging_file"
 if command -v sha256sum >/dev/null 2>&1; then

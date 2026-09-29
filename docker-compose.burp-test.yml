@@ -1,0 +1,19 @@
+# Overlay opt-in para Burp Suite. Use somente com o projeto isolado de homologação.
+services:
+  haproxy:
+    image: haproxy:3.2-alpine
+    profiles: ["burp"]
+    restart: unless-stopped
+    depends_on:
+      nginx:
+        condition: service_started
+    ports:
+      - "127.0.0.1:${TRACE_BURP_PORT:-18443}:8443"
+    volumes:
+      - ./haproxy/burp-test.cfg:/usr/local/etc/haproxy/haproxy.cfg:ro
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 128m
+    cpus: "0.50"

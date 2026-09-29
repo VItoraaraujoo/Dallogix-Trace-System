@@ -3,7 +3,7 @@ import {
   guardarTokenSessao,
   limparTokenSessao,
 } from "./sessao.js?v=202609222100";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202609280006";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=20260928-work-manual";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609240001";
@@ -32,7 +32,7 @@ import {
     manifests,
     manifestView,
     work,
-} from "./telas/operacoes.js?v=202609280006";
+} from "./telas/operacoes.js?v=20260928-work-manual";
 import { dashboard } from "./telas/painel.js?v=202609280006";
 import { users } from "./telas/usuarios.js?v=202609212000";
 
@@ -566,6 +566,14 @@ function startWorkPolling() {
 }
 function workStructureSignature() {
   const pending = (store.state.pendingReadings || []).map((reading) => reading.id).join(",");
+  const unselectedLoadings = store.state.selectedLoadingId
+    ? []
+    : (store.state.activeLoadings || []).map((loading) => [
+        loading.id,
+        loading.equipment_id,
+        loading.state,
+        loading.detected_bags,
+      ]);
   const loadingItems = (store.state.loadingItems || []).map((item) => [
     item.product_id,
     item.loaded_quantity,
@@ -574,6 +582,7 @@ function workStructureSignature() {
   const command = store.state.plcCommand;
   return JSON.stringify([
     store.state.selectedLoadingId || null,
+    unselectedLoadings,
     store.state.emergency,
     store.state.operationalState,
     pending,
@@ -587,17 +596,19 @@ function workStructureSignature() {
 }
 function refreshWorkLiveView() {
   const loaded = Number(store.state.loaded) || 0;
+  const detectedBags = Number(store.state.detectedBags) || 0;
   const planned = Number(store.state.planned) || 0;
-  const remaining = Math.max(0, planned - loaded);
-  const percent = planned > 0 ? Math.min(100, Math.round((loaded / planned) * 100)) : 0;
+  const remaining = Math.max(0, planned - detectedBags);
+  const percent = planned > 0 ? Math.min(100, Math.round((detectedBags / planned) * 100)) : 0;
   const values = {
     planned: numero(planned),
+    detected: numero(detectedBags),
     loaded: numero(loaded),
+    "valid-readings": numero(loaded),
     remaining: numero(remaining),
-    "loaded-secondary": numero(loaded),
     "operational-state": rotuloEstado(store.state.operationalState),
-    "progress-percent": `${percent}% concluído`,
-    "progress-count": `${numero(loaded)} / ${numero(planned)} sacas`,
+    "progress-percent": `${percent}% da quantidade programada`,
+    "progress-count": `${numero(detectedBags)} / ${numero(planned)} sacas`,
   };
   Object.entries(values).forEach(([key, value]) => {
     document.querySelectorAll(`[data-live="${key}"]`).forEach((node) => {
@@ -1916,9 +1927,51 @@ function bindForms() {
       }
     });
   });
+  document.querySelectorAll(".manual-operation-reading-form").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (form.dataset.submitting === "1") return;
+      form.dataset.submitting = "1";
+      const submit = form.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      setFormFeedback(form, "Registrando leitura…");
+      try {
+        const raw = Object.fromEntries(new FormData(form));
+        const result = await store.registerManualReading(raw.barcode);
+        const messages = {
+          VALIDO: result.load_status === "COMPLETO"
+            ? "Código registrado e quantidade programada atingida."
+            : "Código registrado e produto validado.",
+          PRODUTO_INCORRETO: result.operator_alert || "Código não previsto para o carregamento; a operação foi pausada.",
+          EXCESSO: result.operator_alert || "Quantidade programada atingida; a operação foi pausada.",
+          SEM_LEITURA: "Leitura registrada sem código.",
+        };
+        const message = messages[result.result] || "Leitura registrada.";
+        render();
+        const currentForm = document.querySelector(".manual-operation-reading-form");
+        if (currentForm) {
+          setFormFeedback(currentForm, message, result.result === "VALIDO" ? "" : "error");
+          currentForm.querySelector('[name="barcode"]')?.focus();
+        } else {
+          alert(message);
+        }
+      } catch (error) {
+        setFormFeedback(form, error.message || "Não foi possível registrar a leitura manual.", "error");
+      } finally {
+        if (form.isConnected) {
+          form.dataset.submitting = "";
+          if (submit) submit.disabled = false;
+        }
+      }
+    });
+  });
   document.querySelectorAll(".manual-reading-form").forEach((form) => {
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (form.dataset.submitting === "1") return;
+      form.dataset.submitting = "1";
+      const submit = form.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
       try {
         const raw = Object.fromEntries(new FormData(form));
         const result = await store.identifyReading(form.dataset.readingId, raw.barcode);
@@ -1926,6 +1979,11 @@ function bindForms() {
         render();
       } catch (error) {
         alert(error.message);
+      } finally {
+        if (form.isConnected) {
+          form.dataset.submitting = "";
+          if (submit) submit.disabled = false;
+        }
       }
     });
   });

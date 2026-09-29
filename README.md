@@ -50,6 +50,8 @@ Para validar o transporte do CLP virtual, execute `python3 scripts/test_modbus_v
 Execute `python3 scripts/production_test.py` para preparar um ambiente isolado em
 `https://localhost:8443`, com banco separado e credenciais novas. Veja os acessos,
 os testes e os limites em [teste de produção local](documentacao/operacao/teste-producao-local.md).
+Para interceptar apenas esse ambiente com o Burp Suite, siga
+[Burp Suite em homologação local](documentacao/operacao/burp-suite-homologacao.md).
 
 ## Banco local
 
@@ -112,44 +114,60 @@ docker compose down
 docker compose up -d
 ```
 
-## Backup e restauração local
+## Backup e restauração
 
-Crie um backup consistente do banco local com:
+O dump SQL isolado continua disponível para operações que precisem somente do
+banco:
 
 ```bash
 bash scripts/backup_db.sh
-```
-
-Valide a integridade de um backup antes de restaurá-lo:
-
-```bash
 bash scripts/verify_backup.sh armazenamento/backups/trace_local_YYYYMMDDTHHMMSSZ.sql
 ```
 
-Restaure somente um arquivo escolhido explicitamente:
+Para guardar o estado operacional persistente em um único pacote, execute:
 
 ```bash
-bash scripts/restore_db.sh armazenamento/backups/trace_local_YYYYMMDDTHHMMSSZ.sql
+TRACE_COMPOSE_PRODUCTION=1 \
+TRACE_COMPOSE_ENV_FILE="$PWD/.env" \
+bash scripts/backup_snapshot.sh
 ```
 
-Em produção, a restauração exige `TRACE_ALLOW_RESTORE=1` definido conscientemente.
+Cada diretório `trace_snapshot_*` inclui o dump transacional do MySQL, o
+conteúdo persistente de `armazenamento/` (incluindo PDFs), o volume
+`node_red_data` e checksums. O verificador confere os checksums, o marcador de
+conclusão do dump e a leitura dos dois arquivos compactados:
+
+```bash
+bash scripts/verify_snapshot.sh armazenamento/backups/snapshots/trace_snapshot_<timestamp>
+```
+
+O bundle não contém `.env`, que guarda credenciais, nem os diretórios de backup
+e homologação local. Guarde `.env` separadamente em armazenamento protegido.
+Os pacotes ficam no mesmo disco por padrão; copie-os também para outro destino
+protegido e criptografado para cobrir falha ou perda da máquina. O bundle é
+montado componente por componente; o dump MySQL é transacional, mas isso não é
+um snapshot atômico do banco, PDFs e Node-RED no mesmo instante. Verifique e
+restaure primeiro em ambiente descartável. A restauração SQL em produção exige
+`TRACE_ALLOW_RESTORE=1` definido conscientemente.
 
 ### Backup automático do servidor
 
-No servidor Linux que usa o caminho padrão `/opt/dallogix-trace`, instale o timer uma vez:
+No servidor Linux que usa `/opt/dallogix-trace`, instale o timer uma vez:
 
 ```bash
 sudo bash scripts/install_backup_timer.sh /opt/dallogix-trace
 ```
 
-O timer executa o backup diariamente às 03:30, com atraso aleatório de até 15 minutos, e repõe uma execução perdida quando o servidor estava desligado. Os arquivos ficam em `/opt/dallogix-trace/armazenamento/backups`, com retenção padrão de 30 dias e permissão restrita. Confira a programação com:
+O timer usa os arquivos Compose de produção e executa o bundle diariamente às
+03:30, com atraso aleatório de até 15 minutos; também repõe uma execução
+perdida quando o servidor estava desligado. Os snapshots ficam em
+`/opt/dallogix-trace/armazenamento/backups/snapshots`, com retenção padrão de
+30 dias e permissões restritas. Confira a programação com:
 
 ```bash
 systemctl list-timers dallogix-trace-backup.timer
 systemctl status dallogix-trace-backup.timer
 ```
-
-Esse mecanismo protege somente o banco. Os PDFs finais ficam em `armazenamento/company_<id>/reports/` e precisam ser incluídos separadamente na cópia externa ou remota; teste a restauração dos dois tipos de arquivo.
 
 ## Pendências técnicas
 
