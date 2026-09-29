@@ -276,6 +276,7 @@ jobs:
           export TRACE_UPDATE_EXPECT_VERSION="$version"
           export TRACE_UPDATE_EXPECT_COMMIT="$commit"
           wait_deadline=$((SECONDS + 1800))
+          lock_diagnostics_done=0
           while true; do
             if bash "$stage/update_trace.sh"; then
               break
@@ -284,6 +285,51 @@ jobs:
             fi
             if [[ "$updater_status" != "9" && "$updater_status" != "14" ]]; then
               exit "$updater_status"
+            fi
+            if [[ "$updater_status" == "9" && "$lock_diagnostics_done" == "0" ]]; then
+              lock_diagnostics_done=1
+              diagnostics_status=0
+              if diagnostic_output="$(ssh "${ssh_options[@]}" "$remote" bash -s -- "$SERVER_PATH" <<'REMOTE_DIAGNOSTICS'
+          set -euo pipefail
+          app_root="$1"
+          lock_dir="$app_root/armazenamento/updates/.install.lock"
+          maintenance_file="$app_root/armazenamento/.maintenance"
+          if [[ -d "$lock_dir" ]]; then
+            stat -c 'install_lock=present modified=%y' -- "$lock_dir"
+          else
+            echo "install_lock=absent"
+          fi
+          if [[ -e "$maintenance_file" ]]; then
+            stat -c 'maintenance=present modified=%y' -- "$maintenance_file"
+          else
+            echo "maintenance=absent"
+          fi
+          systemctl show --no-pager -p ActiveState -p SubState -p MainPID -p ExecMainStartTimestamp -p TimeoutStartUSec dallogix-trace-sync.service
+          service_state="$(systemctl show --property=ActiveState --value dallogix-trace-sync.service)"
+          updater_processes="$(ps -eo pid=,etimes=,stat=,args= | awk 'index($0, "update_" "trace.sh") {print "pid=" $1 " elapsed_s=" $2 " state=" $3}')"
+          if [[ -n "$updater_processes" ]]; then
+            printf 'updater_processes:\n%s\n' "$updater_processes"
+          else
+            echo "updater_processes=none_visible"
+          fi
+          sudo -n journalctl -u dallogix-trace-sync.service -n 20 --no-pager -o cat
+          if [[ -d "$lock_dir" && -z "$updater_processes" && "$service_state" != "active" && "$service_state" != "activating" ]]; then
+            echo "Trava presente sem processo atualizador visível nem serviço systemd ativo; remoção automática não permitida." >&2
+            exit 42
+          fi
+          REMOTE_DIAGNOSTICS
+          )"; then
+                printf '%s\n' "$diagnostic_output"
+              else
+                diagnostics_status=$?
+                printf '%s\n' "$diagnostic_output" >&2
+                if [[ "$diagnostics_status" == "42" ]]; then
+                  echo "Trava de atualização suspeita; interrompendo sem removê-la." >&2
+                else
+                  echo "Não foi possível concluir o diagnóstico remoto; atualização cancelada por segurança." >&2
+                fi
+                exit "$diagnostics_status"
+              fi
             fi
             remaining=$((wait_deadline - SECONDS))
             if (( remaining <= 0 )); then
