@@ -3,7 +3,8 @@ set -euo pipefail
 
 # Atualiza uma instalação local somente quando não há carregamento em andamento.
 # O servidor de atualização publica um manifesto assinado e um pacote imutável.
-root_dir="$(cd "$(dirname "$0")/.." && pwd)"
+updater_dir="$(cd "$(dirname "$0")" && pwd)"
+root_dir="$(cd "${TRACE_UPDATE_ROOT:-$updater_dir/..}" && pwd)"
 cd "$root_dir"
 if [[ -f "$root_dir/.env" ]]; then
   set -a
@@ -11,6 +12,38 @@ if [[ -f "$root_dir/.env" ]]; then
   . "$root_dir/.env"
   set +a
 fi
+compose_common_args=(--project-directory "$root_dir")
+installation_mode="$(printf '%s' "${TRACE_INSTALLATION_MODE:-}" | tr '[:upper:]' '[:lower:]')"
+compose_industrial=0
+if [[ "$installation_mode" == "local" || "$installation_mode" == "industrial" ]]; then
+  compose_industrial=1
+fi
+trace_compose_production=0
+case "$installation_mode" in
+  central|remoto|server)
+    compose_common_args+=(--env-file "$root_dir/.env" -f "$root_dir/docker-compose.yml" -f "$root_dir/docker-compose.production.yml")
+    trace_compose_production=1
+    ;;
+esac
+export TRACE_COMPOSE_PRODUCTION="$trace_compose_production"
+compose() {
+  if [[ "$compose_industrial" == "1" ]]; then
+    bash "$root_dir/scripts/docker_compose.sh" "${compose_common_args[@]}" --profile industrial "$@"
+  else
+    bash "$root_dir/scripts/docker_compose.sh" "${compose_common_args[@]}" "$@"
+  fi
+}
+curl_download() {
+  local timeout_seconds="$1"
+  local url="$2"
+  local destination="$3"
+  if [[ -n "${UPDATE_MANIFEST_TOKEN:-}" ]]; then
+    curl --fail --silent --show-error --location --max-time "$timeout_seconds" \
+      -H "Authorization: Bearer ${UPDATE_MANIFEST_TOKEN}" "$url" -o "$destination"
+  else
+    curl --fail --silent --show-error --location --max-time "$timeout_seconds" "$url" -o "$destination"
+  fi
+}
 
 manifest_url="${UPDATE_MANIFEST_URL:-https://github.com/VItoraaraujoo/Dallogix-Trace-System/releases/latest/download/manifest.json}"
 public_key="${UPDATE_PUBLIC_KEY_FILE:-$root_dir/servidor/configuracao/trace-update-public.pem}"
@@ -32,19 +65,27 @@ if ! mkdir "$lock_dir" 2>/dev/null; then
   echo "Já existe uma atualização em execução." >&2
   exit 9
 fi
+maintenance_owned=0
+keep_maintenance=0
 cleanup() {
   rmdir "$lock_dir" 2>/dev/null || true
-  rm -f -- "$maintenance_file"
+  if [[ "$maintenance_owned" == "1" && "$keep_maintenance" != "1" ]]; then rm -f -- "$maintenance_file"; fi
   if [[ -n "${work_dir:-}" ]]; then rm -rf -- "$work_dir"; fi
 }
 trap cleanup EXIT
 work_dir="$(mktemp -d "$state_dir/.staging.XXXXXX")"
-manifest="$work_dir/manifest.json"
-headers=()
-if [[ -n "${UPDATE_MANIFEST_TOKEN:-}" ]]; then headers+=( -H "Authorization: Bearer ${UPDATE_MANIFEST_TOKEN}" ); fi
-curl --fail --silent --show-error --location --max-time 20 "${headers[@]}" "$manifest_url" -o "$manifest"
+manifest="${TRACE_UPDATE_MANIFEST_FILE:-$work_dir/manifest.json}"
+if [[ -z "${TRACE_UPDATE_MANIFEST_FILE:-}" ]]; then
+  curl_download 20 "$manifest_url" "$manifest"
+elif [[ ! -s "$manifest" ]]; then
+  echo "Manifesto local ausente ou vazio: $manifest" >&2
+  exit 10
+fi
 
-mapfile -t fields < <(python3 - "$manifest" "$channel" <<'PY'
+fields=()
+while IFS= read -r field; do
+  fields[${#fields[@]}]="$field"
+done < <(python3 - "$manifest" "$channel" <<'PY'
 import json, pathlib, sys
 data = json.loads(pathlib.Path(sys.argv[1]).read_text())
 channel = sys.argv[2]
@@ -63,8 +104,24 @@ print(data["sha256"].lower())
 print(data["signature"])
 PY
 )
+if [[ "${#fields[@]}" -ne 4 ]]; then
+  echo "Não foi possível ler os campos obrigatórios do manifesto." >&2
+  exit 10
+fi
 version="${fields[0]}"; artifact_url="${fields[1]}"; expected_sha="${fields[2]}"; signature_b64="${fields[3]}"
 [[ "$version" =~ ^[A-Za-z0-9._-]+$ ]] || { echo "Versão inválida." >&2; exit 10; }
+if [[ -n "${TRACE_UPDATE_EXPECT_VERSION:-}" && "$version" != "$TRACE_UPDATE_EXPECT_VERSION" ]]; then
+  echo "A versão do manifesto não corresponde à versão solicitada." >&2
+  exit 10
+fi
+expected_commit="${TRACE_UPDATE_EXPECT_COMMIT:-}"
+if [[ -n "$expected_commit" ]]; then
+  if [[ ! "$expected_commit" =~ ^[0-9a-fA-F]{40}$ ]]; then
+    echo "O commit solicitado é inválido." >&2
+    exit 10
+  fi
+  expected_commit="$(printf '%s' "$expected_commit" | tr '[:upper:]' '[:lower:]')"
+fi
 failed_marker="$state_dir/failed-$version"
 if [[ -f "$failed_marker" && "${TRACE_RETRY_FAILED_UPDATE:-0}" != "1" ]]; then
   echo "A versão $version já falhou anteriormente; revisão manual obrigatória (use TRACE_RETRY_FAILED_UPDATE=1 para repetir)." >&2
@@ -90,8 +147,16 @@ if [[ -z "$mysql_password" ]]; then
 fi
 # Bloqueia novas preparações antes de consultar cargas ativas; o endpoint de
 # preparação consulta este marcador dentro da mesma instalação.
-touch "$maintenance_file"
-active="$(docker compose exec -T mysql mysql -N -B -u"$mysql_user" -p"$mysql_password" "${MYSQL_DATABASE:-trace_local}" -e "SELECT COUNT(*) FROM carregamentos WHERE state IN ('PREPARANDO','CARREGANDO','PAUSADO','FINALIZANDO','EMERGENCIA');" 2>/dev/null | tr -d '[:space:]')" || {
+if [[ -e "$maintenance_file" ]]; then
+  echo "O sistema já está em manutenção; atualização adiada." >&2
+  exit 14
+fi
+if ! (set -o noclobber; : > "$maintenance_file") 2>/dev/null; then
+  echo "Não foi possível adquirir o marcador de manutenção; atualização cancelada." >&2
+  exit 14
+fi
+maintenance_owned=1
+active="$(compose exec -T mysql mysql -N -B -u"$mysql_user" -p"$mysql_password" "${MYSQL_DATABASE:-trace_local}" -e "SELECT COUNT(*) FROM carregamentos WHERE state IN ('PREPARANDO','CARREGANDO','PAUSADO','FINALIZANDO','EMERGENCIA');" 2>/dev/null | tr -d '[:space:]')" || {
   echo "Não foi possível verificar o estado do carregamento; atualização cancelada por segurança." >&2
   exit 12
 }
@@ -105,12 +170,33 @@ if [[ "$active" != "0" ]]; then
 fi
 
 if [[ -f "$state_dir/current_version" && "$(cat "$state_dir/current_version")" == "$version" ]]; then
+  if [[ -n "${TRACE_UPDATE_EXPECT_COMMIT:-}" ]]; then
+    installed_commit="$(python3 - "$root_dir/servidor/.release.json" <<'PY'
+import json, pathlib, sys
+try:
+    data = json.loads(pathlib.Path(sys.argv[1]).read_text())
+except (OSError, ValueError):
+    print("")
+else:
+    print(str(data.get("commit", "")).lower())
+PY
+)"
+    if [[ "$installed_commit" != "$expected_commit" ]]; then
+      echo "A versão $version já está registrada com outro commit; use uma nova tag SemVer." >&2
+      exit 22
+    fi
+  fi
   echo "Trace já está na versão $version."
   exit 0
 fi
 
-artifact="$work_dir/trace-$version.tar.gz"
-curl --fail --silent --show-error --location --max-time 120 "${headers[@]}" "$artifact_url" -o "$artifact"
+artifact="${TRACE_UPDATE_ARTIFACT_FILE:-$work_dir/trace-$version.tar.gz}"
+if [[ -z "${TRACE_UPDATE_ARTIFACT_FILE:-}" ]]; then
+  curl_download 120 "$artifact_url" "$artifact"
+elif [[ ! -s "$artifact" ]]; then
+  echo "Pacote local ausente ou vazio: $artifact" >&2
+  exit 15
+fi
 if command -v sha256sum >/dev/null; then
   actual_sha="$(sha256sum "$artifact" | awk '{print tolower($1)}')"
 else
@@ -124,7 +210,7 @@ if [[ "$dry_run" == "1" ]]; then
 fi
 
 backup="$state_dir/backups/pre-$version-$(date -u +%Y%m%dT%H%M%SZ).tar.gz"
-db_backup_output="$(bash "$root_dir/scripts/backup_db.sh" "$state_dir/backups")"
+db_backup_output="$(TRACE_COMPOSE_PRODUCTION="$trace_compose_production" bash "$root_dir/scripts/backup_db.sh" "$state_dir/backups")"
 db_backup="$(printf '%s\n' "$db_backup_output" | sed -n 's/^Backup criado: //p' | tail -n 1)"
 [[ -s "$db_backup" && -s "$db_backup.sha256" ]] || {
   echo "O backup do banco foi criado sem caminho verificável; atualização cancelada." >&2
@@ -138,21 +224,35 @@ tar -xzf "$artifact" -C "$release_dir" --no-same-owner
 source_dir="$release_dir"
 if [[ -d "$release_dir/trace" && -f "$release_dir/trace/docker-compose.yml" ]]; then source_dir="$release_dir/trace"; fi
 [[ -f "$source_dir/docker-compose.yml" ]] || { echo "Pacote sem docker-compose.yml." >&2; exit 17; }
+[[ -f "$source_dir/trace-build-version.txt" && -f "$source_dir/trace-build-commit.txt" ]] || {
+  echo "Pacote sem identificadores de versão e commit." >&2
+  exit 17
+}
+package_version="$(tr -d '\r\n' < "$source_dir/trace-build-version.txt")"
+package_commit="$(tr -d '\r\n' < "$source_dir/trace-build-commit.txt" | tr '[:upper:]' '[:lower:]')"
+[[ "$package_version" == "$version" && "$package_commit" =~ ^[0-9a-f]{40}$ ]] || {
+  echo "Os identificadores do pacote não correspondem ao manifesto." >&2
+  exit 17
+}
+if [[ -n "$expected_commit" && "$package_commit" != "$expected_commit" ]]; then
+  echo "O commit do pacote não corresponde ao commit solicitado." >&2
+  exit 17
+fi
 
 rollback() {
   echo "Restaurando a versão anterior." >&2
-  docker compose stop >/dev/null 2>&1 || true
+  compose stop >/dev/null 2>&1 || true
   if ! tar -xzf "$backup" -C "$root_dir" --no-same-owner; then
     echo "Não foi possível restaurar os arquivos da versão anterior." >&2
     return 1
   fi
-  if ! docker compose up -d mysql >/dev/null; then
+  if ! compose up -d mysql >/dev/null; then
     echo "Não foi possível iniciar o banco para o rollback." >&2
     return 1
   fi
   mysql_ready=0
   for _ in $(seq 1 "${MYSQL_ROLLBACK_ATTEMPTS:-30}"); do
-    if docker compose exec -T mysql sh -lc 'mysqladmin ping -uroot -p"$MYSQL_ROOT_PASSWORD" --silent' >/dev/null 2>&1; then
+    if compose exec -T mysql sh -lc 'mysqladmin ping -uroot -p"$MYSQL_ROOT_PASSWORD" --silent' >/dev/null 2>&1; then
       mysql_ready=1
       break
     fi
@@ -166,11 +266,11 @@ rollback() {
     echo "O backup do banco não passou na verificação durante o rollback." >&2
     return 1
   fi
-  if ! docker compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"' < "$db_backup"; then
+  if ! compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"' < "$db_backup"; then
     echo "Não foi possível restaurar o banco da versão anterior." >&2
     return 1
   fi
-  if ! docker compose up -d --build >/dev/null; then
+  if ! compose up -d --build >/dev/null; then
     echo "Não foi possível iniciar a versão anterior." >&2
     return 1
   fi
@@ -185,29 +285,54 @@ rollback() {
   fi
 }
 
-docker compose stop >/dev/null
+if ! compose stop >/dev/null; then
+  echo "Não foi possível parar os serviços para a atualização." >&2
+  mark_failed_update
+  if ! rollback; then keep_maintenance=1; fi
+  exit 18
+fi
 if ! rsync -a --delete --exclude='.env' --exclude='armazenamento/' --exclude='.git/' "$source_dir/" "$root_dir/"; then
   echo "Não foi possível instalar os arquivos da nova versão." >&2
   mark_failed_update
-  rollback || true
+  if ! rollback; then keep_maintenance=1; fi
   exit 18
 fi
-if ! docker compose up -d mysql >/dev/null; then
+release_metadata="$root_dir/servidor/.release.json"
+release_metadata_tmp="$release_metadata.tmp"
+if ! python3 - "$package_version" "$package_commit" "$release_metadata_tmp" <<'PY'
+import json, pathlib, sys
+pathlib.Path(sys.argv[3]).write_text(json.dumps({"version": sys.argv[1], "commit": sys.argv[2]}) + "\n")
+PY
+then
+  echo "Não foi possível registrar a versão do pacote; iniciando rollback." >&2
+  rm -f -- "$release_metadata_tmp"
+  mark_failed_update
+  if ! rollback; then keep_maintenance=1; fi
+  exit 19
+fi
+if ! mv -f -- "$release_metadata_tmp" "$release_metadata"; then
+  echo "Não foi possível instalar os metadados da versão; iniciando rollback." >&2
+  rm -f -- "$release_metadata_tmp"
+  mark_failed_update
+  if ! rollback; then keep_maintenance=1; fi
+  exit 19
+fi
+if ! compose up -d mysql >/dev/null; then
   echo "O banco não conseguiu iniciar para receber as migrations; iniciando rollback." >&2
   mark_failed_update
-  rollback || true
+  if ! rollback; then keep_maintenance=1; fi
   exit 19
 fi
 if ! bash "$root_dir/scripts/migrate.sh"; then
   echo "As migrations da nova versão falharam; iniciando rollback." >&2
   mark_failed_update
-  rollback || true
+  if ! rollback; then keep_maintenance=1; fi
   exit 19
 fi
-if ! docker compose up -d --build >/dev/null; then
+if ! compose up -d --build >/dev/null; then
   echo "A nova versão não conseguiu iniciar; iniciando rollback." >&2
   mark_failed_update
-  rollback || true
+  if ! rollback; then keep_maintenance=1; fi
   exit 19
 fi
 healthy=0
@@ -217,10 +342,17 @@ for _ in $(seq 1 "${HEALTHCHECK_ATTEMPTS:-30}"); do
 done
 if [[ "$healthy" != "1" ]]; then
   echo "A versão $version não passou no healthcheck; iniciando rollback." >&2
-  rollback || true
+  if ! rollback; then keep_maintenance=1; fi
   mark_failed_update
   exit 20
 fi
 rm -f "$failed_marker"
-printf '%s\n' "$version" > "$state_dir/current_version"
+current_version_tmp="$state_dir/.current_version.tmp"
+if ! printf '%s\n' "$version" > "$current_version_tmp" || ! mv -f -- "$current_version_tmp" "$state_dir/current_version"; then
+  echo "Não foi possível registrar a versão instalada; iniciando rollback." >&2
+  rm -f -- "$current_version_tmp"
+  mark_failed_update
+  if ! rollback; then keep_maintenance=1; fi
+  exit 20
+fi
 echo "Trace atualizado com sucesso para $version. Backup: $backup"

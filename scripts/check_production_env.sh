@@ -71,6 +71,10 @@ if [[ "${TRACE_TESTING_DISABLE_CSRF:-0}" == "1" || "${TRACE_TESTING_DISABLE_LOGI
   echo "ERRO: proteções de teste não podem ser ativadas em produção." >&2
   failures=$((failures + 1))
 fi
+if [[ "${TRACE_LOCAL_SIMULATION:-0}" == "1" || "${TRACE_SIMULATOR_ONLY_COMMANDS:-0}" == "1" ]]; then
+  echo "ERRO: a simulação local e os comandos fictícios não podem ser ativados em produção." >&2
+  failures=$((failures + 1))
+fi
 
 if [[ "${TRACE_ENV_CHECK_SKIP_DATABASE:-0}" != "1" ]] && command -v docker >/dev/null 2>&1; then
   known_hashes=(

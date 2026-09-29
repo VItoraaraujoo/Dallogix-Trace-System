@@ -16,10 +16,19 @@ if ($action === "CLAIM") {
     $pdo->beginTransaction();
     try {
         $statement = $pdo->prepare(
-            "SELECT r.id, r.sensor_event_id, r.carregamento_id, r.equipment_id, r.reason, c.company_id
+            "SELECT r.id, r.sensor_event_id, r.carregamento_id, r.equipment_id, r.reason,
+                    r.evidence_pdf_path, c.company_id
              FROM solicitacoes_captura_camera r
              JOIN carregamentos c ON c.id = r.carregamento_id
-             WHERE r.equipment_id = :equipment_id AND r.status = 'PENDENTE'
+             WHERE r.equipment_id = :equipment_id
+               AND (
+                   r.status = 'PENDENTE'
+                   OR (
+                       r.status = 'CAPTURANDO'
+                       AND COALESCE(r.updated_at, r.created_at, r.requested_at)
+                           <= NOW(3) - INTERVAL 30 SECOND
+                   )
+               )
              ORDER BY r.requested_at, r.id LIMIT 1 FOR UPDATE SKIP LOCKED",
         );
         $statement->execute(["equipment_id" => $device["equipment_id"]]);
@@ -30,8 +39,18 @@ if ($action === "CLAIM") {
             exit();
         }
         $update = $pdo->prepare(
-            "UPDATE solicitacoes_captura_camera SET status = 'CAPTURANDO', claimed_by_device_id = :device_id
-             WHERE id = :id AND equipment_id = :equipment_id AND status = 'PENDENTE'",
+            "UPDATE solicitacoes_captura_camera
+             SET status = 'CAPTURANDO', claimed_by_device_id = :device_id,
+                 error_message = NULL, updated_at = NOW()
+             WHERE id = :id AND equipment_id = :equipment_id
+               AND (
+                   status = 'PENDENTE'
+                   OR (
+                       status = 'CAPTURANDO'
+                       AND COALESCE(updated_at, created_at, requested_at)
+                           <= NOW(3) - INTERVAL 30 SECOND
+                   )
+               )",
         );
         $update->execute([
             "id" => $request["id"],

@@ -65,3 +65,13 @@ Impacto: o projeto usa `SYNC_REMOTE_URL` e permanece portátil para futura migra
 - Controle: o `ADMIN_DALLOGIX` pode bloquear ou desbloquear a empresa.
 - Cobrança automática e vencimento: não serão implementados.
 - Ao bloquear: o Trace impede novas preparações, início de carregamento e comandos operacionais, sem desligar carga em andamento ou alterar intertravamentos do CLP.
+
+## 8. Portal administrativo
+
+- Hospedagem e domínio do painel de gestão:
+- Autenticação e política de acesso remoto:
+- Sistemas e servidores que entram no painel:
+- Ações remotas permitidas (consulta, atualização, reinício e outras):
+- Separação e retenção de logs, auditoria e backups:
+
+Impacto: o Trace já oferece a área `ADMIN_DALLOGIX` para empresas, usuários e diagnóstico/logs. A expansão para gerir servidores e integrações precisa destes limites antes de expor ações administrativas remotas. O estado da execução está em `documentacao/operacao/plano-execucao-consolidado.md`.

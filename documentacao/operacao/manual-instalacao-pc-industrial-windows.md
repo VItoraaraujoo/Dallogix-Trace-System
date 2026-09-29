@@ -21,16 +21,11 @@ Mesmo conectado por Wi-Fi, a interface do Trace permanece limitada a `127.0.0.1`
 
 ## 2. Copiar e configurar o pacote
 
-1. Copie o pacote aprovado para `C:\ProgramData\DallogixTrace`.
-2. Abra PowerShell como administrador.
-3. Entre na pasta da instalação e crie o arquivo de ambiente:
+1. Gere `TraceSetup.exe` de uma tag aprovada com `Build-TraceSetup.ps1` e copie o executável para o PC.
+2. Execute o instalador como administrador pela conta técnica. Ele cria `.env` com senhas e tokens aleatórios se o arquivo ainda não existir, instala Git for Windows quando necessário, sobe os serviços e aplica migrations.
+3. O assistente solicita o endereço base HTTPS do servidor central e os dados da máquina. Guarde o token técnico fora de capturas e logs.
 
-```powershell
-Copy-Item .env.example .env
-notepad .env
-```
-
-No `.env`, defina senhas aleatórias para `MYSQL_PASSWORD` e `MYSQL_ROOT_PASSWORD`. Defina também `TRACE_DEVICE_TOKEN` e `CAMERA_DEVICE_TOKEN` com valores fortes e distintos; depois provisione cada dispositivo com `scripts/provision_device.php`. Nunca use valores `change-me-*`.
+Se `.env` já existir, o instalador preserva seus valores e informa quais campos obrigatórios estão vazios. Depois provisione cada dispositivo com `scripts/provision_device.php` e token próprio.
 
 No PC industrial, cadastre o endereço e a porta de cada CLP na própria Dala.
 Ao salvar, o Trace tenta abrir uma conexão TCP para esse destino, limitado a
@@ -55,7 +50,7 @@ Mantenha `APP_ENV=local` enquanto o quiosque acessar `http://127.0.0.1:8080`. Es
 
 ## 3. Registrar a máquina
 
-Execute:
+O `TraceSetup.exe` executa essa preparação automaticamente. Se for necessário repetir a configuração com a conta técnica, execute:
 
 ```powershell
 .\implantacao\windows\Setup-TraceMachine.ps1
@@ -63,7 +58,7 @@ Execute:
 
 Informe o código da esteira, por exemplo `EST-001`, o ID cadastrado no servidor central, `https://trace.santocloud.com.br` como servidor central e a credencial exclusiva da máquina. Na primeira instalação, responda `N` para CLP físico habilitado.
 
-O instalador inicia os containers e registra o agente do Trace para iniciar automaticamente com o Windows.
+O instalador inicia os containers, registra o agente do Trace e agenda a verificação diária de releases assinadas para 03:30. Consulte `schtasks.exe /Query /TN "Dallogix Trace Atualizacao Estavel" /V /FO LIST` no CMD para confirmar o registro. O log fica em `C:\ProgramData\DallogixTrace\armazenamento\logs\update-stable.log` após a primeira consulta.
 
 ## 4. Validar a instalação local
 
@@ -73,7 +68,7 @@ No navegador técnico, abra:
 http://127.0.0.1:8080/api/health.php
 ```
 
-O resultado deve ser HTTP 200 com `php=true`, `mysql=true` e os blocos `checks.queue`, `checks.heartbeats`, `checks.commands` e `checks.disk`. `status=degraded` exige análise da fila, heartbeat, comando travado ou disco antes do go-live. Em seguida, abra `http://127.0.0.1:8080`, entre com um login autorizado e confirme cadastro de Dala, romaneio e logs.
+O resultado de `health.php` deve ser HTTP 200 com `status=ok`, `php=true` e `mysql=true`. Consulte também `http://127.0.0.1:8080/api/prontidao.php` para verificar se fila, heartbeat, comandos e disco estão prontos para operação; `status=degraded` exige análise antes do go-live. Em seguida, abra `http://127.0.0.1:8080`, entre com um login autorizado e confirme cadastro de Dala, romaneio e logs.
 
 Para bancada, habilite o perfil `simulation` e execute o teste Modbus virtual. Não conecte comandos físicos nessa etapa.
 

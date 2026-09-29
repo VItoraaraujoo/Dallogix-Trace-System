@@ -23,7 +23,7 @@ if (-not (Test-Path $EnvFile)) { throw "Crie o arquivo .env em $InstallRoot ante
 if (-not (Get-Command docker.exe -ErrorAction SilentlyContinue)) { throw "Docker Desktop não está instalado ou não está no PATH." }
 
 Set-Location $InstallRoot
-& docker compose up -d
+& docker compose --profile industrial up -d
 
 $healthy = $false
 for ($attempt = 1; $attempt -le 30; $attempt++) {

@@ -12,6 +12,7 @@ armazenamento/logs/
 tmp/
 /vendor/
 /var/
+/servidor/.release.json
 .codegraph/
 
 armazenamento/producao-teste/

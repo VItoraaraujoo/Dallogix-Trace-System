@@ -21,11 +21,16 @@ if ($config.physical_clp_enabled -eq $true -and $config.io_map_status -ne "APPRO
 $installRoot = "C:\ProgramData\DallogixTrace"
 $configDir = Join-Path $installRoot "config"
 New-Item -ItemType Directory -Force -Path $configDir | Out-Null
-Copy-Item $MachineConfig (Join-Path $configDir "machine.json") -Force
+if ((Resolve-Path -LiteralPath $MachineConfig).Path -ne (Join-Path $configDir "machine.json")) {
+    Copy-Item $MachineConfig (Join-Path $configDir "machine.json") -Force
+}
 Set-Location $PackageRoot
-& docker.exe compose up -d
+& docker.exe compose --profile industrial up -d
+if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel iniciar os containers do Trace." }
 
 $agentScript = Join-Path $PackageRoot "implantacao\windows\TraceAgent.ps1"
+& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PackageRoot "implantacao\windows\Register-TraceUpdater.ps1") -PackageRoot $PackageRoot
+if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel registrar a atualizacao automatica de producao." }
 $taskAction = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$agentScript`" -ConfigPath `"$configDir\machine.json`""
 $taskTrigger = New-ScheduledTaskTrigger -AtStartup
 $taskPrincipal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
