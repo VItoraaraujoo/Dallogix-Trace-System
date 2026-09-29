@@ -208,7 +208,6 @@ jobs:
           SERVER_USER: ${{ vars.CENTRAL_SERVER_SSH_USER }}
           SERVER_PORT: ${{ vars.CENTRAL_SERVER_SSH_PORT }}
           SERVER_PATH: ${{ vars.CENTRAL_SERVER_PATH }}
-          CENTRAL_HEALTH_URL: ${{ vars.CENTRAL_HEALTH_URL }}
           VERSION: ${{ steps.release.outputs.version }}
           COMMIT: ${{ steps.release.outputs.commit }}
         run: |
@@ -217,21 +216,6 @@ jobs:
           : "${SERVER_PATH:?Configure CENTRAL_SERVER_PATH no ambiente production-release.}"
           : "${SSH_PRIVATE_KEY:?Configure CENTRAL_SERVER_SSH_KEY no ambiente production-release.}"
           : "${SSH_KNOWN_HOSTS:?Configure CENTRAL_SERVER_SSH_KNOWN_HOSTS no ambiente production-release.}"
-          python3 - <<'PY'
-          import json
-          import os
-          import urllib.request
-          from urllib.parse import urlparse
-
-          url = os.environ.get("CENTRAL_HEALTH_URL", "").strip()
-          parsed = urlparse(url)
-          if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.path != "/api/health.php" or parsed.query or parsed.fragment:
-              raise SystemExit("Configure CENTRAL_HEALTH_URL como a URL HTTPS de /api/health.php do Central de produção.")
-          with urllib.request.urlopen(url, timeout=15) as response:
-              health = json.load(response)
-          if health.get("status") != "ok" or health.get("installation_mode") != "central":
-              raise SystemExit("O Central não está saudável ou não está identificado como instalação Central; atualização cancelada.")
-          PY
           SERVER_PORT="${SERVER_PORT:-22}"
           [[ "$SERVER_HOST" =~ ^[A-Za-z0-9.-]+$ ]] || { echo "Host SSH inválido." >&2; exit 1; }
           [[ "$SERVER_USER" =~ ^[A-Za-z_][A-Za-z0-9_-]*$ ]] || { echo "Usuário SSH inválido." >&2; exit 1; }
@@ -269,38 +253,43 @@ jobs:
           version="$3"
           commit="$4"
           trap 'rm -rf -- "$stage"' EXIT
+          [[ -r "$app_root/.env" ]] || { echo "Arquivo .env do Central não está acessível; atualização cancelada." >&2; exit 1; }
+          . "$app_root/.env"
+          health_port="${WEB_PORT:-8080}"
+          [[ "$health_port" =~ ^[0-9]{1,5}$ ]] && (( health_port >= 1 && health_port <= 65535 )) || {
+            echo "WEB_PORT do Central é inválida; atualização cancelada." >&2; exit 1;
+          }
+          health_url="http://127.0.0.1:${health_port}/api/health.php"
+          curl --fail --silent --show-error --max-time 15 "$health_url" -o "$stage/health-before.json"
+          python3 - "$stage/health-before.json" <<'PY'
+          import json
+          import pathlib
+          import sys
+
+          health = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          if health.get("status") != "ok" or health.get("installation_mode") != "central":
+              raise SystemExit("O Central não está saudável ou não está identificado como instalação Central; atualização cancelada.")
+          PY
           export TRACE_UPDATE_ROOT="$app_root"
           export TRACE_UPDATE_MANIFEST_FILE="$stage/manifest.json"
           export TRACE_UPDATE_ARTIFACT_FILE="$stage/trace-$version.tar.gz"
           export TRACE_UPDATE_EXPECT_VERSION="$version"
           export TRACE_UPDATE_EXPECT_COMMIT="$commit"
           bash "$stage/update_trace.sh"
-          REMOTE
-
-      - name: Confirmar que o Central serve a versão publicada
-        env:
-          CENTRAL_HEALTH_URL: ${{ vars.CENTRAL_HEALTH_URL }}
-          VERSION: ${{ steps.release.outputs.version }}
-          COMMIT: ${{ steps.release.outputs.commit }}
-        run: |
-          python3 - <<'PY'
+          curl --fail --silent --show-error --max-time 30 "$health_url" -o "$stage/health-after.json"
+          python3 - "$stage/health-after.json" "$version" "$commit" <<'PY'
           import json
-          import os
-          import urllib.request
-          from urllib.parse import urlparse
+          import pathlib
+          import sys
 
-          url = os.environ.get("CENTRAL_HEALTH_URL", "").strip()
-          parsed = urlparse(url)
-          if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password or parsed.path != "/api/health.php" or parsed.query or parsed.fragment:
-              raise SystemExit("Configure CENTRAL_HEALTH_URL como a URL HTTPS de /api/health.php do Central de produção.")
-          with urllib.request.urlopen(url, timeout=15) as response:
-              health = json.load(response)
-          expected = (os.environ["VERSION"], os.environ["COMMIT"])
+          health = json.loads(pathlib.Path(sys.argv[1]).read_text())
+          expected = (sys.argv[2], sys.argv[3])
           actual = (health.get("version"), health.get("commit"))
           if health.get("status") != "ok" or health.get("installation_mode") != "central" or actual != expected:
               raise SystemExit(f"Central não serve a release solicitada: esperado {expected}, recebido {actual}.")
           print(f"Central confirmado na versão {expected[0]} e no commit {expected[1]}.")
           PY
+          REMOTE
 
       - name: Publicar a versão liberada pelo Central
         env:
