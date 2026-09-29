@@ -39,13 +39,19 @@ A chave privada fica somente no servidor de distribuição. A máquina recebe ap
 No `.env` da máquina:
 
 ```dotenv
-UPDATE_MANIFEST_URL=https://updates.exemplo.dallogix/stable/manifest.json
-UPDATE_MANIFEST_TOKEN=token-da-maquina-ou-do-canal
-UPDATE_PUBLIC_KEY_FILE=/opt/dallogix-trace/armazenamento/updates/trace-update-public.pem
+UPDATE_MANIFEST_URL=https://github.com/VItoraaraujoo/Dallogix-Trace-System/releases/latest/download/manifest.json
+UPDATE_PUBLIC_KEY_FILE=/opt/dallogix-trace/servidor/configuracao/trace-update-public.pem
 UPDATE_CHANNEL=stable
 ```
 
-Instale os serviços `dallogix-trace-sync.service` e `dallogix-trace-sync.timer` em `/etc/systemd/system/`. O timer permanece desabilitado por padrão; só habilite-o depois de criar `/etc/dallogix-trace/enable-auto-update`, configurar uma janela de manutenção e obter aprovação operacional. O timer apenas consulta e instala seguindo as regras acima. Para testar sem alterar nada:
+Esses valores são os padrões do atualizador e podem ser substituídos no `.env` quando a instalação usa outro canal/servidor. Copie `deploy/systemd/dallogix-trace-sync.service` e `deploy/systemd/dallogix-trace-sync.timer` para `/etc/systemd/system/`, depois habilite o timer:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now dallogix-trace-sync.timer
+```
+
+O timer verifica a cada minuto; o atualizador valida assinatura, integridade e ausência de carregamento ativo antes de instalar. Para testar sem alterar nada:
 
 ```bash
 TRACE_UPDATE_DRY_RUN=1 bash scripts/update_trace.sh
@@ -53,7 +59,7 @@ TRACE_UPDATE_DRY_RUN=1 bash scripts/update_trace.sh
 
 ## Publicação pelo GitHub
 
-O workflow `.github/workflows/release-production.yml` publica uma versão de produção quando uma tag SemVer (`v1.2.3`, por exemplo) é enviada ao GitHub. Antes de criar a release, ele confirma que a tag aponta para um commit da `master`, executa as validações de qualidade e segurança, monta um pacote somente com arquivos rastreados e publica o manifesto assinado junto com o artefato.
+O workflow `.github/workflows/release-production.yml` publica automaticamente uma release assinada a partir de cada commit da `master` depois das validações de qualidade, segurança e integração. Ele incrementa a versão patch SemVer e publica um pacote imutável, manifesto assinado e SBOM. O gatilho por tag SemVer continua disponível para uma publicação técnica explícita, desde que a tag aponte para um commit incorporado à `master`.
 
 Configure no ambiente protegido `production-release` do GitHub o segredo `UPDATE_SIGNING_PRIVATE_KEY`. A chave privada nunca deve entrar no repositório. O projeto distribui a chave pública em `servidor/configuracao/trace-update-public.pem`; a instalação industrial deve apontar `UPDATE_PUBLIC_KEY_FILE` para a cópia local desse arquivo e consultar o manifesto da última release estável:
 
@@ -63,7 +69,7 @@ UPDATE_PUBLIC_KEY_FILE=/opt/dallogix-trace/servidor/configuracao/trace-update-pu
 UPDATE_CHANNEL=stable
 ```
 
-O procedimento de publicação é:
+Para publicar uma correção, basta incorporar o commit à `master`; o workflow executa os gates e publica a versão. Não é necessário criar uma tag manual. O procedimento por tag continua disponível quando a equipe técnica precisa escolher uma versão explícita:
 
 ```bash
 git checkout master
@@ -72,7 +78,7 @@ git tag -a v1.2.3 -m "Dallogix Trace v1.2.3"
 git push origin v1.2.3
 ```
 
-O envio de um commit comum não atualiza a produção. A Dala só instala uma tag publicada, dentro da janela configurada no timer, depois de verificar assinatura, integridade, backup, ausência de carregamento ativo e healthcheck. O ambiente `production-release` deve exigir aprovação da equipe técnica antes de cada publicação.
+Em macOS, o LaunchAgent consulta a `master` diretamente a cada 60 segundos. Linux usa o timer systemd e Windows usa a tarefa `Dallogix Trace Atualizacao`; ambos consultam a release assinada criada a partir da mesma `master` a cada minuto. Todos adiam a atualização durante carregamento ativo. Linux/Windows verificam assinatura, integridade, backup e healthcheck, com rollback automático se a nova versão falhar. Para manter a publicação automática, o ambiente `production-release` deve armazenar `UPDATE_SIGNING_PRIVATE_KEY` e não exigir aprovação manual por release. Se já houver PCs Linux/Windows instalados sem timer/tarefa, a equipe técnica precisa ativar o mecanismo uma vez em cada PC; novas instalações já recebem essa configuração.
 
 ## Sincronização remota em lote
 
@@ -102,7 +108,7 @@ parcial implícita. O token é enviado como `Authorization: Bearer` nos dois mod
 
 ## Windows industrial
 
-O mesmo contrato pode ser executado pelo atualizador do Windows dentro da janela de manutenção. O launcher continuará abrindo o Trace em quiosque após a atualização. A conta do operador não deve ter permissão para executar o atualizador; a tarefa agendada deve rodar com a conta técnica do equipamento.
+O `Setup-TraceMachine.ps1` configura URL e chave pública padrão; o `Install-TraceMachine.ps1` registra a tarefa `Dallogix Trace Atualizacao`, executada como `SYSTEM` a cada minuto e sem sobreposição. Se uma versão falhar, ela fica marcada para impedir tentativas automáticas repetidas até a equipe técnica investigar e remover a marca. O launcher continua abrindo o Trace em quiosque após a atualização. A conta do operador não deve ter permissão administrativa para alterar a tarefa. Para PC já instalado, a equipe técnica precisa cadastrar os valores `UPDATE_*` no `.env` e executar novamente o instalador de máquina para registrar a tarefa.
 
 ## Limites importantes
 

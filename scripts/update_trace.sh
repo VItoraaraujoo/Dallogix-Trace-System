@@ -12,14 +12,10 @@ if [[ -f "$root_dir/.env" ]]; then
   set +a
 fi
 
-manifest_url="${UPDATE_MANIFEST_URL:-}"
-public_key="${UPDATE_PUBLIC_KEY_FILE:-}"
+manifest_url="${UPDATE_MANIFEST_URL:-https://github.com/VItoraaraujoo/Dallogix-Trace-System/releases/latest/download/manifest.json}"
+public_key="${UPDATE_PUBLIC_KEY_FILE:-$root_dir/servidor/configuracao/trace-update-public.pem}"
 channel="${UPDATE_CHANNEL:-stable}"
 dry_run="${TRACE_UPDATE_DRY_RUN:-0}"
-if [[ -z "$manifest_url" || -z "$public_key" ]]; then
-  echo "Atualização remota não configurada: defina UPDATE_MANIFEST_URL e UPDATE_PUBLIC_KEY_FILE." >&2
-  exit 2
-fi
 [[ "$manifest_url" == https://* ]] || { echo "O manifesto remoto deve usar HTTPS." >&2; exit 3; }
 [[ -f "$public_key" ]] || { echo "Chave pública não encontrada: $public_key" >&2; exit 4; }
 

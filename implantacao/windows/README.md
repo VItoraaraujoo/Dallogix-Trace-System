@@ -16,7 +16,7 @@ O pacote de instalação da equipe técnica é compilado a partir de `TraceSetup
 
 O sistema será apresentado ao operador como `TraceLauncher`, equivalente ao `Trace.exe`. A transformação opcional do `.cmd` em um `.exe` deve ser feita somente no instalador oficial da empresa; o comportamento e os serviços continuam os mesmos.
 
-Para a preparação técnica, a Dallogix entrega um `machine.json` preenchido e executa `Install-TraceMachine.ps1` com uma conta administrativa. O instalador sobe o Trace, registra o `Dallogix Agent` como tarefa automática do Windows e vincula a máquina ao servidor central. O arquivo `machine-config.example.json` é apenas um modelo; tokens reais nunca devem entrar no repositório.
+Para a preparação técnica, a Dallogix entrega um `machine.json` preenchido e executa `Install-TraceMachine.ps1` com uma conta administrativa. O instalador sobe o Trace, registra o `Dallogix Agent` e a tarefa de atualização como tarefas automáticas do Windows, e vincula a máquina ao servidor central. A tarefa consulta a release assinada derivada da `master` a cada minuto, seguindo a mesma regra do macOS. O arquivo `machine-config.example.json` é apenas um modelo; tokens reais nunca devem entrar no repositório.
 
 ## Segurança do PC
 
@@ -42,4 +42,4 @@ O `TraceAgent` mantém a presença da máquina no servidor central por HTTPS/443
 
 ## Atualizações remotas
 
-O arquivo `TraceUpdater.ps1` valida o manifesto por HTTPS, a assinatura e o SHA-256, bloqueia a instalação quando há carregamento ativo, faz backup dos arquivos e do banco e só registra a versão depois do healthcheck. Se a nova versão falhar, restaura automaticamente os arquivos e o banco anteriores e confirma o healthcheck antes de liberar a máquina. Cadastre-o como tarefa agendada da conta técnica em uma janela de manutenção; o operador não deve ter permissão para executá-lo. O contrato completo está em [documentacao/operacao/atualizacoes-remotas.md](../../documentacao/operacao/atualizacoes-remotas.md).
+O `Setup-TraceMachine.ps1` configura o manifesto estável e a chave pública que acompanham o pacote. `Install-TraceMachine.ps1` agenda a execução de `TraceUpdater.ps1` a cada minuto como `SYSTEM`, sem sobreposição; a tarefa pode ser instalada ou corrigida novamente ao executar o instalador técnico em uma instalação existente. O atualizador valida manifesto por HTTPS, assinatura e SHA-256, bloqueia a instalação durante carregamento, faz backup dos arquivos e do banco e só registra a versão depois do healthcheck. Se a nova versão falhar, restaura os arquivos e o banco anteriores e confirma o healthcheck. O operador não deve ter permissão administrativa para alterar a tarefa. O contrato completo está em [documentacao/operacao/atualizacoes-remotas.md](../../documentacao/operacao/atualizacoes-remotas.md).

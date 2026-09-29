@@ -39,6 +39,8 @@ try {
     if ($manifest.artifact_url -notmatch '^https://') { throw "O pacote deve usar HTTPS." }
     if ($manifest.version -notmatch '^[A-Za-z0-9._-]+$') { throw "Versão inválida." }
     if ($manifest.sha256 -notmatch '^[0-9a-fA-F]{64}$') { throw "SHA-256 inválido." }
+    $failedMarker = Join-Path $StateRoot ("failed-" + $manifest.version)
+    if (Test-Path $failedMarker) { throw "A versão $($manifest.version) já falhou; revise a instalação e remova $failedMarker para autorizar nova tentativa." }
 
     $work = Join-Path $StateRoot (".staging-" + [guid]::NewGuid().ToString("N"))
     New-Item -ItemType Directory -Force -Path $work | Out-Null
@@ -52,8 +54,11 @@ try {
 
     Set-Location $InstallRoot
     New-Item -ItemType File -Force -Path $MaintenanceFile | Out-Null
-    $active = (& docker.exe compose exec -T mysql mysql -N -B -utrace "-p$($env:MYSQL_PASSWORD)" "$($env:MYSQL_DATABASE)" -e "SELECT COUNT(*) FROM carregamentos WHERE state IN ('PREPARANDO','CARREGANDO','PAUSADO','FINALIZANDO','EMERGENCIA');" 2>$null | Out-String).Trim()
-    if ($active -and $active -ne "0") { throw "Atualização adiada: existe carregamento ativo ou em intervenção." }
+    $activeOutput = & docker.exe compose exec -T mysql mysql -N -B -utrace "-p$($env:MYSQL_PASSWORD)" "$($env:MYSQL_DATABASE)" -e "SELECT COUNT(*) FROM carregamentos WHERE state IN ('PREPARANDO','CARREGANDO','PAUSADO','FINALIZANDO','EMERGENCIA');" 2>$null
+    $activeExitCode = $LASTEXITCODE
+    $active = ($activeOutput | Out-String).Trim()
+    if ($activeExitCode -ne 0 -or $active -notmatch '^\d+$') { throw "Não foi possível verificar carregamentos ativos; atualização cancelada por segurança." }
+    if ($active -ne "0") { throw "Atualização adiada: existe carregamento ativo ou em intervenção." }
     $current = Join-Path $StateRoot "current_version"
     if ((Test-Path $current) -and ((Get-Content $current -Raw).Trim() -eq $manifest.version)) { Write-Output "Trace já está na versão $($manifest.version)."; return }
 
@@ -92,6 +97,13 @@ try {
     $rollbackRequired = $false
     Write-Output "Trace atualizado com sucesso para $($manifest.version). Backup: $databaseBackup"
 } catch {
+    if ($rollbackRequired -and $manifest.version) {
+        try {
+            Set-Content -Path (Join-Path $StateRoot ("failed-" + $manifest.version)) -Value (Get-Date -Format "yyyy-MM-ddTHH:mm:ssK") -NoNewline
+        } catch {
+            Write-Warning "Não foi possível marcar a versão com falha antes do rollback: $($_.Exception.Message)"
+        }
+    }
     if ($rollbackRequired -and $previousArchive) {
         try {
             Write-Warning "A atualização falhou; iniciando rollback automático."

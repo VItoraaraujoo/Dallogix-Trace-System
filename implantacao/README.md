@@ -7,15 +7,14 @@ O PC industrial com interface gráfica usa o Trace em modo quiosque: o operador 
 1. Copie o projeto para `/opt/dallogix-trace`.
 2. Crie o `.env` e valide-o com `bash scripts/check_physical_deployment.sh`. Mantenha `WEB_BIND_ADDRESS=127.0.0.1`: nenhum acesso remoto entra no PC industrial. Todo gerenciamento remoto ocorre no servidor central. `BIND_ADDRESS=127.0.0.1` permanece obrigatório para MySQL, Node-RED e Modbus.
 3. Instale o Chromium/Chrome e configure o usuário operador com login automático no ambiente gráfico.
-4. Copie os serviços para `/etc/systemd/system/` e habilite:
+4. Copie `dallogix-trace.service`, `dallogix-trace-kiosk.service`, `dallogix-trace-sync.service` e `dallogix-trace-sync.timer` de `deploy/systemd/` para `/etc/systemd/system/` e habilite:
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now dallogix-trace.service
-sudo systemctl enable --now dallogix-trace-kiosk.service
+sudo systemctl enable --now dallogix-trace.service dallogix-trace-kiosk.service dallogix-trace-sync.timer
 ```
 
-O serviço do Trace sobe os containers; o serviço quiosque abre o navegador em tela cheia e o reinicia se ele fechar. O arquivo de serviço assume um usuário Linux chamado `trace-operator`, sessão gráfica em `DISPLAY=:0` e Xauthority em `/home/trace-operator/.Xauthority`; ajuste esses valores se a distribuição usar outra sessão. A conta administrativa do Linux deve ser separada da conta operador e acessível somente à equipe técnica.
+O serviço do Trace sobe os containers; o serviço quiosque abre o navegador em tela cheia e o reinicia se ele fechar. O timer consulta a cada minuto o pacote assinado produzido a partir da `master`; não instala nada enquanto existir carregamento ou intervenção. O atualizador usa por padrão o manifesto estável do GitHub e a chave pública que acompanha o projeto. O arquivo de serviço assume um usuário Linux chamado `trace-operator`, sessão gráfica em `DISPLAY=:0` e Xauthority em `/home/trace-operator/.Xauthority`; ajuste esses valores se a distribuição usar outra sessão. A conta administrativa do Linux deve ser separada da conta operador e acessível somente à equipe técnica.
 
 ## Manutenção
 
@@ -29,7 +28,7 @@ Não exponha as portas do MySQL, Node-RED, Modbus ou da interface web local fora
 
 ## Atualizações remotas
 
-As atualizações são assinadas, verificadas por SHA-256, bloqueadas durante qualquer carregamento e protegidas por backup e rollback. Configure os campos `UPDATE_*` no `.env` e siga [documentacao/operacao/atualizacoes-remotas.md](../documentacao/operacao/atualizacoes-remotas.md). O timer deve ser instalado somente pela equipe técnica.
+As atualizações são assinadas, verificadas por SHA-256, bloqueadas durante qualquer carregamento e protegidas por backup, healthcheck e rollback. O timer consulta automaticamente a cada minuto. Siga [documentacao/operacao/atualizacoes-remotas.md](../documentacao/operacao/atualizacoes-remotas.md) para conferir a instalação e habilitar o mesmo padrão em máquinas já implantadas.
 
 ## Sincronização com GitHub
 
@@ -37,4 +36,4 @@ O repositório do servidor deve ter o remote `empresa` apontando para `https://g
 
 O workflow `.github/workflows/deploy-test.yml` executa esse sincronizador automaticamente quando os checks de qualidade e segurança concluem com sucesso para um commit da `master`. No ambiente `test` do GitHub, cadastre `TEST_SERVER_HOST`, `TEST_SERVER_USER`, `TEST_SERVER_PATH`, `TEST_SERVER_SSH_PORT`, `TEST_SERVER_SSH_KEY` e `TEST_SERVER_KNOWN_HOSTS`. A chave privada deve ser exclusiva do deploy, e o usuário remoto deve ter somente as permissões necessárias para o diretório do Trace e o Docker Compose.
 
-A máquina industrial de produção não acompanha commits diretamente. Ela usa o timer de `update_trace.sh` para instalar somente releases assinadas publicadas pelo workflow `.github/workflows/release-production.yml`. O ambiente `production-release` do GitHub deve exigir aprovação técnica, e a máquina deve ter `UPDATE_MANIFEST_URL`, `UPDATE_PUBLIC_KEY_FILE` e `UPDATE_CHANNEL` configurados no `.env`.
+Todas as instalações acompanham a `master` pelo mesmo fluxo: após os gates de qualidade e segurança, o workflow `.github/workflows/release-production.yml` publica uma release assinada do commit aprovado. macOS, Linux e Windows verificam atualizações a cada minuto e adiam a instalação enquanto houver carregamento ativo. Linux e Windows validam assinatura e integridade, fazem backup, healthcheck e rollback; no macOS a sincronização existente aplica fast-forward e valida o healthcheck. O segredo `UPDATE_SIGNING_PRIVATE_KEY` continua no ambiente `production-release`; para a publicação ser automática, esse ambiente não pode exigir aprovação manual por release. Instalações Linux/Windows que já estavam em campo precisam receber uma única ativação técnica do timer/tarefa.

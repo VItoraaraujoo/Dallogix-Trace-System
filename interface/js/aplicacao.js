@@ -6,7 +6,7 @@ import {
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=20260928-work-manual";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
-import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202609240001";
+import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=20260928-work-manual";
 import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";

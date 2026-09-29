@@ -1,8 +1,7 @@
 [Unit]
-Description=Atualiza o Dallogix Trace a partir de uma release assinada
+Description=Atualiza o Dallogix Trace para a última versão aprovada da master
 Wants=network-online.target
 After=network-online.target docker.service
-ConditionPathExists=/etc/dallogix-trace/enable-auto-update
 
 [Service]
 Type=oneshot

@@ -19,7 +19,11 @@ export function createOperationalRealtimeController({ store, getPage, render, re
       if (polling) return;
       polling = true;
       try {
-        await Promise.all([store.loadActiveLoading(store.state.selectedLoadingId), store.loadMonitoring()]);
+        await Promise.all([
+          store.loadActiveLoading(store.state.selectedLoadingId),
+          store.loadMonitoring(),
+          store.loadPendingReadings(),
+        ]);
         if (workStructureSignature() !== getViewSignature()) render();
         else refreshWorkLiveView();
       } catch (_) {
@@ -36,9 +40,12 @@ export function createOperationalRealtimeController({ store, getPage, render, re
       store.applyActiveLoadingSnapshot(payload?.active_loadings || [], store.state.selectedLoadingId);
       if (store.state.loadingId) {
         try {
-          await store.loadPlcCommandStatus(store.state.loadingId);
+          await Promise.all([
+            store.loadPlcCommandStatus(store.state.loadingId),
+            store.loadPendingReadings(),
+          ]);
         } catch (_) {
-          /* Mantém o último retorno visível se a consulta falhar. */
+          /* Mantém o último retorno visível se uma consulta falhar. */
         }
       }
       if (workStructureSignature() !== getViewSignature()) render();

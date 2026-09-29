@@ -56,7 +56,8 @@
 - [ ] Confirmar que os serviços sobem corretamente.
 - [ ] Preparar rollback com backup e imagem anterior.
 - [ ] Testar rollback restaurando também o dump SQL da versão anterior.
-- [ ] Manter o timer systemd de atualização automática desabilitado, salvo aprovação formal e arquivo de habilitação criado na janela de manutenção.
+- [ ] Habilitar o timer systemd de atualização automática e confirmar consulta ao manifesto assinado; a instalação deve ser adiada durante carregamento ativo.
+- [ ] Confirmar no GitHub que `production-release` tem a chave de assinatura e não exige aprovação manual por release.
 
 ## 8. Aprovação final
 - [ ] Execução da suíte de validação concluída.

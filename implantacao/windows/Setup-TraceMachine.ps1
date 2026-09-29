@@ -17,6 +17,34 @@ if (-not (Test-Path $envPath)) {
     Copy-Item (Join-Path $PackageRoot ".env.example") $envPath
 }
 
+$updateDefaults = [ordered]@{
+    UPDATE_MANIFEST_URL = "https://github.com/VItoraaraujoo/Dallogix-Trace-System/releases/latest/download/manifest.json"
+    UPDATE_PUBLIC_KEY_FILE = (Join-Path $PackageRoot "servidor\configuracao\trace-update-public.pem")
+    UPDATE_CHANNEL = "stable"
+}
+$envLines = [System.Collections.Generic.List[string]]::new()
+if (Test-Path $envPath) {
+    Get-Content $envPath | ForEach-Object { $envLines.Add([string]$_) }
+}
+foreach ($entry in $updateDefaults.GetEnumerator()) {
+    $pattern = "^\s*$([regex]::Escape($entry.Key))=(.*)$"
+    $found = $false
+    for ($index = 0; $index -lt $envLines.Count; $index++) {
+        if ($envLines[$index] -match $pattern) {
+            $found = $true
+            $configuredValue = $Matches[1].Trim().Trim('"').Trim("'")
+            if (-not $configuredValue) { $envLines[$index] = "$($entry.Key)=$($entry.Value)" }
+            break
+        }
+    }
+    if (-not $found) { $envLines.Add("$($entry.Key)=$($entry.Value)") }
+}
+[System.IO.File]::WriteAllText(
+    $envPath,
+    (($envLines -join [Environment]::NewLine) + [Environment]::NewLine),
+    ([System.Text.UTF8Encoding]::new($false))
+)
+
 function Ask([string]$Label, [string]$Default = "") {
     $suffix = if ($Default) { " [$Default]" } else { "" }
     $value = Read-Host "$Label$suffix"
