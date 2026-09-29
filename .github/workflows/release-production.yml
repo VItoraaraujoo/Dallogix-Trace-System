@@ -275,7 +275,26 @@ jobs:
           export TRACE_UPDATE_ARTIFACT_FILE="$stage/trace-$version.tar.gz"
           export TRACE_UPDATE_EXPECT_VERSION="$version"
           export TRACE_UPDATE_EXPECT_COMMIT="$commit"
-          bash "$stage/update_trace.sh"
+          wait_deadline=$((SECONDS + 1800))
+          while true; do
+            if bash "$stage/update_trace.sh"; then
+              break
+            else
+              updater_status=$?
+            fi
+            if [[ "$updater_status" != "9" && "$updater_status" != "14" ]]; then
+              exit "$updater_status"
+            fi
+            remaining=$((wait_deadline - SECONDS))
+            if (( remaining <= 0 )); then
+              echo "O Central continuou ocupado por 30 minutos; a versão não foi publicada." >&2
+              exit "$updater_status"
+            fi
+            wait_seconds=30
+            if (( remaining < wait_seconds )); then wait_seconds="$remaining"; fi
+            echo "O atualizador protegido informou que o Central está ocupado (código $updater_status); nova tentativa em ${wait_seconds}s."
+            sleep "$wait_seconds"
+          done
           curl --fail --silent --show-error --max-time 30 "$health_url" -o "$stage/health-after.json"
           python3 - "$stage/health-after.json" "$version" "$commit" <<'PY'
           import json
