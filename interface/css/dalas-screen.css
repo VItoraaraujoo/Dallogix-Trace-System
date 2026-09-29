@@ -23,6 +23,15 @@
   min-width: 140px;
 }
 
+@media (min-width: 1101px) {
+  body .dalas-screen-v2 .dalas-header-v2 .button.primary {
+    width: 140px !important;
+    height: 42px !important;
+    min-height: 42px !important;
+    font-size: 16px !important;
+  }
+}
+
 .dalas-grid-v2 {
   width: 100%;
   min-width: 0;
