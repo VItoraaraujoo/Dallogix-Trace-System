@@ -1790,7 +1790,7 @@ table {
 
 .work-page .manual-operation-reading-form input,
 .work-page .manual-operation-reading-form button {
-  min-height: 44px;
+  min-height: clamp(48px, 6vh, 56px);
 }
 
 .work-page .manual-operation-reading-form input {
@@ -1868,12 +1868,12 @@ table {
 }
 
 .work-page .manual-reading-form input {
-  min-height: 44px;
+  min-height: clamp(48px, 6vh, 56px);
   font-size: 16px;
 }
 
 .work-page .manual-reading-form button {
-  min-height: 44px;
+  min-height: clamp(48px, 6vh, 56px);
 }
 
 .work-page .dala-selection-count {
@@ -1904,8 +1904,13 @@ table {
   }
 
   body.work-page:has(.work-operation-screen) .work-scanner-corrections {
-    max-height: 160px;
-    overflow: hidden;
+    max-height: none;
+    overflow: visible;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-scanner-corrections-list {
+    max-height: clamp(105px, 14vh, 170px);
+    overflow-y: auto;
   }
 }
 
