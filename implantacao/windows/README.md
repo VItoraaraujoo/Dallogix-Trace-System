@@ -30,6 +30,8 @@ O sistema será apresentado ao operador como `TraceLauncher`, equivalente ao `Tr
 
 O assistente registra o `Dallogix Agent` e a tarefa `Dallogix Trace Atualizacao Estavel`. Ela consulta às 03:30 a última release assinada, exige que o Central já sirva a mesma versão e o mesmo commit, instala somente um manifesto com assinatura e SHA-256 válidos e nunca volta para uma versão anterior. O processo de publicação atualiza o Central antes de disponibilizar a release aos PCs. `machine-config.example.json` é apenas um modelo; tokens reais nunca devem entrar no repositório.
 
+O launcher inicia explicitamente o perfil industrial do Compose, que mantém o gateway Node-RED e o worker da câmera ativos após reinicializações e atualizações. Para a câmera, use a alimentação própria de 12 V ou PoE e uma conexão RJ45 em interface de rede separada da usada pelo CLP. Configure o IP privado fixo e as credenciais RTSP uma única vez no arquivo `.env`; o [guia de captura](../../integracoes/node-red/README.md#captura-imediata) contém os campos e a sequência.
+
 ## Segurança do PC
 
 - Desative suspensão, hibernação e reinicialização automática durante o turno.

@@ -8,7 +8,7 @@ HTML, CSS, JavaScript, PHP, MySQL, Node-RED, Nginx, Docker e Docker Compose.
 
 ## Estado atual
 
-Operação local-first integrada. Cada tela possui seu próprio HTML (`interface/*.html`) com núcleo compartilhado em `js/aplicacao.js`; login em `index.html`. O ambiente base, operação persistida, auditoria, fila de sincronização, monitoramento, ocorrências, catálogo, importação transacional, preparação e encerramento de carregamentos, solicitação de captura seletiva, PDFs de evidência e relatórios de auditoria persistidos, retenção de dados operacionais, relatório CSV e controles por perfil estão disponíveis. As fotos enviadas são incorporadas em PDFs e não ficam como arquivos de imagem nem como conteúdo binário no banco. A captura física da câmera e a leitura USB/serial do scanner ainda exigem adaptadores e homologação com os dispositivos reais.
+Operação local-first integrada. Cada tela possui seu próprio HTML (`interface/*.html`) com núcleo compartilhado em `js/aplicacao.js`; login em `index.html`. O ambiente base, operação persistida, auditoria, fila de sincronização, monitoramento, ocorrências, catálogo, importação transacional, preparação e encerramento de carregamentos, solicitação de captura seletiva, PDFs de evidência e relatórios de auditoria persistidos, retenção de dados operacionais, relatório CSV e controles por perfil estão disponíveis. O worker físico da câmera IP está implementado: mantém RTSP conectado, usa o JPEG mais recente para cada solicitação e guarda somente o PDF de evidência no servidor. A ligação com a câmera real ainda precisa do adaptador Ethernet dedicado, configuração de IP/credenciais e homologação em bancada. A leitura USB/serial do scanner também exige adaptador e validação física.
 
 A reversão e as ações configuráveis por Dala usam uma fila própria para o gateway industrial: o painel só registra a solicitação; o gateway autenticado confirma ou rejeita o comando após validar o CLP. Gatilhos, como atingir 100% da quantidade planejada, seguem a mesma fila. Nenhuma escrita física é feita pelo servidor. A ligação real ainda depende do mapa de I/O homologado, do programa Ladder e dos testes de bancada.
 
@@ -38,7 +38,7 @@ seguinte apaga também os dados relacionados de forma irreversível.
 ## Executar
 
 1. Copie `.env.example` para `.env` e ajuste os valores.
-2. Execute `docker compose up -d --build`.
+2. No PC industrial, execute: `docker compose --profile industrial up -d --build`. Esse perfil inicia também o gateway Node-RED e o worker automático da câmera. Em instalações centrais, mantenha o perfil industrial desligado.
 3. Acesse `http://localhost:8080` no quiosque do PC industrial.
 4. Verifique a API local em `http://localhost:8080/api/index.php`.
 5. Verifique a saúde em `http://localhost:8080/api/health.php`.
@@ -65,6 +65,8 @@ Em uma instalação já existente, `scripts/migrate.sh` cria o controle de vers�
 
 As credenciais técnicas não possuem valor padrão público. Defina `TRACE_DEVICE_TOKEN` e `CAMERA_DEVICE_TOKEN` no `.env` e, depois de cadastrar a Dala real, provisione os dispositivos com tokens próprios usando `php scripts/provision_device.php`.
 Cada reprovisionamento gera um novo `token_id`, invalida a credencial anterior e registra a criação e o último uso sem armazenar o token em texto puro. A expiração e a revogação ficam associadas somente ao dispositivo provisionado.
+
+Na instalação industrial, configure também `CAMERA_RTSP_HOST`, `CAMERA_RTSP_USERNAME` e `CAMERA_RTSP_PASSWORD` no `.env` local. O guia de [captura da câmera](integracoes/node-red/README.md#captura-imediata) descreve a ligação Ethernet e o canal RTSP.
 
 O código de ativação usa 130 bits aleatórios, é de uso único e expira após
 7 dias, no formato
@@ -110,8 +112,8 @@ No PC industrial, configure `TRACE_INSTALLATION_MODE=local` e `TRACE_CENTRAL_URL
 ## Parar e reiniciar
 
 ```bash
-docker compose down
-docker compose up -d
+docker compose --profile industrial down
+docker compose --profile industrial up -d
 ```
 
 ## Backup e restauração
@@ -173,7 +175,7 @@ systemctl status dallogix-trace-backup.timer
 
 - Sufixo exato, protocolo e mapa de registradores do CLP Delta DVP14SS.
 - Escolha da interface física do scanner Elgin EL8600 (USB ou RS-232), terminador e formato de leitura.
-- Endereço e protocolo da câmera IP.
+- IP fixo e credenciais RTSP da câmera na instalação.
 - Credenciais e endpoint da nuvem Dallogix.
 
 O licenciamento mensal é controlado manualmente pelo Master Dallogix; o Trace não realiza cobranças automáticas nem integra gateways de pagamento.

@@ -237,6 +237,17 @@ body .dalas-screen-v2 .dala-action-v2 {
   border-radius: 7px;
 }
 
+/* Os controles precisam caber na coluna de acoes dos PCs industriais. */
+.dalas-screen-v2 .dala-actions-v2 {
+  justify-content: center;
+}
+
+.dalas-screen-v2 .dala-action-v2 {
+  flex: 1 1 96px;
+  min-width: 0;
+  padding-inline: 8px;
+}
+
 .dala-loading {
   display: flex;
   min-height: 180px;
