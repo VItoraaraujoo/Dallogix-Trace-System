@@ -83,22 +83,36 @@ foreach ($criticalFiles as $filePath) {
         continue;
     }
 
-    $command = sprintf('php -l %s 2>&1', escapeshellarg($filePath));
-    $output = shell_exec($command);
-    $exitCode = 0;
-    $status = 'ok';
-    $mensagem = 'Sem erro de sintaxe';
-
-    if ($output === null || trim((string) $output) === '') {
-        $mensagem = 'Resposta vazia do PHP lint';
-        $status = 'warning';
+    $descriptors = [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+    $process = proc_open(
+        [PHP_BINARY, '-l', $filePath],
+        $descriptors,
+        $pipes,
+        null,
+        null,
+        ['bypass_shell' => true],
+    );
+    $exitCode = 1;
+    $output = '';
+    if (is_resource($process)) {
+        fclose($pipes[0]);
+        $output = (string) stream_get_contents($pipes[1]);
+        $output .= (string) stream_get_contents($pipes[2]);
+        fclose($pipes[1]);
+        fclose($pipes[2]);
+        $exitCode = proc_close($process);
     } else {
-        $outputText = trim((string) $output);
-        if (stripos($outputText, 'No syntax errors') === false && stripos($outputText, 'no syntax errors') === false) {
-            $status = 'erro';
-            $mensagem = $outputText;
-            $exitCode = 1;
-        }
+        $output = 'Não foi possível iniciar o PHP lint.';
+    }
+
+    $status = $exitCode === 0 ? 'ok' : 'erro';
+    $mensagem = trim($output);
+    if ($mensagem === '') {
+        $mensagem = $exitCode === 0 ? 'Sem erro de sintaxe' : 'PHP lint terminou com erro.';
     }
 
     $results[] = [

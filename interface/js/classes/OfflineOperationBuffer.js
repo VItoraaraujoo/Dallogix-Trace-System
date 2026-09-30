@@ -1,5 +1,15 @@
 import { agora } from "../funcoes/relogio.js?v=202609170015";
 
+export function secureRandomId() {
+  const webCrypto = globalThis.crypto;
+  if (typeof webCrypto?.randomUUID === "function") return webCrypto.randomUUID();
+  if (typeof webCrypto?.getRandomValues !== "function") {
+    throw new Error("Geração segura de identificadores indisponível neste navegador.");
+  }
+  const bytes = webCrypto.getRandomValues(new Uint8Array(16));
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
 /**
  * Fila pequena e idempotente para gravações operacionais feitas sem rede.
  * IndexedDB é usado quando disponível; o fallback em memória mantém a sessão
@@ -43,9 +53,7 @@ export class OfflineOperationBuffer {
   async enqueue(operation) {
     if (!this.owner) throw new Error("Entre na sua conta para guardar uma operação local.");
     const record = {
-      eventId: operation.eventId || (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-        ? crypto.randomUUID()
-        : `${agora().getTime().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`),
+      eventId: operation.eventId || secureRandomId(),
       owner: this.owner,
       url: operation.url,
       method: operation.method,
@@ -57,7 +65,7 @@ export class OfflineOperationBuffer {
     try {
       const database = await this.open();
       if (!database) {
-        record.id = `${agora().getTime()}-${Math.random().toString(16).slice(2)}`;
+        record.id = secureRandomId();
         this.memory.push(record);
         return record.id;
       }
@@ -68,7 +76,7 @@ export class OfflineOperationBuffer {
         request.onerror = () => reject(request.error || new Error("Não foi possível guardar a operação."));
       });
     } catch (_) {
-      record.id = `${agora().getTime()}-${Math.random().toString(16).slice(2)}`;
+      record.id = secureRandomId();
       this.memory.push(record);
       return record.id;
     }

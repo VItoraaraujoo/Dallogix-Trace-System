@@ -20,13 +20,13 @@ jobs:
     runs-on: windows-2022
     steps:
       - name: Checkout da tag solicitada
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ inputs.release_tag }}
           fetch-depth: 0
 
       - name: Preparar .NET 8
-        uses: actions/setup-dotnet@v6
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           dotnet-version: '8.0.x'
 
@@ -39,14 +39,14 @@ jobs:
         run: .\implantacao\windows\Build-TraceSetup.ps1
 
       - name: Guardar instalador para publicação conjunta
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: trace-windows-installer
           path: implantacao/windows/Output/TraceSetup.exe
           if-no-files-found: error
 
       - name: Guardar aplicativo Windows para o pacote de atualização
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
         with:
           name: trace-windows-runtime
           path: desktop/DallogixTrace/bin/Release/net8.0-windows/win-x64/publish/*
@@ -60,7 +60,7 @@ jobs:
     environment: production-release
     steps:
       - name: Checkout da tag solicitada
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           ref: ${{ inputs.release_tag }}
           fetch-depth: 0
@@ -93,7 +93,7 @@ jobs:
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
       - name: Configurar PHP
-        uses: shivammathur/setup-php@v2
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
         with:
           php-version: '8.3'
           coverage: none
@@ -112,7 +112,7 @@ jobs:
         run: composer analyse -- --no-progress
 
       - name: Configurar Node.js dos testes industriais
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7
         with:
           node-version: '22'
 
@@ -132,7 +132,7 @@ jobs:
           bash scripts/security_scan.sh
 
       - name: Obter aplicativo Windows da mesma tag
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: trace-windows-runtime
           path: dist/windows-runtime
@@ -152,7 +152,7 @@ jobs:
           sha256sum "dist/trace-${VERSION}.tar.gz" | awk '{print $1}' > dist/sha256.txt
 
       - name: Gerar SBOM do release
-        uses: anchore/sbom-action@v0.24.0
+        uses: anchore/sbom-action@e22c389904149dbc22b58101806040fa8d37a610 # v0.24.0
         with:
           path: dist/stage
           artifact-name: dallogix-trace-sbom.spdx.json
@@ -195,7 +195,7 @@ jobs:
           PY
 
       - name: Obter instalador Windows da mesma tag
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@70fc10c6e5e1ce46ad2ea6f2b72d43f7d47b13c3 # v8.0.0
         with:
           name: trace-windows-installer
           path: dist

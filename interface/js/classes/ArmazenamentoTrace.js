@@ -1,4 +1,4 @@
-import { OfflineOperationBuffer } from "./OfflineOperationBuffer.js?v=202609160900";
+import { OfflineOperationBuffer, secureRandomId } from "./OfflineOperationBuffer.js?v=202609160900";
 
 export class ArmazenamentoTrace {
   constructor() {
@@ -92,9 +92,7 @@ export class ArmazenamentoTrace {
       typeof options.body === "string";
   }
   async requestWithOfflineQueue(url, options = {}) {
-    const eventId = typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
-      ? crypto.randomUUID()
-      : `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}-${Math.random().toString(16).slice(2)}`;
+    const eventId = secureRandomId();
     const requestOptions = this.canQueueOffline(url, options)
       ? { ...options, headers: { ...(options.headers || {}), "X-Trace-Offline-Id": eventId } }
       : options;
