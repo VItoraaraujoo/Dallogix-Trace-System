@@ -99,3 +99,17 @@ test("a publicação passa versão, commit e arquivos aprovados ao atualizador a
     `TRACE_UPDATE_EXPECT_COMMIT=${commit}`, "bash", "/tmp/trace-stage/update_trace.sh",
   ]);
 });
+
+test("o atualizador exige MySQL saudável, com prazo limitado, antes das migrations", () => {
+  const source = readFileSync(updater, "utf8");
+  const start = source.match(/^if ! (compose up -d[^\n]+mysql) >\/dev\/null; then\n  echo "O banco[^\n]+\n[\s\S]*?^fi\nif ! bash "\$root_dir\/scripts\/migrate.sh";/m);
+  assert.ok(start, "Inicialização do MySQL deve preceder as migrations.");
+  const result = spawnSync("bash", ["-s"], {
+    encoding: "utf8",
+    input: `set -euo pipefail\ncompose() { printf '%s\\0' "$@"; }\n${start[1]}\n`,
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(result.stdout.split("\0").slice(0, -1), [
+    "up", "-d", "--wait", "--wait-timeout", "180", "mysql",
+  ]);
+});
