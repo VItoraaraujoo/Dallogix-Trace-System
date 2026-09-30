@@ -3,7 +3,7 @@ import {
   guardarTokenSessao,
   limparTokenSessao,
 } from "./sessao.js?v=202609222100";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=20260928-work-manual";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=20260930-security01";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=20260928-work-manual";

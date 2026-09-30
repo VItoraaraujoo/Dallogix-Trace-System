@@ -1,4 +1,4 @@
-import { OfflineOperationBuffer, secureRandomId } from "./OfflineOperationBuffer.js?v=202609160900";
+import { OfflineOperationBuffer, secureRandomId } from "./OfflineOperationBuffer.js?v=20260930-security01";
 
 export class ArmazenamentoTrace {
   constructor() {
@@ -92,14 +92,15 @@ export class ArmazenamentoTrace {
       typeof options.body === "string";
   }
   async requestWithOfflineQueue(url, options = {}) {
-    const eventId = secureRandomId();
-    const requestOptions = this.canQueueOffline(url, options)
+    const queueable = this.canQueueOffline(url, options);
+    const eventId = queueable ? secureRandomId() : null;
+    const requestOptions = queueable
       ? { ...options, headers: { ...(options.headers || {}), "X-Trace-Offline-Id": eventId } }
       : options;
     try {
       return await fetch(url, requestOptions);
     } catch (error) {
-      if (!this.canQueueOffline(url, options)) throw error;
+      if (!queueable) throw error;
       const id = await this.offlineBuffer.enqueue({
         url,
         method: options.method || "POST",
