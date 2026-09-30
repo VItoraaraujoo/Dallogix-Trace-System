@@ -58,12 +58,23 @@ command -v python3 >/dev/null || { echo "python3 é necessário para validar o m
 command -v rsync >/dev/null || { echo "rsync é necessário para uma instalação segura." >&2; exit 8; }
 
 state_dir="$root_dir/armazenamento/updates"
-mkdir -p "$state_dir/releases" "$state_dir/backups"
+if ! mkdir -p "$state_dir/releases" "$state_dir/backups"; then
+  echo "Não foi possível preparar o estado da atualização; verifique as permissões de $state_dir." >&2
+  exit 23
+fi
+if [[ ! -w "$state_dir" || ! -x "$state_dir" ]]; then
+  echo "Sem permissão para gravar o estado da atualização em $state_dir; execute pela conta administrativa configurada." >&2
+  exit 23
+fi
 maintenance_file="$root_dir/armazenamento/.maintenance"
 lock_dir="$state_dir/.install.lock"
 if ! mkdir "$lock_dir" 2>/dev/null; then
-  echo "Já existe uma atualização em execução." >&2
-  exit 9
+  if [[ -d "$lock_dir" ]]; then
+    echo "Já existe uma atualização em execução." >&2
+    exit 9
+  fi
+  echo "Não foi possível criar a trava de atualização; verifique as permissões de $state_dir." >&2
+  exit 23
 fi
 maintenance_owned=0
 keep_maintenance=0
@@ -152,8 +163,12 @@ if [[ -e "$maintenance_file" ]]; then
   exit 14
 fi
 if ! (set -o noclobber; : > "$maintenance_file") 2>/dev/null; then
-  echo "Não foi possível adquirir o marcador de manutenção; atualização cancelada." >&2
-  exit 14
+  if [[ -e "$maintenance_file" ]]; then
+    echo "O sistema já está em manutenção; atualização adiada." >&2
+    exit 14
+  fi
+  echo "Não foi possível gravar o marcador de manutenção; verifique as permissões de $root_dir/armazenamento." >&2
+  exit 23
 fi
 maintenance_owned=1
 active="$(compose exec -T mysql mysql -N -B -u"$mysql_user" -p"$mysql_password" "${MYSQL_DATABASE:-trace_local}" -e "SELECT COUNT(*) FROM carregamentos WHERE state IN ('PREPARANDO','CARREGANDO','PAUSADO','FINALIZANDO','EMERGENCIA');" 2>/dev/null | tr -d '[:space:]')" || {

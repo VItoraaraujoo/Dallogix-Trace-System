@@ -270,15 +270,26 @@ jobs:
           if health.get("status") != "ok" or health.get("installation_mode") != "central":
               raise SystemExit("O Central não está saudável ou não está identificado como instalação Central; atualização cancelada.")
           PY
-          export TRACE_UPDATE_ROOT="$app_root"
-          export TRACE_UPDATE_MANIFEST_FILE="$stage/manifest.json"
-          export TRACE_UPDATE_ARTIFACT_FILE="$stage/trace-$version.tar.gz"
-          export TRACE_UPDATE_EXPECT_VERSION="$version"
-          export TRACE_UPDATE_EXPECT_COMMIT="$commit"
+          # O timer systemd e o deploy usam a mesma conta administrativa para
+          # preservar a propriedade do estado, dos backups e dos marcadores.
+          sudo -n true || {
+            echo "A conta de publicação precisa da execução administrativa não interativa configurada para o atualizador." >&2
+            exit 23
+          }
+          run_updater() {
+            sudo -n env \
+              PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+              TRACE_UPDATE_ROOT="$app_root" \
+              TRACE_UPDATE_MANIFEST_FILE="$stage/manifest.json" \
+              TRACE_UPDATE_ARTIFACT_FILE="$stage/trace-$version.tar.gz" \
+              TRACE_UPDATE_EXPECT_VERSION="$version" \
+              TRACE_UPDATE_EXPECT_COMMIT="$commit" \
+              bash "$stage/update_trace.sh"
+          }
           wait_deadline=$((SECONDS + 1800))
           lock_diagnostics_done=0
           while true; do
-            if bash "$stage/update_trace.sh"; then
+            if run_updater; then
               break
             else
               updater_status=$?
