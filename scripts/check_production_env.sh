@@ -76,14 +76,28 @@ if [[ "${TRACE_LOCAL_SIMULATION:-0}" == "1" || "${TRACE_SIMULATOR_ONLY_COMMANDS:
   failures=$((failures + 1))
 fi
 
-if [[ "${TRACE_ENV_CHECK_SKIP_DATABASE:-0}" != "1" ]] && command -v docker >/dev/null 2>&1; then
+if [[ "${TRACE_ENV_CHECK_SKIP_DATABASE:-0}" != "1" ]]; then
   known_hashes=(
     '$2y$10$ebOT1MqNyajFths8pCaJu.qE7MOSNMWkXYLan9LVzGSXFHIdgxK8C'
     '$2y$12$rNW5syuIUQXWmnkzFzzCUOq7APYSVr.0iN9JIkPvCvoT0mfa/Bwm.'
   )
   for hash in "${known_hashes[@]}"; do
-    count="$(docker compose exec -T mysql sh -lc 'mysql --batch --skip-column-names -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "$1"' trace-env-check "SELECT COUNT(*) FROM usuarios WHERE password_hash = '$hash'" 2>/dev/null | tr -d '[:space:]' || true)"
-    if [[ "$count" =~ ^[1-9][0-9]*$ ]]; then
+    if ! count="$(bash "$root_dir/scripts/docker_compose.sh" \
+      --project-directory "$root_dir" --env-file "$env_file" \
+      -f "$root_dir/docker-compose.yml" -f "$root_dir/docker-compose.production.yml" \
+      exec -T mysql sh -lc 'mysql --batch --skip-column-names -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "$1"' \
+      trace-env-check "SELECT COUNT(*) FROM usuarios WHERE password_hash = '$hash'")"; then
+      echo "ERRO: não foi possível consultar as senhas de demonstração no banco; a produção não foi validada." >&2
+      failures=$((failures + 1))
+      break
+    fi
+    count="${count%$'\r'}"
+    if [[ ! "$count" =~ ^[0-9]+$ ]]; then
+      echo "ERRO: o banco retornou uma contagem inválida; a produção não foi validada." >&2
+      failures=$((failures + 1))
+      break
+    fi
+    if [[ "$count" =~ [1-9] ]]; then
       echo "ERRO: existe usuário com hash de senha de demonstração conhecido." >&2
       failures=$((failures + 1))
       break
@@ -98,4 +112,8 @@ fi
 if [[ "$failures" -gt 0 ]]; then
   exit 1
 fi
-echo "OK: configuração mínima de produção validada sem exibir segredos."
+if [[ "${TRACE_ENV_CHECK_SKIP_DATABASE:-0}" == "1" ]]; then
+  echo "OK: configuração mínima validada; banco não verificado por opção explícita de preparação."
+else
+  echo "OK: configuração mínima de produção e senhas de demonstração no banco verificadas sem exibir segredos."
+fi

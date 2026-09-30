@@ -77,7 +77,7 @@ export function badge(status) {
     : ["CANCELADO", "Cancelado"].includes(status)
       ? "red"
       : "yellow";
-  return `<span class="badge ${tone}">${label}</span>`;
+  return `<span class="badge ${tone}">${esc(label)}</span>`;
 }
 
 // Badge de status no padrão da referência TracePlatform.

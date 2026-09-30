@@ -270,11 +270,11 @@ function workControls(store) {
           : !allowedStates.includes(state)
             ? stateMessage
             : "";
-    return reason ? `disabled aria-disabled="true" title="${reason}"` : "";
+    return reason ? { disabled: true, "aria-disabled": "true", title: reason } : "";
   };
   const bloqueioEmergencia = store.state.loadingId
     ? ""
-    : `disabled aria-disabled="true" title="Nenhum carregamento selecionado"`;
+    : { disabled: true, "aria-disabled": "true", title: "Nenhum carregamento selecionado" };
   const loadingPicker = `<button class="button secondary small work-back-button" data-action="goto-manifests" type="button">← Romaneios</button>`;
   const pendingReadings = store.state.pendingReadings || [];
   const manualReadingBlocked = pendingReadings.length > 0;
