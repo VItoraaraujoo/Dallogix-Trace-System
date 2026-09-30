@@ -26,7 +26,7 @@ jobs:
           fetch-depth: 0
 
       - name: Preparar .NET 8
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v6
         with:
           dotnet-version: '8.0.x'
 
@@ -39,14 +39,14 @@ jobs:
         run: .\implantacao\windows\Build-TraceSetup.ps1
 
       - name: Guardar instalador para publicação conjunta
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trace-windows-installer
           path: implantacao/windows/Output/TraceSetup.exe
           if-no-files-found: error
 
       - name: Guardar aplicativo Windows para o pacote de atualização
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trace-windows-runtime
           path: desktop/DallogixTrace/bin/Release/net8.0-windows/win-x64/publish/*
@@ -132,7 +132,7 @@ jobs:
           bash scripts/security_scan.sh
 
       - name: Obter aplicativo Windows da mesma tag
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: trace-windows-runtime
           path: dist/windows-runtime
@@ -195,7 +195,7 @@ jobs:
           PY
 
       - name: Obter instalador Windows da mesma tag
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: trace-windows-installer
           path: dist
