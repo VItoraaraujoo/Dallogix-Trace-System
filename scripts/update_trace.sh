@@ -332,8 +332,8 @@ if ! mv -f -- "$release_metadata_tmp" "$release_metadata"; then
   if ! rollback; then keep_maintenance=1; fi
   exit 19
 fi
-if ! compose up -d mysql >/dev/null; then
-  echo "O banco não conseguiu iniciar para receber as migrations; iniciando rollback." >&2
+if ! compose up -d --wait --wait-timeout 180 mysql >/dev/null; then
+  echo "O banco não ficou saudável no prazo para receber as migrations; iniciando rollback." >&2
   mark_failed_update
   if ! rollback; then keep_maintenance=1; fi
   exit 19
