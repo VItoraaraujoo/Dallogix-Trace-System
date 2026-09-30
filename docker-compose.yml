@@ -152,6 +152,8 @@ services:
     depends_on:
       node-red-init:
         condition: service_completed_successfully
+      nginx:
+        condition: service_started
     pids_limit: 256
     mem_limit: 512m
     cpus: "1.00"
@@ -179,8 +181,8 @@ services:
     profiles: ["industrial"]
     image: trace-industrial-pc-camera-worker:1.0
     build:
-      context: .
-      dockerfile: integracoes/camera-worker/Dockerfile
+      context: ./integracoes/camera-worker
+      dockerfile: Dockerfile
     restart: unless-stopped
     init: true
     user: "1000:1000"
@@ -189,7 +191,7 @@ services:
     security_opt: [no-new-privileges:true]
     depends_on:
       nginx:
-        condition: service_healthy
+        condition: service_started
     pids_limit: 128
     mem_limit: 384m
     cpus: "1.50"

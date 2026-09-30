@@ -8,4 +8,5 @@ COPY --chown=1000:1000 camera-worker.mjs ./camera-worker.mjs
 USER 1000:1000
 
 ENV NODE_ENV=production
-CMD ["node", "/opt/trace-camera-worker/camera-worker.mjs"]
+ENTRYPOINT ["node"]
+CMD ["/opt/trace-camera-worker/camera-worker.mjs"]
