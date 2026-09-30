@@ -4,7 +4,11 @@ import { test } from "node:test";
 
 const bufferSource = readFileSync(new URL("../interface/js/classes/OfflineOperationBuffer.js", import.meta.url), "utf8")
   .replace(/^import .*;\n/, "const agora = () => new Date();\n");
-const { OfflineOperationBuffer } = await import(`data:text/javascript;base64,${Buffer.from(bufferSource).toString("base64")}`);
+const bufferModuleUrl = `data:text/javascript;base64,${Buffer.from(bufferSource).toString("base64")}`;
+const { OfflineOperationBuffer, secureRandomId } = await import(bufferModuleUrl);
+const storeSource = readFileSync(new URL("../interface/js/classes/ArmazenamentoTrace.js", import.meta.url), "utf8")
+  .replace(/"\.\/OfflineOperationBuffer\.js\?v=[^"]+"/, JSON.stringify(bufferModuleUrl));
+const { ArmazenamentoTrace } = await import(`data:text/javascript;base64,${Buffer.from(storeSource).toString("base64")}`);
 
 test("a fila pertence ao usuário e não descarta falhas HTTP", async () => {
   const buffer = new OfflineOperationBuffer();
@@ -31,10 +35,6 @@ test("a fila pertence ao usuário e não descarta falhas HTTP", async () => {
 });
 
 test("uma resposta perdida conserva o mesmo identificador no envio original e no retry", async () => {
-  globalThis.__TraceOfflineOperationBuffer = OfflineOperationBuffer;
-  const storeSource = readFileSync(new URL("../interface/js/classes/ArmazenamentoTrace.js", import.meta.url), "utf8")
-    .replace(/^import .*;\n/, "const OfflineOperationBuffer = globalThis.__TraceOfflineOperationBuffer;\n");
-  const { ArmazenamentoTrace } = await import(`data:text/javascript;base64,${Buffer.from(storeSource).toString("base64")}`);
   const store = new ArmazenamentoTrace();
   store.setUser({ id: 3, company_id: 7, role: "USUARIO" });
   store.setCsrfToken("atual");
@@ -49,6 +49,47 @@ test("uma resposta perdida conserva o mesmo identificador no envio original e no
     assert.equal(seen[0], seen[1]);
   } finally {
     globalThis.fetch = originalFetch;
-    delete globalThis.__TraceOfflineOperationBuffer;
+  }
+});
+
+test("o fallback usa bytes criptográficos quando randomUUID não existe", () => {
+  const originalCrypto = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+  let calls = 0;
+  Object.defineProperty(globalThis, "crypto", { configurable: true, value: {
+    getRandomValues(bytes) {
+      calls += 1;
+      assert.equal(bytes.length, 16);
+      return bytes.fill(0xab);
+    },
+  } });
+  try {
+    assert.equal(secureRandomId(), "ab".repeat(16));
+    assert.equal(calls, 1);
+  } finally {
+    if (originalCrypto) Object.defineProperty(globalThis, "crypto", originalCrypto);
+    else delete globalThis.crypto;
+  }
+});
+
+test("sem criptografia, consultas funcionam e gravações offline são bloqueadas antes do envio", async () => {
+  const originalCrypto = Object.getOwnPropertyDescriptor(globalThis, "crypto");
+  const originalFetch = globalThis.fetch;
+  const calls = [];
+  Object.defineProperty(globalThis, "crypto", { configurable: true, value: undefined });
+  globalThis.fetch = async (url, options) => { calls.push({ url, options }); return { ok: true }; };
+  try {
+    assert.throws(() => secureRandomId(), /Geração segura de identificadores indisponível/);
+    const store = new ArmazenamentoTrace();
+    assert.equal((await store.requestWithOfflineQueue("/api/health.php")).ok, true);
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].options.headers?.["X-Trace-Offline-Id"], undefined);
+    await assert.rejects(store.requestWithOfflineQueue("/api/retornos.php", {
+      method: "POST", body: "{}",
+    }), /Geração segura de identificadores indisponível/);
+    assert.equal(calls.length, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalCrypto) Object.defineProperty(globalThis, "crypto", originalCrypto);
+    else delete globalThis.crypto;
   }
 });
