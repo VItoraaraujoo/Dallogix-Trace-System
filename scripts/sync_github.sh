@@ -26,7 +26,9 @@ git remote get-url "$remote_name" >/dev/null || { echo "Remote GitHub não confi
   exit 4
 }
 
-git fetch --prune "$remote_name" "$branch"
+# Clones de uma unica branch podem ter um refspec que nao inclui master.
+# Atualize explicitamente a referencia consultada abaixo, alem de FETCH_HEAD.
+git fetch --prune "$remote_name" "+refs/heads/$branch:refs/remotes/$remote_name/$branch"
 local_commit="$(git rev-parse HEAD)"
 branch_commit="$(git rev-parse "$remote_name/$branch")"
 remote_commit="$branch_commit"

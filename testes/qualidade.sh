@@ -43,6 +43,7 @@ if grep -Eq '\$user\[' servidor/api/configuracoes.php; then
 fi
 
 python3 -m py_compile scripts/test_modbus_virtual.py integracoes/modbus-virtual/server.py testes/modbus-transporte.py
+bash testes/sync-github-fetch.sh
 bash -n scripts/check_production_env.sh
 bash -n scripts/check_physical_deployment.sh scripts/launch_kiosk.sh
 sh -n integracoes/node-red/entrypoint.sh
