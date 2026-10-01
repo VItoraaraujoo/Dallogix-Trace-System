@@ -19,7 +19,7 @@ final class ExcecaoEstadoCarregamento extends RuntimeException
 
 final class ServicoEstadoCarregamento
 {
-    private const TRANSITIONS = [
+    private const TRANSICOES_DE_ESTADO = [
         "AGUARDANDO" => ["PREPARANDO", "EMERGENCIA"],
         "PREPARANDO" => ["CARREGANDO", "PAUSADO", "EMERGENCIA"],
         "CARREGANDO" => ["PAUSADO", "FINALIZANDO", "EMERGENCIA"],
@@ -34,12 +34,12 @@ final class ServicoEstadoCarregamento
     public function __construct(private readonly PDO $connection) {}
 
     /** @param array{id:int|string, company_id:int|string|null, role:string} $user */
-    public function change(array $user, int $loadingId, string $target): array
+    public function alterarEstado(array $user, int $loadingId, string $target): array
     {
         if ($user["company_id"] === null) {
             throw new ExcecaoEstadoCarregamento("Usuário sem empresa vinculada.", 403);
         }
-        if (!array_key_exists($target, self::TRANSITIONS)) {
+        if (!array_key_exists($target, self::TRANSICOES_DE_ESTADO)) {
             throw new ExcecaoEstadoCarregamento("Carregamento e estado válido são obrigatórios.", 422);
         }
         if ($target === "FINALIZADO") {
@@ -51,7 +51,7 @@ final class ServicoEstadoCarregamento
 
         $this->connection->beginTransaction();
         try {
-            $current = $this->findLoading($loadingId, (int) $user["company_id"]);
+            $current = $this->localizarCarregamento($loadingId, (int) $user["company_id"]);
             if (!$current) {
                 throw new ExcecaoEstadoCarregamento("Carregamento não encontrado para esta empresa.", 404);
             }
@@ -64,7 +64,7 @@ final class ServicoEstadoCarregamento
                     "changed" => false,
                 ];
             }
-            if (!in_array($target, self::TRANSITIONS[$current["state"]], true)) {
+            if (!in_array($target, self::TRANSICOES_DE_ESTADO[$current["state"]], true)) {
                 throw new ExcecaoEstadoCarregamento(
                     "Transição inválida: {$current["state"]} para {$target}.",
                     409,
@@ -120,7 +120,7 @@ final class ServicoEstadoCarregamento
         }
     }
 
-    private function findLoading(int $loadingId, int $companyId): array|false
+    private function localizarCarregamento(int $loadingId, int $companyId): array|false
     {
         $statement = $this->connection->prepare(
             "SELECT id, state, equipment_id, remote_carregamento_id FROM carregamentos

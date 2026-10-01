@@ -23,7 +23,7 @@ final class SincronizacaoSnapshotPendenteTest extends TestCase
         $pdo = $this->database();
         $pdo->exec("INSERT INTO equipamentos VALUES (7, 1, NULL, 'dala_a', 'Dala local', '192.168.1.40', 1502, NULL, 'MODBUS_TCP')");
         $pdo->exec("INSERT INTO fila_sincronizacao VALUES (1, 'equipment', 7, 'ERRO')");
-        $method = new ReflectionMethod(ServicoSincronizacaoRemota::class, 'upsertEquipment');
+        $method = new ReflectionMethod(ServicoSincronizacaoRemota::class, 'salvarOuAtualizarEquipamento');
         $service = new ServicoSincronizacaoRemota($pdo);
         $remote = ['id' => 90, 'equipment_code' => 'dala_a', 'name' => 'Dala antiga',
             'plc_ip' => '192.168.1.10', 'plc_port' => 502, 'plc_protocol' => 'MODBUS_TCP'];
@@ -45,7 +45,7 @@ final class SincronizacaoSnapshotPendenteTest extends TestCase
         $pdo->exec("INSERT INTO produtos VALUES (5, 1, 80, 'SKU-A', 'Nome local', 'Local', 1)");
         $pdo->exec("INSERT INTO codigos_produtos VALUES (1, 1, 5, 'LOCAL-123')");
         $pdo->exec("INSERT INTO fila_sincronizacao VALUES (1, 'produto', 5, 'PENDENTE')");
-        $method = new ReflectionMethod(ServicoSincronizacaoRemota::class, 'syncProducts');
+        $method = new ReflectionMethod(ServicoSincronizacaoRemota::class, 'sincronizarProdutos');
         $service = new ServicoSincronizacaoRemota($pdo);
         $remote = [['id' => 80, 'code' => 'SKU-A', 'name' => 'Nome antigo',
             'category' => 'Antigo', 'active' => 1, 'barcodes' => ['REMOTE-999']]];
@@ -69,7 +69,7 @@ final class SincronizacaoSnapshotPendenteTest extends TestCase
         $pdo->exec("INSERT INTO produtos VALUES (6, 1, 81, 'SKU-B', 'Produto remoto', NULL, 1)");
         $pdo->exec("INSERT INTO codigos_produtos VALUES (1, 1, 5, 'LOCAL-123')");
         $pdo->exec("INSERT INTO fila_sincronizacao VALUES (1, 'produto', 5, 'PENDENTE')");
-        $method = new ReflectionMethod(ServicoSincronizacaoRemota::class, 'syncProducts');
+        $method = new ReflectionMethod(ServicoSincronizacaoRemota::class, 'sincronizarProdutos');
         $service = new ServicoSincronizacaoRemota($pdo);
         $method->invoke($service, 1, [['id' => 81, 'code' => 'SKU-B', 'name' => 'Produto remoto',
             'active' => 1, 'barcodes' => ['LOCAL-123']]]);
@@ -89,7 +89,7 @@ final class SincronizacaoSnapshotPendenteTest extends TestCase
             ],
             'produtos' => [], 'carregamentos_ativos' => [], 'comandos' => [],
         ];
-        $method = new ReflectionMethod(ServicoSincronizacaoRemota::class, 'validateSnapshot');
+        $method = new ReflectionMethod(ServicoSincronizacaoRemota::class, 'validarInstantaneo');
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('aceita uma Dala');
         $method->invoke($service, ['remote_company_id' => 9], $snapshot);

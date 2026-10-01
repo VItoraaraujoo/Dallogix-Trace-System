@@ -1,0 +1,184 @@
+<?php
+declare(strict_types=1);
+
+define("TRACE_SKIP_SESSION", true);
+
+require_once __DIR__ . "/../../configuracao/bootstrap.php";
+
+exigir_metodo_http(["POST"]);
+$device = require_device_token(["CLP", "SENSOR"]);
+
+$payload = request_json();
+$loadingId = filter_var(
+    $payload["carregamento_id"] ?? null,
+    FILTER_VALIDATE_INT,
+);
+$equipmentId = filter_var(
+    $payload["equipment_id"] ?? ($payload["esteira_id"] ?? null),
+    FILTER_VALIDATE_INT,
+);
+$eventUuid = trim((string) ($payload["event_uuid"] ?? ""));
+$detectedAt = trim((string) ($payload["detected_at"] ?? ""));
+if (!$loadingId || !$equipmentId || !preg_match('/^[a-f0-9-]{36}$/i', $eventUuid)) {
+    json_response(
+        ["error" => "Carregamento, esteira e event_uuid válido são obrigatórios."],
+        422,
+    );
+}
+if ((int) $equipmentId !== (int) $device["equipment_id"]) {
+    json_response(["error" => "O dispositivo só pode registrar eventos da própria Dala."], 403);
+}
+
+$deviceDetectedAt = null;
+if ($detectedAt !== "") {
+    $parsedDeviceDate = DateTime::createFromFormat("!Y-m-d H:i:s.v", $detectedAt);
+    $dateErrors = DateTime::getLastErrors();
+    if (
+        !$parsedDeviceDate ||
+        ($dateErrors !== false && ($dateErrors["warning_count"] > 0 || $dateErrors["error_count"] > 0)) ||
+        $parsedDeviceDate->format("Y-m-d H:i:s.v") !== $detectedAt
+    ) {
+        json_response(["error" => "Data do evento inválida."], 422);
+    }
+    if (abs($parsedDeviceDate->getTimestamp() - time()) <= 300) {
+        $deviceDetectedAt = $parsedDeviceDate->format("Y-m-d H:i:s.v");
+    }
+}
+
+$rawDebounce = getenv("TRACE_DEBOUNCE_MS");
+$configuredDebounce = filter_var(
+    $rawDebounce === false || $rawDebounce === "" ? 400 : $rawDebounce,
+    FILTER_VALIDATE_INT,
+);
+$debounceMs = max(0, min(5000, $configuredDebounce === false ? 400 : (int) $configuredDebounce));
+$debounceMicroseconds = $debounceMs * 1000;
+
+$pdo = db();
+$pdo->beginTransaction();
+try {
+    // Lock the loading so simultaneous sensor events use one authoritative
+    // server-time debounce window.
+    $loadingStatement = $pdo->prepare(
+        'SELECT c.id FROM carregamentos c
+         JOIN equipamentos e ON e.id = c.equipment_id AND e.id = :equipment_id
+         WHERE c.id = :loading_id AND c.company_id = :company_id LIMIT 1 FOR UPDATE',
+    );
+    $loadingStatement->execute([
+        "equipment_id" => $equipmentId,
+        "loading_id" => $loadingId,
+        "company_id" => $device["company_id"],
+    ]);
+    if (!$loadingStatement->fetch()) {
+        $pdo->rollBack();
+        json_response(
+            ["error" => "Carregamento e esteira não pertencem à empresa."],
+            422,
+        );
+    }
+
+    $debounce = $pdo->prepare(
+        "SELECT id FROM eventos_sensor
+         WHERE carregamento_id = :carregamento_id
+           AND equipment_id = :equipment_id
+           AND detected_at >= DATE_SUB(NOW(3), INTERVAL {$debounceMicroseconds} MICROSECOND)
+           AND detected_at <= NOW(3)
+         ORDER BY detected_at DESC LIMIT 1",
+    );
+    $debounce->execute([
+        "carregamento_id" => $loadingId,
+        "equipment_id" => $equipmentId,
+    ]);
+    $debouncedId = $debounce->fetchColumn();
+    if ($debouncedId !== false) {
+        $pdo->rollBack();
+        json_response([
+            "data" => [
+                "id" => (int) $debouncedId,
+                "duplicate" => true,
+                "debounced" => true,
+                "debounce_ms" => $debounceMs,
+            ],
+        ]);
+    }
+    $insert = $pdo->prepare(
+        "INSERT INTO eventos_sensor (carregamento_id, equipment_id, event_uuid, detected_at, device_detected_at, debounce_ms)
+         VALUES (:carregamento_id, :equipment_id, :event_uuid, NOW(3), :device_detected_at, :debounce_ms)",
+    );
+    $insert->execute([
+        "carregamento_id" => $loadingId,
+        "equipment_id" => $equipmentId,
+        "event_uuid" => $eventUuid,
+        "device_detected_at" => $deviceDetectedAt,
+        "debounce_ms" => $debounceMs,
+    ]);
+    $eventId = (int) $pdo->lastInsertId();
+    record_operational_event(
+        $pdo,
+        ["id" => null, "company_id" => $device["company_id"]],
+        "SENSOR_EVENTO_RECEBIDO",
+        "sensor_event",
+        $eventId,
+        [
+            "carregamento_id" => (int) $loadingId,
+            "event_uuid" => $eventUuid,
+            "device_id" => $device["id"],
+            "device_code" => $device["device_code"],
+        ],
+    );
+    $pdo->commit();
+    // O sensor apenas correlaciona o saco à leitura. A câmera é acionada pelo
+    // resultado da leitura: não fotografamos cada saco que passa pela esteira.
+    json_response(
+        [
+            "data" => [
+                "id" => $eventId,
+                "duplicate" => false,
+                "camera_trigger" => "AGUARDANDO_RESULTADO_LEITURA",
+            ],
+        ],
+        201,
+    );
+} catch (PDOException $exception) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    if (
+        isset($exception->errorInfo[1]) &&
+        (int) $exception->errorInfo[1] === 1062
+    ) {
+        $existing = $pdo->prepare(
+            "SELECT s.id FROM eventos_sensor s
+             JOIN carregamentos c ON c.id = s.carregamento_id
+             WHERE s.event_uuid = :event_uuid AND s.equipment_id = :equipment_id
+               AND s.carregamento_id = :carregamento_id AND c.company_id = :company_id LIMIT 1",
+        );
+        $existing->execute([
+            "event_uuid" => $eventUuid,
+            "equipment_id" => $equipmentId,
+            "carregamento_id" => $loadingId,
+            "company_id" => $device["company_id"],
+        ]);
+        $existingId = $existing->fetchColumn();
+        if ($existingId === false) {
+            json_response(["error" => "Identificador do evento já pertence a outro contexto."], 409);
+        }
+        json_response(
+            [
+                "data" => [
+                    "id" => (int) $existingId,
+                    "duplicate" => true,
+                ],
+            ],
+            200,
+        );
+    }
+    json_response(
+        ["error" => "Não foi possível registrar o evento do sensor."],
+        500,
+    );
+} catch (Throwable $exception) {
+    if ($pdo->inTransaction()) {
+        $pdo->rollBack();
+    }
+    throw $exception;
+}

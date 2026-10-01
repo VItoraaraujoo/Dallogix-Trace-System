@@ -85,9 +85,9 @@ function json_response(array $body, int $status = 200): never
 
 $endpoint = str_ends_with((string) ($_SERVER['REQUEST_URI'] ?? ''), '/camera_worker.php')
     ? 'camera_worker.php' : 'camera_upload.php';
-$source = (string) file_get_contents(__DIR__ . '/../../servidor/api/' . $endpoint);
+$source = (string) file_get_contents(__DIR__ . '/../../servidor/api/camera/' . $endpoint);
 $source = preg_replace('/^require_once .*;$/m', '', $source);
-$source = str_replace("__DIR__ . '/../../armazenamento'", 'TRACE_CAMERA_TEST_STORAGE', $source);
+$source = str_replace("__DIR__ . '/../../../armazenamento'", 'TRACE_CAMERA_TEST_STORAGE', $source);
 $source = preg_replace('/\A<\?php\s*/', '', $source, 1);
 define('TRACE_CAMERA_TEST_STORAGE', (string) getenv('TRACE_CAMERA_TEST_STORAGE'));
 try {

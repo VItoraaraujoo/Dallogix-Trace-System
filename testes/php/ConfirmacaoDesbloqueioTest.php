@@ -15,7 +15,7 @@ final class ConfirmacaoDesbloqueioTest extends TestCase
             (2, 5, 'DESBLOQUEAR_MAQUINA'),
             (3, 5, 'EMERGENCIA'),
             (4, 6, 'DESBLOQUEAR_MAQUINA')");
-        $method = new ReflectionMethod(ServicoGatewayClp::class, 'isLatestUnlockRequest');
+        $method = new ReflectionMethod(ServicoGatewayClp::class, 'ehUltimaSolicitacaoDeDesbloqueio');
         $service = new ServicoGatewayClp($pdo);
 
         self::assertFalse($method->invoke($service, 5, 2));

@@ -8,7 +8,7 @@ final class ExclusaoDalaTest extends TestCase
 {
     public function testExclusaoDesvinculaTambemCarregamentosHistoricos(): void
     {
-        $source = file_get_contents(__DIR__ . "/../../servidor/api/equipamentos.php");
+        $source = file_get_contents(__DIR__ . "/../../servidor/api/dalas/equipamentos.php");
 
         self::assertIsString($source);
         self::assertStringContainsString("UPDATE carregamentos", $source);

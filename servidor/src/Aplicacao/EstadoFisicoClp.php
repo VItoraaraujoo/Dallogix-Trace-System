@@ -6,7 +6,7 @@ namespace App\Aplicacao;
 
 final class EstadoFisicoClp
 {
-    public static function runningFromDetails(mixed $details): ?bool
+    public static function estaEmFuncionamentoPelosDetalhes(mixed $details): ?bool
     {
         if (is_string($details)) {
             $details = json_decode($details, true);

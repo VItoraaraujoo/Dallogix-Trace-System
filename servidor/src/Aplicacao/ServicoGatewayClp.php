@@ -19,11 +19,11 @@ final class ExcecaoGatewayClp extends RuntimeException
 
 final class ServicoGatewayClp
 {
-    private const FINAL_STATUSES = ["APLICADO", "REJEITADO", "ERRO"];
+    private const ESTADOS_FINAIS = ["APLICADO", "REJEITADO", "ERRO"];
 
     public function __construct(private readonly PDO $connection) {}
 
-    public function claim(int $equipmentId, int $deviceId): ?array
+    public function reservarComando(int $equipmentId, int $deviceId): ?array
     {
         if ($equipmentId <= 0 || $deviceId <= 0) {
             throw new ExcecaoGatewayClp("Equipamento e dispositivo são obrigatórios.", 422);
@@ -53,7 +53,7 @@ final class ServicoGatewayClp
                 $expire->execute(["id" => $request["id"]]);
                 \record_operational_event(
                     $this->connection,
-                    $this->deviceActor((int) $request["company_id"]),
+                    $this->atorDoDispositivo((int) $request["company_id"]),
                     "COMANDO_CLP_EXPIRADO",
                     "solicitacao_comando_clp",
                     (int) $request["id"],
@@ -117,13 +117,13 @@ final class ServicoGatewayClp
         }
     }
 
-    public function complete(
+    public function concluirComando(
         int $requestId,
         int $deviceId,
         string $status,
         string $message,
     ): array {
-        if ($requestId <= 0 || $deviceId <= 0 || !in_array($status, self::FINAL_STATUSES, true)) {
+        if ($requestId <= 0 || $deviceId <= 0 || !in_array($status, self::ESTADOS_FINAIS, true)) {
             throw new ExcecaoGatewayClp(
                 "request_id, dispositivo e status final válido são obrigatórios.",
                 422,
@@ -178,7 +178,7 @@ final class ServicoGatewayClp
 
             $staleUnlock = false;
             if ($status === "APLICADO" && $request["command"] === "DESBLOQUEAR_MAQUINA") {
-                $staleUnlock = !$this->isLatestUnlockRequest((int) $request["carregamento_id"], $requestId);
+                $staleUnlock = !$this->ehUltimaSolicitacaoDeDesbloqueio((int) $request["carregamento_id"], $requestId);
                 if ($staleUnlock) {
                     $status = "REJEITADO";
                     $message = "ACK de desbloqueio obsoleto após outra solicitação de segurança.";
@@ -205,7 +205,7 @@ final class ServicoGatewayClp
                 );
             }
 
-            $actor = $this->deviceActor((int) $request["company_id"]);
+            $actor = $this->atorDoDispositivo((int) $request["company_id"]);
             \record_operational_event(
                 $this->connection,
                 $actor,
@@ -279,7 +279,7 @@ final class ServicoGatewayClp
         }
     }
 
-    private function isLatestUnlockRequest(int $loadingId, int $requestId): bool
+    private function ehUltimaSolicitacaoDeDesbloqueio(int $loadingId, int $requestId): bool
     {
         $lockClause = $this->connection->getAttribute(PDO::ATTR_DRIVER_NAME) === "sqlite" ? "" : " FOR UPDATE";
         $latest = $this->connection->prepare(
@@ -293,7 +293,7 @@ final class ServicoGatewayClp
     }
 
     /** @return array{id:null, company_id:int} */
-    private function deviceActor(int $companyId): array
+    private function atorDoDispositivo(int $companyId): array
     {
         return ["id" => null, "company_id" => $companyId];
     }

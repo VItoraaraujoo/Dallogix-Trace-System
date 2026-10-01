@@ -10,12 +10,12 @@ namespace App\Aplicacao;
  */
 final class RelatorioAuditoriaPdf
 {
-    private const WIDTH = 595;
-    private const HEIGHT = 842;
-    private const CONTENT_LEFT = 40;
-    private const CONTENT_RIGHT = 555;
-    private const TOP = 758;
-    private const BOTTOM = 56;
+    private const LARGURA = 595;
+    private const ALTURA = 842;
+    private const MARGEM_ESQUERDA_CONTEUDO = 40;
+    private const MARGEM_DIREITA_CONTEUDO = 555;
+    private const TOPO = 758;
+    private const BASE = 56;
     /** @var list<string> */
     private array $pages = [];
     /** @var list<string> */
@@ -23,47 +23,47 @@ final class RelatorioAuditoriaPdf
     /** @var array<string, array{data:string,width:int,height:int,colorSpace:string,filter:string,colors:int,alpha?:array{data:string,width:int,height:int,colorSpace:string,filter:string,colors:int},sourceData?:string,sourceMime?:string}> */
     private array $images = [];
     private int $imageSequence = 0;
-    private float $y = self::TOP;
+    private float $y = self::TOPO;
 
     public function __construct(
         private readonly string $companyName,
         private readonly string $reportTitle,
     ) {
-        $this->newPage();
+        $this->novaPagina();
     }
 
-    public function heading(string $text): void
+    public function escreverTitulo(string $text): void
     {
-        $this->ensure(76);
-        $this->text($text, self::CONTENT_LEFT, $this->y, 12, true);
-        $this->line(
-            self::CONTENT_LEFT,
+        $this->garantirEspaco(76);
+        $this->escreverTexto($text, self::MARGEM_ESQUERDA_CONTEUDO, $this->y, 12, true);
+        $this->desenharLinha(
+            self::MARGEM_ESQUERDA_CONTEUDO,
             $this->y - 8,
-            self::CONTENT_RIGHT,
+            self::MARGEM_DIREITA_CONTEUDO,
             $this->y - 8,
         );
         $this->y -= 26;
     }
 
     /** @param array<string, scalar|null> $rows */
-    public function summaryCards(array $rows): void
+    public function escreverCartoesResumo(array $rows): void
     {
         $gap = 14;
-        $cellWidth = (self::CONTENT_RIGHT - self::CONTENT_LEFT - $gap * 2) / 3;
+        $cellWidth = (self::MARGEM_DIREITA_CONTEUDO - self::MARGEM_ESQUERDA_CONTEUDO - $gap * 2) / 3;
         $pairs = array_chunk($rows, 3, true);
         foreach ($pairs as $pair) {
-            $this->ensure(48);
-            $x = (float) self::CONTENT_LEFT;
+            $this->garantirEspaco(48);
+            $x = (float) self::MARGEM_ESQUERDA_CONTEUDO;
             foreach ($pair as $label => $value) {
-                $this->text((string) $label, $x, $this->y, 7.5);
+                $this->escreverTexto((string) $label, $x, $this->y, 7.5);
                 foreach (
-                    $this->wrap((string) ($value ?? "—"), max(12, (int) floor($cellWidth / 5.5)))
+                    $this->quebrarTexto((string) ($value ?? "—"), max(12, (int) floor($cellWidth / 5.5)))
                     as $index => $line
                 ) {
                     if ($index > 1) {
                         break;
                     }
-                    $this->text(
+                    $this->escreverTexto(
                         $line,
                         $x,
                         $this->y - 14 - $index * 10,
@@ -71,7 +71,7 @@ final class RelatorioAuditoriaPdf
                         true,
                     );
                 }
-                $this->line($x, $this->y - 34, $x + $cellWidth, $this->y - 34);
+                $this->desenharLinha($x, $this->y - 34, $x + $cellWidth, $this->y - 34);
                 $x += $cellWidth + $gap;
             }
             $this->y -= 46;
@@ -80,28 +80,28 @@ final class RelatorioAuditoriaPdf
     }
 
     /** @param list<string> $headers @param list<list<string|int|float|null>> $rows @param list<int> $widths */
-    public function table(array $headers, array $rows, array $widths): void
+    public function escreverTabela(array $headers, array $rows, array $widths): void
     {
-        $this->tableHeader($headers, $widths);
+        $this->escreverCabecalhoDaTabela($headers, $widths);
         foreach ($rows as $row) {
             $linesByCell = [];
             $lineCount = 1;
             foreach ($row as $index => $value) {
-                $linesByCell[$index] = $this->wrap(
+                $linesByCell[$index] = $this->quebrarTexto(
                     (string) ($value ?? "—"),
                     max(8, (int) floor($widths[$index] / 5.8)),
                 );
                 $lineCount = max($lineCount, count($linesByCell[$index]));
             }
             $height = max(18, $lineCount * 12 + 8);
-            if ($this->y - $height < self::BOTTOM) {
-                $this->newPage();
-                $this->tableHeader($headers, $widths);
+            if ($this->y - $height < self::BASE) {
+                $this->novaPagina();
+                $this->escreverCabecalhoDaTabela($headers, $widths);
             }
-            $x = (float) self::CONTENT_LEFT;
+            $x = (float) self::MARGEM_ESQUERDA_CONTEUDO;
             foreach ($widths as $index => $width) {
                 foreach ($linesByCell[$index] as $lineIndex => $line) {
-                    $this->text(
+                    $this->escreverTexto(
                         $line,
                         $x + 4,
                         $this->y - 13 - $lineIndex * 12,
@@ -110,10 +110,10 @@ final class RelatorioAuditoriaPdf
                 }
                 $x += $width;
             }
-            $this->line(
-                self::CONTENT_LEFT,
+            $this->desenharLinha(
+                self::MARGEM_ESQUERDA_CONTEUDO,
                 $this->y - $height,
-                self::CONTENT_RIGHT,
+                self::MARGEM_DIREITA_CONTEUDO,
                 $this->y - $height,
             );
             $this->y -= $height;
@@ -121,11 +121,11 @@ final class RelatorioAuditoriaPdf
         $this->y -= 10;
     }
 
-    public function paragraph(string $text): void
+    public function escreverParagrafo(string $text): void
     {
-        foreach ($this->wrap($text, 92) as $line) {
-            $this->ensure(13);
-            $this->text($line, self::CONTENT_LEFT, $this->y, 8.5);
+        foreach ($this->quebrarTexto($text, 92) as $line) {
+            $this->garantirEspaco(13);
+            $this->escreverTexto($line, self::MARGEM_ESQUERDA_CONTEUDO, $this->y, 8.5);
             $this->y -= 13;
         }
         $this->y -= 3;
@@ -135,7 +135,7 @@ final class RelatorioAuditoriaPdf
      * Adds a JPEG or PNG evidence image to the report. Unsupported or unreadable files
      * are deliberately ignored so one bad camera file cannot break the PDF.
      */
-    public function incidentImage(string $path, string $caption = ""): bool
+    public function inserirImagemOcorrencia(string $path, string $caption = ""): bool
     {
         if (!is_file($path) || !is_readable($path)) {
             return false;
@@ -148,7 +148,7 @@ final class RelatorioAuditoriaPdf
         if ($info === false || !in_array($info["mime"], ["image/jpeg", "image/png"], true)) {
             return false;
         }
-        return $this->incidentImageData($data, $info["mime"], $caption);
+        return $this->inserirDadosDaImagemDaOcorrencia($data, $info["mime"], $caption);
     }
 
     /**
@@ -156,7 +156,7 @@ final class RelatorioAuditoriaPdf
      * the source bytes are also kept as a private PDF stream so a later report
      * can be rebuilt without ever persisting a standalone image file.
      */
-    public function incidentImageData(
+    public function inserirDadosDaImagemDaOcorrencia(
         string $data,
         string $mime,
         string $caption = "",
@@ -180,7 +180,7 @@ final class RelatorioAuditoriaPdf
                 "filter" => "DCTDecode",
                 "colors" => (($info["channels"] ?? 3) === 4 ? 4 : 3),
             ]
-            : self::pngImageResource($data);
+            : self::decodificarRecursoDeImagemPng($data);
         if ($image === null) {
             return false;
         }
@@ -196,8 +196,8 @@ final class RelatorioAuditoriaPdf
         $width = $info[0] * $scale;
         $height = $info[1] * $scale;
         $blockHeight = $height + ($caption !== "" ? 28 : 8);
-        $this->ensure($blockHeight);
-        $x = (float) self::CONTENT_LEFT;
+        $this->garantirEspaco($blockHeight);
+        $x = (float) self::MARGEM_ESQUERDA_CONTEUDO;
         $y = $this->y - $height;
         $this->content[] = sprintf(
             "q %.2F 0 0 %.2F %.2F %.2F cm /%s Do Q",
@@ -208,8 +208,8 @@ final class RelatorioAuditoriaPdf
             $alias,
         );
         if ($caption !== "") {
-            foreach ($this->wrap($caption, 52) as $index => $line) {
-                $this->text($line, $x, $y - 14 - $index * 10, 8);
+            foreach ($this->quebrarTexto($caption, 52) as $index => $line) {
+                $this->escreverTexto($line, $x, $y - 14 - $index * 10, 8);
                 if ($index >= 1) {
                     break;
                 }
@@ -220,7 +220,7 @@ final class RelatorioAuditoriaPdf
     }
 
     /** @return list<array{bytes:string,mime:string}> */
-    public static function extractSourceImagesFromPdf(string $pdf): array
+    public static function extrairImagensOriginaisDoPdf(string $pdf): array
     {
         $images = [];
         $cursor = 0;
@@ -252,7 +252,7 @@ final class RelatorioAuditoriaPdf
     }
 
     /** @return array{data:string,width:int,height:int,colorSpace:string,filter:string,colors:int,alpha?:array{data:string,width:int,height:int,colorSpace:string,filter:string,colors:int}}|null */
-    private static function pngImageResource(string $png): ?array
+    private static function decodificarRecursoDeImagemPng(string $png): ?array
     {
         if (!str_starts_with($png, "\x89PNG\r\n\x1a\n")) {
             return null;
@@ -339,7 +339,7 @@ final class RelatorioAuditoriaPdf
                     1 => $left,
                     2 => $up,
                     3 => intdiv($left + $up, 2),
-                    4 => self::paethPredictor($left, $up, $upperLeft),
+                    4 => self::preverFiltroPaeth($left, $up, $upperLeft),
                 };
                 $row[$i] = chr(($value + $predictor) & 0xff);
             }
@@ -442,7 +442,7 @@ final class RelatorioAuditoriaPdf
         return $resource;
     }
 
-    private static function paethPredictor(int $left, int $up, int $upperLeft): int
+    private static function preverFiltroPaeth(int $left, int $up, int $upperLeft): int
     {
         $base = $left + $up - $upperLeft;
         $leftDistance = abs($base - $left);
@@ -455,7 +455,7 @@ final class RelatorioAuditoriaPdf
     }
 
     /** @param array{data:string,width:int,height:int,colorSpace:string,filter:string,colors:int} $image */
-    private static function pdfImageObject(array $image, ?int $alphaReference = null): string
+    private static function criarObjetoDeImagemPdf(array $image, ?int $alphaReference = null): string
     {
         $decodeParameters = $image["filter"] === "FlateDecode"
             ? " /DecodeParms << /Predictor 15 /Colors {$image["colors"]} /BitsPerComponent 8 /Columns {$image["width"]} >>"
@@ -467,20 +467,20 @@ final class RelatorioAuditoriaPdf
             . $image["data"] . "\nendstream";
     }
 
-    public function output(): string
+    public function obterArquivoPdf(): string
     {
-        $this->finishPage();
+        $this->finalizarPagina();
         $objects = ["<< /Type /Catalog /Pages 2 0 R >>", ""];
         $imageRefs = [];
         foreach ($this->images as $alias => $image) {
             $alphaReference = null;
             if (isset($image["alpha"])) {
                 $alphaReference = count($objects) + 1;
-                $objects[] = self::pdfImageObject($image["alpha"]);
+                $objects[] = self::criarObjetoDeImagemPdf($image["alpha"]);
             }
             $imageId = count($objects) + 1;
             $imageRefs[$alias] = $imageId;
-            $objects[] = self::pdfImageObject($image, $alphaReference);
+            $objects[] = self::criarObjetoDeImagemPdf($image, $alphaReference);
             if (isset($image["sourceData"], $image["sourceMime"])) {
                 $subtype = $image["sourceMime"] === "image/jpeg" ? "JPEG" : "PNG";
                 $objects[] = "<< /Type /TraceSourceImage /Subtype /{$subtype} /Length "
@@ -502,9 +502,9 @@ final class RelatorioAuditoriaPdf
             }
             $objects[] =
                 "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 " .
-                self::WIDTH .
+                self::LARGURA .
                 " " .
-                self::HEIGHT .
+                self::ALTURA .
                 "] /Resources << /Font << /F1 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >> /F2 << /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >> >> /XObject << {$xObjects} >> >> /Contents {$contentId} 0 R >>";
         }
         $objects[1] =
@@ -530,61 +530,61 @@ final class RelatorioAuditoriaPdf
             " /Root 1 0 R >>\nstartxref\n{$xref}\n%%EOF";
     }
 
-    private function newPage(): void
+    private function novaPagina(): void
     {
         if ($this->content !== []) {
-            $this->finishPage();
+            $this->finalizarPagina();
         }
         $this->content = [];
-        $this->y = self::TOP;
-        $this->text(
+        $this->y = self::TOPO;
+        $this->escreverTexto(
             $this->companyName . " — Relatório de auditoria",
-            self::CONTENT_LEFT,
+            self::MARGEM_ESQUERDA_CONTEUDO,
             812,
             9,
             true,
         );
-        $this->text($this->reportTitle, self::CONTENT_LEFT, 796, 8);
-        $this->line(self::CONTENT_LEFT, 782, self::CONTENT_RIGHT, 782);
-        $this->y = self::TOP;
+        $this->escreverTexto($this->reportTitle, self::MARGEM_ESQUERDA_CONTEUDO, 796, 8);
+        $this->desenharLinha(self::MARGEM_ESQUERDA_CONTEUDO, 782, self::MARGEM_DIREITA_CONTEUDO, 782);
+        $this->y = self::TOPO;
     }
 
-    private function finishPage(): void
+    private function finalizarPagina(): void
     {
         $page = count($this->pages) + 1;
-        $this->line(self::CONTENT_LEFT, 34, self::CONTENT_RIGHT, 34);
-        $this->text("Dallogix Trace — Relatório de auditoria", self::CONTENT_LEFT, 20, 8);
-        $this->text("Página " . $page, 500, 20, 8);
+        $this->desenharLinha(self::MARGEM_ESQUERDA_CONTEUDO, 34, self::MARGEM_DIREITA_CONTEUDO, 34);
+        $this->escreverTexto("Dallogix Trace — Relatório de auditoria", self::MARGEM_ESQUERDA_CONTEUDO, 20, 8);
+        $this->escreverTexto("Página " . $page, 500, 20, 8);
         $this->pages[] = implode("\n", $this->content);
         $this->content = [];
     }
 
     /** @param list<string> $headers @param list<int> $widths */
-    private function tableHeader(array $headers, array $widths): void
+    private function escreverCabecalhoDaTabela(array $headers, array $widths): void
     {
-        $this->ensure(48);
-        $this->rect(
-            self::CONTENT_LEFT,
+        $this->garantirEspaco(48);
+        $this->desenharRetangulo(
+            self::MARGEM_ESQUERDA_CONTEUDO,
             $this->y - 22,
             array_sum($widths),
             22,
             true,
         );
-        $x = (float) self::CONTENT_LEFT;
+        $x = (float) self::MARGEM_ESQUERDA_CONTEUDO;
         foreach ($headers as $index => $header) {
-            $this->text($header, $x + 4, $this->y - 14, 8, true);
+            $this->escreverTexto($header, $x + 4, $this->y - 14, 8, true);
             $x += $widths[$index];
         }
         $this->y -= 22;
     }
 
-    private function ensure(float $height): void
+    private function garantirEspaco(float $height): void
     {
-        if ($this->y - $height < self::BOTTOM) {
-            $this->newPage();
+        if ($this->y - $height < self::BASE) {
+            $this->novaPagina();
         }
     }
-    private function text(
+    private function escreverTexto(
         string $text,
         float $x,
         float $y,
@@ -608,7 +608,7 @@ final class RelatorioAuditoriaPdf
             $encoded,
         );
     }
-    private function line(float $x1, float $y1, float $x2, float $y2): void
+    private function desenharLinha(float $x1, float $y1, float $x2, float $y2): void
     {
         $this->content[] = sprintf(
             "0.72 G %.1F %.1F m %.1F %.1F l S 0 G",
@@ -618,7 +618,7 @@ final class RelatorioAuditoriaPdf
             $y2,
         );
     }
-    private function rect(
+    private function desenharRetangulo(
         float $x,
         float $y,
         float $width,
@@ -636,7 +636,7 @@ final class RelatorioAuditoriaPdf
         );
     }
     /** @return list<string> */
-    private function wrap(string $text, int $limit): array
+    private function quebrarTexto(string $text, int $limit): array
     {
         $words = preg_split("/\s+/u", trim($text)) ?: ["—"];
         $lines = [];

@@ -9,9 +9,9 @@ final class EstadoFisicoClpTest extends TestCase
 {
     public function testAceitaSomenteBooleanoExplicitoReportadoPeloClp(): void
     {
-        self::assertTrue(EstadoFisicoClp::runningFromDetails('{"physical_running":true}'));
-        self::assertFalse(EstadoFisicoClp::runningFromDetails('{"conveyor_running":false}'));
-        self::assertTrue(EstadoFisicoClp::runningFromDetails(["running" => true]));
+        self::assertTrue(EstadoFisicoClp::estaEmFuncionamentoPelosDetalhes('{"physical_running":true}'));
+        self::assertFalse(EstadoFisicoClp::estaEmFuncionamentoPelosDetalhes('{"conveyor_running":false}'));
+        self::assertTrue(EstadoFisicoClp::estaEmFuncionamentoPelosDetalhes(["running" => true]));
     }
 
     public function testMantemDesconhecidoSemBooleanoValido(): void
@@ -25,13 +25,13 @@ final class EstadoFisicoClpTest extends TestCase
             "{\"running\":0}",
             "{\"physical_running\":null,\"running\":\"true\"}",
         ] as $details) {
-            self::assertNull(EstadoFisicoClp::runningFromDetails($details));
+            self::assertNull(EstadoFisicoClp::estaEmFuncionamentoPelosDetalhes($details));
         }
     }
 
     public function testPriorizaCampoFisicoCanonicoQuandoHaAliases(): void
     {
-        self::assertTrue(EstadoFisicoClp::runningFromDetails(
+        self::assertTrue(EstadoFisicoClp::estaEmFuncionamentoPelosDetalhes(
             '{"physical_running":true,"running":false}',
         ));
     }

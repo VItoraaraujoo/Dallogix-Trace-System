@@ -12,29 +12,28 @@ import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js?v=202609240001";
 import { deviceStatusSummary } from "./funcoes/view.js?v=202609280006";
-import { settings } from "./telas/configuracoes.js?v=202609280006";
-import { dalaActions, dalaEdit, dalas, dalaView } from "./telas/dalas.js?v=202609280006";
-import { company } from "./telas/empresa.js?v=202609280006";
-import { companies } from "./telas/empresas.js?v=202609280006";
-import { errorLogs } from "./telas/logs.js";
-import { masterHome } from "./telas/master.js?v=202609220100";
-import {
-    alerts,
-    emergency,
-    occurrences,
-    products,
-    summary,
-} from "./telas/monitoramento.js?v=202609280006";
-import {
-    division,
-    importScreen,
-    manifestEdit,
-    manifests,
-    manifestView,
-    work,
-} from "./telas/operacoes.js?v=20261001-work-layout";
-import { dashboard } from "./telas/painel.js?v=202609280006";
-import { users } from "./telas/usuarios.js?v=202609212000";
+import { settings } from "../telas/configuracoes/configuracoes.js?v=202610010001";
+import { dalas } from "../telas/dalas/dalas.js?v=202610010001";
+import { dalaActions } from "../telas/acoes-dala/acoes-dala.js?v=202610010001";
+import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
+import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610010001";
+import { company } from "../telas/empresa/empresa.js?v=202610010001";
+import { companies } from "../telas/empresas/empresas.js?v=202610010001";
+import { errorLogs } from "../telas/logs-erros/logs-erros.js?v=202610010001";
+import { masterHome } from "../telas/painel-dallogix/painel-dallogix.js?v=202610010001";
+import { alerts } from "../telas/alertas/alertas.js?v=202610010001";
+import { emergency } from "../telas/emergencia/emergencia.js?v=202610010001";
+import { occurrences } from "../telas/ocorrencias/ocorrencias.js?v=202610010001";
+import { products } from "../telas/produtos/produtos.js?v=202610010001";
+import { summary } from "../telas/resumo-final/resumo-final.js?v=202610010001";
+import { division } from "../telas/divisao-carga/divisao-carga.js?v=202610010001";
+import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=202610010001";
+import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
+import { manifests } from "../telas/romaneios/romaneios.js?v=202610010001";
+import { manifestView } from "../telas/romaneio/romaneio.js?v=202610010001";
+import { work } from "../telas/operacao/operacao.js?v=202610010001";
+import { dashboard } from "../telas/painel/painel.js?v=202610010001";
+import { users } from "../telas/usuarios/usuarios.js?v=202610010001";
 
 configurarSessaoPorAba();
 
@@ -219,12 +218,51 @@ function resolveAuthorizedPage(page, fallbackPage = defaultPage()) {
   if (typeof page !== "string" || !isAllowedPage(page)) return fallbackPage;
   return page;
 }
+const PAGE_PATHS = Object.freeze({
+  login: "/telas/acesso/acesso.html",
+  dashboard: "/telas/painel/painel.html",
+  manifests: "/telas/romaneios/romaneios.html",
+  manifest: "/telas/romaneio/romaneio.html",
+  "manifest-edit": "/telas/editar-romaneio/editar-romaneio.html",
+  import: "/telas/importar-romaneio/importar-romaneio.html",
+  division: "/telas/divisao-carga/divisao-carga.html",
+  work: "/telas/operacao/operacao.html",
+  occurrences: "/telas/ocorrencias/ocorrencias.html",
+  summary: "/telas/resumo-final/resumo-final.html",
+  products: "/telas/produtos/produtos.html",
+  alerts: "/telas/alertas/alertas.html",
+  emergency: "/telas/emergencia/emergencia.html",
+  settings: "/telas/configuracoes/configuracoes.html",
+  dalas: "/telas/dalas/dalas.html",
+  dala: "/telas/visualizar-dala/visualizar-dala.html",
+  "dala-edit": "/telas/editar-dala/editar-dala.html",
+  "dala-actions": "/telas/acoes-dala/acoes-dala.html",
+  companies: "/telas/empresas/empresas.html",
+  company: "/telas/empresa/empresa.html",
+  "master-home": "/telas/painel-dallogix/painel-dallogix.html",
+  users: "/telas/usuarios/usuarios.html",
+  "error-logs": "/telas/logs-erros/logs-erros.html",
+});
+const LEGACY_PAGE_IDS = Object.freeze({
+  "index.html": "login", "dashboard.html": "dashboard", "manifests.html": "manifests",
+  "manifest.html": "manifest", "manifest-edit.html": "manifest-edit", "import.html": "import",
+  "division.html": "division", "work.html": "work", "occurrences.html": "occurrences",
+  "summary.html": "summary", "products.html": "products", "alerts.html": "alerts",
+  "emergency.html": "emergency", "settings.html": "settings", "dalas.html": "dalas",
+  "dala.html": "dala", "dala-edit.html": "dala-edit", "dala-actions.html": "dala-actions",
+  "companies.html": "companies", "company.html": "company", "master-home.html": "master-home",
+  "users.html": "users", "error-logs.html": "error-logs",
+});
+const PAGE_IDS_BY_PATH = Object.freeze(Object.fromEntries(
+  Object.entries(PAGE_PATHS).map(([page, path]) => [path, page]),
+));
 function pagePath(page, query = "") {
-  return `${page}.html${query}`;
+  return `${PAGE_PATHS[page] || PAGE_PATHS.login}${query}`;
 }
 function pageFromPath(pathname = window.location.pathname) {
+  if (PAGE_IDS_BY_PATH[pathname]) return PAGE_IDS_BY_PATH[pathname];
   const file = pathname.split("/").pop() || "index.html";
-  return file === "index.html" ? "login" : file.replace(/\.html$/, "");
+  return LEGACY_PAGE_IDS[file] || file.replace(/\.html$/, "");
 }
 async function navigate(page, query = "", { replace = false } = {}) {
   const safePage = resolveAuthorizedPage(page, defaultPage());
@@ -385,11 +423,11 @@ function waitForDocumentStyles() {
 // inicial não é recarregado, então os estilos exclusivos de Dalas precisam ser
 // adicionados quando a rota muda a partir de outra tela.
 const DALA_PAGES = new Set(["dalas", "dala", "dala-edit", "dala-actions"]);
-const DALA_SCREEN_STYLES = "/css/dalas-screen.css?v=202609291040";
+const DALA_SCREEN_STYLES = "/telas/dalas/dalas.css?v=202610010001";
 async function ensureDalaScreenStyles(page) {
   if (!DALA_PAGES.has(page)) return;
   const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
-    (link) => new URL(link.href, window.location.href).pathname === "/css/dalas-screen.css",
+    (link) => new URL(link.href, window.location.href).pathname === "/telas/dalas/dalas.css",
   );
   if (existing) {
     if (existing.sheet) return;
@@ -626,14 +664,21 @@ function refreshWorkLiveView() {
         (!selectedEquipmentId || Number(item.equipment_id) === selectedEquipmentId),
       );
       const value = device?.status || (type === "SERVER" ? "LOCAL" : "NAO_REGISTRADO");
-      return [type, deviceStatusSummary(value)];
+      return [type, { value, presentation: deviceStatusSummary(value) }];
     }),
   );
   document.querySelectorAll("[data-live-status]").forEach((node) => {
-    const presentation =
-      statusByType[node.dataset.liveStatus] || deviceStatusSummary("NAO_REGISTRADO");
-    node.textContent = presentation.label;
-    node.className = `status-value status-${presentation.tone}`;
+    const current = statusByType[node.dataset.liveStatus] || {
+      value: "NAO_REGISTRADO",
+      presentation: deviceStatusSummary("NAO_REGISTRADO"),
+    };
+    const presentation = current.presentation;
+    const binary = node.dataset.liveStatusMode === "binary";
+    const online = ["ONLINE", "LOCAL", "OK"].includes(
+      String(current.value || "").trim().toUpperCase(),
+    );
+    node.textContent = binary ? (online ? "ON" : "OFF") : presentation.label;
+    node.className = `status-value status-${binary ? (online ? "online" : "offline") : presentation.tone}`;
   });
 }
 let relativeTimeTimer = null;
@@ -999,7 +1044,7 @@ function bindActions() {
           headers: store.csrfToken ? { "X-CSRF-Token": store.csrfToken } : {},
         });
         limparTokenSessao();
-        window.location.href = "index.html";
+        window.location.href = pagePath("login");
         return;
       }
       if (action === "download-audit-report") {
@@ -1570,7 +1615,7 @@ function bindForms() {
           } catch (storageError) {
             /* armazenamento indisponível */
           }
-          window.location.replace("index.html");
+          window.location.replace(pagePath("login"));
           return;
         }
         alert(error.message);
@@ -1630,7 +1675,7 @@ function bindForms() {
           } catch (storageError) {
             /* armazenamento indisponível */
           }
-          window.location.replace("index.html");
+          window.location.replace(pagePath("login"));
           return;
         }
         alert(error.message);
@@ -2259,7 +2304,7 @@ async function bootstrap() {
     return;
   }
   if (!screens[currentPage]) {
-    window.location.replace("index.html");
+    window.location.replace(pagePath("login"));
     return;
   }
   const response = await fetch("/api/me.php");
@@ -2274,7 +2319,7 @@ async function bootstrap() {
     } catch (storageError) {
       /* armazenamento indisponível */
     }
-    window.location.replace("index.html");
+    window.location.replace(pagePath("login"));
     return;
   }
   const result = await response.json();

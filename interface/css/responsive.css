@@ -493,6 +493,7 @@ table {
   }
 }
 
+
 @media (max-width: 760px) {
   :root {
     --trace-sidebar: 0px;
@@ -3528,22 +3529,39 @@ body .sidebar-toggle {
   }
 }
 
-/* Operação da Dala: comandos verticais à esquerda e status à direita. */
+/* Operação da Dala: acompanhamento principal à esquerda e comandos fixos à direita. */
 body.work-page:has(.work-operation-screen) .work-operation-layout {
   display: grid;
-  grid-template-columns: minmax(250px, 0.72fr) minmax(0, 1.8fr);
-  align-items: start;
-  gap: 18px;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 350px);
+  grid-template-areas: "status comandos";
+  min-height: 0;
+  flex: 1 1 auto;
+  align-items: stretch;
+  gap: 14px;
 }
 
 body.work-page:has(.work-operation-screen) .work-machine-panel,
 body.work-page:has(.work-operation-screen) .work-status-column {
   min-width: 0;
+  min-height: 0;
 }
 
 body.work-page:has(.work-operation-screen) .work-machine-panel {
-  position: sticky;
-  top: 16px;
+  grid-area: comandos;
+  position: static;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  overflow-y: auto;
+}
+
+body.work-page:has(.work-operation-screen) .work-status-column {
+  grid-area: status;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  gap: 10px;
+  overflow: hidden;
 }
 
 body.work-page:has(.work-operation-screen) .work-controls,
@@ -3557,7 +3575,7 @@ body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-
 body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls .button,
 body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone .button {
   width: 100%;
-  min-height: 54px;
+  min-height: 56px;
   justify-content: center;
   font-size: 1rem;
   font-weight: 800;
@@ -3575,40 +3593,134 @@ body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergenc
   line-height: 1.45;
 }
 
-body.work-page:has(.work-operation-screen) .work-status-column {
-  display: grid;
-  gap: 16px;
-}
-
 body.work-page:has(.work-operation-screen) .work-device-status,
-body.work-page:has(.work-operation-screen) .work-status-column > .work-live-summary,
-body.work-page:has(.work-operation-screen) .work-status-column > .work-items-panel {
+body.work-page:has(.work-operation-screen) .work-status-column > .work-live-summary {
+  flex: 0 0 auto;
   margin: 0;
 }
 
 body.work-page:has(.work-operation-screen) .work-status-column > .work-items-panel {
+  display: flex;
+  min-height: 0;
   height: auto;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  margin: 0;
+}
+
+body.work-page:has(.work-operation-screen) .work-items-panel > .panel-heading {
+  flex: 0 0 auto;
+  min-height: 42px;
+  margin-bottom: 10px;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-list {
+  min-height: 0;
   max-height: none;
-  overflow: visible;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-list:focus-visible {
+  outline: 3px solid var(--cyan, #1a9bc0);
+  outline-offset: 2px;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-card {
+  padding: 8px 6px;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-identity {
+  flex-direction: row;
+  align-items: baseline;
+  gap: 10px;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-identity strong {
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-identity code {
+  flex: 0 1 auto;
+  font-size: 11px;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-values {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  margin: 4px 0;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-values > strong {
+  font-size: 18px;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-values > strong span {
+  font-size: 15px;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-track {
+  height: 8px;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 3px;
+  font-size: 11px;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-foot > span:first-child {
+  display: none;
 }
 
 @media (max-width: 900px) {
-  body.work-page:has(.work-operation-screen) .work-operation-layout {
-    grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
+  body.work-page:has(.work-operation-screen) {
+    height: auto;
+    min-height: 100dvh;
+    overflow: auto;
   }
-}
 
-@media (max-width: 700px) {
+  body.work-page:has(.work-operation-screen) .main {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  body.work-page:has(.work-operation-screen) .content {
+    display: block;
+    overflow: visible;
+  }
+
+  body.work-page:has(.work-operation-screen) #screen-root {
+    display: block;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-operation-screen {
+    display: flex;
+    height: auto;
+    min-height: 0;
+  }
+
   body.work-page:has(.work-operation-screen) .work-operation-layout {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "comandos" "status";
+    flex: 0 0 auto;
   }
 
-  body.work-page:has(.work-operation-screen) .work-machine-panel {
-    position: static;
-    grid-row: 1;
-  }
-
+  body.work-page:has(.work-operation-screen) .work-machine-panel,
   body.work-page:has(.work-operation-screen) .work-status-column {
-    grid-row: 2;
+    height: auto;
+    overflow: visible;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-item-progress-list {
+    max-height: 55vh;
+    overflow-y: auto;
   }
 }

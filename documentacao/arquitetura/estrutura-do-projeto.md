@@ -4,8 +4,9 @@ O TRACE é organizado para operar no PC industrial, sem internet, com o CLP como
 
 | Pasta                     | Responsabilidade                                                                                         |
 | ------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `interface/`              | Telas web, estilos e JavaScript da operação local e administração.                                      |
-| `servidor/api/`           | API HTTP local. Mantém as rotas `/api/*.php` consumidas pela interface e pelo Node-RED.                  |
+| `interface/telas/<tela>/` | Uma pasta por tela, com HTML, CSS e JavaScript com o mesmo nome em português.                            |
+| `interface/js/`           | Navegação, sessão, controladores e funções reutilizáveis compartilhadas entre telas.                     |
+| `servidor/api/`           | API HTTP agrupada por domínio; arquivos na raiz encaminham rotas antigas para preservar compatibilidade. |
 | `servidor/src/Aplicacao/` | Serviços de regra de negócio: estado do carregamento, comandos do CLP, gateway e relatório de auditoria. |
 | `servidor/configuracao/`  | Inicialização, sessão, banco de dados, autorização e auditoria.                                          |
 | `banco-de-dados/`         | Migrations e dados iniciais do MySQL local.                                                              |
@@ -28,4 +29,4 @@ O gateway envia um heartbeat a cada segundo. Sem sinal do CLP por mais de três 
 
 ## Compatibilidade industrial
 
-Os nomes internos foram organizados em português. As rotas públicas `/api/*.php` foram mantidas para não interromper a configuração atual do Node-RED, dos testes e de futuras integrações de equipamento.
+Os nomes internos foram organizados em português. As implementações PHP ficam em `servidor/api/<dominio>/`; arquivos de compatibilidade na raiz mantêm as rotas `/api/*.php` já usadas pela interface, pelo Node-RED e por equipamentos. Telas que usam a mesma regra compartilham a implementação sem duplicar endpoints.

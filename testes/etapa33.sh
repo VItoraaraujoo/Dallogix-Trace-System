@@ -8,6 +8,6 @@ roles="$(docker compose -f "$root/docker-compose.yml" exec -T mysql mysql -N -ut
 printf '%s' "$roles" | grep -q "'ADMIN_DALLOGIX','ADMIN_EMPRESA','SUPERVISOR','USUARIO'" || fail "enum de perfis não foi consolidado"
 printf '%s' "$roles" | grep -q 'OPERADOR\|MANUTENCAO' && fail "perfil antigo ainda está presente no banco"
 grep -q 'USUARIO:' "$root/interface/js/aplicacao.js" || fail "navegação do usuário não configurada"
-grep -q 'require_role(\["ADMIN_EMPRESA", "SUPERVISOR"\])' "$root/servidor/api/desbloquear_maquina.php" || fail "desbloqueio não está restrito a administrador/supervisor"
+grep -q 'require_role(\["ADMIN_EMPRESA", "SUPERVISOR"\])' "$root/servidor/api/operacoes/desbloquear_maquina.php" || fail "desbloqueio não está restrito a administrador/supervisor"
 
 echo "OK: quatro perfis oficiais e permissões críticas consolidados."

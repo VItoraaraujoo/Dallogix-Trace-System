@@ -13,7 +13,8 @@ function listFiles(directory) {
   });
 }
 
-const modules = new Set(listFiles(modulesDir).filter((file) => file.endsWith(".js")));
+const screensDir = path.join(interfaceDir, "telas");
+const modules = new Set([...listFiles(modulesDir), ...listFiles(screensDir)].filter((file) => file.endsWith(".js")));
 const roots = [];
 for (const html of listFiles(interfaceDir).filter((file) => file.endsWith(".html"))) {
   const source = readFileSync(html, "utf8");

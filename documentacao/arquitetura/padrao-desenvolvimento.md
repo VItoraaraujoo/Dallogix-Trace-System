@@ -10,7 +10,7 @@ O sistema fica preparado para extrair, quando houver necessidade real de escala,
 
 | Camada       | Responsabilidade                                                    | Local atual                                                                   |
 | ------------ | ------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| Apresentação | Telas, componentes visuais e coleta de ações do usuário             | `interface/` e `interface/js/telas/`                                            |
+| Apresentação | Telas, componentes visuais e coleta de ações do usuário             | `interface/telas/<nome-da-tela>/` e `interface/css/`                                            |
 | Controle     | Navegação, eventos de tela, autenticação e composição das respostas | `interface/js/aplicacao.js`, `interface/js/controladores/` e `servidor/api/`      |
 | Aplicação    | Regras de carregamento, permissões, auditoria, filas e validações   | `servidor/src/Aplicacao/` e `servidor/configuracao/`                              |
 | Dados        | Migrations, consultas preparadas e persistência local               | `banco-de-dados/` e MySQL                                                           |

@@ -41,3 +41,36 @@ Os nomes abaixo devem permanecer no padrão da tecnologia, mesmo quando o restan
 ## Status do projeto
 
 O sistema já está em grande parte em português na camada funcional. Os ajustes restantes devem seguir esta convenção e priorizar compatibilidade e estabilidade operacional.
+
+## Organização por tela e domínio
+
+Cada tela web fica em sua própria pasta, com os três arquivos de entrada usando o mesmo nome em português:
+
+```text
+interface/telas/operacao/
+├── operacao.html
+├── operacao.css
+└── operacao.js
+```
+
+A implementação das telas fica no JS da tela principal de cada domínio (por exemplo, `romaneios.js`, `dalas.js` e `alertas.js`); telas irmãs exportam apenas o componente correspondente a partir desse arquivo para evitar duplicação. A navegação, a sessão e a ligação dos eventos continuam centralizadas em `interface/js/aplicacao.js`; utilitários reutilizáveis ficam em `interface/js/funcoes/`.
+
+Os endpoints PHP ficam agrupados por domínio, pois vários deles atendem mais de uma tela e integrações industriais:
+
+```text
+servidor/api/
+├── autenticacao/
+├── camera/
+├── dalas/
+├── empresas/
+├── monitoramento/
+├── operacoes/
+├── produtos/
+├── relatorios/
+├── romaneios/
+├── sincronizacao/
+├── sistema/
+└── usuarios/
+```
+
+Os arquivos PHP antigos na raiz de `servidor/api/` são encaminhadores de compatibilidade. Assim, as URLs atuais continuam funcionando sem manter duas cópias das regras de negócio.

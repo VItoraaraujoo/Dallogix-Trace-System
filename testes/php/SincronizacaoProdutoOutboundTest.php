@@ -42,7 +42,7 @@ final class SincronizacaoProdutoOutboundTest extends TestCase
             ], JSON_THROW_ON_ERROR),
         ];
 
-        $method = new ReflectionMethod(ServicoSincronizacao::class, 'decodePayload');
+        $method = new ReflectionMethod(ServicoSincronizacao::class, 'decodificarCarga');
         $payload = $method->invoke(new ServicoSincronizacao($pdo), $event);
 
         self::assertSame('PRODUTO_CADASTRADO', $payload['action']);

@@ -19,8 +19,8 @@ final class ExcecaoComandoClp extends RuntimeException
 
 final class ServicoComandoClp
 {
-    private const REVERSAL_COMMANDS = ["REVERSAO_ATIVAR", "REVERSAO_DESATIVAR"];
-    private const EMERGENCY_COMMAND = "EMERGENCIA";
+    private const COMANDOS_DE_REVERSAO = ["REVERSAO_ATIVAR", "REVERSAO_DESATIVAR"];
+    private const COMANDO_DE_EMERGENCIA = "EMERGENCIA";
 
     private readonly PDO $connection;
     private readonly ServicoDisponibilidadeClp $disponibilidadeClp;
@@ -32,12 +32,12 @@ final class ServicoComandoClp
     }
 
     /** @param array{id:int|string, company_id:int|string|null} $user */
-    public function requestReversal(
+    public function solicitarReversao(
         array $user,
         int $loadingId,
         string $command,
     ): array {
-        if (!in_array($command, self::REVERSAL_COMMANDS, true)) {
+        if (!in_array($command, self::COMANDOS_DE_REVERSAO, true)) {
             throw new ExcecaoComandoClp(
                 "Carregamento e comando de reversão válido são obrigatórios.",
                 422,
@@ -52,7 +52,7 @@ final class ServicoComandoClp
 
         $this->connection->beginTransaction();
         try {
-            $loading = $this->findLoading($loadingId, (int) $user["company_id"]);
+            $loading = $this->localizarCarregamento($loadingId, (int) $user["company_id"]);
             if (!$loading) {
                 throw new ExcecaoComandoClp(
                     "Carregamento não encontrado para esta empresa.",
@@ -69,7 +69,7 @@ final class ServicoComandoClp
                 (int) $user["company_id"],
                 (int) $loading["equipment_id"],
             );
-            if ($this->hasPendingCommand($loadingId)) {
+            if ($this->possuiComandoPendente($loadingId)) {
                 throw new ExcecaoComandoClp(
                     "Já existe um comando de reversão aguardando o gateway industrial.",
                     409,
@@ -135,7 +135,7 @@ final class ServicoComandoClp
     }
 
     /** @param array{id:int|string, company_id:int|string|null} $user */
-    public function requestEmergency(array $user, int $loadingId): array
+    public function solicitarEmergencia(array $user, int $loadingId): array
     {
         if ($user["company_id"] === null) {
             throw new ExcecaoComandoClp("Usuário sem empresa vinculada.", 403);
@@ -143,7 +143,7 @@ final class ServicoComandoClp
 
         $this->connection->beginTransaction();
         try {
-            $loading = $this->findLoading($loadingId, (int) $user["company_id"]);
+            $loading = $this->localizarCarregamento($loadingId, (int) $user["company_id"]);
             if (!$loading) {
                 throw new ExcecaoComandoClp(
                     "Carregamento não encontrado para esta empresa.",
@@ -160,19 +160,19 @@ final class ServicoComandoClp
             // O desbloqueio é revogado mesmo se esta emergência já estiver
             // pendente: um novo pedido do operador invalida qualquer ACK
             // de desbloqueio ainda em voo.
-            $this->cancelPendingUnlocks($user, $loadingId);
+            $this->cancelarDesbloqueiosPendentes($user, $loadingId);
 
-            $pending = $this->pendingCommand($loadingId, self::EMERGENCY_COMMAND);
+            $pending = $this->comandoPendente($loadingId, self::COMANDO_DE_EMERGENCIA);
             if ($pending) {
                 if ($loading["state"] !== "EMERGENCIA") {
-                    $this->setEmergencyState($user, $loadingId, $loading);
+                    $this->definirEstadoEmergencia($user, $loadingId, $loading);
                 }
                 $this->connection->commit();
                 return [
                     "command_request_id" => (int) $pending["id"],
                     "carregamento_id" => $loadingId,
                     "equipment_id" => (int) $loading["equipment_id"],
-                    "command" => self::EMERGENCY_COMMAND,
+                    "command" => self::COMANDO_DE_EMERGENCIA,
                     "status" => (string) $pending["status"],
                     "state" => "EMERGENCIA",
                     "message" => "A emergência já está registrada e aguarda confirmação do gateway industrial.",
@@ -180,7 +180,7 @@ final class ServicoComandoClp
             }
 
             if ($loading["state"] !== "EMERGENCIA") {
-                $this->setEmergencyState($user, $loadingId, $loading);
+                $this->definirEstadoEmergencia($user, $loadingId, $loading);
             }
 
             $insert = $this->connection->prepare(
@@ -192,18 +192,18 @@ final class ServicoComandoClp
                 "company_id" => $user["company_id"],
                 "equipment_id" => $loading["equipment_id"],
                 "carregamento_id" => $loadingId,
-                "command" => self::EMERGENCY_COMMAND,
+                "command" => self::COMANDO_DE_EMERGENCIA,
                 "requested_by" => $user["id"],
             ]);
             $requestId = (int) $this->connection->lastInsertId();
             \record_operational_event(
                 $this->connection,
                 $user,
-                self::EMERGENCY_COMMAND,
+                self::COMANDO_DE_EMERGENCIA,
                 "plc_command_request",
                 $requestId,
                 [
-                    "command" => self::EMERGENCY_COMMAND,
+                    "command" => self::COMANDO_DE_EMERGENCIA,
                     "carregamento_id" => $loadingId,
                     "equipment_id" => (int) $loading["equipment_id"],
                     "remote_carregamento_id" => $loading["remote_carregamento_id"] === null
@@ -231,14 +231,14 @@ final class ServicoComandoClp
             "command_request_id" => $requestId,
             "carregamento_id" => $loadingId,
             "equipment_id" => (int) $loading["equipment_id"],
-            "command" => self::EMERGENCY_COMMAND,
+            "command" => self::COMANDO_DE_EMERGENCIA,
             "status" => "PENDENTE",
             "state" => "EMERGENCIA",
             "message" => "Emergência registrada. A parada física aguarda confirmação do gateway/CLP; use também o botão físico de emergência se necessário.",
         ];
     }
 
-    private function findLoading(int $loadingId, int $companyId): array|false
+    private function localizarCarregamento(int $loadingId, int $companyId): array|false
     {
         $statement = $this->connection->prepare(
             "SELECT id, state, equipment_id, remote_carregamento_id
@@ -248,12 +248,12 @@ final class ServicoComandoClp
         return $statement->fetch();
     }
 
-    private function hasPendingCommand(int $loadingId): bool
+    private function possuiComandoPendente(int $loadingId): bool
     {
-        return $this->pendingCommand($loadingId) !== false;
+        return $this->comandoPendente($loadingId) !== false;
     }
 
-    private function pendingCommand(int $loadingId, ?string $command = null): array|false
+    private function comandoPendente(int $loadingId, ?string $command = null): array|false
     {
         $where = "carregamento_id = :carregamento_id AND status IN ('PENDENTE', 'PROCESSANDO')";
         $params = ["carregamento_id" => $loadingId];
@@ -270,7 +270,7 @@ final class ServicoComandoClp
     }
 
     /** @param array{id:int|string, company_id:int|string|null} $user */
-    private function cancelPendingUnlocks(array $user, int $loadingId): void
+    private function cancelarDesbloqueiosPendentes(array $user, int $loadingId): void
     {
         $pending = $this->connection->prepare(
             "SELECT r.id, r.equipment_id, r.remote_command_id,
@@ -323,7 +323,7 @@ final class ServicoComandoClp
     }
 
     /** @param array<string,mixed> $loading */
-    private function setEmergencyState(array $user, int $loadingId, array $loading): void
+    private function definirEstadoEmergencia(array $user, int $loadingId, array $loading): void
     {
         $update = $this->connection->prepare(
             "UPDATE carregamentos SET state = 'EMERGENCIA'

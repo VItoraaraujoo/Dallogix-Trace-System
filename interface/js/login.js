@@ -1,3 +1,4 @@
+import "../telas/acesso/acesso.js";
 import {
   configurarSessaoPorAba,
   guardarTokenSessao,
@@ -6,10 +7,10 @@ import {
 configurarSessaoPorAba();
 
 const DEFAULT_PAGE_BY_ROLE = Object.freeze({
-  ADMIN_DALLOGIX: "master-home",
-  ADMIN_EMPRESA: "dashboard",
-  SUPERVISOR: "dashboard",
-  USUARIO: "dashboard",
+  ADMIN_DALLOGIX: "/telas/painel-dallogix/painel-dallogix.html",
+  ADMIN_EMPRESA: "/telas/painel/painel.html",
+  SUPERVISOR: "/telas/painel/painel.html",
+  USUARIO: "/telas/painel/painel.html",
 });
 
 function renderLogin(message = "") {
@@ -119,7 +120,7 @@ function bindLocalActivationForm() {
 }
 
 function defaultPageForUser(user) {
-  return DEFAULT_PAGE_BY_ROLE[String(user?.role || "").toUpperCase()] || "manifests";
+  return DEFAULT_PAGE_BY_ROLE[String(user?.role || "").toUpperCase()] || "/telas/romaneios/romaneios.html";
 }
 
 function bindLoginForm() {
@@ -150,7 +151,7 @@ function bindLoginForm() {
         return;
       }
       guardarTokenSessao(result.session_token);
-      window.location.replace(`${defaultPageForUser(result.user)}.html`);
+      window.location.replace(defaultPageForUser(result.user));
     } catch (error) {
       renderLogin(
         "Não foi possível conectar ao servidor local. Verifique se o sistema está em execução.",

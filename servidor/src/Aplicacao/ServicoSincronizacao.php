@@ -9,20 +9,20 @@ use RuntimeException;
 
 final class ServicoSincronizacao
 {
-    private const STALE_AFTER_MINUTES = 5;
-    private const CONNECT_TIMEOUT_SECONDS = 3;
-    private const REQUEST_TIMEOUT_SECONDS = 10;
+    private const RESERVA_EXPIRADA_APOS_MINUTOS = 5;
+    private const TEMPO_LIMITE_CONEXAO_SEGUNDOS = 3;
+    private const TEMPO_LIMITE_REQUISICAO_SEGUNDOS = 10;
     public function __construct(private readonly PDO $connection)
     {
     }
 
     /** @return array{processed:bool,status:string,id:int,reason?:string,error?:string,http_code?:int} */
-    public function processOne(int $queueId, int $companyId): array
+    public function processarUm(int $queueId, int $companyId): array
     {
         // Recupera reservas vencidas antes de consultar o evento; isso evita que
         // um retry individual fique preso em PROCESSANDO para sempre.
-        $this->recoverStaleReservations();
-        $event = $this->findEvent($queueId, $companyId);
+        $this->recuperarReservasVencidas();
+        $event = $this->localizarEvento($queueId, $companyId);
         if ($event === null) {
             return [
                 "processed" => false,
@@ -32,8 +32,8 @@ final class ServicoSincronizacao
             ];
         }
 
-        $batchUrl = $this->batchRemoteUrl();
-        $remoteUrl = $batchUrl !== "" ? $batchUrl : $this->remoteUrl($companyId);
+        $batchUrl = $this->obterUrlRemotaEmLote();
+        $remoteUrl = $batchUrl !== "" ? $batchUrl : $this->obterUrlRemota($companyId);
         if ($remoteUrl === "") {
             return [
                 "processed" => false,
@@ -43,7 +43,7 @@ final class ServicoSincronizacao
             ];
         }
 
-        $reserved = $this->reserveBatch(1, $companyId, $queueId);
+        $reserved = $this->reservarLote(1, $companyId, $queueId);
         if ($reserved === []) {
             return [
                 "processed" => false,
@@ -54,27 +54,27 @@ final class ServicoSincronizacao
         }
 
         return $batchUrl !== ""
-            ? $this->deliverBatch($reserved, $remoteUrl)
-            : $this->deliver($reserved[0], $remoteUrl);
+            ? $this->entregarLote($reserved, $remoteUrl)
+            : $this->entregarEvento($reserved[0], $remoteUrl);
     }
 
     /** @return array{reserved:int,sent:int,failed:int,skipped:int} */
-    public function processBatch(int $limit = 50): array
+    public function processarLote(int $limit = 50): array
     {
         $limit = max(1, min(500, $limit));
         // A descoberta por empresa acontece antes de reserveBatch(), portanto a
         // recuperação precisa ocorrer aqui também para incluir filas expiradas.
-        $this->recoverStaleReservations();
-        $installedCompanyId = $this->installedCompanyId();
+        $this->recuperarReservasVencidas();
+        $installedCompanyId = $this->obterIdEmpresaInstalada();
         $installedRemoteUrl = $installedCompanyId !== null
-            ? $this->remoteUrl($installedCompanyId)
+            ? $this->obterUrlRemota($installedCompanyId)
             : "";
         $usesInstalledSync = $installedCompanyId !== null && $installedRemoteUrl !== "";
-        $batchUrl = $usesInstalledSync ? "" : $this->batchRemoteUrl();
-        $globalRemoteUrl = $usesInstalledSync ? "" : $this->remoteUrl();
+        $batchUrl = $usesInstalledSync ? "" : $this->obterUrlRemotaEmLote();
+        $globalRemoteUrl = $usesInstalledSync ? "" : $this->obterUrlRemota();
         $companyIds = $batchUrl !== "" || $globalRemoteUrl !== ""
             ? [null]
-            : $this->companiesWithRemoteUrl();
+            : $this->empresasComUrlRemota();
         if ($usesInstalledSync) {
             $companyIds = [$installedCompanyId];
         }
@@ -85,23 +85,23 @@ final class ServicoSincronizacao
                 ? $batchUrl
                 : ($globalRemoteUrl !== ""
                 ? $globalRemoteUrl
-                : $this->remoteUrl($companyId));
+                : $this->obterUrlRemota($companyId));
             if ($remoteUrl === "") {
                 continue;
             }
-            $events = $this->reserveBatch($limit, $companyId);
+            $events = $this->reservarLote($limit, $companyId);
             $summary["reserved"] += count($events);
             if ($events === []) {
                 continue;
             }
             if ($batchUrl !== "") {
-                $result = $this->deliverBatch($events, $remoteUrl);
+                $result = $this->entregarLote($events, $remoteUrl);
                 $summary["sent"] += (int) ($result["sent"] ?? 0);
                 $summary["failed"] += (int) ($result["failed"] ?? 0);
                 continue;
             }
             foreach ($events as $event) {
-                $result = $this->deliver($event, $remoteUrl);
+                $result = $this->entregarEvento($event, $remoteUrl);
                 if ($result["processed"] === true && $result["status"] === "ENVIADO") {
                     $summary["sent"]++;
                 } elseif ($result["status"] === "ERRO") {
@@ -116,10 +116,10 @@ final class ServicoSincronizacao
     }
 
     /** @return list<array<string,mixed>> */
-    public function reserveBatch(int $limit = 50, ?int $companyId = null, ?int $queueId = null): array
+    public function reservarLote(int $limit = 50, ?int $companyId = null, ?int $queueId = null): array
     {
         $limit = max(1, min(500, $limit));
-        $this->recoverStaleReservations();
+        $this->recuperarReservasVencidas();
         $this->connection->beginTransaction();
         try {
             $where = [
@@ -176,10 +176,10 @@ final class ServicoSincronizacao
     }
 
     /** @return array{processed:bool,status:string,id:int,sent?:int,failed?:int,error?:string,http_code?:int} */
-    private function deliver(array $event, string $remoteUrl): array
+    private function entregarEvento(array $event, string $remoteUrl): array
     {
         try {
-            $result = $this->send($event, $remoteUrl);
+            $result = $this->enviarEventoRemoto($event, $remoteUrl);
         } catch (\Throwable $exception) {
             $result = [
                 "ok" => false,
@@ -190,11 +190,11 @@ final class ServicoSincronizacao
         $id = (int) $event["id"];
         if ($result["ok"] === true) {
             try {
-                $this->applyRemoteMappings([$event], (array) ($result["response"] ?? []));
-                $this->markSent([$event]);
+                $this->aplicarMapeamentosRemotos([$event], (array) ($result["response"] ?? []));
+                $this->marcarComoEnviados([$event]);
                 return ["processed" => true, "status" => "ENVIADO", "id" => $id];
             } catch (\Throwable $exception) {
-                $this->markFailed([$event], "Mapeamento remoto inválido: " . $exception->getMessage());
+                $this->marcarComoFalha([$event], "Mapeamento remoto inválido: " . $exception->getMessage());
                 return [
                     "processed" => false,
                     "status" => "ERRO",
@@ -206,7 +206,7 @@ final class ServicoSincronizacao
         }
 
         $error = $result["error"];
-        $this->markFailed([$event], $error);
+        $this->marcarComoFalha([$event], $error);
         return [
             "processed" => false,
             "status" => "ERRO",
@@ -217,11 +217,11 @@ final class ServicoSincronizacao
     }
 
     /** @return array{processed:bool,status:string,id:int,sent:int,failed:int,error?:string,http_code?:int} */
-    private function deliverBatch(array $events, string $remoteUrl): array
+    private function entregarLote(array $events, string $remoteUrl): array
     {
         $firstId = (int) ($events[0]["id"] ?? 0);
         try {
-            $result = $this->sendBatch($events, $remoteUrl);
+            $result = $this->enviarLote($events, $remoteUrl);
         } catch (\Throwable $exception) {
             $result = [
                 "ok" => false,
@@ -231,8 +231,8 @@ final class ServicoSincronizacao
         }
         if ($result["ok"] === true) {
             try {
-                $this->applyRemoteMappings($events, (array) ($result["response"] ?? []));
-                $this->markSent($events);
+                $this->aplicarMapeamentosRemotos($events, (array) ($result["response"] ?? []));
+                $this->marcarComoEnviados($events);
                 return [
                     "processed" => true,
                     "status" => "ENVIADO",
@@ -242,7 +242,7 @@ final class ServicoSincronizacao
                 ];
             } catch (\Throwable $exception) {
                 $error = "Mapeamento remoto inválido: " . $exception->getMessage();
-                $this->markFailed($events, $error);
+                $this->marcarComoFalha($events, $error);
                 return [
                     "processed" => false,
                     "status" => "ERRO",
@@ -255,7 +255,7 @@ final class ServicoSincronizacao
             }
         }
 
-        $this->markFailed($events, $result["error"]);
+        $this->marcarComoFalha($events, $result["error"]);
         return [
             "processed" => false,
             "status" => "ERRO",
@@ -268,37 +268,37 @@ final class ServicoSincronizacao
     }
 
     /** @return array{ok:bool,error:string,http_code:int,response?:array<string,mixed>} */
-    private function send(array $event, string $remoteUrl): array
+    private function enviarEventoRemoto(array $event, string $remoteUrl): array
     {
         $body = json_encode([
             "event_uuid" => $event["event_uuid"],
-            "company_id" => $this->remoteCompanyId($event),
+            "company_id" => $this->idEmpresaRemota($event),
             "aggregate_type" => $event["aggregate_type"],
             "aggregate_id" => (int) $event["aggregate_id"],
-            "payload" => $this->decodePayload($event),
+            "payload" => $this->decodificarCarga($event),
         ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
 
-        return $this->postJson($remoteUrl, $body, (int) $event["company_id"]);
+        return $this->postarJson($remoteUrl, $body, (int) $event["company_id"]);
     }
 
     /** @return array{ok:bool,error:string,http_code:int,response?:array<string,mixed>} */
-    private function sendBatch(array $events, string $remoteUrl): array
+    private function enviarLote(array $events, string $remoteUrl): array
     {
         $items = [];
         foreach ($events as $event) {
             $items[] = [
                 "event_uuid" => $event["event_uuid"],
-                "company_id" => $this->remoteCompanyId($event),
+                "company_id" => $this->idEmpresaRemota($event),
                 "aggregate_type" => $event["aggregate_type"],
                 "aggregate_id" => (int) $event["aggregate_id"],
-                "payload" => $this->decodePayload($event),
+                "payload" => $this->decodificarCarga($event),
             ];
         }
         $body = json_encode(["events" => $items], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-        return $this->postJson($remoteUrl, $body);
+        return $this->postarJson($remoteUrl, $body);
     }
 
-    private function remoteCompanyId(array $event): int
+    private function idEmpresaRemota(array $event): int
     {
         $remoteCompanyId = filter_var($event["remote_company_id"] ?? null, FILTER_VALIDATE_INT);
         return $remoteCompanyId !== false && (int) $remoteCompanyId > 0
@@ -307,10 +307,10 @@ final class ServicoSincronizacao
     }
 
     /** @return array{ok:bool,error:string,http_code:int,response?:array<string,mixed>} */
-    private function postJson(string $remoteUrl, string $body, ?int $companyId = null): array
+    private function postarJson(string $remoteUrl, string $body, ?int $companyId = null): array
     {
         $headers = ["Accept: application/json", "Content-Type: application/json"];
-        $token = $this->remoteToken($companyId);
+        $token = $this->obterTokenRemoto($companyId);
         if ($token !== "") {
             if (preg_match('/[\r\n]/', $token) === 1) {
                 return ["ok" => false, "error" => "Token de sincronização inválido.", "http_code" => 0];
@@ -325,8 +325,8 @@ final class ServicoSincronizacao
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $body,
             CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT_SECONDS,
-            CURLOPT_TIMEOUT => self::REQUEST_TIMEOUT_SECONDS,
+            CURLOPT_CONNECTTIMEOUT => self::TEMPO_LIMITE_CONEXAO_SEGUNDOS,
+            CURLOPT_TIMEOUT => self::TEMPO_LIMITE_REQUISICAO_SEGUNDOS,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_SSL_VERIFYPEER => true,
@@ -367,7 +367,7 @@ final class ServicoSincronizacao
     }
 
     /** @return mixed */
-    private function decodePayload(array $event): mixed
+    private function decodificarCarga(array $event): mixed
     {
         $payload = json_decode((string) $event["payload"], true, 512, JSON_THROW_ON_ERROR);
         if (!is_array($payload)) {
@@ -429,7 +429,7 @@ final class ServicoSincronizacao
         }
 
         if (in_array($action, ["ROMANEIO_CRIADO", "ROMANEIO_ATUALIZADO", "ROMANEIO_CANCELADO"], true)) {
-            $manifest = $this->manifestSyncData($companyId, $entityId);
+            $manifest = $this->dadosSincronizacaoRomaneio($companyId, $entityId);
             if ($manifest !== null) {
                 $payload["data"] = array_merge($data, $manifest);
             }
@@ -443,7 +443,7 @@ final class ServicoSincronizacao
             "ESTADO_CARREGAMENTO_ALTERADO",
             "CARREGAMENTO_FINALIZADO",
         ], true)) {
-            $loading = $this->loadingSyncData($companyId, $entityId);
+            $loading = $this->dadosSincronizacaoCarregamento($companyId, $entityId);
             if ($loading !== null) {
                 $payload["data"] = array_merge($data, $loading);
             }
@@ -452,7 +452,7 @@ final class ServicoSincronizacao
     }
 
     /** @return array<string,mixed>|null */
-    private function manifestSyncData(int $companyId, int $manifestId): ?array
+    private function dadosSincronizacaoRomaneio(int $companyId, int $manifestId): ?array
     {
         $statement = $this->connection->prepare(
             "SELECT r.id, r.remote_romaneio_id, r.number, r.scheduled_date, r.status, r.expedidor,
@@ -509,7 +509,7 @@ final class ServicoSincronizacao
     }
 
     /** @return array<string,mixed>|null */
-    private function loadingSyncData(int $companyId, int $loadingId): ?array
+    private function dadosSincronizacaoCarregamento(int $companyId, int $loadingId): ?array
     {
         $statement = $this->connection->prepare(
             "SELECT c.id, c.remote_carregamento_id, c.state, c.equipment_id, c.started_at,
@@ -568,7 +568,7 @@ final class ServicoSincronizacao
     }
 
     /** @param list<array<string,mixed>> $events @param array<string,mixed> $response */
-    private function applyRemoteMappings(array $events, array $response): void
+    private function aplicarMapeamentosRemotos(array $events, array $response): void
     {
         $mappings = $response["data"]["mappings"] ?? [];
         if (!is_array($mappings) || $mappings === []) {
@@ -657,7 +657,7 @@ final class ServicoSincronizacao
     }
 
     /** @param list<array<string,mixed>> $events */
-    private function markSent(array $events): void
+    private function marcarComoEnviados(array $events): void
     {
         $this->connection->beginTransaction();
         try {
@@ -694,7 +694,7 @@ final class ServicoSincronizacao
     }
 
     /** @param list<array<string,mixed>> $events */
-    private function markFailed(array $events, string $error): void
+    private function marcarComoFalha(array $events, string $error): void
     {
         $maxAttempts = max(1, min(100, (int) (getenv("SYNC_MAX_ATTEMPTS") ?: 5)));
         $this->connection->beginTransaction();
@@ -716,7 +716,7 @@ final class ServicoSincronizacao
                     throw new RuntimeException("Evento de sincronização não está mais reservado para falha.");
                 }
                 if ((int) ($event["attempts"] ?? 0) >= $maxAttempts) {
-                    $this->moveToDeadLetter($event, $error);
+                    $this->moverParaFilaMorta($event, $error);
                 }
             }
             $this->connection->commit();
@@ -729,7 +729,7 @@ final class ServicoSincronizacao
     }
 
     /** @param array<string,mixed> $event */
-    private function moveToDeadLetter(array $event, string $error): void
+    private function moverParaFilaMorta(array $event, string $error): void
     {
         $insert = $this->connection->prepare(
             "INSERT INTO sync_dead_letter_queue
@@ -764,7 +764,7 @@ final class ServicoSincronizacao
         }
     }
 
-    private function recoverStaleReservations(): void
+    private function recuperarReservasVencidas(): void
     {
         $statement = $this->connection->prepare(
             "UPDATE fila_sincronizacao
@@ -772,13 +772,13 @@ final class ServicoSincronizacao
                  last_error = 'Reserva recuperada após expirar o tempo de processamento.',
                  available_at = NOW(), processing_started_at = NULL
              WHERE status = 'PROCESSANDO'
-               AND processing_started_at < DATE_SUB(NOW(), INTERVAL " . self::STALE_AFTER_MINUTES . " MINUTE)",
+               AND processing_started_at < DATE_SUB(NOW(), INTERVAL " . self::RESERVA_EXPIRADA_APOS_MINUTOS . " MINUTE)",
         );
         $statement->execute();
     }
 
     /** @return array<string,mixed>|null */
-    private function findEvent(int $queueId, int $companyId): ?array
+    private function localizarEvento(int $queueId, int $companyId): ?array
     {
         $statement = $this->connection->prepare(
             "SELECT * FROM fila_sincronizacao
@@ -792,7 +792,7 @@ final class ServicoSincronizacao
     }
 
     /** @return list<int> */
-    private function companiesWithRemoteUrl(): array
+    private function empresasComUrlRemota(): array
     {
         $statement = $this->connection->query(
             "SELECT DISTINCT q.company_id
@@ -806,7 +806,7 @@ final class ServicoSincronizacao
         return array_map(static fn (array $row): int => (int) $row["company_id"], $statement->fetchAll());
     }
 
-    private function remoteUrl(?int $companyId = null): string
+    private function obterUrlRemota(?int $companyId = null): string
     {
         if ($companyId !== null) {
             $statement = $this->connection->prepare(
@@ -821,7 +821,7 @@ final class ServicoSincronizacao
         return \url_remota_segura(trim((string) (getenv("SYNC_REMOTE_URL") ?: "")));
     }
 
-    private function remoteToken(?int $companyId = null): string
+    private function obterTokenRemoto(?int $companyId = null): string
     {
         $installation = $this->connection->query(
             "SELECT company_id, sync_token
@@ -840,7 +840,7 @@ final class ServicoSincronizacao
         return trim((string) (getenv("SYNC_REMOTE_TOKEN") ?: ""));
     }
 
-    private function installedCompanyId(): ?int
+    private function obterIdEmpresaInstalada(): ?int
     {
         $statement = $this->connection->query(
             "SELECT company_id FROM instalacoes_locais
@@ -850,7 +850,7 @@ final class ServicoSincronizacao
         return $companyId === false ? null : (int) $companyId;
     }
 
-    private function batchRemoteUrl(): string
+    private function obterUrlRemotaEmLote(): string
     {
         return \url_remota_segura(trim((string) (getenv("SYNC_REMOTE_BATCH_URL") ?: "")));
     }

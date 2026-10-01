@@ -1,0 +1,300 @@
+/* Estilos da tela operacao; a base responsiva é compartilhada. */
+@import url("/css/responsive.css");
+
+/* Ajustes finais da tela de operação: leitura rápida e comandos com área útil. */
+body.work-page:has(.work-operation-screen) .topbar {
+  min-height: 68px;
+  height: 68px;
+  padding: 8px clamp(14px, 2.2vw, 28px);
+}
+
+body.work-page:has(.work-operation-screen) .topbar h1 {
+  font-size: clamp(1.15rem, 1.45vw, 1.55rem);
+}
+
+body.work-page:has(.work-operation-screen) .topbar .local {
+  min-height: 30px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+body.work-page:has(.work-operation-screen) .work-operation-screen {
+  gap: 8px;
+}
+
+body.work-page:has(.work-operation-screen) .work-screen-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 12px;
+}
+
+body.work-page:has(.work-operation-screen) .work-screen-heading h2 {
+  margin: 0;
+  font-size: clamp(18px, 1.55vw, 24px);
+  line-height: 1.15;
+}
+
+body.work-page:has(.work-operation-screen) .work-screen-heading p {
+  margin: 3px 0 0;
+  font-size: 12px;
+}
+
+body.work-page:has(.work-operation-screen) .work-header-state {
+  display: inline-flex;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+body.work-page:has(.work-operation-screen) .work-screen-actions {
+  gap: 8px;
+}
+
+body.work-page:has(.work-operation-screen) .work-screen-actions .badge {
+  font-size: 11px;
+  padding: 5px 8px;
+}
+
+body.work-page:has(.work-operation-screen) .work-header-count {
+  color: var(--muted, #6b7785);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+body.work-page:has(.work-operation-screen) .work-back-button {
+  min-height: 34px;
+  padding: 7px 10px;
+  white-space: nowrap;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status {
+  flex: 0 0 auto;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status .status-compact {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status .status-compact span {
+  display: flex;
+  min-height: 26px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 4px 8px;
+  border: 1px solid var(--line, #dfe5eb);
+  border-radius: 7px;
+  background: var(--surface, #fff);
+  color: var(--muted, #6b7785);
+  font-size: 11px;
+  line-height: 1;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status .status-compact strong {
+  font-weight: 700;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status .status-compact b {
+  margin: 0;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status .status-online {
+  color: #12834b;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status .status-offline {
+  color: #a35e00;
+}
+
+body.work-page:has(.work-operation-screen) .work-operation-layout {
+  grid-template-columns: minmax(0, 1.05fr) minmax(390px, 0.95fr);
+  grid-template-areas: "status comandos";
+  gap: 12px;
+}
+
+body.work-page:has(.work-operation-screen) .work-status-column {
+  grid-area: status;
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  flex-direction: column;
+  gap: 8px;
+  overflow: hidden;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-panel {
+  grid-area: comandos;
+  min-height: 0;
+  padding: 16px;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-panel > .panel-heading,
+body.work-page:has(.work-operation-screen) .work-items-panel > .panel-heading {
+  margin-bottom: 8px;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-panel > .panel-heading h3 {
+  font-size: 21px;
+}
+
+body.work-page:has(.work-operation-screen) .work-live-summary {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 9px 11px;
+  border: 1px solid var(--line, #dfe5eb);
+  border-left: 3px solid var(--cyan, #1a9bc0);
+  border-radius: 8px;
+  background: var(--surface-soft, #f3f6f8);
+}
+
+body.work-page:has(.work-operation-screen) .work-live-summary-heading {
+  font-size: 12px;
+}
+
+body.work-page:has(.work-operation-screen) .work-live-summary-heading > span {
+  font-size: 12px;
+}
+
+body.work-page:has(.work-operation-screen) .work-live-progress {
+  height: 6px;
+  margin-top: 5px;
+}
+
+body.work-page:has(.work-operation-screen) .work-live-summary-foot {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 5px;
+  color: var(--muted, #6b7785);
+  font-size: 10px;
+}
+
+body.work-page:has(.work-operation-screen) .work-items-panel {
+  display: flex;
+  min-width: 0;
+  min-height: 0;
+  height: auto;
+  flex: 1 1 auto;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 12px;
+}
+
+body.work-page:has(.work-operation-screen) .work-items-panel > .panel-heading h3 {
+  font-size: 18px;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+body.work-page:has(.work-operation-screen) .work-controls {
+  display: flex;
+  min-height: 0;
+  flex: 1 1 auto;
+  flex-direction: column;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls {
+  display: grid;
+  min-height: 0;
+  flex: 1 1 auto;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls .button {
+  width: 100%;
+  min-height: 72px;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone {
+  display: block;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border, #d8e0e8);
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone .button {
+  width: 100%;
+  min-height: 72px;
+  justify-content: center;
+  font-size: 1.05rem;
+  font-weight: 900;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-panel .work-command-feedback {
+  flex: 0 0 auto;
+  margin-top: 10px;
+}
+
+@media (min-width: 901px) and (max-width: 1180px) {
+  body.work-page:has(.work-operation-screen) .work-operation-layout {
+    grid-template-columns: minmax(0, 1fr) minmax(350px, 0.9fr);
+  }
+}
+
+@media (max-width: 900px) {
+  body.work-page:has(.work-operation-screen) .topbar,
+  body.work-page:has(.work-operation-screen) .shell .topbar {
+    min-height: 60px;
+    height: 60px;
+    padding: 6px 10px;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-screen-header {
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-screen-actions {
+    grid-column: 2;
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-device-status .status-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body.work-page:has(.work-operation-screen) .work-operation-layout {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "comandos" "status";
+  }
+
+  body.work-page:has(.work-operation-screen) .work-status-column,
+  body.work-page:has(.work-operation-screen) .work-machine-panel {
+    height: auto;
+    overflow: visible;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 520px) {
+  body.work-page:has(.work-operation-screen) .work-screen-heading h2 {
+    font-size: 18px;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-header-count {
+    width: 100%;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

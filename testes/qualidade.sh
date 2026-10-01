@@ -37,7 +37,7 @@ if grep -Rqs 'TraceRouter' interface/js; then
   exit 1
 fi
 
-if grep -Eq '\$user\[' servidor/api/configuracoes.php; then
+if grep -Eq '\$user\[' servidor/api/sistema/configuracoes.php; then
   echo 'FAIL: configuracoes.php usa $user sem inicialização; use $usuarioAtor.' >&2
   exit 1
 fi

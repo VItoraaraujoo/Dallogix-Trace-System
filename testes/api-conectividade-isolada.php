@@ -39,7 +39,7 @@ function limite_sinal_clp_segundos(): int { return 3; }
 
 $_SERVER['REQUEST_METHOD'] = 'GET';
 $_GET = ['id' => '7', 'check' => 'status'];
-$source = (string) file_get_contents(__DIR__ . '/../servidor/api/equipamentos.php');
+$source = (string) file_get_contents(__DIR__ . '/../servidor/api/dalas/equipamentos.php');
 $source = preg_replace('/^require_once .*;$/m', '', $source);
 $source = preg_replace('/\A<\?php\s*/', '', $source, 1);
 try {

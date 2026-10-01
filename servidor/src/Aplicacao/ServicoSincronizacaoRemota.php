@@ -10,45 +10,45 @@ use Throwable;
 
 final class ServicoSincronizacaoRemota
 {
-    private const CONNECT_TIMEOUT_SECONDS = 3;
-    private const REQUEST_TIMEOUT_SECONDS = 8;
+    private const TEMPO_LIMITE_CONEXAO_SEGUNDOS = 3;
+    private const TEMPO_LIMITE_REQUISICAO_SEGUNDOS = 8;
 
     public function __construct(private readonly PDO $connection)
     {
     }
 
     /** @return array{enabled:bool,synced:bool,updated?:int,error?:string} */
-    public function process(): array
+    public function sincronizarConfiguracaoDaInstalacao(): array
     {
         if ((string) (getenv("TRACE_LOCAL_SIMULATION") ?: "0") === "1") {
             return ["enabled" => false, "synced" => false, "updated" => 0];
         }
-        $installation = $this->installation();
+        $installation = $this->instalacao();
         if (!$installation || trim((string) ($installation["sync_token"] ?? "")) === "") {
             return ["enabled" => false, "synced" => false, "updated" => 0];
         }
 
-        $centralUrl = $this->centralUrl((int) $installation["company_id"]);
+        $centralUrl = $this->obterUrlCentral((int) $installation["company_id"]);
         if ($centralUrl === "") {
             return ["enabled" => false, "synced" => false, "updated" => 0];
         }
 
-        $installationToken = $this->normalizeInstallationToken((string) $installation["sync_token"]);
+        $installationToken = $this->normalizarTokenInstalacao((string) $installation["sync_token"]);
         if ($installationToken === "") {
             $error = "A instalação local não possui uma credencial segura de sincronização.";
-            $this->markError($error);
+            $this->marcarErro($error);
             return ["enabled" => true, "synced" => false, "updated" => 0, "error" => $error];
         }
 
         try {
-            $snapshot = $this->request(
+            $snapshot = $this->solicitarDados(
                 rtrim($centralUrl, "/") . "/api/sincronizacao_instalacao.php",
                 $installationToken,
                 "GET",
             );
-            $this->validateSnapshot($installation, $snapshot);
-            $updated = $this->applySnapshot($installation, $snapshot);
-            $this->sendHeartbeats(
+            $this->validarInstantaneo($installation, $snapshot);
+            $updated = $this->aplicarInstantaneo($installation, $snapshot);
+            $this->enviarSinaisDeVida(
                 $centralUrl,
                 $installationToken,
                 (int) $installation["company_id"],
@@ -56,7 +56,7 @@ final class ServicoSincronizacaoRemota
             );
             return ["enabled" => true, "synced" => true, "updated" => $updated];
         } catch (Throwable $exception) {
-            $this->markError((string) $exception->getMessage());
+            $this->marcarErro((string) $exception->getMessage());
             return [
                 "enabled" => true,
                 "synced" => false,
@@ -67,7 +67,7 @@ final class ServicoSincronizacaoRemota
     }
 
     /** @return array<string,mixed>|null */
-    private function installation(): ?array
+    private function instalacao(): ?array
     {
         $statement = $this->connection->query(
             "SELECT i.company_id, i.remote_company_id, i.sync_token
@@ -77,7 +77,7 @@ final class ServicoSincronizacaoRemota
         return $row ?: null;
     }
 
-    private function centralUrl(int $companyId): string
+    private function obterUrlCentral(int $companyId): string
     {
         $configured = trim((string) (getenv("TRACE_CENTRAL_URL") ?: ""));
         if ($configured !== "") {
@@ -106,14 +106,14 @@ final class ServicoSincronizacaoRemota
         return $parts["scheme"] . "://" . $parts["host"] . (isset($parts["port"]) ? ":{$parts["port"]}" : "");
     }
 
-    private function normalizeInstallationToken(string $token): string
+    private function normalizarTokenInstalacao(string $token): string
     {
         $normalized = strtolower(trim($token));
         return preg_match('/\A[a-f0-9]{64}\z/', $normalized) === 1 ? $normalized : "";
     }
 
     /** @return array<string,mixed> */
-    private function request(string $url, string $token, string $method, ?array $payload = null): array
+    private function solicitarDados(string $url, string $token, string $method, ?array $payload = null): array
     {
         $handle = \curl_init_url_remota_segura($url);
         if ($handle === false) {
@@ -123,8 +123,8 @@ final class ServicoSincronizacaoRemota
         $options = [
             CURLOPT_CUSTOMREQUEST => $method,
             CURLOPT_HTTPHEADER => $headers,
-            CURLOPT_CONNECTTIMEOUT => self::CONNECT_TIMEOUT_SECONDS,
-            CURLOPT_TIMEOUT => self::REQUEST_TIMEOUT_SECONDS,
+            CURLOPT_CONNECTTIMEOUT => self::TEMPO_LIMITE_CONEXAO_SEGUNDOS,
+            CURLOPT_TIMEOUT => self::TEMPO_LIMITE_REQUISICAO_SEGUNDOS,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_FOLLOWLOCATION => false,
             CURLOPT_SSL_VERIFYPEER => true,
@@ -148,7 +148,7 @@ final class ServicoSincronizacaoRemota
         }
         if ($status < 200 || $status >= 300) {
             if (($decoded["error_code"] ?? "") === "LICENSE_INACTIVE") {
-                $this->syncLocalLicenseStatus(
+                $this->sincronizarEstadoLocalDaLicenca(
                     (string) ($decoded["license_status"] ?? "BLOQUEADA"),
                     $decoded["blocked_reason"] ?? ($decoded["error"] ?? null),
                 );
@@ -159,7 +159,7 @@ final class ServicoSincronizacaoRemota
     }
 
     /** @param array<string,mixed> $installation @param array<string,mixed> $snapshot */
-    private function validateSnapshot(array $installation, array $snapshot): void
+    private function validarInstantaneo(array $installation, array $snapshot): void
     {
         $remoteCompanyId = (int) ($installation["remote_company_id"] ?? 0);
         $company = $snapshot["empresa"] ?? null;
@@ -231,7 +231,7 @@ final class ServicoSincronizacaoRemota
     }
 
     /** @param array<string,mixed> $installation @param array<string,mixed> $snapshot */
-    private function applySnapshot(array $installation, array $snapshot): int
+    private function aplicarInstantaneo(array $installation, array $snapshot): int
     {
         $companyId = (int) $installation["company_id"];
         $updated = 0;
@@ -253,19 +253,19 @@ final class ServicoSincronizacaoRemota
             $remoteLicense = is_array($snapshot["empresa"] ?? null)
                 ? $snapshot["empresa"]
                 : [];
-            $this->syncLocalLicenseStatus(
+            $this->sincronizarEstadoLocalDaLicenca(
                 (string) ($remoteLicense["license_status"] ?? "ATIVA"),
                 $remoteLicense["license_reason"] ?? null,
             );
 
-            $updated += $this->syncProducts($companyId, $snapshot["produtos"] ?? []);
+            $updated += $this->sincronizarProdutos($companyId, $snapshot["produtos"] ?? []);
 
             $equipmentIds = [];
             foreach (($snapshot["equipamentos"] ?? []) as $remoteEquipment) {
-                $equipmentIds[(int) $remoteEquipment["id"]] = $this->upsertEquipment($companyId, $remoteEquipment);
+                $equipmentIds[(int) $remoteEquipment["id"]] = $this->salvarOuAtualizarEquipamento($companyId, $remoteEquipment);
                 $updated++;
             }
-            $updated += $this->removeStaleRemoteEquipment($companyId, array_keys($equipmentIds));
+            $updated += $this->removerEquipamentosRemotosObsoletos($companyId, array_keys($equipmentIds));
 
             $loadingIds = [];
             foreach (($snapshot["carregamentos_ativos"] ?? []) as $remoteLoading) {
@@ -282,12 +282,12 @@ final class ServicoSincronizacaoRemota
                 $equipmentId = null;
                 if ($remoteEquipmentId !== false && $remoteEquipmentId !== null && $remoteEquipmentId > 0) {
                     $equipmentId = $equipmentIds[(int) $remoteEquipmentId]
-                        ?? $this->findEquipmentId($companyId, (string) ($remoteLoading["equipment_code"] ?? ""));
+                        ?? $this->localizarIdEquipamento($companyId, (string) ($remoteLoading["equipment_code"] ?? ""));
                 }
                 if ($remoteEquipmentId !== false && $remoteEquipmentId !== null && $remoteEquipmentId > 0 && !$equipmentId) {
                     continue;
                 }
-                $loadingIds[(int) $remoteLoading["id"]] = $this->upsertLoading($companyId, $equipmentId, $remoteLoading);
+                $loadingIds[(int) $remoteLoading["id"]] = $this->salvarOuAtualizarCarregamento($companyId, $equipmentId, $remoteLoading);
                 $updated++;
             }
 
@@ -321,17 +321,17 @@ final class ServicoSincronizacaoRemota
                 $finishStale->execute([$companyId, ...$remoteLoadingIds]);
             }
 
-            $adminId = $this->localAdminId($companyId);
+            $adminId = $this->localizarIdAdministradorLocal($companyId);
             if ($adminId) {
                 foreach (($snapshot["comandos"] ?? []) as $remoteCommand) {
                     $loadingId = $loadingIds[(int) ($remoteCommand["carregamento_id"] ?? 0)]
-                        ?? $this->findLoadingId($companyId, (int) ($remoteCommand["carregamento_id"] ?? 0));
+                        ?? $this->localizarIdCarregamento($companyId, (int) ($remoteCommand["carregamento_id"] ?? 0));
                     $equipmentId = $equipmentIds[(int) ($remoteCommand["equipment_id"] ?? 0)]
-                        ?? $this->findEquipmentId($companyId, (string) ($remoteCommand["equipment_code"] ?? ""));
+                        ?? $this->localizarIdEquipamento($companyId, (string) ($remoteCommand["equipment_code"] ?? ""));
                     if (!$loadingId || !$equipmentId) {
                         continue;
                     }
-                    $this->upsertCommand($companyId, $equipmentId, $loadingId, $adminId, $remoteCommand);
+                    $this->salvarOuAtualizarComando($companyId, $equipmentId, $loadingId, $adminId, $remoteCommand);
                     $updated++;
                 }
             }
@@ -353,7 +353,7 @@ final class ServicoSincronizacaoRemota
     }
 
     /** @param list<int> $remoteEquipmentIds */
-    private function removeStaleRemoteEquipment(int $companyId, array $remoteEquipmentIds): int
+    private function removerEquipamentosRemotosObsoletos(int $companyId, array $remoteEquipmentIds): int
     {
         $remoteEquipmentIds = array_values(array_unique(array_filter(
             array_map(static fn (mixed $id): int => (int) $id, $remoteEquipmentIds),
@@ -377,7 +377,7 @@ final class ServicoSincronizacaoRemota
         $removed = 0;
         foreach ($stale->fetchAll() as $row) {
             $equipmentId = (int) $row["id"];
-            if ($this->hasPendingLocalEvent($companyId, "equipment", $equipmentId)) {
+            if ($this->possuiEventoLocalPendente($companyId, "equipment", $equipmentId)) {
                 continue;
             }
             $dependencies = $this->connection->prepare(
@@ -413,7 +413,7 @@ final class ServicoSincronizacaoRemota
     }
 
     /** @param array<string,mixed> $remote */
-    private function upsertEquipment(int $companyId, array $remote): int
+    private function salvarOuAtualizarEquipamento(int $companyId, array $remote): int
     {
         $remoteId = (int) ($remote["id"] ?? 0);
         $code = trim((string) ($remote["equipment_code"] ?? ""));
@@ -445,7 +445,7 @@ final class ServicoSincronizacaoRemota
                 ? $remote["plc_protocol"] : "MODBUS_TCP",
         ];
         if ($localId) {
-            if ($this->hasPendingLocalEvent($companyId, "equipment", $localId)) {
+            if ($this->possuiEventoLocalPendente($companyId, "equipment", $localId)) {
                 $this->connection->prepare(
                     "UPDATE equipamentos SET remote_equipment_id = :remote_id
                      WHERE id = :id AND company_id = :company_id",
@@ -471,15 +471,15 @@ final class ServicoSincronizacaoRemota
     }
 
     /** @param array<string,mixed> $remote */
-    private function upsertLoading(int $companyId, ?int $equipmentId, array $remote): int
+    private function salvarOuAtualizarCarregamento(int $companyId, ?int $equipmentId, array $remote): int
     {
         $remoteLoadingId = (int) ($remote["id"] ?? 0);
         $remoteRomaneioId = (int) ($remote["romaneio_id"] ?? 0);
         if ($remoteLoadingId < 1 || $remoteRomaneioId < 1) {
             throw new RuntimeException("Carregamento remoto sem identificador válido.");
         }
-        $romaneioId = $this->upsertManifest($companyId, $remoteRomaneioId, $remote);
-        $truckId = $this->upsertTruck($companyId, $romaneioId, (int) ($remote["truck_id"] ?? 0), $remote);
+        $romaneioId = $this->salvarOuAtualizarRomaneio($companyId, $remoteRomaneioId, $remote);
+        $truckId = $this->salvarOuAtualizarCaminhao($companyId, $romaneioId, (int) ($remote["truck_id"] ?? 0), $remote);
         $find = $this->connection->prepare(
             "SELECT id FROM carregamentos WHERE company_id = :company_id
              AND remote_carregamento_id = :remote_id LIMIT 1",
@@ -492,7 +492,7 @@ final class ServicoSincronizacaoRemota
             $state = "PREPARANDO";
         }
         if ($localId) {
-            $localStatePending = $this->hasPendingLocalEvent($companyId, "carregamento", $localId);
+            $localStatePending = $this->possuiEventoLocalPendente($companyId, "carregamento", $localId);
             if (!$localStatePending) {
                 $update = $this->connection->prepare(
                     "UPDATE carregamentos SET equipment_id = :equipment_id, romaneio_id = :romaneio_id,
@@ -526,14 +526,14 @@ final class ServicoSincronizacaoRemota
             ]);
             $localId = (int) $this->connection->lastInsertId();
         }
-        if (!($localStatePending ?? false) && !$this->hasPendingLocalEvent($companyId, "romaneio", $romaneioId)) {
-            $this->syncItems($romaneioId, $companyId, $remote["items"] ?? []);
+        if (!($localStatePending ?? false) && !$this->possuiEventoLocalPendente($companyId, "romaneio", $romaneioId)) {
+            $this->sincronizarItens($romaneioId, $companyId, $remote["items"] ?? []);
         }
         return $localId;
     }
 
     /** @param array<string,mixed> $remote */
-    private function upsertManifest(int $companyId, int $remoteId, array $remote): int
+    private function salvarOuAtualizarRomaneio(int $companyId, int $remoteId, array $remote): int
     {
         $number = trim((string) ($remote["romaneio_number"] ?? ""));
         if ($remoteId < 1 || $number === "") {
@@ -562,7 +562,7 @@ final class ServicoSincronizacaoRemota
             ? $remoteStatus
             : ((string) ($remote["state"] ?? "PREPARANDO") === "FINALIZADO" ? "FINALIZADO" : "EM_ANDAMENTO");
         if ($localId) {
-            if ($this->hasPendingLocalEvent($companyId, "romaneio", $localId)) {
+            if ($this->possuiEventoLocalPendente($companyId, "romaneio", $localId)) {
                 $this->connection->prepare(
                     "UPDATE romaneios SET remote_romaneio_id = :remote_id
                      WHERE id = :id AND company_id = :company_id",
@@ -602,7 +602,7 @@ final class ServicoSincronizacaoRemota
     }
 
     /** @param array<string,mixed> $remote */
-    private function upsertTruck(int $companyId, int $romaneioId, int $remoteId, array $remote): int
+    private function salvarOuAtualizarCaminhao(int $companyId, int $romaneioId, int $remoteId, array $remote): int
     {
         $plate = strtoupper(trim((string) ($remote["plate"] ?? "")));
         if (!placa_caminhao_valida($plate)) {
@@ -626,7 +626,7 @@ final class ServicoSincronizacaoRemota
             $localId = (int) ($find->fetchColumn() ?: 0);
         }
         if ($localId) {
-            if ($this->hasPendingLocalEvent($companyId, "romaneio", $romaneioId)) {
+            if ($this->possuiEventoLocalPendente($companyId, "romaneio", $romaneioId)) {
                 $this->connection->prepare(
                     "UPDATE romaneio_caminhoes SET remote_truck_id = :remote_id WHERE id = :id",
                 )->execute(["remote_id" => $remoteId, "id" => $localId]);
@@ -658,7 +658,7 @@ final class ServicoSincronizacaoRemota
     }
 
     /** @param list<array<string,mixed>> $products */
-    private function syncProducts(int $companyId, array $products): int
+    private function sincronizarProdutos(int $companyId, array $products): int
     {
         $findByRemoteId = $this->connection->prepare(
             "SELECT id FROM produtos
@@ -735,7 +735,7 @@ final class ServicoSincronizacaoRemota
                 "active" => $active,
             ];
             if ($localId) {
-                if ($this->hasPendingLocalEvent($companyId, "produto", $localId)) {
+                if ($this->possuiEventoLocalPendente($companyId, "produto", $localId)) {
                     // Vincule a identidade remota, mas preserve as edições e
                     // códigos locais até a entrega dos eventos pendentes.
                     $this->connection->prepare(
@@ -795,7 +795,7 @@ final class ServicoSincronizacaoRemota
     }
 
     /** @param list<array<string,mixed>> $items */
-    private function syncItems(int $romaneioId, int $companyId, array $items): void
+    private function sincronizarItens(int $romaneioId, int $companyId, array $items): void
     {
         foreach ($items as $item) {
             $code = trim((string) ($item["code"] ?? ""));
@@ -848,7 +848,7 @@ final class ServicoSincronizacaoRemota
         }
     }
 
-    private function hasPendingLocalEvent(int $companyId, string $type, int $id): bool
+    private function possuiEventoLocalPendente(int $companyId, string $type, int $id): bool
     {
         $statement = $this->connection->prepare(
             "SELECT 1 FROM fila_sincronizacao
@@ -864,7 +864,7 @@ final class ServicoSincronizacaoRemota
         return $statement->fetchColumn() !== false;
     }
 
-    private function findEquipmentId(int $companyId, string $code): ?int
+    private function localizarIdEquipamento(int $companyId, string $code): ?int
     {
         if ($code === "") {
             return null;
@@ -875,7 +875,7 @@ final class ServicoSincronizacaoRemota
         return $id === false ? null : (int) $id;
     }
 
-    private function findLoadingId(int $companyId, int $remoteId): ?int
+    private function localizarIdCarregamento(int $companyId, int $remoteId): ?int
     {
         if ($remoteId <= 0) {
             return null;
@@ -886,7 +886,7 @@ final class ServicoSincronizacaoRemota
         return $id === false ? null : (int) $id;
     }
 
-    private function localAdminId(int $companyId): ?int
+    private function localizarIdAdministradorLocal(int $companyId): ?int
     {
         $statement = $this->connection->prepare(
             "SELECT id FROM usuarios WHERE company_id = :company_id AND role = 'ADMIN_EMPRESA' AND active = 1 ORDER BY id LIMIT 1",
@@ -897,7 +897,7 @@ final class ServicoSincronizacaoRemota
     }
 
     /** @param array<string,mixed> $remote */
-    private function upsertCommand(int $companyId, int $equipmentId, int $loadingId, int $adminId, array $remote): void
+    private function salvarOuAtualizarComando(int $companyId, int $equipmentId, int $loadingId, int $adminId, array $remote): void
     {
         $remoteId = (int) ($remote["id"] ?? 0);
         if ($remoteId < 1) {
@@ -939,7 +939,7 @@ final class ServicoSincronizacaoRemota
         ]);
     }
 
-    private function sendHeartbeats(string $centralUrl, string $token, int $companyId, int $syncCursor): void
+    private function enviarSinaisDeVida(string $centralUrl, string $token, int $companyId, int $syncCursor): void
     {
         $statement = $this->connection->prepare(
             "SELECT e.remote_equipment_id, e.equipment_code, s.device_type, s.status, s.last_seen_at
@@ -960,7 +960,7 @@ final class ServicoSincronizacaoRemota
         $diskFreePercent = is_numeric($diskFree) && is_numeric($diskTotal) && (float) $diskTotal > 0
             ? round(((float) $diskFree / (float) $diskTotal) * 100, 2)
             : null;
-        $this->request(
+        $this->solicitarDados(
             rtrim($centralUrl, "/") . "/api/sincronizacao_instalacao.php",
             $token,
             "POST",
@@ -984,7 +984,7 @@ final class ServicoSincronizacaoRemota
         );
     }
 
-    private function markError(string $message): void
+    private function marcarErro(string $message): void
     {
         $statement = $this->connection->prepare(
             "UPDATE instalacoes_locais SET last_remote_sync_error = :error WHERE id = 1",
@@ -992,7 +992,7 @@ final class ServicoSincronizacaoRemota
         $statement->execute(["error" => mb_substr($message, 0, 1000)]);
     }
 
-    private function syncLocalLicenseStatus(string $status, mixed $reason): void
+    private function sincronizarEstadoLocalDaLicenca(string $status, mixed $reason): void
     {
         $normalizedStatus = strtoupper(trim($status)) === "ATIVA" ? "ATIVA" : "BLOQUEADA";
         $blockedReason = trim((string) ($reason ?? ""));

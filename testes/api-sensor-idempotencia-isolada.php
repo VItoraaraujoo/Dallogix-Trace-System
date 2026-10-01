@@ -48,7 +48,7 @@ function request_json(): array {
 }
 function json_response(array $body, int $status = 200): never { throw new SensorResponse($body, $status); }
 
-$source = (string) file_get_contents(__DIR__ . '/../servidor/api/sensor_eventos.php');
+$source = (string) file_get_contents(__DIR__ . '/../servidor/api/operacoes/sensor_eventos.php');
 $source = preg_replace('/^require_once .*;$/m', '', $source);
 $source = preg_replace('/\A<\?php\s*/', '', $source, 1);
 try {

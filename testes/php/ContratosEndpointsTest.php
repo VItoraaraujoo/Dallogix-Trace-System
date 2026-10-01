@@ -8,7 +8,7 @@ final class ContratosEndpointsTest extends TestCase
 {
     public function testExclusaoDeAcaoNaoExigeCorpoJson(): void
     {
-        $source = file_get_contents(__DIR__ . "/../../servidor/api/acoes_dala.php");
+        $source = file_get_contents(__DIR__ . "/../../servidor/api/dalas/acoes_dala.php");
 
         self::assertIsString($source);
         self::assertStringContainsString(
@@ -23,7 +23,7 @@ final class ContratosEndpointsTest extends TestCase
 
     public function testLogoutAceitaSomentePost(): void
     {
-        $source = file_get_contents(__DIR__ . "/../../servidor/api/logout.php");
+        $source = file_get_contents(__DIR__ . "/../../servidor/api/autenticacao/logout.php");
 
         self::assertIsString($source);
         self::assertStringContainsString('exigir_metodo_http(["POST"]);', $source);
@@ -31,8 +31,9 @@ final class ContratosEndpointsTest extends TestCase
 
     public function testMutacoesOperacionaisMantemAuditoriaNaMesmaTransacao(): void
     {
-        foreach (["ocorrencias.php", "configuracoes.php", "sensor_eventos.php"] as $endpoint) {
-            $source = file_get_contents(__DIR__ . "/../../servidor/api/" . $endpoint);
+        $groups = ["ocorrencias.php" => "operacoes", "configuracoes.php" => "sistema", "sensor_eventos.php" => "operacoes"];
+        foreach ($groups as $endpoint => $group) {
+            $source = file_get_contents(__DIR__ . "/../../servidor/api/" . $group . "/" . $endpoint);
 
             self::assertIsString($source);
             self::assertStringContainsString("beginTransaction", $source, $endpoint);
@@ -43,9 +44,9 @@ final class ContratosEndpointsTest extends TestCase
 
     public function testFilaMortaPermiteReenfileirarComAuditoria(): void
     {
-        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/sync_dead_letter.php");
+        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao/sync_dead_letter.php");
         $worker = file_get_contents(__DIR__ . "/../../servidor/src/Aplicacao/ServicoSincronizacao.php");
-        $readiness = file_get_contents(__DIR__ . "/../../servidor/api/prontidao.php");
+        $readiness = file_get_contents(__DIR__ . "/../../servidor/api/sistema/prontidao.php");
 
         self::assertIsString($endpoint);
         self::assertIsString($worker);
@@ -59,7 +60,7 @@ final class ContratosEndpointsTest extends TestCase
 
     public function testHeartbeatDaInstalacaoRegistraPcIndustrialNoServidorCentral(): void
     {
-        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao_instalacao.php");
+        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao/sincronizacao_instalacao.php");
         $migration = file_get_contents(__DIR__ . "/../../banco-de-dados/migrations/051_status_pc_industrial.sql");
 
         self::assertIsString($endpoint);
@@ -71,7 +72,7 @@ final class ContratosEndpointsTest extends TestCase
 
     public function testHeartbeatConfirmaEventosEntreguesAoPcIndustrial(): void
     {
-        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao_instalacao.php");
+        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao/sincronizacao_instalacao.php");
         $service = file_get_contents(__DIR__ . "/../../servidor/src/Aplicacao/ServicoSincronizacaoRemota.php");
 
         self::assertIsString($endpoint);
@@ -84,7 +85,7 @@ final class ContratosEndpointsTest extends TestCase
 
     public function testCatalogoDeProdutosDoServidorEReplicadoIntegralmenteNoPcIndustrial(): void
     {
-        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao_instalacao.php");
+        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao/sincronizacao_instalacao.php");
         $service = file_get_contents(__DIR__ . "/../../servidor/src/Aplicacao/ServicoSincronizacaoRemota.php");
         $migration = file_get_contents(__DIR__ . "/../../banco-de-dados/migrations/052_catalogo_produtos_remoto.sql");
 
@@ -100,15 +101,16 @@ final class ContratosEndpointsTest extends TestCase
 
     public function testStatusDoPcNaoQuebraSemMigrationEMantemErrosReaisVisiveis(): void
     {
-        foreach (["empresas.php", "sync_status.php", "diagnostico.php"] as $endpoint) {
-            $source = file_get_contents(__DIR__ . "/../../servidor/api/" . $endpoint);
+        $groups = ["empresas.php" => "empresas", "sync_status.php" => "sincronizacao", "diagnostico.php" => "sistema"];
+        foreach ($groups as $endpoint => $group) {
+            $source = file_get_contents(__DIR__ . "/../../servidor/api/" . $group . "/" . $endpoint);
 
             self::assertIsString($source);
             self::assertStringContainsString("information_schema.tables", $source, $endpoint);
         }
 
-        $logs = file_get_contents(__DIR__ . "/../../servidor/api/logs_erros.php");
-        $diagnostic = file_get_contents(__DIR__ . "/../../servidor/api/diagnostico.php");
+        $logs = file_get_contents(__DIR__ . "/../../servidor/api/monitoramento/logs_erros.php");
+        $diagnostic = file_get_contents(__DIR__ . "/../../servidor/api/sistema/diagnostico.php");
         self::assertIsString($logs);
         self::assertIsString($diagnostic);
         self::assertStringNotContainsString("information_schema.tables", $logs);
@@ -118,11 +120,11 @@ final class ContratosEndpointsTest extends TestCase
 
     public function testDetalheCentralDaEmpresaNaoConfundeEstadoOperacionalComFisico(): void
     {
-        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/empresas.php");
+        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/empresas/empresas.php");
 
         self::assertIsString($endpoint);
         self::assertStringContainsString("d.details AS clp_details", $endpoint);
-        self::assertStringContainsString("EstadoFisicoClp::runningFromDetails(", $endpoint);
+        self::assertStringContainsString("EstadoFisicoClp::estaEmFuncionamentoPelosDetalhes(", $endpoint);
         self::assertStringContainsString('$machine["physical_running"]', $endpoint);
         self::assertStringContainsString('unset($machine["clp_details"])', $endpoint);
         self::assertStringContainsString('"maquinas" => $maquinasData', $endpoint);

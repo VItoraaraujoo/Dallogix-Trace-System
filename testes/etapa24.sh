@@ -51,7 +51,7 @@ filtered_code="$(curl -sS -o /tmp/dx-etapa24-filter.json -w '%{http_code}' -b "$
 [ "$filtered_code" = "200" ] || fail "filtro de romaneios retornou HTTP $filtered_code"
 
 # 4. Divergência sinalizada apenas para cargas finalizadas.
-grep -q "FINALIZADO" "$root/servidor/api/romaneios.php" || fail "romaneios.php sem regra de divergência para FINALIZADO"
+grep -q "FINALIZADO" "$root/servidor/api/romaneios/romaneios.php" || fail "romaneios.php sem regra de divergência para FINALIZADO"
 if grep -q 'has_divergence' /tmp/dx-etapa24-api.json && ! grep -q 'has_divergence' /tmp/dx-etapa24-filter.json; then
   fail "campo has_divergence ausente na listagem filtrada"
 fi

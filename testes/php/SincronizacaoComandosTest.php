@@ -19,7 +19,7 @@ final class SincronizacaoComandosTest extends TestCase
 
     private function synchronize(PDO $pdo, string $remoteStatus): void
     {
-        $method = new ReflectionMethod(ServicoSincronizacaoRemota::class, 'upsertCommand');
+        $method = new ReflectionMethod(ServicoSincronizacaoRemota::class, 'salvarOuAtualizarComando');
         $method->invoke(new ServicoSincronizacaoRemota($pdo), 1, 2, 3, 4, [
             'id' => 99, 'command' => 'REVERSAO_ATIVAR', 'status' => $remoteStatus,
             'requested_at' => '2026-09-23 00:00:00.000',
