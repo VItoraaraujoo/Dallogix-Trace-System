@@ -241,7 +241,16 @@ if (!$skipSession) {
     }
     $sessionIdleTimeout = max(300, (int) (getenv("SESSION_IDLE_TIMEOUT") ?: 1800));
     foreach ($_SESSION["_trace_tabs"] as $tabId => $context) {
-        if (!is_array($context) || !isset($context["last_activity"]) || time() - (int) $context["last_activity"] > $sessionIdleTimeout) {
+        $contextIsArray = is_array($context);
+        $role = strtoupper(trim((string) ($contextIsArray ? ($context["user"]["role"] ?? "") : "")));
+        $isOperatorSession = in_array($role, ["USUARIO", "OPERADOR"], true);
+        // O operador pode manter a tela de operação aberta durante todo o
+        // carregamento. Administradores e supervisores continuam protegidos
+        // pelo limite de inatividade configurado no ambiente.
+        $expiredByInactivity = !$contextIsArray
+            || !isset($context["last_activity"])
+            || time() - (int) $context["last_activity"] > $sessionIdleTimeout;
+        if (!$contextIsArray || (!$isOperatorSession && $expiredByInactivity)) {
             unset($_SESSION["_trace_tabs"][$tabId]);
         }
     }
