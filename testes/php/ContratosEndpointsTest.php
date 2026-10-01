@@ -94,7 +94,7 @@ final class ContratosEndpointsTest extends TestCase
         self::assertIsString($migration);
         self::assertStringContainsString('"produtos" => $produtos', $endpoint);
         self::assertStringContainsString('"barcodes" => []', $endpoint);
-        self::assertStringContainsString("syncProducts", $service);
+        self::assertStringContainsString("sincronizarProdutos", $service);
         self::assertStringContainsString("remote_product_id", $service);
         self::assertStringContainsString("remote_product_id", $migration);
     }

@@ -12,7 +12,7 @@ final class EstadoCarregamentoTest extends TestCase
     public function testMatrizDeEstadosMantemEmergenciaSemAtalho(): void
     {
         $reflection = new ReflectionClass(ServicoEstadoCarregamento::class);
-        $transitions = $reflection->getReflectionConstant("TRANSITIONS")?->getValue();
+        $transitions = $reflection->getReflectionConstant("TRANSICOES_DE_ESTADO")?->getValue();
 
         self::assertIsArray($transitions);
         self::assertContains("PREPARANDO", $transitions["AGUARDANDO"]);
