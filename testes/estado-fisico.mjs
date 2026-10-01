@@ -37,8 +37,12 @@ test("a linha Estado físico da Dala usa o sinal físico, não o status operacio
 });
 
 test("painel, monitoramento e detalhe da Dala usam o mesmo sinal físico", () => {
-  for (const path of ["painel.js", "monitoramento.js", "dalas.js"]) {
-    const screen = readFileSync(new URL(`../interface/js/telas/${path}`, import.meta.url), "utf8");
+  for (const path of [
+    "painel/painel.js",
+    "alertas/alertas.js",
+    "visualizar-dala/visualizar-dala.js",
+  ]) {
+    const screen = readFileSync(new URL(`../interface/telas/${path}`, import.meta.url), "utf8");
     assert.match(screen, /physicalStateBadge\((?:machine|operation)(?:,\s*\{\s*compact:\s*true\s*\})?\)/, path);
     assert.doesNotMatch(screen, /Estado físico[^\n]{0,160}operationalBadge\(/, path);
   }

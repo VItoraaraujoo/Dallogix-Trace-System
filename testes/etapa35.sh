@@ -21,6 +21,6 @@ else
   grep -aEq '^%%EOF[[:space:]]*$' "$output_pdf" || fail "PDF de auditoria inválido"
   grep -aEq '/Type /Page([[:space:]/]|$)' "$output_pdf" || fail "PDF de auditoria sem páginas"
 fi
-grep -q 'Baixar relatório de auditoria' interface/js/telas/operacoes.js || fail "botão de auditoria ausente na visualização"
+grep -q 'Baixar relatório de auditoria' interface/telas/romaneio/romaneio.js || fail "botão de auditoria ausente na visualização"
 
 echo "OK: relatório de auditoria PDF disponível para romaneio finalizado."

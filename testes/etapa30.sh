@@ -37,7 +37,7 @@ printf '%s' "$finished" | grep -q '"romaneio_finalizado":true' || fail "finaliza
 detail="$(curl -sS -b "$cookie_file" "$base_url/api/romaneios.php?id=$manifest_id")"
 printf '%s' "$detail" | grep -q '"status":"FINALIZADO"' || fail "romaneio não foi finalizado: $detail"
 
-grep -q 'prepare-loading-form' interface/js/telas/operacoes.js || fail "tela de preparação ausente"
+grep -q 'prepare-loading-form' interface/telas/divisao-carga/divisao-carga.js || fail "tela de preparação ausente"
 grep -q 'prepareLoading(payload)' interface/js/classes/ArmazenamentoTrace.js || fail "store sem preparação de carregamento"
 
 echo "OK: romaneio -> caminhão -> Dala -> preparação -> finalização validados."
