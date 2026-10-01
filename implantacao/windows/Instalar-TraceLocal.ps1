@@ -80,8 +80,12 @@ function Test-DockerEngine {
 function Check-DockerReady {
     if (Test-DockerEngine) { return $true }
 
-    $desktop = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"
-    if (Test-Path -LiteralPath $desktop -PathType Leaf) {
+    $desktopCandidates = @(
+        (Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\DockerDesktop\Docker Desktop.exe")
+    )
+    $desktop = $desktopCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    if ($desktop) {
         Write-Host "Iniciando Docker Desktop e aguardando o mecanismo Linux..."
         Start-Process -FilePath $desktop | Out-Null
         for ($attempt = 1; $attempt -le 24; $attempt++) {
@@ -92,15 +96,64 @@ function Check-DockerReady {
     return $false
 }
 
+function Initialize-DockerCli {
+    if (Get-Command docker.exe -ErrorAction SilentlyContinue) { return }
+    $dockerCandidates = @(
+        (Join-Path $env:ProgramFiles "Docker\Docker\resources\bin\docker.exe"),
+        (Join-Path $env:LOCALAPPDATA "Programs\DockerDesktop\resources\bin\docker.exe")
+    )
+    foreach ($candidate in $dockerCandidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            $env:PATH = "$(Split-Path -Parent $candidate);$env:PATH"
+            if (Get-Command docker.exe -ErrorAction SilentlyContinue) { return }
+        }
+    }
+    throw "Docker Desktop nao encontrado. Instale-o pelo CMD com: winget install --exact --id Docker.DockerDesktop --accept-source-agreements --accept-package-agreements. Depois abra o Docker Desktop, conclua a configuracao do WSL e execute este instalador novamente."
+}
+
+function Wait-MySqlHealthy {
+    $containerId = & docker.exe compose ps -q mysql
+    Assert-Success "Localizacao do container MySQL" $LASTEXITCODE
+    $containerId = ([string]$containerId).Trim()
+    if (-not $containerId) {
+        throw "O container MySQL nao foi criado pelo Docker Compose."
+    }
+    for ($attempt = 1; $attempt -le 60; $attempt++) {
+        $health = & docker.exe inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' $containerId
+        if ($LASTEXITCODE -eq 0 -and ([string]$health).Trim() -eq 'healthy') { return }
+        $state = & docker.exe inspect --format '{{.State.Status}}' $containerId
+        if ($LASTEXITCODE -eq 0 -and ([string]$state).Trim() -in @('exited', 'dead')) { break }
+        Start-Sleep -Seconds 3
+    }
+    $logs = & docker.exe compose logs --no-color --tail=100 mysql 2>&1
+    $diagnostic = ($logs | Out-String).Trim()
+    throw "O MySQL nao ficou saudavel antes das migrations. A instalacao foi interrompida. Logs recentes:`n$diagnostic"
+}
+
+function Wait-NodeRedHealthy {
+    $containerId = & docker.exe compose ps -q node-red
+    Assert-Success "Localizacao do container Node-RED" $LASTEXITCODE
+    $containerId = ([string]$containerId).Trim()
+    if (-not $containerId) {
+        throw "O perfil industrial nao iniciou o Node-RED. Confira COMPOSE_PROFILES=industrial no .env."
+    }
+    for ($attempt = 1; $attempt -le 30; $attempt++) {
+        $health = & docker.exe inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}missing{{end}}' $containerId
+        if ($LASTEXITCODE -eq 0 -and ([string]$health).Trim() -eq 'healthy') { return }
+        Start-Sleep -Seconds 2
+    }
+    $logs = & docker.exe compose logs --no-color --tail=80 node-red 2>&1
+    $diagnostic = ($logs | Out-String).Trim()
+    throw "O Node-RED nao ficou saudavel; a instalacao foi interrompida. Logs recentes:`n$diagnostic"
+}
+
 try {
     if (-not (Test-Path -LiteralPath (Join-Path $PackageRoot "docker-compose.yml") -PathType Leaf) -or
         -not (Test-Path -LiteralPath (Join-Path $PackageRoot ".env.example") -PathType Leaf) -or
         -not (Test-Path -LiteralPath (Join-Path $PackageRoot "scripts\migrate.sh") -PathType Leaf)) {
         throw "Pacote incompleto. Extraia o ZIP inteiro e execute Instalar-PC-Windows.cmd na pasta extraida."
     }
-    if (-not (Get-Command docker.exe -ErrorAction SilentlyContinue)) {
-        throw "Docker Desktop nao encontrado. Instale pelo CMD com: winget install --exact --id Docker.DockerDesktop --accept-source-agreements --accept-package-agreements. Inicie o Docker Desktop e execute este instalador novamente."
-    }
+    Initialize-DockerCli
     if (-not (Check-DockerReady)) {
         throw "Docker Desktop nao iniciou o mecanismo Linux. Abra o Docker Desktop, conclua a configuracao do WSL/reinicio se solicitado e execute este instalador novamente."
     }
@@ -201,6 +254,8 @@ try {
     Write-Host "[1/3] Iniciando banco e PHP..."
     & docker.exe compose up -d --build mysql php
     Assert-Success "Inicializacao do banco e PHP" $LASTEXITCODE
+    Write-Host "Aguardando o MySQL concluir a inicializacao antes das migrations..."
+    Wait-MySqlHealthy
 
     Write-Host "[2/3] Aplicando migracoes antes de iniciar os demais servicos..."
     & $gitBash "scripts/migrate.sh"
@@ -209,6 +264,10 @@ try {
     Write-Host "[3/3] Iniciando os servicos locais..."
     & docker.exe compose up -d --build
     Assert-Success "Inicializacao do Trace" $LASTEXITCODE
+    if ($values.ContainsKey('COMPOSE_PROFILES') -and $values['COMPOSE_PROFILES'] -match '(^|,)industrial(,|$)') {
+        Write-Host "Aguardando o gateway Node-RED ficar saudavel..."
+        Wait-NodeRedHealthy
+    }
 
     $webPort = 8080
     if ($values.ContainsKey("WEB_PORT") -and $values["WEB_PORT"] -ne "") {
@@ -235,7 +294,16 @@ try {
         Start-Sleep -Seconds 3
     }
     if (-not $ready) {
-        throw "Os containers iniciaram, mas a ativacao local nao ficou pronta: $lastProbeError. Consulte: docker compose ps"
+        $containerStatus = & docker.exe compose ps --all 2>&1
+        $serviceLogs = & docker.exe compose logs --no-color --tail=80 php mysql 2>&1
+        $diagnostic = @(
+            "Erro da sonda: $lastProbeError"
+            "Estado dos containers:"
+            ($containerStatus | Out-String).Trim()
+            "Logs recentes de PHP/MySQL:"
+            ($serviceLogs | Out-String).Trim()
+        ) -join "`n"
+        throw "Os containers iniciaram, mas a ativacao local nao ficou pronta. Diagnostico:`n$diagnostic"
     }
 
     Write-Host "OK: Trace local pronto para ativacao em $localUrl"

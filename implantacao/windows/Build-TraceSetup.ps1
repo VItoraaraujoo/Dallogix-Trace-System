@@ -23,6 +23,21 @@ $commitFile = Join-Path $root 'trace-build-commit.txt'
 if (Test-Path -LiteralPath $commitFile) { throw "Remova o marcador gerado de uma compilacao anterior: $commitFile" }
 $commit = ([string](& git.exe -C $root rev-parse HEAD)).Trim()
 if ($LASTEXITCODE -ne 0 -or $commit -notmatch '^[0-9a-fA-F]{40}$') { throw 'Nao foi possivel identificar o commit da release.' }
+$webViewBootstrapper = Join-Path $PSScriptRoot 'Dependencies\MicrosoftEdgeWebView2Setup.exe'
+$webViewDependencyDirectory = Split-Path -Parent $webViewBootstrapper
+New-Item -ItemType Directory -Force -Path $webViewDependencyDirectory | Out-Null
+try {
+    [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+    Invoke-WebRequest -UseBasicParsing -Uri 'https://go.microsoft.com/fwlink/p/?LinkId=2124703' -OutFile $webViewBootstrapper
+} catch {
+    throw "Nao foi possivel obter o instalador oficial do WebView2 Runtime: $($_.Exception.Message)"
+}
+$webViewSignature = Get-AuthenticodeSignature -FilePath $webViewBootstrapper
+if ($webViewSignature.Status -ne 'Valid' -or
+    -not $webViewSignature.SignerCertificate.Subject.Contains('Microsoft Corporation')) {
+    Remove-Item -LiteralPath $webViewBootstrapper -Force -ErrorAction SilentlyContinue
+    throw 'O instalador do WebView2 nao possui assinatura digital valida da Microsoft.'
+}
 $env:TRACE_INSTALL_VERSION = $version.TrimStart('v')
 try {
     [IO.File]::WriteAllText($versionFile, "$version`n", (New-Object System.Text.UTF8Encoding($false)))

@@ -3,13 +3,26 @@ param(
 )
 $ErrorActionPreference = "Stop"
 
+function Test-WebView2Runtime {
+    $clientId = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
+    $registryKeys = @(
+        "Registry::HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\$clientId",
+        "Registry::HKEY_CURRENT_USER\Software\Microsoft\EdgeUpdate\Clients\$clientId"
+    )
+    foreach ($key in $registryKeys) {
+        $versionText = (Get-ItemProperty -LiteralPath $key -Name pv -ErrorAction SilentlyContinue).pv
+        $runtimeVersion = $null
+        if ([version]::TryParse([string]$versionText, [ref]$runtimeVersion) -and
+            $runtimeVersion -gt [version]'0.0.0.0') {
+            return $true
+        }
+    }
+    return $false
+}
+
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw "Execute o instalador como administrador."
 }
-if (-not (Get-Command docker.exe -ErrorAction SilentlyContinue)) {
-    throw "Docker Desktop precisa estar instalado antes do TraceSetup.exe."
-}
-
 function Ask([string]$Label, [string]$Default = "") {
     $suffix = if ($Default) { " [$Default]" } else { "" }
     $value = Read-Host "$Label$suffix"
@@ -30,6 +43,22 @@ $centralHealth = Invoke-RestMethod -Uri ($centralUrl.TrimEnd('/') + '/api/health
 if ($centralHealth.status -ne 'ok' -or $centralHealth.installation_mode -ne 'central' -or
     $centralHealth.version -ne $expectedVersion -or $centralHealth.commit -ne $expectedCommit) {
     throw "O servidor Central ainda nao serve $expectedVersion no commit $expectedCommit. A instalacao local nao sera iniciada."
+}
+if (-not (Test-WebView2Runtime)) {
+    $webViewBootstrapper = Join-Path $PackageRoot 'Dependencies\MicrosoftEdgeWebView2Setup.exe'
+    if (-not (Test-Path -LiteralPath $webViewBootstrapper -PathType Leaf)) {
+        throw 'WebView2 Runtime ausente e instalador nao encontrado no pacote. Gere um TraceSetup.exe atualizado.'
+    }
+    $webViewSignature = Get-AuthenticodeSignature -FilePath $webViewBootstrapper
+    if ($webViewSignature.Status -ne 'Valid' -or
+        -not $webViewSignature.SignerCertificate.Subject.Contains('Microsoft Corporation')) {
+        throw 'O instalador do WebView2 nao possui assinatura digital valida da Microsoft.'
+    }
+    Write-Host 'Instalando o WebView2 Runtime oficial da Microsoft...'
+    $webViewInstall = Start-Process -FilePath $webViewBootstrapper -ArgumentList '/silent', '/install' -Wait -PassThru
+    if ($webViewInstall.ExitCode -notin @(0, 3010) -or -not (Test-WebView2Runtime)) {
+        throw "O WebView2 Runtime nao foi instalado corretamente (codigo $($webViewInstall.ExitCode))."
+    }
 }
 & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PackageRoot "implantacao\windows\Instalar-TraceLocal.ps1") -PackageRoot $PackageRoot -CentralUrl $centralUrl -NoBrowser -ProductionMachine
 if ($LASTEXITCODE -ne 0) { throw "A instalacao local falhou; a maquina nao foi vinculada." }

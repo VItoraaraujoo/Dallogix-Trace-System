@@ -26,13 +26,16 @@ Set-Location $InstallRoot
 & docker compose --profile industrial up -d
 
 $healthy = $false
+$lastActivationError = "A API ainda nao respondeu."
 for ($attempt = 1; $attempt -le 30; $attempt++) {
     try {
-        $response = Invoke-WebRequest -Uri "$TraceUrl/api/health.php" -UseBasicParsing -TimeoutSec 3
+        $response = Invoke-WebRequest -Uri "$TraceUrl/api/ativacao_local.php" -UseBasicParsing -TimeoutSec 3
         if ($response.StatusCode -eq 200) { $healthy = $true; break }
-    } catch { Start-Sleep -Seconds 2 }
+        $lastActivationError = "HTTP $($response.StatusCode)"
+    } catch { $lastActivationError = $_.Exception.Message }
+    Start-Sleep -Seconds 2
 }
-if (-not $healthy) { throw "O Trace não respondeu ao healthcheck em $TraceUrl." }
+if (-not $healthy) { throw "A API de ativacao local nao ficou pronta em $TraceUrl. Confira as migrations e os logs do PHP/MySQL. Ultimo erro: $lastActivationError" }
 
 $browserPath = Find-Browser $Browser
 $browserArgs = @(

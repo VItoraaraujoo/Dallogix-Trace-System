@@ -19,8 +19,8 @@ Um ZIP comum baixado pelo botao do GitHub nao traz `.trace-source-commit`; para 
 
 O pacote de produção é compilado com `Build-TraceSetup.ps1` a partir de uma **tag aprovada** (`vN.N.N`). O build grava a versão inicial no instalador e gera `TraceSetup.exe`; ele recusa código local alterado.
 
-1. Instale Windows 10/11 IoT Enterprise ou Windows Pro, Docker Desktop e Edge/Chrome.
-2. Execute o `TraceSetup.exe` aprovado com a conta técnica administradora. O assistente cria o `.env` com segredos aleatórios quando necessário, aplica migrations e prepara a máquina.
+1. Use Windows 10/11 IoT Enterprise ou Windows Pro e instale Docker Desktop. Na primeira abertura, conclua a configuração do mecanismo Linux/WSL. O instalador encontra o Docker Desktop tanto em `Program Files` quanto na instalação por usuário em `AppData` e inicia o mecanismo se estiver parado; a instalação do Docker continua sendo um pré-requisito separado.
+2. Execute o `TraceSetup.exe` aprovado com a conta técnica administradora. O assistente instala o WebView2 Runtime oficial se estiver ausente, cria o `.env` com segredos aleatórios quando necessário, aplica migrations e só conclui depois que o gateway Node-RED e a API de ativação estiverem saudáveis. A instalação inicial precisa de acesso à internet para validar a versão Central e, se necessário, baixar o Runtime WebView2.
 3. Mantenha `WEB_BIND_ADDRESS=127.0.0.1`. Nenhum acesso remoto entra no PC industrial; todo gerenciamento remoto ocorre no servidor central.
 4. Teste `TraceLauncher.cmd` com a conta técnica.
 5. Configure a conta `trace-operator` para login automático e use Windows Assigned Access/Shell Launcher para iniciar `TraceLauncher.cmd`.

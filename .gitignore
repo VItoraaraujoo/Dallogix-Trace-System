@@ -5,6 +5,7 @@ dist/
 .env.*
 !.env.example
 implantacao/windows/machine-config.json
+implantacao/windows/Dependencies/MicrosoftEdgeWebView2Setup.exe
 *.har
 armazenamento/backups/
 armazenamento/updates/

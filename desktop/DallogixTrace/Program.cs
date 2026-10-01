@@ -43,16 +43,18 @@ internal sealed class TraceForm : Form
         {
             Process.Start(new ProcessStartInfo("docker.exe", "compose up -d") { WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true });
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+            var activationError = "nenhuma resposta da API";
             for (var attempt = 0; attempt < 30; attempt++)
             {
                 try
                 {
-                    using var response = await client.GetAsync($"{TraceUrl}/api/health.php");
+                    using var response = await client.GetAsync($"{TraceUrl}/api/ativacao_local.php");
                     if (response.IsSuccessStatusCode) break;
+                    activationError = $"HTTP {(int)response.StatusCode} ({response.StatusCode})";
                 }
-                catch { }
+                catch (Exception error) { activationError = error.Message; }
                 await Task.Delay(2000);
-                if (attempt == 29) { ShowFailure("Os serviços locais não responderam. Acione a manutenção."); return; }
+                if (attempt == 29) { ShowFailure($"A API de ativação local não ficou pronta. Confira as migrations e os logs do PHP/MySQL. Último erro: {activationError}"); return; }
             }
             await web.EnsureCoreWebView2Async();
             web.CoreWebView2.Settings.AreDevToolsEnabled = false;

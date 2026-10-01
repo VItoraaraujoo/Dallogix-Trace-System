@@ -19,6 +19,7 @@ Source: "..\..\docker-compose.yml"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\interface\*"; DestDir: "{app}\interface"; Flags: recursesubdirs ignoreversion
 Source: "..\..\servidor\*"; DestDir: "{app}\servidor"; Flags: recursesubdirs ignoreversion
 Source: "..\..\integracoes\*"; DestDir: "{app}\integracoes"; Flags: recursesubdirs ignoreversion
+Source: "Dependencies\MicrosoftEdgeWebView2Setup.exe"; DestDir: "{app}\Dependencies"; Flags: ignoreversion
 Source: "..\..\docker\*"; DestDir: "{app}\docker"; Flags: recursesubdirs ignoreversion
 Source: "..\..\nginx\*"; DestDir: "{app}\nginx"; Flags: recursesubdirs ignoreversion
 Source: "..\..\banco-de-dados\*"; DestDir: "{app}\banco-de-dados"; Flags: recursesubdirs ignoreversion
