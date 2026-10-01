@@ -78,6 +78,13 @@ function bindLocalActivationForm() {
   const form = document.querySelector("#local-activation-form");
   if (!form || form.dataset.bound === "1") return;
   form.dataset.bound = "1";
+  const activationCode = form.elements.namedItem("activation_code");
+  activationCode?.addEventListener("input", () => {
+    const start = activationCode.selectionStart;
+    const end = activationCode.selectionEnd;
+    activationCode.value = activationCode.value.toUpperCase();
+    if (start !== null && end !== null) activationCode.setSelectionRange(start, end);
+  });
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     if (form.dataset.submitting === "1") return;
@@ -169,12 +176,21 @@ async function bootstrapLogin() {
     /* armazenamento indisponível */
   }
   let activation = { active: false };
+  let activationLookupError = "";
   try {
     activation = await loadLocalActivation();
   } catch (error) {
-    /* O login continua disponível se a consulta opcional de ativação falhar. */
+    activationLookupError = error.message || "Não foi possível consultar a ativação local.";
   }
-  renderLocalActivation(activation);
+  const isLoopback = ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
+  if (activationLookupError && isLoopback) {
+    renderLocalActivation(
+      { enabled: true, active: false },
+      `Não foi possível confirmar a ativação deste PC. Confira se o Trace terminou de iniciar e tente novamente. Detalhe: ${activationLookupError}`,
+    );
+  } else {
+    renderLocalActivation(activation);
+  }
   renderLogin(loginMessage);
   bindLocalActivationForm();
   bindLoginForm();

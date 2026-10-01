@@ -81,6 +81,9 @@
   width: 100%;
   margin: 3px 0 0;
 }
+.local-activation-panel input[name="activation_code"] {
+  text-transform: uppercase;
+}
 .local-activation-panel .login-error {
   margin: 12px 0 0;
 }

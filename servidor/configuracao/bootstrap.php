@@ -610,7 +610,9 @@ function gerar_codigo_ativacao_empresa(): array
         }
         return $value;
     };
-    $code = "TRC-" . implode("-", [$part(6), $part(5), $part(5), $part(5), $part(5)]);
+    // 16 base32 characters provide 80 bits of entropy while keeping the
+    // one-time setup code practical to type. Accept older codes during transition.
+    $code = "TRC-" . implode("-", [$part(4), $part(4), $part(4), $part(4)]);
     $normalized = str_replace("-", "", $code);
     return [
         "code" => $code,
@@ -622,7 +624,7 @@ function gerar_codigo_ativacao_empresa(): array
 function codigo_ativacao_empresa_valido(string $codigo): bool
 {
     return preg_match(
-        '/\ATRC-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}(?:-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{5}){4}\z/',
+        '/\ATRC-(?:[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}(?:-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{4}){3}|[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{6}(?:-[ABCDEFGHJKLMNPQRSTUVWXYZ23456789]{5}){4})\z/',
         strtoupper(trim($codigo)),
     ) === 1;
 }

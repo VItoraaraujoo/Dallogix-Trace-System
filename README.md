@@ -68,10 +68,10 @@ Cada reprovisionamento gera um novo `token_id`, invalida a credencial anterior e
 
 Na instalação industrial, configure também `CAMERA_RTSP_HOST`, `CAMERA_RTSP_USERNAME` e `CAMERA_RTSP_PASSWORD` no `.env` local. O guia de [captura da câmera](integracoes/node-red/README.md#captura-imediata) descreve a ligação Ethernet e o canal RTSP.
 
-O código de ativação usa 130 bits aleatórios, é de uso único e expira após
-7 dias, no formato
-`TRC-XXXXXX-XXXXX-XXXXX-XXXXX-XXXXX`. A migration 054 invalida os códigos
-curtos anteriores; gere um novo pelo gerenciamento da empresa. O código é
+O código de ativação novo usa 80 bits aleatórios, é de uso único e expira após
+7 dias, no formato `TRC-XXXX-XXXX-XXXX-XXXX`. Códigos fortes já emitidos no
+formato anterior continuam aceitos até expirarem ou serem usados. A migration
+054 invalida códigos curtos antigos; gere um novo pelo gerenciamento da empresa. O código é
 consumido após a autenticação do administrador e o registro do token da
 instalação. A ativação
 gera uma credencial aleatória separada para a sincronização da instalação; por

@@ -14,7 +14,7 @@
     <title>Acesso ao sistema • Dallogix Trace</title>
     <link rel="stylesheet" href="css/styles.css?v=27" />
     <link rel="stylesheet" href="css/light-theme.css?v=202609280006" />
-    <link rel="stylesheet" href="css/auth.css?v=202609162400" />
+    <link rel="stylesheet" href="css/auth.css?v=20261001-activation" />
       <link rel="stylesheet" href="css/responsive.css?v=202609280006" />
   </head>
   <body>
@@ -34,7 +34,7 @@
           <h2 id="local-activation-title">Ativar instalação</h2>
           <p>Informe o código da empresa e o login do administrador criado no servidor central.</p>
           <form id="local-activation-form">
-            <label>Código da empresa<input name="activation_code" type="text" inputmode="text" autocomplete="one-time-code" placeholder="TRC-XXXX-XXXX" required /></label>
+            <label>Código da empresa<input name="activation_code" type="text" inputmode="text" autocapitalize="characters" spellcheck="false" autocomplete="one-time-code" maxlength="34" placeholder="TRC-XXXX-XXXX-XXXX-XXXX" required /></label>
             <label>Login do administrador<input name="email" type="email" autocomplete="username" placeholder="admin@dallogix.empresa-chat" required /></label>
             <label>Senha do administrador<input name="password" type="password" autocomplete="current-password" required /></label>
             <button class="button secondary" type="submit">Ativar este PC</button>
@@ -66,6 +66,6 @@
         </form>
       </section>
     </main>
-    <script data-cfasync="false" type="module" src="js/login.js?v=202609211800" data-page="login"></script>
+    <script data-cfasync="false" type="module" src="js/login.js?v=20261001-activation" data-page="login"></script>
   </body>
 </html>

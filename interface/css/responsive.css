@@ -3527,3 +3527,88 @@ body .sidebar-toggle {
     min-width: 0;
   }
 }
+
+/* Operação da Dala: comandos verticais à esquerda e status à direita. */
+body.work-page:has(.work-operation-screen) .work-operation-layout {
+  display: grid;
+  grid-template-columns: minmax(250px, 0.72fr) minmax(0, 1.8fr);
+  align-items: start;
+  gap: 18px;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-panel,
+body.work-page:has(.work-operation-screen) .work-status-column {
+  min-width: 0;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-panel {
+  position: sticky;
+  top: 16px;
+}
+
+body.work-page:has(.work-operation-screen) .work-controls,
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls .button,
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone .button {
+  width: 100%;
+  min-height: 54px;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 800;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border, #d8e0e8);
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone small {
+  line-height: 1.45;
+}
+
+body.work-page:has(.work-operation-screen) .work-status-column {
+  display: grid;
+  gap: 16px;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status,
+body.work-page:has(.work-operation-screen) .work-status-column > .work-live-summary,
+body.work-page:has(.work-operation-screen) .work-status-column > .work-items-panel {
+  margin: 0;
+}
+
+body.work-page:has(.work-operation-screen) .work-status-column > .work-items-panel {
+  height: auto;
+  max-height: none;
+  overflow: visible;
+}
+
+@media (max-width: 900px) {
+  body.work-page:has(.work-operation-screen) .work-operation-layout {
+    grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.2fr);
+  }
+}
+
+@media (max-width: 700px) {
+  body.work-page:has(.work-operation-screen) .work-operation-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-panel {
+    position: static;
+    grid-row: 1;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-status-column {
+    grid-row: 2;
+  }
+}

@@ -32,7 +32,7 @@ import {
     manifests,
     manifestView,
     work,
-} from "./telas/operacoes.js?v=20260928-work-manual";
+} from "./telas/operacoes.js?v=20261001-work-layout";
 import { dashboard } from "./telas/painel.js?v=202609280006";
 import { users } from "./telas/usuarios.js?v=202609212000";
 
