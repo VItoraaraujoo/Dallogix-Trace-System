@@ -9,7 +9,7 @@ import {
   statuses,
 } from "../../js/funcoes/view.js?v=202609280006";
 
-import { itemRow, industrialPcDate } from "../../js/funcoes/romaneio.js";
+import { itemRow, industrialPcDate } from "../../js/funcoes/romaneio.js?v=202610020001";
 export function importScreen(store) {
   const products = store.state.products || [];
   const today = industrialPcDate();
