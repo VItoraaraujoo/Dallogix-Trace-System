@@ -10,6 +10,7 @@ $ComposeProfile = @('--profile', 'industrial')
 $StateRoot = Join-Path $InstallRoot "armazenamento\updates"
 $BackupRoot = Join-Path $StateRoot "backups"
 $LogRoot = Join-Path $InstallRoot "armazenamento\logs"
+$ErrorLogPath = Join-Path $LogRoot "update-stable-errors.log"
 $MaintenanceFile = Join-Path $InstallRoot "armazenamento\.maintenance"
 $createdMaintenance = $false
 $keepMaintenance = $false
@@ -208,6 +209,12 @@ try {
     Write-Output "Trace atualizado com sucesso para $($manifest.version). Backup: $databaseBackup"
 } catch {
     $originalError = $_
+    $errorMessage = if ($_.Exception -and $_.Exception.Message) { $_.Exception.Message } else { [string]$_ }
+    try {
+        Add-Content -LiteralPath $ErrorLogPath -Value ("$(Get-Date -Format o) $errorMessage") -Encoding UTF8
+    } catch {
+        Write-Warning "Nao foi possivel registrar o erro do atualizador: $($_.Exception.Message)"
+    }
     if ($rollbackRequired -and $previousArchive) {
         try {
             [IO.File]::WriteAllText($failedMarker, (Get-Date -Format o))
