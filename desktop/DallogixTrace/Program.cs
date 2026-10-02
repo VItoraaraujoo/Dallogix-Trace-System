@@ -5,6 +5,7 @@ using Microsoft.Web.WebView2.Core;
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -41,7 +42,14 @@ internal sealed class TraceForm : Form
         if (!File.Exists(compose)) { ShowFailure("Instalação incompleta: docker-compose.yml não encontrado."); return; }
         try
         {
-            Process.Start(new ProcessStartInfo("docker.exe", "compose up -d") { WorkingDirectory = root, UseShellExecute = false, CreateNoWindow = true });
+            var docker = FindDockerCli();
+            await EnsureDockerEngineAsync(docker, root);
+            var composeResult = await RunProcessAsync(docker, "compose --profile industrial up -d", root);
+            if (composeResult.ExitCode != 0)
+            {
+                ShowFailure($"Não foi possível iniciar os serviços do Trace. {composeResult.Error.Trim()}");
+                return;
+            }
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
             var activationError = "nenhuma resposta da API";
             for (var attempt = 0; attempt < 30; attempt++)
@@ -63,6 +71,67 @@ internal sealed class TraceForm : Form
             web.CoreWebView2.Navigate(TraceUrl);
         }
         catch (Exception error) { ShowFailure($"Não foi possível iniciar o Trace. {error.Message}"); }
+    }
+
+    private static string FindDockerCli()
+    {
+        var candidates = new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Docker", "Docker", "resources", "bin", "docker.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "DockerDesktop", "resources", "bin", "docker.exe"),
+            "docker.exe",
+        };
+        foreach (var candidate in candidates)
+        {
+            if (candidate.Equals("docker.exe", StringComparison.OrdinalIgnoreCase) || File.Exists(candidate)) return candidate;
+        }
+        throw new FileNotFoundException("Docker Desktop não foi encontrado.");
+    }
+
+    private static async Task EnsureDockerEngineAsync(string docker, string workingDirectory)
+    {
+        var check = await RunProcessAsync(docker, "info --format \"{{.OSType}}\"", workingDirectory);
+        if (check.ExitCode == 0 && check.Output.Trim().Equals("linux", StringComparison.OrdinalIgnoreCase)) return;
+
+        var desktopCandidates = new[]
+        {
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "Docker", "Docker", "Docker Desktop.exe"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "DockerDesktop", "Docker Desktop.exe"),
+        };
+        var desktop = Array.Find(desktopCandidates, File.Exists);
+        if (desktop != null) Process.Start(new ProcessStartInfo(desktop) { UseShellExecute = true });
+
+        for (var attempt = 0; attempt < 60; attempt++)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(2));
+            check = await RunProcessAsync(docker, "info --format \"{{.OSType}}\"", workingDirectory);
+            if (check.ExitCode == 0 && check.Output.Trim().Equals("linux", StringComparison.OrdinalIgnoreCase)) return;
+        }
+        throw new InvalidOperationException("O Docker Desktop não iniciou o mecanismo Linux a tempo.");
+    }
+
+    private static async Task<(int ExitCode, string Output, string Error)> RunProcessAsync(string fileName, string arguments, string workingDirectory)
+    {
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = fileName,
+                Arguments = arguments,
+                WorkingDirectory = workingDirectory,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                StandardOutputEncoding = Encoding.UTF8,
+                StandardErrorEncoding = Encoding.UTF8,
+            },
+        };
+        process.Start();
+        var output = process.StandardOutput.ReadToEndAsync();
+        var error = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        return (process.ExitCode, await output, await error);
     }
 
     private void ShowFailure(string message)

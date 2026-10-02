@@ -6,7 +6,8 @@
 AppId={{8E47F2D6-7E85-4A2E-9A74-000000000001}}
 AppName=Dallogix Trace
 AppVersion={#TraceInstallVersion}
-DefaultDirName={commonappdata}\DallogixTrace
+DefaultDirName=C:\DallogixTrace
+UsePreviousAppDir=no
 DisableProgramGroupPage=yes
 PrivilegesRequired=admin
 ArchitecturesInstallIn64BitMode=x64
@@ -37,11 +38,19 @@ Source: "..\..\desktop\DallogixTrace\bin\Release\net8.0-windows\win-x64\publish\
 Source: "TraceLauncher.cmd"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
 Source: "Install-TraceMachine.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
 Source: "Setup-TraceMachine.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
+Source: "..\..\desktop\DallogixTrace\trace.ico"; DestDir: "{app}"; Flags: ignoreversion
 
 [Dirs]
 Name: "{app}\armazenamento"
 Name: "{app}\config"
 Name: "{app}\logs"
+
+[Icons]
+Name: "{commondesktop}\Dallogix Trace"; Filename: "{app}\DallogixTrace.exe"; WorkingDir: "{app}"; IconFilename: "{app}\trace.ico"
+Name: "{autoprograms}\Dallogix Trace"; Filename: "{app}\DallogixTrace.exe"; WorkingDir: "{app}"; IconFilename: "{app}\trace.ico"
+
+[Registry]
+Root: HKLM; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "Dallogix Trace"; ValueData: """{app}\DallogixTrace.exe"""; Flags: uninsdeletevalue
 
 [Code]
 function ParseTraceVersion(Value: String; var Packed: Int64): Boolean;
@@ -71,11 +80,22 @@ end;
 function InitializeSetup: Boolean;
 var
   VersionFile: String;
+  LegacyRoot: String;
+  LegacyCompose: String;
   Lines: TArrayOfString;
   InstalledVersion, PackageVersion: Int64;
 begin
   Result := False;
-  VersionFile := ExpandConstant('{commonappdata}\DallogixTrace\armazenamento\updates\current_version');
+  LegacyRoot := ExpandConstant('{commonappdata}\DallogixTrace');
+  LegacyCompose := AddBackslash(LegacyRoot) + 'docker-compose.yml';
+  if FileExists(LegacyCompose) and
+     (CompareText('C:\DallogixTrace', LegacyRoot) <> 0) then begin
+    MsgBox('Foi encontrada uma instalação anterior em C:\ProgramData\DallogixTrace.' +
+      #13#10#13#10 + 'Pare e remova essa instalação antiga antes de instalar a versão nova em C:\DallogixTrace.' +
+      #13#10 + 'Nenhum arquivo antigo será apagado automaticamente.', mbError, MB_OK);
+    Exit;
+  end;
+  VersionFile := ExpandConstant('C:\DallogixTrace\armazenamento\updates\current_version');
   if FileExists(VersionFile) then begin
     if not LoadStringsFromFile(VersionFile, Lines) then begin
       MsgBox('A versão instalada não pôde ser identificada. Corrija o registro da instalação antes de continuar.', mbError, MB_OK);

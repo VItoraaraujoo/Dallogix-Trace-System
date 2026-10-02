@@ -22,8 +22,8 @@ Mesmo conectado por Wi-Fi, a interface do Trace permanece limitada a `127.0.0.1`
 ## 2. Copiar e configurar o pacote
 
 1. Gere `TraceSetup.exe` de uma tag aprovada com `Build-TraceSetup.ps1` e copie o executável para o PC.
-2. Execute o instalador como administrador pela conta técnica. Ele cria `.env` com senhas e tokens aleatórios se o arquivo ainda não existir, instala Git for Windows quando necessário, sobe os serviços e aplica migrations.
-3. O assistente solicita o endereço base HTTPS do servidor central e os dados da máquina. Guarde o token técnico fora de capturas e logs.
+2. Execute o instalador como administrador pela conta técnica. Ele instala em `C:\DallogixTrace`, cria o atalho `Dallogix Trace` na área de trabalho, registra a inicialização após o login do Windows, cria `.env` com senhas e tokens aleatórios se o arquivo ainda não existir, instala Git for Windows quando necessário, sobe os serviços e aplica migrations.
+3. O assistente solicita o endereço base HTTPS do servidor central e o nome do PC industrial. O ID, o código e o token da Dala ficam opcionais na instalação inicial: deixe o ID vazio quando o PC ainda não estiver vinculado; a Dala será vinculada depois da ativação na Master. Guarde qualquer token técnico fora de capturas e logs.
 
 Se `.env` já existir, o instalador preserva seus valores e informa quais campos obrigatórios estão vazios. Depois provisione cada dispositivo com `scripts/provision_device.php` e token próprio.
 
@@ -58,9 +58,9 @@ O `TraceSetup.exe` executa essa preparação automaticamente. Se for necessário
 .\implantacao\windows\Setup-TraceMachine.ps1
 ```
 
-Informe o código da esteira, por exemplo `EST-001`, o ID cadastrado no servidor central, `https://trace.santocloud.com.br` como servidor central e a credencial exclusiva da máquina. Na primeira instalação, responda `N` para CLP físico habilitado.
+Informe o nome cadastrado para o PC industrial, `https://trace.santocloud.com.br` como servidor central e, se já houver Dala vinculada, o ID, o código e a credencial exclusiva dela. Caso contrário, deixe o ID do equipamento vazio. Na primeira instalação, responda `N` para CLP físico habilitado.
 
-O instalador inicia os containers, registra o agente do Trace e agenda a verificação diária de releases assinadas para 03:30. Consulte `schtasks.exe /Query /TN "Dallogix Trace Atualizacao Estavel" /V /FO LIST` no CMD para confirmar o registro. O log fica em `C:\ProgramData\DallogixTrace\armazenamento\logs\update-stable.log` após a primeira consulta.
+O instalador inicia os containers, agenda a verificação diária de releases assinadas para 03:30 e registra o agente do Trace somente quando uma Dala já estiver vinculada. Consulte `schtasks.exe /Query /TN "Dallogix Trace Atualizacao Estavel" /V /FO LIST` no CMD para confirmar o registro. O log fica em `C:\DallogixTrace\armazenamento\logs\update-stable.log` após a primeira consulta.
 
 ## 4. Validar a instalação local
 
@@ -104,4 +104,4 @@ Invoke-WebRequest http://127.0.0.1:8080/api/health.php
 Get-ScheduledTask -TaskName "Dallogix Trace Agent"
 ```
 
-Se a operação estiver parada e o healthcheck falhar, entre com `trace-tech`, preserve os logs em `C:\ProgramData\DallogixTrace\logs` e acione a manutenção.
+Se a operação estiver parada e o healthcheck falhar, entre com `trace-tech`, preserve os logs em `C:\DallogixTrace\logs` e acione a manutenção.

@@ -3,6 +3,13 @@ param(
 )
 $ErrorActionPreference = "Stop"
 
+$resolvedPackageRoot = (Resolve-Path -LiteralPath $PackageRoot).Path
+$legacyRoot = Join-Path $env:ProgramData "DallogixTrace"
+if ((Test-Path -LiteralPath (Join-Path $legacyRoot "docker-compose.yml") -PathType Leaf) -and
+    ($resolvedPackageRoot -ne (Resolve-Path -LiteralPath $legacyRoot).Path)) {
+    throw "Foi encontrada uma instalação antiga em C:\ProgramData\DallogixTrace. Pare e remova essa instalação antes de continuar; nenhum dado será apagado automaticamente."
+}
+
 function Test-WebView2Runtime {
     $clientId = '{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}'
     $registryKeys = @(
@@ -94,15 +101,38 @@ foreach ($entry in $updateDefaults.GetEnumerator()) {
 )
 
 $machineId = Ask "Identificação da máquina" "EST-001"
-$equipmentId = Ask "ID do equipamento no cadastro central" "1"
-$equipmentCode = Ask "Código do equipamento" $machineId
-$deviceToken = Read-Host "Token do dispositivo SERVER da máquina"
+if ([string]::IsNullOrWhiteSpace($machineId)) {
+    throw "Informe uma identificação para o PC industrial."
+}
+
+# A Dala pode ser vinculada na Master depois que o PC for ativado. Não force
+# um ID ou token inventado nessa etapa: a sincronização local continua pronta
+# e o vínculo será concluído quando a primeira Dala for cadastrada.
+$equipmentIdText = Ask "ID do equipamento no cadastro central (opcional; deixe vazio para vincular depois)" ""
+$equipmentId = $null
+$equipmentCode = ""
+$deviceToken = ""
+if (-not [string]::IsNullOrWhiteSpace($equipmentIdText)) {
+    $parsedEquipmentId = 0
+    if (-not [int]::TryParse($equipmentIdText.Trim(), [ref]$parsedEquipmentId) -or $parsedEquipmentId -lt 1) {
+        throw "O ID do equipamento deve ser um número inteiro positivo."
+    }
+    $equipmentId = $parsedEquipmentId
+    $equipmentCode = Ask "Código do equipamento" ""
+    if ([string]::IsNullOrWhiteSpace($equipmentCode)) {
+        throw "Informe o código do equipamento ou deixe o ID vazio para vincular a Dala depois."
+    }
+    $deviceToken = Read-Host "Token do dispositivo SERVER da máquina"
+    if ([string]::IsNullOrWhiteSpace($deviceToken)) {
+        throw "Informe o token real do dispositivo SERVER."
+    }
+}
 $traceUrl = Ask "URL local do Trace" "http://127.0.0.1:8080"
 $physicalConnection = (Ask "A máquina terá conexão prevista com CLP físico? (S/N)" "N").ToUpperInvariant() -eq "S"
 
 $machineConfig = [ordered]@{
     machine_id = $machineId
-    equipment_id = [int]$equipmentId
+    equipment_id = $equipmentId
     equipment_code = $equipmentCode
     central_api_url = $centralUrl
     device_token = $deviceToken

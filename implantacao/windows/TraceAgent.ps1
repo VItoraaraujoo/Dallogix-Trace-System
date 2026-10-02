@@ -1,10 +1,15 @@
 param(
-    [string]$ConfigPath = "C:\ProgramData\DallogixTrace\config\machine.json"
+    [string]$ConfigPath = ""
 )
 $ErrorActionPreference = "Stop"
 
+if ([string]::IsNullOrWhiteSpace($ConfigPath)) {
+    $ConfigPath = Join-Path (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)) "config\machine.json"
+}
+
 function Write-AgentLog([string]$Message) {
-    $logDir = "C:\ProgramData\DallogixTrace\logs"
+    $installRoot = Split-Path -Parent (Split-Path -Parent $ConfigPath)
+    $logDir = Join-Path $installRoot "logs"
     New-Item -ItemType Directory -Force -Path $logDir | Out-Null
     Add-Content -Path (Join-Path $logDir "agent.log") -Value ("{0:u} {1}" -f (Get-Date), $Message)
 }

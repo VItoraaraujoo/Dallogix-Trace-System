@@ -20,11 +20,13 @@ Um ZIP comum baixado pelo botao do GitHub nao traz `.trace-source-commit`; para 
 O pacote de produção é compilado com `Build-TraceSetup.ps1` a partir de uma **tag aprovada** (`vN.N.N`). O build grava a versão inicial no instalador e gera `TraceSetup.exe`; ele recusa código local alterado.
 
 1. Use Windows 10/11 IoT Enterprise ou Windows Pro e instale Docker Desktop. Na primeira abertura, conclua a configuração do mecanismo Linux/WSL. O instalador encontra o Docker Desktop tanto em `Program Files` quanto na instalação por usuário em `AppData` e inicia o mecanismo se estiver parado; a instalação do Docker continua sendo um pré-requisito separado.
-2. Execute o `TraceSetup.exe` aprovado com a conta técnica administradora. O assistente instala o WebView2 Runtime oficial se estiver ausente, cria o `.env` com segredos aleatórios quando necessário, aplica migrations e só conclui depois que o gateway Node-RED e a API de ativação estiverem saudáveis. A instalação inicial precisa de acesso à internet para validar a versão Central e, se necessário, baixar o Runtime WebView2.
+2. Execute o `TraceSetup.exe` aprovado com a conta técnica administradora. O assistente instala em `C:\DallogixTrace`, instala o WebView2 Runtime oficial se estiver ausente, cria o `.env` com segredos aleatórios quando necessário, aplica migrations e só conclui depois que o gateway Node-RED e a API de ativação estiverem saudáveis. A instalação inicial precisa de acesso à internet para validar a versão Central e, se necessário, baixar o Runtime WebView2.
 3. Mantenha `WEB_BIND_ADDRESS=127.0.0.1`. Nenhum acesso remoto entra no PC industrial; todo gerenciamento remoto ocorre no servidor central.
-4. Teste `TraceLauncher.cmd` com a conta técnica.
-5. Configure a conta `trace-operator` para login automático e use Windows Assigned Access/Shell Launcher para iniciar `TraceLauncher.cmd`.
-6. Mantenha uma conta técnica administrativa separada da conta do operador.
+4. O instalador cria `Dallogix Trace.lnk` na área de trabalho e no menu Iniciar. Ele também registra `DallogixTrace.exe` para iniciar após o login do Windows; o aplicativo inicia o Docker Desktop quando necessário, aguarda o mecanismo Linux e abre o Trace em tela cheia.
+5. Depois de ativar o PC localmente com o código e o administrador da empresa, vincule a Dala na Master. O ID, o código e o token da Dala são opcionais durante a instalação inicial; não use valores fictícios.
+6. Teste `DallogixTrace.exe` pela área de trabalho ou `TraceLauncher.cmd` com a conta técnica.
+7. Configure a conta `trace-operator` para login automático e use Windows Assigned Access/Shell Launcher somente se o PC precisar iniciar diretamente no modo quiosque.
+8. Mantenha uma conta técnica administrativa separada da conta do operador.
 
 O sistema será apresentado ao operador como `TraceLauncher`, equivalente ao `Trace.exe`. A transformação opcional do `.cmd` em um `.exe` deve ser feita somente no instalador oficial da empresa; o comportamento e os serviços continuam os mesmos.
 
