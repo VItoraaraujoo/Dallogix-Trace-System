@@ -34,6 +34,9 @@ export class ArmazenamentoTrace {
       dalaStatuses: [],
       companies: [],
       companyDetail: null,
+      industrialInstallations: [],
+      industrialEquipmentOptions: [],
+      industrialInstallationActivation: null,
       selectedCompanyId: null,
       manifestFilters: {
         date_from: "",
@@ -932,13 +935,14 @@ export class ArmazenamentoTrace {
     this.state.localActivation = result.data || { active: false };
     return this.state.localActivation;
   }
-  async deleteCompany(id, { force = false, permanent = false } = {}) {
+  async deleteCompany(id, { force = false, permanent = false, confirmation = "", password = "" } = {}) {
     const query = new URLSearchParams({ id: String(id) });
     if (force) query.set("force", "1");
     if (permanent) query.set("permanent", "1");
     const response = await fetch(`/api/empresas.php?${query.toString()}`, {
       method: "DELETE",
       headers: this.jsonHeaders(),
+      body: permanent ? JSON.stringify({ confirmation, password }) : undefined,
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) {
@@ -975,6 +979,84 @@ export class ArmazenamentoTrace {
     if (!response.ok)
       throw new Error(result.error || "Não foi possível carregar a empresa.");
     this.state.companyDetail = result.data;
+    await this.loadIndustrialInstallations();
+  }
+  async loadIndustrialInstallations() {
+    if (!this.state.selectedCompanyId)
+      throw new Error("Nenhuma empresa selecionada.");
+    const response = await fetch(
+      `/api/instalacoes_industriais.php?company_id=${this.state.selectedCompanyId}`,
+      { cache: "no-store" },
+    );
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw new Error(result.error || "Não foi possível carregar os PCs industriais.");
+    this.state.industrialInstallations = result.data?.installations || [];
+    this.state.industrialEquipmentOptions = result.data?.equipment_options || [];
+    return result.data;
+  }
+  async createIndustrialInstallation(name) {
+    const response = await fetch("/api/instalacoes_industriais.php", {
+      method: "POST",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({
+        action: "create",
+        company_id: Number(this.state.selectedCompanyId),
+        name: String(name || "").trim(),
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw new Error(result.error || "Não foi possível cadastrar o PC industrial.");
+    await this.loadIndustrialInstallations();
+    return result.data;
+  }
+  async assignIndustrialEquipment(installationId, equipmentId) {
+    const response = await fetch("/api/instalacoes_industriais.php", {
+      method: "POST",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({
+        action: "assign_equipment",
+        installation_id: Number(installationId),
+        equipment_id: Number(equipmentId),
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw new Error(result.error || "Não foi possível vincular a Dala ao PC.");
+    await this.loadIndustrialInstallations();
+    return result.data;
+  }
+  async revokeIndustrialAccess(installationId) {
+    const response = await fetch("/api/instalacoes_industriais.php", {
+      method: "POST",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({
+        action: "revoke_access",
+        installation_id: Number(installationId),
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw new Error(result.error || "Não foi possível revogar o acesso deste PC.");
+    await this.loadIndustrialInstallations();
+    return result.data;
+  }
+  async generateIndustrialActivationCode(installationId) {
+    const response = await fetch("/api/instalacoes_industriais.php", {
+      method: "POST",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({
+        action: "generate_activation_code",
+        installation_id: Number(installationId),
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw new Error(result.error || "Não foi possível gerar o código deste PC.");
+    this.state.industrialInstallationActivation = result.data;
+    await this.loadIndustrialInstallations();
+    return result.data;
   }
   async saveConfiguration(data) {
     const response = await fetch("/api/configuracoes.php", {

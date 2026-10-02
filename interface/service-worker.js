@@ -1,4 +1,4 @@
-const CACHE_NAME = "trace-shell-20261001-05";
+const CACHE_NAME = "trace-shell-20261001-06";
 const SHELL = [
   "/",
   "/service-worker.js",
@@ -123,6 +123,16 @@ async function cacheResponse(request, response) {
   return response;
 }
 
+async function fetchWithTimeout(request, options = {}, timeoutMs = 8000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(new Request(request, { ...options, signal: controller.signal }));
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
@@ -161,7 +171,7 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(new Request(request, { cache: "no-store" }))
+      fetchWithTimeout(request, { cache: "no-store" })
         .then((response) => cacheResponse(request, response))
         .catch(async () => (await caches.match(request, { ignoreSearch: true })) || caches.match("/index.html")),
     );
@@ -170,7 +180,7 @@ self.addEventListener("fetch", (event) => {
 
   if (/\.(?:css|js)$/.test(url.pathname)) {
     event.respondWith(
-      fetch(new Request(request, { cache: "no-store" }))
+      fetchWithTimeout(request, { cache: "no-store" })
         .then((response) => cacheResponse(request, response))
         .catch(async () => (await caches.match(request, { ignoreSearch: true })) || Response.error()),
     );
@@ -179,7 +189,7 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(
     caches.match(request, { ignoreSearch: true }).then((cached) => {
-      const refresh = fetch(request)
+      const refresh = fetchWithTimeout(request)
         .then((response) => cacheResponse(request, response))
         .catch(() => cached);
       return cached || refresh;

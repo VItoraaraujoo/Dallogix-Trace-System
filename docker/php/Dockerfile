@@ -41,6 +41,8 @@ RUN printf '%s\n' \
     'opcache.revalidate_freq=2' \
     > /etc/php/conf.d/zz-security.ini
 
+RUN mkdir -p /var/lib/php/sessions && chown 82:82 /var/lib/php/sessions
+
 WORKDIR /var/www/servidor
 USER 82:82
 CMD ["php-fpm", "--nodaemonize"]

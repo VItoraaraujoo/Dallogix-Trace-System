@@ -22,6 +22,19 @@ function trace_e_instalacao_local(): bool
     return false;
 }
 
+function trace_uuid_v4(): string
+{
+    $bytes = random_bytes(16);
+    $bytes[6] = chr((ord($bytes[6]) & 0x0f) | 0x40);
+    $bytes[8] = chr((ord($bytes[8]) & 0x3f) | 0x80);
+    $hex = bin2hex($bytes);
+    return substr($hex, 0, 8) . "-"
+        . substr($hex, 8, 4) . "-"
+        . substr($hex, 12, 4) . "-"
+        . substr($hex, 16, 4) . "-"
+        . substr($hex, 20, 12);
+}
+
 function url_remota_segura(string $url): string
 {
     $url = trim($url);
@@ -192,6 +205,11 @@ header("Cross-Origin-Opener-Policy: same-origin");
 // Converte avisos do PHP em exceções para que nenhuma resposta de API receba
 // HTML misturado ao JSON esperado pelo navegador.
 set_error_handler(static function (int $severity, string $message, string $file, int $line): bool {
+    if (in_array($severity, [E_DEPRECATED, E_USER_DEPRECATED], true)) {
+        // Depreciações devem ser registradas pelo PHP sem transformar toda a
+        // resposta JSON em 500 durante uma atualização de runtime.
+        return false;
+    }
     if (!(error_reporting() & $severity)) {
         return false;
     }
@@ -235,7 +253,17 @@ session_set_cookie_params([
     "samesite" => "Strict",
 ]);
 $skipSession = defined("TRACE_SKIP_SESSION");
-if (!$skipSession) {
+$sessionIdleTimeout = max(300, (int) (getenv("SESSION_IDLE_TIMEOUT") ?: 1800));
+$sessionGcLifetime = max(
+    $sessionIdleTimeout,
+    (int) (getenv("SESSION_GC_MAXLIFETIME") ?: 86400),
+);
+if (function_exists("ini_set")) {
+    ini_set("session.gc_maxlifetime", (string) $sessionGcLifetime);
+}
+$hasSessionCookie = isset($_COOKIE[session_name()]);
+$startSession = !$skipSession && ($hasSessionCookie || defined("TRACE_START_SESSION"));
+if ($startSession) {
     session_start();
     $traceTabId = trace_id_aba_da_sessao();
     $GLOBALS["trace_tab_id"] = $traceTabId;
@@ -248,7 +276,6 @@ if (!$skipSession) {
     } elseif (!isset($_SESSION["_trace_tabs"][$traceTabId]) || !is_array($_SESSION["_trace_tabs"][$traceTabId])) {
         $_SESSION["_trace_tabs"][$traceTabId] = [];
     }
-    $sessionIdleTimeout = max(300, (int) (getenv("SESSION_IDLE_TIMEOUT") ?: 1800));
     foreach ($_SESSION["_trace_tabs"] as $tabId => $context) {
         $contextIsArray = is_array($context);
         $role = strtoupper(trim((string) ($contextIsArray ? ($context["user"]["role"] ?? "") : "")));
@@ -484,8 +511,8 @@ function credencial_instalacao_valida(string $token): bool
     return preg_match('/\A[a-f0-9]{64}\z/i', $token) === 1;
 }
 
-/** @return array{id:int,name:string,login_domain:string,license_status:string,license_reason:?string} */
-function exigir_instalacao_remota(): array
+/** @return array{id:int,name:string,login_domain:string,license_status:string,license_reason:?string,installation_id:int,equipment_id:?int,installation_name:string,auto_link_first_dala:bool} */
+function exigir_instalacao_remota(bool $permitirSemDala = false): array
 {
     $token = token_bearer_instalacao();
     if (!credencial_instalacao_valida($token)) {
@@ -495,30 +522,44 @@ function exigir_instalacao_remota(): array
     $normalized = strtolower($token);
     $pdo = obter_conexao_banco();
     $statement = $pdo->prepare(
-        "SELECT id, name, login_domain
-         FROM empresas
-         WHERE archived_at IS NULL AND installation_token_hash = :token_hash
+        "SELECT p.id AS installation_id, p.company_id, p.equipment_id, p.auto_link_first_dala,
+                p.name AS installation_name, c.name, c.login_domain
+         FROM instalacoes_industriais p
+         JOIN empresas c ON c.id = p.company_id
+         WHERE c.archived_at IS NULL AND p.sync_token_hash = :token_hash
          LIMIT 1",
     );
     $statement->execute(["token_hash" => hash("sha256", $normalized)]);
-    $company = $statement->fetch();
-    if (!$company) {
+    $installation = $statement->fetch();
+    if (!$installation) {
         responder_json(["error" => "Credencial da instalação inválida."], 401);
+    }
+    if ($installation["equipment_id"] === null && !$permitirSemDala) {
+        responder_json([
+            "error" => "Este PC industrial ainda não está vinculado a uma Dala no servidor central.",
+            "error_code" => "INSTALLATION_DALA_REQUIRED",
+        ], 409);
     }
 
     // O código identifica a instalação, mas a licença decide se ela pode
     // continuar sincronizando. A mesma regra também é usada pelas rotas
     // operacionais autenticadas.
-    $license = validar_licenca_ativa($pdo, (int) $company["id"]);
+    $license = validar_licenca_ativa($pdo, (int) $installation["company_id"]);
 
     return [
-        "id" => (int) $company["id"],
-        "name" => (string) $company["name"],
-        "login_domain" => (string) $company["login_domain"],
+        "id" => (int) $installation["company_id"],
+        "name" => (string) $installation["name"],
+        "login_domain" => (string) $installation["login_domain"],
         "license_status" => (string) $license["status"],
         "license_reason" => $license["blocked_reason"] !== null
             ? (string) $license["blocked_reason"]
             : null,
+        "installation_id" => (int) $installation["installation_id"],
+        "equipment_id" => $installation["equipment_id"] === null
+            ? null
+            : (int) $installation["equipment_id"],
+        "installation_name" => (string) $installation["installation_name"],
+        "auto_link_first_dala" => (bool) $installation["auto_link_first_dala"],
     ];
 }
 
@@ -993,14 +1034,7 @@ function registrar_evento_operacional(
     $providedEventUuid = trim((string) ($payload["event_uuid"] ?? ""));
     $eventUuid = preg_match('/^[a-f0-9-]{16,80}$/i', $providedEventUuid)
         ? $providedEventUuid
-        : sprintf(
-            "%s-%s-%s-%s-%s",
-            bin2hex(random_bytes(4)),
-            bin2hex(random_bytes(2)),
-            bin2hex(random_bytes(2)),
-            bin2hex(random_bytes(2)),
-            bin2hex(random_bytes(6)),
-        );
+        : trace_uuid_v4();
 
     $metadata = json_encode(
         $payload,
@@ -1064,14 +1098,7 @@ function enfileirar_evento_sincronizacao(
         throw new RuntimeException("Evento de sincronização sem empresa vinculada.");
     }
 
-    $eventUuid = sprintf(
-        "%s-%s-%s-%s-%s",
-        bin2hex(random_bytes(4)),
-        bin2hex(random_bytes(2)),
-        bin2hex(random_bytes(2)),
-        bin2hex(random_bytes(2)),
-        bin2hex(random_bytes(6)),
-    );
+    $eventUuid = trace_uuid_v4();
     $payloadSincronizacao = json_encode(
         [
             "action" => $acao,

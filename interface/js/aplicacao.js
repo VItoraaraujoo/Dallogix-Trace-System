@@ -1,7 +1,5 @@
 import {
   configurarSessaoPorAba,
-  guardarTokenSessao,
-  limparTokenSessao,
 } from "./sessao.js?v=202609222100";
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=20260930-security01";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
@@ -903,8 +901,13 @@ function bindActions() {
       if (action === "delete-company-permanently") {
         const name = node.dataset.name || "esta empresa";
         if (!confirm(`Excluir definitivamente a empresa "${name}"? Os dados não poderão ser recuperados.`)) return;
+        const password = prompt("Digite sua senha atual para confirmar a exclusão definitiva:");
+        if (password === null) return;
+        const confirmation = prompt(`Digite exatamente o nome da empresa:\n${name}`);
+        if (confirmation === null) return;
+        const credentials = { password, confirmation };
         try {
-          await store.deleteCompany(node.dataset.id, { permanent: true });
+          await store.deleteCompany(node.dataset.id, { permanent: true, ...credentials });
           alert("Empresa excluída definitivamente.");
           render();
         } catch (error) {
@@ -914,7 +917,7 @@ function bindActions() {
             );
             if (!purge) return;
             try {
-              await store.deleteCompany(node.dataset.id, { permanent: true, force: true });
+              await store.deleteCompany(node.dataset.id, { permanent: true, force: true, ...credentials });
               alert("Empresa e dados vinculados excluídos definitivamente.");
               render();
             } catch (purgeError) {
@@ -923,6 +926,56 @@ function bindActions() {
             return;
           }
           alert(error.message);
+        }
+        return;
+      }
+      if (action === "link-industrial-pc-dala") {
+        const form = node.closest(".industrial-pc-link-form");
+        const installationId = form?.dataset.installationId;
+        const equipmentId = form?.elements?.namedItem("equipment_id")?.value;
+        if (!installationId || !equipmentId) {
+          alert("Selecione a Dala que pertence a este PC industrial.");
+          return;
+        }
+        try {
+          await store.assignIndustrialEquipment(installationId, equipmentId);
+          await store.loadCompanyDetail();
+          render();
+          alert("Dala vinculada ao PC industrial.");
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+      if (action === "generate-industrial-pc-code") {
+        try {
+          await store.generateIndustrialActivationCode(node.dataset.id);
+          render();
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+      if (action === "revoke-industrial-pc-access") {
+        const name = node.dataset.name || "este PC industrial";
+        if (!confirm(`Revogar o acesso de "${name}"? O PC será desconectado do Trace até receber um novo código de ativação.`)) return;
+        try {
+          await store.revokeIndustrialAccess(node.dataset.id);
+          await store.loadCompanyDetail();
+          render();
+          alert("Acesso do PC industrial revogado. A Dala continua vinculada a ele.");
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+      if (action === "copy-industrial-pc-code") {
+        const code = node.dataset.code || "";
+        try {
+          await navigator.clipboard.writeText(code);
+          alert("Código deste PC copiado.");
+        } catch (error) {
+          alert(`Código de ativação: ${code}`);
         }
         return;
       }
@@ -1043,7 +1096,6 @@ function bindActions() {
           method: "POST",
           headers: store.csrfToken ? { "X-CSRF-Token": store.csrfToken } : {},
         });
-        limparTokenSessao();
         window.location.href = pagePath("login");
         return;
       }
@@ -1576,7 +1628,6 @@ function bindLoginForm() {
       authenticatedUser = result.user;
       store.setUser(authenticatedUser);
       store.setCsrfToken(result.csrf_token);
-      guardarTokenSessao(result.session_token);
       window.location.replace(pagePath(defaultPage()));
     } catch (error) {
       renderLogin(
@@ -2103,6 +2154,29 @@ function bindForms() {
         if (submit) submit.disabled = false;
       }
     });
+  const industrialPcCreateForm = document.querySelector("#industrial-pc-create-form");
+  if (industrialPcCreateForm)
+    industrialPcCreateForm.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (industrialPcCreateForm.dataset.submitting === "1") return;
+      industrialPcCreateForm.dataset.submitting = "1";
+      const submit = industrialPcCreateForm.querySelector('button[type="submit"]');
+      if (submit) submit.disabled = true;
+      setFormFeedback(industrialPcCreateForm, "");
+      try {
+        const { name } = Object.fromEntries(new FormData(industrialPcCreateForm));
+        await store.createIndustrialInstallation(name);
+        await store.loadCompanyDetail();
+        render();
+        alert("PC industrial cadastrado. Agora gere o código individual para ativá-lo.");
+      } catch (error) {
+        setFormFeedback(industrialPcCreateForm, error.message, "error");
+        alert(error.message);
+      } finally {
+        industrialPcCreateForm.dataset.submitting = "0";
+        if (submit) submit.disabled = false;
+      }
+    });
   // Filtros de romaneios: aplicam automaticamente ao alterar/confirmar.
   const manifestFilters = document.querySelector("#manifest-filters");
   if (manifestFilters) {
@@ -2310,7 +2384,6 @@ async function bootstrap() {
   const response = await fetch("/api/me.php");
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
-    limparTokenSessao();
     try {
       sessionStorage.setItem(
         "trace-login-message",

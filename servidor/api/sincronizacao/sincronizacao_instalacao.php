@@ -14,11 +14,24 @@ exigir_metodo_http(["GET", "POST"]);
 $company = exigir_instalacao_remota();
 $pdo = obter_conexao_banco();
 $companyId = (int) $company["id"];
-$industrialPcTableAvailable = (bool) $pdo->query(
-    "SELECT 1 FROM information_schema.tables
-     WHERE table_schema = DATABASE() AND table_name = 'status_pc_industrial'
-     LIMIT 1",
-)->fetchColumn();
+$installationId = (int) $company["installation_id"];
+$equipmentId = (int) $company["equipment_id"];
+$snapshotQueueCursor = static function (PDO $connection, int $companyId): int {
+    $statement = $connection->prepare(
+        "SELECT COALESCE(MAX(q.id), 0)
+         FROM fila_sincronizacao q
+         WHERE q.company_id = :company_id
+           AND q.status IN ('PENDENTE', 'ERRO')
+           AND NOT EXISTS (
+             SELECT 1 FROM fila_sincronizacao processing
+             WHERE processing.company_id = q.company_id
+               AND processing.status = 'PROCESSANDO'
+               AND processing.id <= q.id
+           )",
+    );
+    $statement->execute(["company_id" => $companyId]);
+    return (int) $statement->fetchColumn();
+};
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $payload = ler_json_da_requisicao();
@@ -27,7 +40,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     }
     $industrialPcReceived = false;
     $industrialPc = $payload["industrial_pc"] ?? null;
-    if ($industrialPcTableAvailable && is_array($industrialPc)) {
+    if (is_array($industrialPc)) {
         $pcStatus = strtoupper(trim((string) ($industrialPc["status"] ?? "")));
         if (in_array($pcStatus, ["ONLINE", "OFFLINE", "ERRO", "DESCONHECIDO"], true)) {
             $reportedAt = trim((string) ($industrialPc["reported_at"] ?? ""));
@@ -49,16 +62,48 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
                 }
             }
             $pcUpsert = $pdo->prepare(
-                "INSERT INTO status_pc_industrial (company_id, status, last_seen_at, details)
-                 VALUES (:company_id, :status, NOW(3), :details)
-                 ON DUPLICATE KEY UPDATE status = VALUES(status), last_seen_at = VALUES(last_seen_at), details = VALUES(details)",
+                "UPDATE instalacoes_industriais
+                 SET status = :status, last_seen_at = NOW(3), details = :details
+                 WHERE id = :installation_id AND company_id = :company_id
+                   AND equipment_id = :equipment_id AND sync_token_hash IS NOT NULL",
             );
             $pcUpsert->execute([
-                "company_id" => $companyId,
                 "status" => $pcStatus,
                 "details" => json_encode($pcDetails, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+                "installation_id" => $installationId,
+                "company_id" => $companyId,
+                "equipment_id" => $equipmentId,
             ]);
-            $industrialPcReceived = true;
+            $industrialPcReceived = $pcUpsert->rowCount() === 1;
+
+            // Compatibilidade com instalações que ainda expõem o contrato
+            // legado de status do PC industrial. A tabela é verificada antes
+            // para que o heartbeat continue funcionando após a migração para
+            // instalacoes_industriais.
+            $legacyTableExists = (bool) $pdo->query(
+                "SELECT 1
+                 FROM information_schema.tables
+                 WHERE table_schema = DATABASE()
+                   AND table_name = 'status_pc_industrial'
+                 LIMIT 1",
+            )->fetchColumn();
+            if ($legacyTableExists) {
+                $legacyPcUpsert = $pdo->prepare(
+                    "INSERT INTO status_pc_industrial
+                         (company_id, status, last_seen_at, details)
+                     VALUES (:company_id, :status, NOW(3), :details)
+                     ON DUPLICATE KEY UPDATE
+                         status = VALUES(status),
+                         last_seen_at = VALUES(last_seen_at),
+                         details = VALUES(details)",
+                );
+                $legacyPcUpsert->execute([
+                    "company_id" => $companyId,
+                    "status" => $pcStatus,
+                    "details" => json_encode($pcDetails, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+                ]);
+                $industrialPcReceived = true;
+            }
         }
     }
     $upsert = $pdo->prepare(
@@ -67,6 +112,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
          SELECT e.id, :device_type, :status, NOW(3), :details
          FROM equipamentos e
          WHERE e.company_id = :company_id
+           AND e.id = :installation_equipment_id
            AND ((:remote_equipment_id_a IS NOT NULL AND e.id = :remote_equipment_id_b)
              OR (:equipment_code_a <> '' AND e.equipment_code = :equipment_code_b))
          LIMIT 1
@@ -94,6 +140,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             "remote_equipment_id_b" => $remoteEquipmentId === false ? null : (int) $remoteEquipmentId,
             "equipment_code_a" => $equipmentCode,
             "equipment_code_b" => $equipmentCode,
+            "installation_equipment_id" => $equipmentId,
         ]);
         // MySQL pode retornar rowCount() = 0 quando o heartbeat repete
         // exatamente os mesmos valores. A requisição ainda foi aceita e deve
@@ -103,18 +150,40 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     $deliveredQueueId = filter_var($payload["delivered_queue_id"] ?? null, FILTER_VALIDATE_INT);
     $deliveredEvents = 0;
     if ($deliveredQueueId !== false && $deliveredQueueId !== null && (int) $deliveredQueueId > 0) {
-        $markDelivered = $pdo->prepare(
-            "UPDATE fila_sincronizacao
-             SET status = 'ENVIADO', last_error = NULL, processing_started_at = NULL
-             WHERE company_id = :company_id
-               AND id <= :queue_id
-               AND status IN ('PENDENTE', 'ERRO')",
-        );
-        $markDelivered->execute([
-            "company_id" => $companyId,
-            "queue_id" => (int) $deliveredQueueId,
-        ]);
-        $deliveredEvents = $markDelivered->rowCount();
+        $acknowledgedThrough = min((int) $deliveredQueueId, $snapshotQueueCursor($pdo, $companyId));
+        if ($acknowledgedThrough > 0) {
+            $acknowledgeInstallation = $pdo->prepare(
+                "UPDATE instalacoes_industriais
+                 SET last_delivered_queue_id = GREATEST(last_delivered_queue_id, :queue_id)
+                 WHERE id = :installation_id AND company_id = :company_id
+                   AND equipment_id = :equipment_id AND sync_token_hash IS NOT NULL",
+            );
+            $acknowledgeInstallation->execute([
+                "queue_id" => $acknowledgedThrough,
+                "installation_id" => $installationId,
+                "company_id" => $companyId,
+                "equipment_id" => $equipmentId,
+            ]);
+            $markDelivered = $pdo->prepare(
+                "UPDATE fila_sincronizacao q
+                 JOIN (
+                   SELECT company_id, MIN(last_delivered_queue_id) AS acknowledged_through
+                   FROM instalacoes_industriais
+                   WHERE company_id = :installation_company_id
+                     AND sync_token_hash IS NOT NULL AND equipment_id IS NOT NULL
+                   GROUP BY company_id
+                 ) acknowledged ON acknowledged.company_id = q.company_id
+                   AND q.id <= acknowledged.acknowledged_through
+                 SET q.status = 'ENVIADO', q.last_error = NULL, q.processing_started_at = NULL
+                 WHERE q.company_id = :queue_company_id
+                   AND q.status IN ('PENDENTE', 'ERRO')",
+            );
+            $markDelivered->execute([
+                "installation_company_id" => $companyId,
+                "queue_company_id" => $companyId,
+            ]);
+            $deliveredEvents = $markDelivered->rowCount();
+        }
     }
     responder_json(["data" => [
         "received" => $received,
@@ -123,11 +192,13 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
     ]]);
 }
 
+$syncCursorValue = $snapshotQueueCursor($pdo, $companyId);
+
 $equipmentStatement = $pdo->prepare(
     "SELECT id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol
-     FROM equipamentos WHERE company_id = :company_id ORDER BY id",
+     FROM equipamentos WHERE company_id = :company_id AND id = :equipment_id ORDER BY id",
 );
-$equipmentStatement->execute(["company_id" => $companyId]);
+$equipmentStatement->execute(["company_id" => $companyId, "equipment_id" => $equipmentId]);
 $equipamentos = $equipmentStatement->fetchAll();
 
 $loadingStatement = $pdo->prepare(
@@ -139,11 +210,12 @@ $loadingStatement = $pdo->prepare(
      JOIN romaneios r ON r.id = c.romaneio_id
      JOIN romaneio_caminhoes t ON t.id = c.truck_id
      LEFT JOIN equipamentos e ON e.id = c.equipment_id
-     WHERE c.company_id = :company_id AND c.state <> 'FINALIZADO'
+     WHERE c.company_id = :company_id AND c.equipment_id = :equipment_id
+       AND c.state <> 'FINALIZADO'
        AND r.status NOT IN ('FINALIZADO', 'CANCELADO')
      ORDER BY c.id",
 );
-$loadingStatement->execute(["company_id" => $companyId]);
+$loadingStatement->execute(["company_id" => $companyId, "equipment_id" => $equipmentId]);
 $carregamentos = $loadingStatement->fetchAll();
 $loadingIds = array_map(static fn (array $row): int => (int) $row["id"], $carregamentos);
 foreach ($carregamentos as &$loading) {
@@ -218,18 +290,11 @@ $commandStatement = $pdo->prepare(
      FROM solicitacoes_comandos_clp r
      JOIN carregamentos c ON c.id = r.carregamento_id
      JOIN equipamentos e ON e.id = r.equipment_id
-     WHERE r.company_id = :company_id AND r.status IN ('PENDENTE','PROCESSANDO')
+     WHERE r.company_id = :company_id AND r.equipment_id = :equipment_id
+       AND r.status IN ('PENDENTE','PROCESSANDO')
      ORDER BY r.id",
 );
-$commandStatement->execute(["company_id" => $companyId]);
-
-$syncCursor = $pdo->prepare(
-    "SELECT COALESCE(MAX(id), 0)
-     FROM fila_sincronizacao
-     WHERE company_id = :company_id
-       AND status IN ('PENDENTE', 'ERRO')",
-);
-$syncCursor->execute(["company_id" => $companyId]);
+$commandStatement->execute(["company_id" => $companyId, "equipment_id" => $equipmentId]);
 
 responder_json([
     "data" => [
@@ -240,11 +305,16 @@ responder_json([
             "license_status" => $company["license_status"],
             "license_reason" => $company["license_reason"],
         ],
+        "instalacao" => [
+            "id" => $installationId,
+            "name" => $company["installation_name"],
+            "equipment_id" => $equipmentId,
+        ],
         "equipamentos" => $equipamentos,
         "produtos" => $produtos,
         "carregamentos_ativos" => $carregamentos,
         "comandos" => $commandStatement->fetchAll(),
-        "sync_cursor" => (int) $syncCursor->fetchColumn(),
+        "sync_cursor" => $syncCursorValue,
         "sent_at" => date("c"),
     ],
 ]);

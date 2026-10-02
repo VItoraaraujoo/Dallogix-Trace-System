@@ -29,29 +29,22 @@ $companyId = (int) $usuario["company_id"];
 $periodDays = filter_var($_GET["period_days"] ?? 30, FILTER_VALIDATE_INT);
 $periodDays = $periodDays === false ? 30 : max(1, min(3650, (int) $periodDays));
 $limit = limite_sinal_clp_segundos();
-$previous = "";
-$startedAt = microtime(true);
-
-while (!connection_aborted() && microtime(true) - $startedAt < 25) {
-    $payload = [
-        "monitoring" => $service->obterInstantaneo($companyId, $periodDays, $limit),
-        "active_loadings" => $service->carregamentosAtivos($companyId),
-        "sent_at" => gmdate("c"),
-    ];
-    $encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
-    if ($encoded === false) {
-        break;
-    }
-    if ($encoded !== $previous) {
-        echo "event: carregamento\n";
-        echo "data: {$encoded}\n\n";
-        $previous = $encoded;
-    } else {
-        echo ": keep-alive\n\n";
-    }
-    if (function_exists("ob_flush")) {
-        @ob_flush();
-    }
-    flush();
-    sleep(1);
+$payload = [
+    "monitoring" => $service->obterInstantaneo($companyId, $periodDays, $limit),
+    "active_loadings" => $service->carregamentosAtivos($companyId),
+    "sent_at" => gmdate("c"),
+];
+$encoded = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+if ($encoded === false) {
+    responder_json(["error" => "Não foi possível gerar o estado operacional."], 500);
 }
+
+// A rota mantém o contrato de evento usado pelo navegador, mas entrega um
+// snapshot curto. O navegador reconecta com backoff; nenhum worker do PHP-FPM
+// fica preso por dezenas de segundos mantendo uma conexão aberta.
+echo "event: carregamento\n";
+echo "data: {$encoded}\n\n";
+if (function_exists("ob_flush")) {
+    @ob_flush();
+}
+flush();

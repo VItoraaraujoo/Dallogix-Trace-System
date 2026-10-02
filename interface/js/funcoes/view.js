@@ -268,12 +268,9 @@ export function companyCard(company, { compact = false } = {}) {
   const licenseTone = archived ? "yellow" : licenseStatus === "ATIVA" ? "green" : "red";
   const licenseAction = licenseStatus === "ATIVA" ? "Bloquear licença" : "Ativar licença";
   const licenseBadge = archived ? "" : `<span class="badge ${licenseTone}">${esc(licenseLabel)}</span>`;
-  const activationAction = licenseStatus === "ATIVA"
-    ? `<button class="button primary small" data-action="generate-company-activation" data-id="${company.id}" type="button">${company.activation_code_preview ? "Ver código" : "Gerar código"}</button>`
-    : "";
   const managementActions = archived
     ? `<button class="button primary small" data-action="restore-company" data-id="${company.id}" data-name="${esc(company.name)}" type="button">Restaurar</button><button class="button ghost danger-link small" data-action="delete-company-permanently" data-id="${company.id}" data-name="${esc(company.name)}" type="button">Excluir definitivamente</button>`
-    : `${activationAction}<button class="button ${licenseStatus === "ATIVA" ? "danger" : "primary"} small" data-action="toggle-license" data-id="${company.id}" data-status="${esc(licenseStatus)}" type="button">${licenseAction}</button><button class="button ghost danger-link small" data-action="archive-company" data-id="${company.id}" data-name="${esc(company.name)}" type="button">Arquivar</button>`;
+    : `<button class="button ${licenseStatus === "ATIVA" ? "danger" : "primary"} small" data-action="toggle-license" data-id="${company.id}" data-status="${esc(licenseStatus)}" type="button">${licenseAction}</button><button class="button ghost danger-link small" data-action="archive-company" data-id="${company.id}" data-name="${esc(company.name)}" type="button">Arquivar</button>`;
   return `<article class="company-card">
     <header><div class="company-card-identity"><strong>${esc(company.name)}</strong><small>${total} máquina(s) • último sinal das Dalas ${company.last_signal_at ? esc(company.last_signal_at) : "—"}</small><small>Último sinal do PC industrial: ${company.industrial_pc_last_seen_at ? esc(company.industrial_pc_last_seen_at) : "—"}</small><code>Login: @${esc(company.login_domain || "—")}</code></div><div class="company-card-statuses">${industrialPcBadge}${connection}${licenseBadge}</div></header>
     <div class="company-card-metrics">

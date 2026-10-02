@@ -1,29 +1,26 @@
-const SESSION_STORAGE_KEY = "trace-session-token";
+const TAB_STORAGE_KEY = "trace-tab-id";
 
-function obterTokenSessao() {
+function gerarIdAba() {
+  const bytes = new Uint8Array(16);
+  if (globalThis.crypto?.getRandomValues) {
+    globalThis.crypto.getRandomValues(bytes);
+  } else {
+    for (let index = 0; index < bytes.length; index += 1) {
+      bytes[index] = Math.floor(Math.random() * 256);
+    }
+  }
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function obterIdAba() {
   try {
-    return String(sessionStorage.getItem(SESSION_STORAGE_KEY) || "").trim();
+    const atual = String(sessionStorage.getItem(TAB_STORAGE_KEY) || "").trim().toLowerCase();
+    if (/^[a-f0-9]{32}$/.test(atual)) return atual;
+    const novo = gerarIdAba();
+    sessionStorage.setItem(TAB_STORAGE_KEY, novo);
+    return novo;
   } catch (error) {
     return "";
-  }
-}
-
-export function guardarTokenSessao(token) {
-  const valor = String(token || "").trim();
-  if (!valor) return false;
-  try {
-    sessionStorage.setItem(SESSION_STORAGE_KEY, valor);
-    return true;
-  } catch (error) {
-    return false;
-  }
-}
-
-export function limparTokenSessao() {
-  try {
-    sessionStorage.removeItem(SESSION_STORAGE_KEY);
-  } catch (error) {
-    // O fluxo continua protegido pelo cookie quando o armazenamento não está disponível.
   }
 }
 
@@ -33,8 +30,8 @@ export function configurarSessaoPorAba() {
 
   const fetchOriginal = window.fetch.bind(window);
   window.fetch = (input, init) => {
-    const token = obterTokenSessao();
-    if (!token) return fetchOriginal(input, init);
+    const tabId = obterIdAba();
+    if (!tabId) return fetchOriginal(input, init);
 
     const inputUrl =
       typeof Request !== "undefined" && input instanceof Request
@@ -58,7 +55,7 @@ export function configurarSessaoPorAba() {
     if (init?.headers) {
       new Headers(init.headers).forEach((value, name) => headers.set(name, value));
     }
-    headers.set("X-Trace-Session", token);
+    headers.set("X-Trace-Tab", tabId);
     return fetchOriginal(input, { ...(init || {}), headers });
   };
   window.__traceSessionFetchConfigured = true;

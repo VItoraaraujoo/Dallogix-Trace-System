@@ -4,6 +4,7 @@ export function createOperationalRealtimeController({ store, getPage, render, re
   let fallbackTimer = null;
   let reconnectTimer = null;
   let polling = false;
+  let reconnectFailures = 0;
   const stop = () => {
     if (fallbackTimer) window.clearInterval(fallbackTimer);
     if (reconnectTimer) window.clearTimeout(reconnectTimer);
@@ -31,11 +32,12 @@ export function createOperationalRealtimeController({ store, getPage, render, re
       } finally {
         polling = false;
       }
-    }, 1000);
+    }, 5000);
   };
   const start = () => {
     if (eventSource || fallbackTimer || getPage() !== "work") return;
     const consume = async (payload) => {
+      reconnectFailures = 0;
       store.state.monitoring = payload?.monitoring || store.state.monitoring;
       store.applyActiveLoadingSnapshot(payload?.active_loadings || [], store.state.selectedLoadingId);
       if (store.state.loadingId) {
@@ -55,10 +57,16 @@ export function createOperationalRealtimeController({ store, getPage, render, re
       if (getPage() !== "work" || reconnectTimer) return;
       eventSource?.close();
       eventSource = null;
+      reconnectFailures += 1;
+      if (reconnectFailures >= 3) {
+        fallback();
+        return;
+      }
+      const delay = Math.min(30000, 5000 * (2 ** (reconnectFailures - 1)));
       reconnectTimer = window.setTimeout(() => {
         reconnectTimer = null;
         start();
-      }, 5000);
+      }, delay);
     };
     eventSource = store.subscribeOperationalEvents(consume, reconnect);
     if (!eventSource) fallback();

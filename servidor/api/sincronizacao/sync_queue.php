@@ -15,7 +15,7 @@ $pdo = db();
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $statement = $pdo->prepare(
-        'SELECT q.id, q.event_uuid, q.aggregate_type, q.aggregate_id, q.payload, q.status, q.attempts, q.last_error, q.available_at, q.created_at
+        'SELECT q.id, q.event_uuid, q.aggregate_type, q.aggregate_id, q.payload, q.status, q.attempts, q.transient_attempts, q.last_error, q.available_at, q.created_at
          FROM fila_sincronizacao q
          WHERE q.company_id = :company_id
          ORDER BY q.id DESC LIMIT 100',

@@ -38,12 +38,17 @@ services:
     cpus: "1.50"
     tmpfs:
       - /tmp
-      - /var/lib/php/sessions
+    volumes:
+      - php_sessions:/var/lib/php/sessions
+      - ./servidor:/var/www/servidor:ro
+      - ./armazenamento:/var/www/armazenamento
+      - ./scripts:/var/www/scripts:ro
     environment:
       APP_ENV: ${APP_ENV:-local}
       TZ: ${TZ:-America/Sao_Paulo}
       SESSION_SECURE: ${SESSION_SECURE:-false}
       SESSION_IDLE_TIMEOUT: ${SESSION_IDLE_TIMEOUT:-1800}
+      SESSION_GC_MAXLIFETIME: ${SESSION_GC_MAXLIFETIME:-86400}
       APP_URL: ${APP_URL:-http://localhost:8080}
       DB_HOST: mysql
       DB_NAME: ${MYSQL_DATABASE:-trace_local}
@@ -73,10 +78,6 @@ services:
       CAMERA_DEVICE_TOKEN: ${CAMERA_DEVICE_TOKEN:?CAMERA_DEVICE_TOKEN é obrigatório}
       LOGIN_EMAIL_DOMAIN: ${LOGIN_EMAIL_DOMAIN:-dallogix.local}
       LOGIN_EMAIL_BASE_DOMAIN: ${LOGIN_EMAIL_BASE_DOMAIN:-dallogix}
-    volumes:
-      - ./servidor:/var/www/servidor:ro
-      - ./armazenamento:/var/www/armazenamento
-      - ./scripts:/var/www/scripts:ro
     healthcheck:
       test:
         [
@@ -283,8 +284,17 @@ services:
       [
         "sh",
         "-c",
-        "while true; do php /var/www/scripts/prune_images.php; php /var/www/scripts/prune_operational_data.php; sleep 86400; done",
+        "while true; do php /var/www/scripts/prune_images.php; php /var/www/scripts/prune_operational_data.php; php /var/www/scripts/write_heartbeat.php /tmp/trace-retention-heartbeat; sleep 86400; done",
       ]
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "php -r 'exit(!is_file(\"/tmp/trace-retention-heartbeat\") || time() - filemtime(\"/tmp/trace-retention-heartbeat\") > 172800);'",
+        ]
+      interval: 60s
+      timeout: 5s
+      retries: 3
     restart: unless-stopped
     volumes:
       - ./armazenamento:/var/www/armazenamento
@@ -306,7 +316,11 @@ services:
     cpus: "0.50"
     tmpfs:
       - /tmp
-      - /var/lib/php/sessions
+    volumes:
+      - php_sessions:/var/lib/php/sessions
+      - ./servidor:/var/www/servidor:ro
+      - ./scripts:/var/www/scripts:ro
+      - ./armazenamento:/var/www/armazenamento:ro
     environment:
       TZ: ${TZ:-America/Sao_Paulo}
       DB_HOST: mysql
@@ -326,13 +340,19 @@ services:
       [
         "sh",
         "-c",
-        "while true; do php /var/www/scripts/sync_worker.php; sleep \"$${SYNC_POLL_INTERVAL_SECONDS:-1}\"; done",
+        "while true; do php /var/www/scripts/sync_worker.php; php /var/www/scripts/write_heartbeat.php /tmp/trace-sync-worker-heartbeat; sleep \"$${SYNC_POLL_INTERVAL_SECONDS:-1}\"; done",
       ]
-    volumes:
-      - ./servidor:/var/www/servidor:ro
-      - ./scripts:/var/www/scripts:ro
-      - ./armazenamento:/var/www/armazenamento:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "php -r 'exit(!is_file(\"/tmp/trace-sync-worker-heartbeat\") || time() - filemtime(\"/tmp/trace-sync-worker-heartbeat\") > 120);'",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
 volumes:
   mysql_data:
   node_red_data:
+  php_sessions:
