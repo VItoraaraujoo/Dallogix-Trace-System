@@ -33,6 +33,7 @@ if ($method === "GET") {
     }
     $rawCompanyId = $_GET["company_id"] ?? null;
     $companyId = $resolveCompanyId($rawCompanyId, $isMaster, $actor);
+    $includeArchived = $isMaster && (($_GET["include_archived"] ?? "") === "1");
     $pcSignalLimitSeconds = max(5, min(300, (int) (getenv("HEALTH_DEVICE_STALE_SECONDS") ?: 30)));
     $statement = $pdo->prepare(
         "SELECT p.id, p.company_id, p.equipment_id, p.name,
@@ -41,17 +42,19 @@ if ($method === "GET") {
                      THEN 'OFFLINE' ELSE p.status END AS status,
                 p.last_seen_at,
                 p.activated_at, (p.sync_token_hash IS NOT NULL) AS activated,
+                p.access_blocked_at, p.archived_at,
                 p.activation_code_preview, p.activation_code_created_at,
                 p.activation_code_expires_at,
                 (p.activation_code IS NOT NULL AND p.activation_code_used_at IS NULL
                   AND p.activation_code_expires_at > NOW()) AS activation_code_pending,
                 CASE WHEN p.activation_code_used_at IS NULL AND p.activation_code_expires_at > NOW()
+                       AND p.access_blocked_at IS NULL AND p.archived_at IS NULL
                      THEN p.activation_code ELSE NULL END AS activation_code,
                 e.name AS equipment_name, e.equipment_code
          FROM instalacoes_industriais p
          LEFT JOIN equipamentos e ON e.id = p.equipment_id AND e.company_id = p.company_id
-         WHERE p.company_id = :company_id
-         ORDER BY p.id"
+         WHERE p.company_id = :company_id" . ($includeArchived ? "" : " AND p.archived_at IS NULL") . "
+         ORDER BY p.archived_at IS NOT NULL, p.id"
     );
     $statement->execute(["company_id" => $companyId]);
     $installations = $statement->fetchAll();
@@ -63,6 +66,8 @@ if ($method === "GET") {
             : (int) $installation["equipment_id"];
         $installation["activation_code_pending"] = (bool) $installation["activation_code_pending"];
         $installation["activated"] = (bool) $installation["activated"];
+        $installation["access_blocked"] = $installation["access_blocked_at"] !== null;
+        $installation["archived"] = $installation["archived_at"] !== null;
         if (!$isMaster || !$installation["activation_code_pending"]) {
             $installation["activation_code"] = null;
         }
@@ -178,13 +183,16 @@ if ($action === "assign_equipment") {
     $pdo->beginTransaction();
     try {
         $installation = $pdo->prepare(
-            "SELECT company_id, equipment_id, sync_token_hash FROM instalacoes_industriais
+            "SELECT company_id, equipment_id, sync_token_hash, access_blocked_at, archived_at FROM instalacoes_industriais
              WHERE id = :id LIMIT 1 FOR UPDATE"
         );
         $installation->execute(["id" => $installationId]);
         $row = $installation->fetch();
         if (!$row) {
             throw new RuntimeException("PC industrial não encontrado.");
+        }
+        if ($row["archived_at"] !== null || $row["access_blocked_at"] !== null) {
+            throw new RuntimeException("Restaure e libere o acesso do PC industrial antes de vinculá-lo.");
         }
         if ($row["sync_token_hash"] !== null && $row["equipment_id"] !== null) {
             throw new RuntimeException("Este PC já foi ativado e vinculado. Não é possível trocar a Dala.");
@@ -229,6 +237,185 @@ if ($action === "assign_equipment") {
     }
 }
 
+if ($action === "block_access" || $action === "unblock_access") {
+    $installationId = filter_var($payload["installation_id"] ?? null, FILTER_VALIDATE_INT);
+    if (!$installationId || (int) $installationId < 1) {
+        json_response(["error" => "PC industrial não informado."], 422);
+    }
+    $installationId = (int) $installationId;
+    $blocked = $action === "block_access";
+    $pdo->beginTransaction();
+    try {
+        $statement = $pdo->prepare(
+            "SELECT company_id, equipment_id, name, access_blocked_at, archived_at
+             FROM instalacoes_industriais WHERE id = :id LIMIT 1 FOR UPDATE"
+        );
+        $statement->execute(["id" => $installationId]);
+        $row = $statement->fetch();
+        if (!$row) {
+            throw new RuntimeException("PC industrial não encontrado.");
+        }
+        if ($row["archived_at"] !== null) {
+            throw new RuntimeException("Restaure o PC industrial antes de alterar o acesso.");
+        }
+        $alreadyBlocked = $row["access_blocked_at"] !== null;
+        if ($alreadyBlocked === $blocked) {
+            $pdo->commit();
+            json_response(["data" => ["id" => $installationId, "blocked" => $blocked]]);
+        }
+        $update = $pdo->prepare(
+            "UPDATE instalacoes_industriais
+             SET access_blocked_at = " . ($blocked ? "NOW(3)" : "NULL") . ",
+                 status = 'DESCONHECIDO', last_seen_at = NULL, details = NULL
+             WHERE id = :id AND company_id = :company_id AND archived_at IS NULL"
+        );
+        $update->execute([
+            "id" => $installationId,
+            "company_id" => (int) $row["company_id"],
+        ]);
+        registrar_evento_operacional(
+            $pdo,
+            $actor,
+            $blocked ? "ACESSO_PC_INDUSTRIAL_BLOQUEADO" : "ACESSO_PC_INDUSTRIAL_LIBERADO",
+            "instalacao_industrial",
+            $installationId,
+            [
+                "company_id" => (int) $row["company_id"],
+                "equipment_id" => $row["equipment_id"] === null ? null : (int) $row["equipment_id"],
+                "name" => (string) $row["name"],
+            ],
+        );
+        $pdo->commit();
+        json_response(["data" => ["id" => $installationId, "blocked" => $blocked]]);
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        json_response(["error" => $exception->getMessage()], 409);
+    }
+}
+
+if ($action === "archive" || $action === "restore_archive") {
+    $installationId = filter_var($payload["installation_id"] ?? null, FILTER_VALIDATE_INT);
+    if (!$installationId || (int) $installationId < 1) {
+        json_response(["error" => "PC industrial não informado."], 422);
+    }
+    $installationId = (int) $installationId;
+    $archive = $action === "archive";
+    $pdo->beginTransaction();
+    try {
+        $statement = $pdo->prepare(
+            "SELECT company_id, equipment_id, name, archived_at
+             FROM instalacoes_industriais WHERE id = :id LIMIT 1 FOR UPDATE"
+        );
+        $statement->execute(["id" => $installationId]);
+        $row = $statement->fetch();
+        if (!$row) {
+            throw new RuntimeException("PC industrial não encontrado.");
+        }
+        $currentlyArchived = $row["archived_at"] !== null;
+        if ($currentlyArchived === $archive) {
+            $pdo->commit();
+            json_response(["data" => ["id" => $installationId, "archived" => $archive]]);
+        }
+        if ($archive) {
+            $update = $pdo->prepare(
+                "UPDATE instalacoes_industriais
+                 SET archived_at = NOW(3), access_blocked_at = NOW(3),
+                     sync_token_hash = NULL, activated_at = NULL,
+                     activation_code = NULL, activation_code_hash = NULL,
+                     activation_code_preview = NULL, activation_code_created_at = NULL,
+                     activation_code_expires_at = NULL, activation_code_used_at = NULL,
+                     status = 'DESCONHECIDO', last_seen_at = NULL, details = NULL
+                 WHERE id = :id AND company_id = :company_id AND archived_at IS NULL"
+            );
+        } else {
+            $update = $pdo->prepare(
+                "UPDATE instalacoes_industriais
+                 SET archived_at = NULL, access_blocked_at = NULL,
+                     status = 'DESCONHECIDO', last_seen_at = NULL, details = NULL
+                 WHERE id = :id AND company_id = :company_id AND archived_at IS NOT NULL"
+            );
+        }
+        $update->execute([
+            "id" => $installationId,
+            "company_id" => (int) $row["company_id"],
+        ]);
+        registrar_evento_operacional(
+            $pdo,
+            $actor,
+            $archive ? "PC_INDUSTRIAL_ARQUIVADO" : "PC_INDUSTRIAL_RESTAURADO",
+            "instalacao_industrial",
+            $installationId,
+            [
+                "company_id" => (int) $row["company_id"],
+                "equipment_id" => $row["equipment_id"] === null ? null : (int) $row["equipment_id"],
+                "name" => (string) $row["name"],
+            ],
+        );
+        $pdo->commit();
+        json_response(["data" => ["id" => $installationId, "archived" => $archive]]);
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        json_response(["error" => $exception->getMessage()], 409);
+    }
+}
+
+if ($action === "delete_archived") {
+    $installationId = filter_var($payload["installation_id"] ?? null, FILTER_VALIDATE_INT);
+    if (!$installationId || (int) $installationId < 1) {
+        json_response(["error" => "PC industrial não informado."], 422);
+    }
+    $installationId = (int) $installationId;
+    $pdo->beginTransaction();
+    try {
+        $statement = $pdo->prepare(
+            "SELECT company_id, equipment_id, name, archived_at
+             FROM instalacoes_industriais WHERE id = :id LIMIT 1 FOR UPDATE"
+        );
+        $statement->execute(["id" => $installationId]);
+        $row = $statement->fetch();
+        if (!$row) {
+            throw new RuntimeException("PC industrial não encontrado.");
+        }
+        if ($row["archived_at"] === null) {
+            throw new RuntimeException("Arquive o PC industrial antes de excluí-lo.");
+        }
+        registrar_evento_operacional(
+            $pdo,
+            $actor,
+            "PC_INDUSTRIAL_EXCLUIDO",
+            "instalacao_industrial",
+            $installationId,
+            [
+                "company_id" => (int) $row["company_id"],
+                "equipment_id" => $row["equipment_id"] === null ? null : (int) $row["equipment_id"],
+                "name" => (string) $row["name"],
+            ],
+        );
+        $delete = $pdo->prepare(
+            "DELETE FROM instalacoes_industriais
+             WHERE id = :id AND company_id = :company_id AND archived_at IS NOT NULL"
+        );
+        $delete->execute([
+            "id" => $installationId,
+            "company_id" => (int) $row["company_id"],
+        ]);
+        if ($delete->rowCount() !== 1) {
+            throw new RuntimeException("Não foi possível excluir o PC industrial arquivado.");
+        }
+        $pdo->commit();
+        json_response(["data" => ["id" => $installationId, "deleted" => true]]);
+    } catch (Throwable $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
+        json_response(["error" => $exception->getMessage()], 409);
+    }
+}
+
 if ($action === "revoke_access") {
     $installationId = filter_var($payload["installation_id"] ?? null, FILTER_VALIDATE_INT);
     if (!$installationId || (int) $installationId < 1) {
@@ -238,7 +425,9 @@ if ($action === "revoke_access") {
     $pdo->beginTransaction();
     try {
         $installation = $pdo->prepare(
-            "SELECT company_id, equipment_id, sync_token_hash
+            "SELECT company_id, equipment_id, sync_token_hash,
+                    (activation_code_hash IS NOT NULL AND activation_code_used_at IS NULL
+                      AND activation_code_expires_at > NOW()) AS activation_code_pending
              FROM instalacoes_industriais WHERE id = :id LIMIT 1 FOR UPDATE",
         );
         $installation->execute(["id" => $installationId]);
@@ -246,7 +435,8 @@ if ($action === "revoke_access") {
         if (!$row) {
             throw new RuntimeException("PC industrial não encontrado.");
         }
-        if ($row["sync_token_hash"] === null) {
+        $revokingActiveAccess = $row["sync_token_hash"] !== null;
+        if (!$revokingActiveAccess && !(bool) $row["activation_code_pending"]) {
             throw new RuntimeException("Este PC industrial já está sem acesso ativo.");
         }
         $revoke = $pdo->prepare(
@@ -262,10 +452,17 @@ if ($action === "revoke_access") {
             "id" => $installationId,
             "company_id" => (int) $row["company_id"],
         ]);
-        registrar_evento_operacional($pdo, $actor, "ACESSO_PC_INDUSTRIAL_REVOGADO", "instalacao_industrial", $installationId, [
+        registrar_evento_operacional(
+            $pdo,
+            $actor,
+            $revokingActiveAccess ? "ACESSO_PC_INDUSTRIAL_REVOGADO" : "CODIGO_PC_INDUSTRIAL_CANCELADO",
+            "instalacao_industrial",
+            $installationId,
+            [
             "company_id" => (int) $row["company_id"],
             "equipment_id" => $row["equipment_id"] === null ? null : (int) $row["equipment_id"],
-        ]);
+            ],
+        );
         $markDelivered = $pdo->prepare(
             "UPDATE fila_sincronizacao q
              JOIN (
@@ -285,7 +482,11 @@ if ($action === "revoke_access") {
             "queue_company_id" => (int) $row["company_id"],
         ]);
         $pdo->commit();
-        json_response(["data" => ["id" => $installationId, "revoked" => true]]);
+        json_response(["data" => [
+            "id" => $installationId,
+            "revoked" => $revokingActiveAccess,
+            "code_cancelled" => !$revokingActiveAccess,
+        ]]);
     } catch (Throwable $exception) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -304,9 +505,10 @@ if ($action === "generate_activation_code") {
     try {
         $statement = $pdo->prepare(
             "SELECT p.id, p.company_id, p.equipment_id, p.name, p.sync_token_hash,
+                    p.access_blocked_at, p.archived_at AS installation_archived_at,
                     p.activation_code, p.activation_code_used_at,
                     (p.activation_code_expires_at IS NOT NULL AND p.activation_code_expires_at > NOW()) AS code_unexpired,
-                    c.name AS company_name, c.login_domain, c.archived_at,
+                    c.name AS company_name, c.login_domain, c.archived_at AS company_archived_at,
                     (SELECT l.status FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_status
              FROM instalacoes_industriais p
              JOIN empresas c ON c.id = p.company_id
@@ -314,8 +516,11 @@ if ($action === "generate_activation_code") {
         );
         $statement->execute(["id" => $installationId]);
         $row = $statement->fetch();
-        if (!$row || $row["archived_at"] !== null) {
+        if (!$row || $row["company_archived_at"] !== null || $row["installation_archived_at"] !== null) {
             throw new RuntimeException("Empresa ou PC industrial não encontrado ou arquivado.");
+        }
+        if ($row["access_blocked_at"] !== null) {
+            throw new RuntimeException("Desbloqueie o acesso antes de gerar o código do PC.");
         }
         if (($row["license_status"] ?? "") !== "ATIVA") {
             throw new RuntimeException("Ative a licença da empresa antes de gerar o código do PC.");

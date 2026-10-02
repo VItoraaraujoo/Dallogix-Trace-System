@@ -526,7 +526,8 @@ function exigir_instalacao_remota(bool $permitirSemDala = false): array
                 p.name AS installation_name, c.name, c.login_domain
          FROM instalacoes_industriais p
          JOIN empresas c ON c.id = p.company_id
-         WHERE c.archived_at IS NULL AND p.sync_token_hash = :token_hash
+         WHERE c.archived_at IS NULL AND p.archived_at IS NULL
+           AND p.access_blocked_at IS NULL AND p.sync_token_hash = :token_hash
          LIMIT 1",
     );
     $statement->execute(["token_hash" => hash("sha256", $normalized)]);

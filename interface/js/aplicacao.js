@@ -15,7 +15,7 @@ import { dalas } from "../telas/dalas/dalas.js?v=202610010001";
 import { dalaActions } from "../telas/acoes-dala/acoes-dala.js?v=202610010001";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
 import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610010001";
-import { company } from "../telas/empresa/empresa.js?v=202610010001";
+import { company } from "../telas/empresa/empresa.js?v=202610020002";
 import { companies } from "../telas/empresas/empresas.js?v=202610010001";
 import { errorLogs } from "../telas/logs-erros/logs-erros.js?v=202610010001";
 import { masterHome } from "../telas/painel-dallogix/painel-dallogix.js?v=202610010001";
@@ -958,12 +958,71 @@ function bindActions() {
       }
       if (action === "revoke-industrial-pc-access") {
         const name = node.dataset.name || "este PC industrial";
-        if (!confirm(`Revogar o acesso de "${name}"? O PC será desconectado do Trace até receber um novo código de ativação.`)) return;
+        const cancelPendingCode = node.textContent.trim() === "Cancelar código";
+        const confirmation = cancelPendingCode
+          ? "Cancelar o código de ativação de \"" + name + "\"?"
+          : "Revogar o acesso de \"" + name + "\"? O PC será desconectado do Trace até receber um novo código de ativação.";
+        if (!confirm(confirmation)) return;
         try {
           await store.revokeIndustrialAccess(node.dataset.id);
           await store.loadCompanyDetail();
           render();
-          alert("Acesso do PC industrial revogado. A Dala continua vinculada a ele.");
+          alert(cancelPendingCode
+            ? "Código de ativação cancelado. A Dala continua vinculada ao PC."
+            : "Acesso do PC industrial revogado. A Dala continua vinculada a ele.");
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+      if (action === "toggle-industrial-pc-access") {
+        const blocked = node.dataset.blocked === "true";
+        const name = node.dataset.name || "este PC industrial";
+        const dalaName = node.dataset.dalaName || "a Dala vinculada";
+        const confirmation = blocked
+          ? "Bloquear o acesso remoto de \"" + name + "\" à " + dalaName + "? A operação local continuará funcionando."
+          : "Liberar o acesso remoto de \"" + name + "\" à " + dalaName + "? A sincronização será retomada.";
+        if (!confirm(confirmation)) return;
+        try {
+          await store.setIndustrialAccessBlocked(node.dataset.id, blocked);
+          render();
+          alert(blocked
+            ? "Acesso remoto bloqueado. A Dala continua funcionando localmente."
+            : "Acesso remoto liberado novamente.");
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+      if (action === "archive-industrial-pc") {
+        const name = node.dataset.name || "este PC industrial";
+        if (!confirm("Arquivar \"" + name + "\"? O acesso e o código serão revogados. A Dala e o histórico serão preservados.")) return;
+        try {
+          await store.setIndustrialInstallationArchived(node.dataset.id, true);
+          render();
+          alert("PC industrial arquivado. Para usá-lo novamente, restaure o cadastro e faça uma nova ativação.");
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+      if (action === "restore-industrial-pc") {
+        try {
+          await store.setIndustrialInstallationArchived(node.dataset.id, false);
+          render();
+          alert("PC restaurado. Gere um novo código e faça a ativação no PC industrial.");
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+      if (action === "delete-industrial-pc") {
+        const name = node.dataset.name || "este PC industrial";
+        if (!confirm("Excluir definitivamente \"" + name + "\"? Esta ação não pode ser desfeita. A Dala e o histórico de operação serão mantidos.")) return;
+        try {
+          await store.deleteArchivedIndustrialInstallation(node.dataset.id);
+          render();
+          alert("Cadastro do PC industrial excluído. A Dala e o histórico foram preservados.");
         } catch (error) {
           alert(error.message);
         }

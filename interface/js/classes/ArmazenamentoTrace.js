@@ -985,7 +985,7 @@ export class ArmazenamentoTrace {
     if (!this.state.selectedCompanyId)
       throw new Error("Nenhuma empresa selecionada.");
     const response = await fetch(
-      `/api/instalacoes_industriais.php?company_id=${this.state.selectedCompanyId}`,
+      `/api/instalacoes_industriais.php?company_id=${this.state.selectedCompanyId}&include_archived=1`,
       { cache: "no-store" },
     );
     const result = await response.json().catch(() => ({}));
@@ -1039,6 +1039,55 @@ export class ArmazenamentoTrace {
     const result = await response.json().catch(() => ({}));
     if (!response.ok)
       throw new Error(result.error || "Não foi possível revogar o acesso deste PC.");
+    this.state.industrialInstallationActivation = null;
+    await this.loadIndustrialInstallations();
+    return result.data;
+  }
+  async setIndustrialAccessBlocked(installationId, blocked) {
+    const response = await fetch("/api/instalacoes_industriais.php", {
+      method: "POST",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({
+        action: blocked ? "block_access" : "unblock_access",
+        installation_id: Number(installationId),
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw new Error(result.error || "Não foi possível alterar o acesso do PC industrial.");
+    this.state.industrialInstallationActivation = null;
+    await this.loadIndustrialInstallations();
+    return result.data;
+  }
+  async setIndustrialInstallationArchived(installationId, archived) {
+    const response = await fetch("/api/instalacoes_industriais.php", {
+      method: "POST",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({
+        action: archived ? "archive" : "restore_archive",
+        installation_id: Number(installationId),
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw new Error(result.error || "Não foi possível arquivar ou restaurar o PC industrial.");
+    this.state.industrialInstallationActivation = null;
+    await this.loadIndustrialInstallations();
+    return result.data;
+  }
+  async deleteArchivedIndustrialInstallation(installationId) {
+    const response = await fetch("/api/instalacoes_industriais.php", {
+      method: "POST",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({
+        action: "delete_archived",
+        installation_id: Number(installationId),
+      }),
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok)
+      throw new Error(result.error || "Não foi possível excluir o PC industrial arquivado.");
+    this.state.industrialInstallationActivation = null;
     await this.loadIndustrialInstallations();
     return result.data;
   }

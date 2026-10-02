@@ -32,6 +32,8 @@ $statement = obter_conexao_banco()->prepare(
      WHERE p.activation_code_hash = :code_hash
        AND p.activation_code_used_at IS NULL
        AND p.activation_code_expires_at > NOW()
+       AND p.archived_at IS NULL
+       AND p.access_blocked_at IS NULL
        AND c.archived_at IS NULL
      LIMIT 1",
 );

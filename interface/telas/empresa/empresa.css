@@ -1,6 +1,22 @@
 /* Estilos da tela empresa; a base responsiva é compartilhada. */
 @import url("/css/responsive.css");
 
+.company-detail-header {
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.company-detail-heading {
+  display: grid;
+  justify-items: start;
+  gap: 10px;
+}
+
+.company-detail-heading .page-back,
+.company-detail-header .actions .button {
+  margin: 0;
+}
+
 .industrial-pc-create-form {
   display: grid;
   grid-template-columns: minmax(240px, 1fr) auto;
@@ -21,23 +37,97 @@
 
 .industrial-pc-row {
   display: grid;
-  grid-template-columns: minmax(180px, .9fr) minmax(250px, 1.4fr) minmax(220px, 1.1fr);
-  gap: 18px;
-  align-items: center;
+  grid-template-columns: minmax(220px, 1.2fr) minmax(200px, 1fr) minmax(190px, .9fr);
+  gap: 16px;
+  align-items: start;
   padding: 16px;
   border: 1px solid #dbe5ea;
+  border-left: 4px solid #8598a2;
   border-radius: 12px;
   background: #fbfdfe;
 }
 
-.industrial-pc-row > div:first-child,
-.industrial-pc-activation {
+.industrial-pc-row.is-online {
+  border-left-color: #27835f;
+}
+
+.industrial-pc-row.is-offline {
+  border-left-color: #b17a16;
+}
+
+.industrial-pc-row.is-error,
+.industrial-pc-row.is-blocked {
+  border-left-color: #b74349;
+}
+
+.industrial-pc-row.is-unknown,
+.industrial-pc-row.is-archived {
+  border-left-color: #8598a2;
+}
+
+.industrial-pc-row.is-archived {
+  background: #f4f6f7;
+}
+
+.industrial-pc-summary,
+.industrial-pc-activation,
+.industrial-pc-controls,
+.industrial-pc-dala,
+.industrial-pc-access {
   display: grid;
   gap: 6px;
+  align-content: start;
 }
 
 .industrial-pc-row small {
   color: #617382;
+}
+
+.industrial-pc-access {
+  padding-bottom: 10px;
+  border-bottom: 1px solid #dbe5ea;
+}
+
+.industrial-pc-actions .button,
+.industrial-pc-activation .button {
+  margin: 0;
+}
+
+.industrial-pc-code summary {
+  color: #0c5277;
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.industrial-pc-code > div {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.industrial-pc-code code {
+  overflow-wrap: anywhere;
+}
+
+.industrial-pc-note {
+  margin: 0;
+  color: #617382;
+}
+
+.industrial-pc-archived {
+  margin-top: 18px;
+  padding-top: 14px;
+  border-top: 1px solid #dbe5ea;
+}
+
+.industrial-pc-archived > summary {
+  color: #0c5277;
+  cursor: pointer;
+  font-weight: 750;
+}
+
+.industrial-pc-archived .industrial-pc-list {
+  margin-top: 12px;
 }
 
 .industrial-pc-link-form {
@@ -59,6 +149,10 @@
   .industrial-pc-row {
     grid-template-columns: 1fr;
     gap: 12px;
+  }
+
+  .company-detail-header {
+    align-items: flex-start;
   }
 
   .industrial-pc-create-form {
