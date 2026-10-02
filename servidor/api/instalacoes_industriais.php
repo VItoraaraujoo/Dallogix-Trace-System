@@ -50,7 +50,7 @@ if ($method === "GET") {
                 CASE WHEN p.activation_code_used_at IS NULL AND p.activation_code_expires_at > NOW()
                        AND p.access_blocked_at IS NULL AND p.archived_at IS NULL
                      THEN p.activation_code ELSE NULL END AS activation_code,
-                e.name AS equipment_name, e.equipment_code
+                p.details AS pc_details, e.name AS equipment_name, e.equipment_code
          FROM instalacoes_industriais p
          LEFT JOIN equipamentos e ON e.id = p.equipment_id AND e.company_id = p.company_id
          WHERE p.company_id = :company_id" . ($includeArchived ? "" : " AND p.archived_at IS NULL") . "
@@ -68,6 +68,23 @@ if ($method === "GET") {
         $installation["activated"] = (bool) $installation["activated"];
         $installation["access_blocked"] = $installation["access_blocked_at"] !== null;
         $installation["archived"] = $installation["archived_at"] !== null;
+        $rawDetails = is_array($installation["pc_details"] ?? null)
+            ? $installation["pc_details"]
+            : json_decode((string) ($installation["pc_details"] ?? ""), true);
+        $rawDisk = is_array($rawDetails) && is_array($rawDetails["disk"] ?? null)
+            ? $rawDetails["disk"]
+            : [];
+        $freeBytes = filter_var($rawDisk["free_bytes"] ?? null, FILTER_VALIDATE_INT, ["options" => ["min_range" => 0]]);
+        $totalBytes = filter_var($rawDisk["total_bytes"] ?? null, FILTER_VALIDATE_INT, ["options" => ["min_range" => 1]]);
+        $freePercent = is_numeric($rawDisk["free_percent"] ?? null) ? (float) $rawDisk["free_percent"] : null;
+        $installation["pc_details"] = ["disk" => []];
+        if ($freeBytes !== false && $totalBytes !== false && $freeBytes <= $totalBytes && $freePercent !== null && $freePercent >= 0 && $freePercent <= 100) {
+            $installation["pc_details"]["disk"] = [
+                "free_bytes" => (int) $freeBytes,
+                "total_bytes" => (int) $totalBytes,
+                "free_percent" => round($freePercent, 2),
+            ];
+        }
         if (!$isMaster || !$installation["activation_code_pending"]) {
             $installation["activation_code"] = null;
         }

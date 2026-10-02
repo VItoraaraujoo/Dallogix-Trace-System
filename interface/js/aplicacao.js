@@ -15,7 +15,7 @@ import { dalas } from "../telas/dalas/dalas.js?v=202610010001";
 import { dalaActions } from "../telas/acoes-dala/acoes-dala.js?v=202610010001";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
 import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610010001";
-import { company } from "../telas/empresa/empresa.js?v=202610020002";
+import { company } from "../telas/empresa/empresa.js?v=202610020003";
 import { companies } from "../telas/empresas/empresas.js?v=202610010001";
 import { errorLogs } from "../telas/logs-erros/logs-erros.js?v=202610010001";
 import { masterHome } from "../telas/painel-dallogix/painel-dallogix.js?v=202610010001";
@@ -977,18 +977,22 @@ function bindActions() {
       }
       if (action === "toggle-industrial-pc-access") {
         const blocked = node.dataset.blocked === "true";
+        const activated = node.dataset.activated === "true";
         const name = node.dataset.name || "este PC industrial";
-        const dalaName = node.dataset.dalaName || "a Dala vinculada";
         const confirmation = blocked
-          ? "Bloquear o acesso remoto de \"" + name + "\" à " + dalaName + "? A operação local continuará funcionando."
-          : "Liberar o acesso remoto de \"" + name + "\" à " + dalaName + "? A sincronização será retomada.";
+          ? activated
+            ? "Bloquear o acesso remoto do PC industrial \"" + name + "\"? A operação local continuará funcionando."
+            : "Bloquear a ativação do PC industrial \"" + name + "\"? Ele não poderá receber um código até ser liberado."
+          : activated
+            ? "Liberar o acesso remoto do PC industrial \"" + name + "\"? A sincronização será retomada."
+            : "Liberar a ativação do PC industrial \"" + name + "\" para permitir a geração de um código?";
         if (!confirm(confirmation)) return;
         try {
           await store.setIndustrialAccessBlocked(node.dataset.id, blocked);
           render();
           alert(blocked
-            ? "Acesso remoto bloqueado. A Dala continua funcionando localmente."
-            : "Acesso remoto liberado novamente.");
+            ? (activated ? "Acesso remoto bloqueado. O PC continua funcionando localmente." : "Ativação bloqueada para este PC.")
+            : (activated ? "Acesso remoto liberado novamente." : "Ativação liberada. Agora é possível gerar um código."));
         } catch (error) {
           alert(error.message);
         }

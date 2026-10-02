@@ -31,20 +31,18 @@
 
 .industrial-pc-list {
   display: grid;
-  gap: 10px;
+  gap: 14px;
   margin-top: 16px;
 }
 
 .industrial-pc-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1.2fr) minmax(200px, 1fr) minmax(190px, .9fr);
-  gap: 16px;
-  align-items: start;
-  padding: 16px;
+  gap: 0;
   border: 1px solid #dbe5ea;
   border-left: 4px solid #8598a2;
   border-radius: 12px;
-  background: #fbfdfe;
+  overflow: hidden;
+  background: #fff;
 }
 
 .industrial-pc-row.is-online {
@@ -60,6 +58,10 @@
   border-left-color: #b74349;
 }
 
+.industrial-pc-row.is-pending {
+  border-left-color: #347fc0;
+}
+
 .industrial-pc-row.is-unknown,
 .industrial-pc-row.is-archived {
   border-left-color: #8598a2;
@@ -69,23 +71,131 @@
   background: #f4f6f7;
 }
 
-.industrial-pc-summary,
-.industrial-pc-activation,
-.industrial-pc-controls,
-.industrial-pc-dala,
-.industrial-pc-access {
+.industrial-pc-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 15px 18px;
+}
+
+.industrial-pc-identity {
   display: grid;
-  gap: 6px;
-  align-content: start;
+  gap: 4px;
+  min-width: 0;
 }
 
-.industrial-pc-row small {
+.industrial-pc-identity > small,
+.industrial-pc-info-item > small,
+.industrial-pc-activation > small {
   color: #617382;
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .05em;
+  text-transform: uppercase;
 }
 
-.industrial-pc-access {
-  padding-bottom: 10px;
-  border-bottom: 1px solid #dbe5ea;
+.industrial-pc-identity h4 {
+  margin: 0;
+  color: #18313e;
+  font-size: 17px;
+  overflow-wrap: anywhere;
+}
+
+.industrial-pc-status {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #edf1f3;
+  color: #526571;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.industrial-pc-status.is-online {
+  background: #e5f4ed;
+  color: #236b4c;
+}
+
+.industrial-pc-status.is-offline,
+.industrial-pc-status.is-pending {
+  background: #e8f1fb;
+  color: #285f93;
+}
+
+.industrial-pc-status.is-error,
+.industrial-pc-status.is-blocked {
+  background: #fae9e9;
+  color: #993a40;
+}
+
+.industrial-pc-info-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  border-top: 1px solid #e5ecef;
+  border-bottom: 1px solid #e5ecef;
+  background: #f8fafb;
+}
+
+.industrial-pc-info-item {
+  display: grid;
+  align-content: start;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-right: 1px solid #e5ecef;
+}
+
+.industrial-pc-info-item:last-child {
+  border-right: 0;
+}
+
+.industrial-pc-info-item > strong,
+.industrial-pc-info-value strong,
+.industrial-pc-info-item > div > strong {
+  color: #213642;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+.industrial-pc-info-item > small:not(:first-child) {
+  color: #617382;
+  font-size: 12px;
+  letter-spacing: 0;
+  text-transform: none;
+}
+
+.industrial-pc-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 18px;
+}
+
+.industrial-pc-activation {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.industrial-pc-activation > small {
+  flex-basis: 100%;
+}
+
+.industrial-pc-controls {
+  display: flex;
+  justify-content: flex-end;
+  min-width: 0;
+}
+
+.industrial-pc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .industrial-pc-actions .button,
@@ -100,7 +210,9 @@
 }
 
 .industrial-pc-code > div {
-  display: grid;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
   gap: 8px;
   margin-top: 8px;
 }
@@ -112,6 +224,7 @@
 .industrial-pc-note {
   margin: 0;
   color: #617382;
+  font-size: 13px;
 }
 
 .industrial-pc-archived {
@@ -146,9 +259,21 @@
 }
 
 @media (max-width: 860px) {
-  .industrial-pc-row {
+  .industrial-pc-info-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .industrial-pc-info-item:nth-child(even) {
+    border-right: 0;
+  }
+
+  .industrial-pc-info-item:nth-child(n + 3) {
+    border-top: 1px solid #e5ecef;
+  }
+
+  .industrial-pc-footer {
     grid-template-columns: 1fr;
-    gap: 12px;
+    align-items: start;
   }
 
   .company-detail-header {
@@ -162,5 +287,35 @@
   .industrial-pc-link-form {
     align-items: stretch;
     flex-direction: column;
+  }
+}
+
+@media (max-width: 560px) {
+  .industrial-pc-card-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .industrial-pc-info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .industrial-pc-info-item,
+  .industrial-pc-info-item:nth-child(even) {
+    border-right: 0;
+  }
+
+  .industrial-pc-info-item + .industrial-pc-info-item {
+    border-top: 1px solid #e5ecef;
+  }
+
+  .industrial-pc-actions {
+    justify-content: stretch;
+    width: 100%;
+  }
+
+  .industrial-pc-actions .button {
+    flex: 1 1 100%;
   }
 }

@@ -27,22 +27,48 @@ export function company(store) {
   const renderInstallation = (installation, archived = false) => {
     const id = Number(installation.id);
     const name = esc(installation.name);
-    const dalaName = esc(installation.equipment_name || "Dala vinculada");
+    const dalaName = esc(installation.equipment_name || "Não vinculada");
     const isActivated = Boolean(installation.activated || installation.activated_at);
     const isBlocked = Boolean(installation.access_blocked);
     const statusKey = String(installation.status || "DESCONHECIDO").toUpperCase();
-    const status = archived ? "Arquivado" : ({
+    const connectionStatuses = {
       ONLINE: "Online",
       OFFLINE: "Offline",
       ERRO: "Com erro",
       DESCONHECIDO: "Sem sinal",
-    }[statusKey] || "Sem sinal");
-    const stateClass = archived ? "archived" : isBlocked ? "blocked" : ({
+    };
+    const connectionClasses = {
       ONLINE: "online",
       OFFLINE: "offline",
       ERRO: "error",
       DESCONHECIDO: "unknown",
-    }[statusKey] || "unknown");
+    };
+    let status = connectionStatuses[statusKey] || "Sem sinal";
+    let stateClass = connectionClasses[statusKey] || "unknown";
+    if (!isActivated) {
+      status = "Pendente de ativação";
+      stateClass = "pending";
+    }
+    if (isBlocked) {
+      status = isActivated ? "Acesso bloqueado" : "Ativação bloqueada";
+      stateClass = "blocked";
+    }
+    if (archived) {
+      status = "Arquivado";
+      stateClass = "archived";
+    }
+    const lastSignal = installation.last_seen_at ? dataHora(installation.last_seen_at) : "Ainda não se conectou";
+    const disk = installation.pc_details?.disk || {};
+    const freeBytes = Number(disk.free_bytes);
+    const totalBytes = Number(disk.total_bytes);
+    const freePercent = Number(disk.free_percent);
+    const hasDiskStats = Number.isFinite(freeBytes) && freeBytes >= 0 && Number.isFinite(totalBytes) && totalBytes > 0 &&
+      Number.isFinite(freePercent) && freePercent >= 0 && freePercent <= 100;
+    const freeDiskGb = hasDiskStats ? (freeBytes / (1024 ** 3)).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "";
+    const totalDiskGb = hasDiskStats ? (totalBytes / (1024 ** 3)).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "";
+    const diskInfo = hasDiskStats
+      ? '<strong>' + freePercent.toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + '% livre</strong><small>' + freeDiskGb + ' GB de ' + totalDiskGb + ' GB</small>'
+      : '<strong>Sem leitura</strong><small>Disponível após a primeira comunicação</small>';
     const code = !archived && !isBlocked
       ? (generatedCode?.id === id ? generatedCode.activation_code : installation.activation_code)
       : null;
@@ -50,39 +76,47 @@ export function company(store) {
       !equipment.industrial_pc_id || Number(equipment.industrial_pc_id) === id,
     );
     const canLinkDala = !archived && !isBlocked && (!isActivated || !installation.equipment_id) && options.length > 0;
+    const dalaInfoLabel = canLinkDala
+      ? (installation.equipment_id ? "Dala deste PC" : "Vincular Dala")
+      : "Dala vinculada";
     const dalaControl = canLinkDala
       ? '<form class="industrial-pc-link-form" data-installation-id="' + id + '"><label>Dala deste PC<select name="equipment_id" required><option value="">Selecione uma Dala</option>' +
         options.map((equipment) => '<option value="' + Number(equipment.id) + '"' +
           (Number(equipment.id) === Number(installation.equipment_id) ? ' selected' : '') + '>' +
           esc(equipment.name) + ' · ' + esc(equipment.equipment_code) + '</option>').join("") +
         '</select></label><button class="button secondary small" data-action="link-industrial-pc-dala" type="button">Vincular Dala</button></form>'
-      : '<div class="industrial-pc-dala"><small>Dala vinculada</small><strong>' + dalaName +
+      : '<div class="industrial-pc-info-value"><strong>' + dalaName +
         (installation.equipment_code ? ' · ' + esc(installation.equipment_code) : '') + '</strong></div>';
     const activationControl = archived
       ? '<p class="industrial-pc-note">O acesso e o código foram revogados ao arquivar. Restaure e gere um novo código para reativar este PC.</p>'
       : isBlocked
-      ? '<p class="industrial-pc-note">O acesso remoto desta Dala está bloqueado. A operação local continua funcionando.</p>'
+      ? '<p class="industrial-pc-note">' + (isActivated ? 'Acesso remoto bloqueado. A operação local continua funcionando.' : 'A ativação está bloqueada. Libere para gerar um código.') + '</p>'
       : isActivated
-      ? '<p class="industrial-pc-note"><strong>Ativado</strong>' +
-        (installation.last_seen_at ? ' · último sinal ' + esc(dataHora(installation.last_seen_at)) : '') + '</p>'
+      ? '<p class="industrial-pc-note"><strong>PC ativado</strong>' +
+        (installation.activated_at ? ' desde ' + esc(dataHora(installation.activated_at)) : '') + '</p>'
       : code
       ? '<details class="industrial-pc-code"><summary>Ver código de ativação</summary><div><code>' + esc(code) +
         '</code><button class="button secondary small" data-action="copy-industrial-pc-code" data-code="' + esc(code) + '" type="button">Copiar código</button></div></details><button class="button secondary small" data-action="revoke-industrial-pc-access" data-id="' + id + '" type="button">Cancelar código</button>'
-      : '<p class="industrial-pc-note">Aguardando código de ativação.</p><button class="button primary small" data-action="generate-industrial-pc-code" data-id="' + id + '" type="button" ' +
+      : '<p class="industrial-pc-note">Nenhum código pendente.</p><button class="button primary small" data-action="generate-industrial-pc-code" data-id="' + id + '" type="button" ' +
         (licenseActive ? '' : 'disabled') + '>Gerar código</button>';
+    const accessSummary = archived ? 'Arquivado' : isBlocked ? 'Bloqueado' : isActivated ? 'Liberado' : 'Sem bloqueio';
+    const accessButtonLabel = isBlocked
+      ? (isActivated ? 'Liberar acesso' : 'Liberar ativação')
+      : (isActivated ? 'Bloquear acesso' : 'Bloquear ativação');
     const accessActions = archived
-      ? '<div class="actions industrial-pc-actions"><button class="button secondary small" data-action="restore-industrial-pc" data-id="' + id + '" type="button">Restaurar PC</button><button class="button danger small" data-action="delete-industrial-pc" data-id="' + id + '" data-name="' + name + '" type="button">Excluir definitivamente</button></div>'
-      : '<div class="industrial-pc-access"><strong>' + (isBlocked ? 'Acesso bloqueado' : isActivated ? 'Acesso liberado' : 'Acesso ainda não ativado') +
-        '</strong><button class="button ' + (isBlocked ? 'primary' : 'secondary') + ' small" data-action="toggle-industrial-pc-access" data-id="' + id +
-        '" data-name="' + name + '" data-dala-name="' + dalaName + '" data-blocked="' + (!isBlocked) + '" type="button">' +
-        (isBlocked ? 'Liberar acesso' : 'Bloquear acesso') + '</button></div><div class="actions industrial-pc-actions"><button class="button secondary small" data-action="archive-industrial-pc" data-id="' + id + '" data-name="' + name + '" type="button">Arquivar PC</button></div>';
-    return '<article class="industrial-pc-row is-' + stateClass + (archived ? ' is-archived' : '') + '"><div class="industrial-pc-summary"><div><strong>' + name +
-      '</strong><small>PC industrial ' + id + ' · ' + esc(status) + '</small></div>' + dalaControl + '</div><div class="industrial-pc-activation">' +
-      activationControl + '</div><div class="industrial-pc-controls">' + accessActions + '</div></article>';
+      ? '<div class="industrial-pc-actions"><button class="button secondary small" data-action="restore-industrial-pc" data-id="' + id + '" type="button">Restaurar PC</button><button class="button danger small" data-action="delete-industrial-pc" data-id="' + id + '" data-name="' + name + '" type="button">Excluir definitivamente</button></div>'
+      : '<div class="industrial-pc-actions"><button class="button ' + (isBlocked ? 'primary' : 'secondary') + ' small" data-action="toggle-industrial-pc-access" data-id="' + id +
+        '" data-name="' + name + '" data-activated="' + isActivated + '" data-blocked="' + (!isBlocked) + '" type="button">' +
+        accessButtonLabel + '</button><button class="button secondary small" data-action="archive-industrial-pc" data-id="' + id + '" data-name="' + name + '" type="button">Arquivar PC</button></div>';
+    return '<article class="industrial-pc-row is-' + stateClass + (archived ? ' is-archived' : '') + '"><header class="industrial-pc-card-header"><div class="industrial-pc-identity"><small>PC industrial #' + id + '</small><h4>' + name +
+      '</h4></div><span class="industrial-pc-status is-' + stateClass + '">' + esc(status) + '</span></header><div class="industrial-pc-info-grid"><section class="industrial-pc-info-item"><small>' + dalaInfoLabel + '</small>' + dalaControl +
+      '</section><section class="industrial-pc-info-item"><small>Última comunicação</small><strong>' + esc(lastSignal) + '</strong></section><section class="industrial-pc-info-item"><small>Armazenamento do PC</small>' + diskInfo +
+      '</section><section class="industrial-pc-info-item"><small>Acesso remoto</small><strong>' + esc(accessSummary) + '</strong></section></div><footer class="industrial-pc-footer"><div class="industrial-pc-activation"><small>Ativação</small>' +
+      activationControl + '</div><div class="industrial-pc-controls">' + accessActions + '</div></footer></article>';
   };
   const createPcPanel = '<section class="panel industrial-pc-create-panel"><div class="panel-heading"><div><h3>Cadastrar PC industrial</h3></div></div><form id="industrial-pc-create-form" data-company-id="' + Number(detail.id) +
     '" class="industrial-pc-create-form"><label>Nome do PC industrial<input name="name" maxlength="160" required placeholder="Ex.: Esteira 1 · Unidade Campinas" /></label><button class="button primary" type="submit">Cadastrar PC industrial</button><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form></section><br>';
-  const managePcPanel = '<section class="panel industrial-pc-management-panel"><div class="panel-heading"><div><span class="kicker">Acesso individual por PC</span><h3>Gerenciar PCs industriais</h3><p>Bloquear pausa a sincronização desta Dala. A operação local continua; os dados sincronizam quando o acesso for liberado.</p></div></div><div class="industrial-pc-list">' +
+  const managePcPanel = '<section class="panel industrial-pc-management-panel"><div class="panel-heading"><div><span class="kicker">Acesso individual por PC</span><h3>Gerenciar PCs industriais</h3><p>Cada cartão reúne os dados e o acesso de um PC. Bloquear pausa a sincronização; a operação local continua.</p></div></div><div class="industrial-pc-list">' +
     (activeInstallations.length ? activeInstallations.map((installation) => renderInstallation(installation)).join("") : '<p class="empty-cell">Nenhum PC industrial cadastrado. Use o formulário acima para criar o primeiro.</p>') +
     '</div>' + (archivedInstallations.length ? '<details class="industrial-pc-archived"><summary>PCs arquivados (' + archivedInstallations.length + ')</summary><div class="industrial-pc-list">' +
       archivedInstallations.map((installation) => renderInstallation(installation, true)).join("") + '</div></details>' : '') +
