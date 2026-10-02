@@ -89,6 +89,25 @@ function Download-UpdateArtifact([string]$Uri, [string]$Path, [hashtable]$Header
     }
 }
 
+function Invoke-Tar([string[]]$Arguments) {
+    $runId = [guid]::NewGuid().ToString('N')
+    $stdoutPath = Join-Path $env:TEMP ("trace-tar-" + $runId + ".out")
+    $stderrPath = Join-Path $env:TEMP ("trace-tar-" + $runId + ".err")
+    $process = $null
+    try {
+        $process = Start-Process -FilePath 'tar.exe' -ArgumentList $Arguments -Wait -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+        if (Test-Path -LiteralPath $stderrPath) {
+            Get-Content -LiteralPath $stderrPath | Add-Content -LiteralPath $ComposeLogPath -Encoding UTF8
+        }
+        if (Test-Path -LiteralPath $stdoutPath) {
+            Get-Content -LiteralPath $stdoutPath | Add-Content -LiteralPath $ComposeLogPath -Encoding UTF8
+        }
+        return $process.ExitCode
+    } finally {
+        Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
 function Invoke-DockerCompose([string[]]$Arguments) {
     $runId = [guid]::NewGuid().ToString('N')
     $stdoutPath = Join-Path $env:TEMP ("trace-compose-" + $runId + ".out")
@@ -198,8 +217,8 @@ try {
     $release = Join-Path $StateRoot ("releases\" + $manifest.version)
     if (Test-Path $release) { Remove-Item $release -Recurse -Force }
     New-Item -ItemType Directory -Force -Path $release | Out-Null
-    & tar.exe -xzf $artifact -C $release
-    if ($LASTEXITCODE -ne 0) { throw "Não foi possível extrair o pacote." }
+    $extractExit = Invoke-Tar @('-xzf', $artifact, '-C', $release)
+    if ($extractExit -ne 0) { throw "Não foi possível extrair o pacote (codigo $extractExit)." }
     $source = if (Test-Path (Join-Path $release "trace\docker-compose.yml")) { Join-Path $release "trace" } else { $release }
     if (-not (Test-Path (Join-Path $source "docker-compose.yml")) -or
         -not (Test-Path (Join-Path $source "scripts\migrate.sh"))) {
@@ -246,8 +265,8 @@ try {
     $preservedNames = @(".env", "armazenamento", ".git", "config", "logs", "DallogixTrace.exe.WebView2")
     $previousNames = @(Get-ChildItem -Path $InstallRoot -Force | Where-Object { $_.Name -notin $preservedNames } | ForEach-Object { $_.Name })
     if ($previousNames.Count -gt 0) {
-        & tar.exe -czf $previousArchive -C $InstallRoot @previousNames
-        if ($LASTEXITCODE -ne 0) { throw "Backup dos arquivos atuais falhou." }
+        $archiveExit = Invoke-Tar (@('-czf', $previousArchive, '-C', $InstallRoot) + $previousNames)
+        if ($archiveExit -ne 0) { throw "Backup dos arquivos atuais falhou (codigo $archiveExit)." }
     } else { throw "Nenhum arquivo da aplicacao encontrado para backup." }
     $rollbackRequired = $true
     Get-ChildItem -Path $InstallRoot -Force | Where-Object { $_.Name -notin $preservedNames } | Remove-Item -Recurse -Force
@@ -283,8 +302,8 @@ try {
             & docker.exe compose @ComposeProfile stop | Out-Null
             $restoreRoot = Join-Path $StateRoot (".rollback-" + [guid]::NewGuid().ToString("N"))
             New-Item -ItemType Directory -Force -Path $restoreRoot | Out-Null
-            & tar.exe -xzf $previousArchive -C $restoreRoot
-            if ($LASTEXITCODE -ne 0) { throw "Não foi possível extrair o backup anterior." }
+            $rollbackExtractExit = Invoke-Tar @('-xzf', $previousArchive, '-C', $restoreRoot)
+            if ($rollbackExtractExit -ne 0) { throw "Não foi possível extrair o backup anterior (codigo $rollbackExtractExit)." }
             Get-ChildItem -Path $InstallRoot -Force | Where-Object { $_.Name -notin $preservedNames } | Remove-Item -Recurse -Force
             Get-ChildItem $restoreRoot -Force | Copy-Item -Destination $InstallRoot -Recurse -Force
             & docker.exe compose @ComposeProfile up -d mysql | Out-Null
