@@ -15,7 +15,7 @@ import { dalas } from "../telas/dalas/dalas.js?v=202610010001";
 import { dalaActions } from "../telas/acoes-dala/acoes-dala.js?v=202610010001";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
 import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610010001";
-import { company } from "../telas/empresa/empresa.js?v=202610020003";
+import { company } from "../telas/empresa/empresa.js?v=202610020004";
 import { companies } from "../telas/empresas/empresas.js?v=202610010001";
 import { errorLogs } from "../telas/logs-erros/logs-erros.js?v=202610010001";
 import { masterHome } from "../telas/painel-dallogix/painel-dallogix.js?v=202610010001";
@@ -398,7 +398,7 @@ function installLocalIndicator() {
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202609280006").catch(() => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610020004").catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }
@@ -422,6 +422,7 @@ function waitForDocumentStyles() {
 // adicionados quando a rota muda a partir de outra tela.
 const DALA_PAGES = new Set(["dalas", "dala", "dala-edit", "dala-actions"]);
 const DALA_SCREEN_STYLES = "/telas/dalas/dalas.css?v=202610010001";
+const COMPANY_SCREEN_STYLES = "/telas/empresa/empresa.css?v=202610020004";
 async function ensureDalaScreenStyles(page) {
   if (!DALA_PAGES.has(page)) return;
   const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
@@ -438,6 +439,31 @@ async function ensureDalaScreenStyles(page) {
   const link = document.createElement("link");
   link.rel = "stylesheet";
   link.href = DALA_SCREEN_STYLES;
+  document.head.append(link);
+  await new Promise((resolve) => {
+    link.addEventListener("load", resolve, { once: true });
+    link.addEventListener("error", resolve, { once: true });
+  });
+}
+
+async function ensureCompanyScreenStyles(page) {
+  if (page !== "company") return;
+  const currentUrl = new URL(COMPANY_SCREEN_STYLES, window.location.href);
+  const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
+    (link) => new URL(link.href, window.location.href).pathname === currentUrl.pathname,
+  );
+  if (existing && existing.href === currentUrl.href) {
+    if (existing.sheet) return;
+    await new Promise((resolve) => {
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", resolve, { once: true });
+    });
+    return;
+  }
+  existing?.remove();
+  const link = document.createElement("link");
+  link.rel = "stylesheet";
+  link.href = currentUrl.href;
   document.head.append(link);
   await new Promise((resolve) => {
     link.addEventListener("load", resolve, { once: true });
@@ -2367,6 +2393,7 @@ async function renderPage() {
   const requestId = ++renderRequestId;
 
   await ensureDalaScreenStyles(currentPage);
+  await ensureCompanyScreenStyles(currentPage);
 
   // A navegação não fica bloqueada pelas APIs. A tela abre com o estado local
   // disponível e recebe os dados atualizados assim que cada consulta termina.

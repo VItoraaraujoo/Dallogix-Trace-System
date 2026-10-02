@@ -17,12 +17,51 @@
   margin: 0;
 }
 
+.industrial-pc-create-panel,
+.industrial-pc-management-panel {
+  padding: clamp(14px, 1.25vw, 20px);
+}
+
+.industrial-pc-create-panel {
+  margin-top: 14px;
+}
+
+.industrial-pc-create-panel > .panel-heading,
+.industrial-pc-management-panel > .panel-heading {
+  margin-bottom: 10px;
+}
+
+.industrial-pc-management-panel > .panel-heading p {
+  margin: 4px 0 0;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
 .industrial-pc-create-form {
   display: grid;
-  grid-template-columns: minmax(240px, 1fr) auto;
-  gap: 12px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
   align-items: end;
-  margin: 18px 0;
+  margin: 12px 0 0;
+}
+
+.industrial-pc-create-form label {
+  gap: 6px;
+  font-size: 14px;
+}
+
+.industrial-pc-create-form input,
+.industrial-pc-create-form > .button {
+  min-height: 44px;
+}
+
+.industrial-pc-create-form input {
+  padding: 10px 12px;
+}
+
+.industrial-pc-create-form > .button {
+  padding: 9px 16px;
+  font-size: 14px;
 }
 
 .industrial-pc-create-form .form-feedback {
@@ -31,8 +70,8 @@
 
 .industrial-pc-list {
   display: grid;
-  gap: 14px;
-  margin-top: 16px;
+  gap: 10px;
+  margin-top: 12px;
 }
 
 .industrial-pc-row {
@@ -75,8 +114,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 15px 18px;
+  gap: 12px;
+  padding: 11px 14px;
 }
 
 .industrial-pc-identity {
@@ -89,7 +128,7 @@
 .industrial-pc-info-item > small,
 .industrial-pc-activation > small {
   color: #617382;
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 750;
   letter-spacing: .05em;
   text-transform: uppercase;
@@ -98,17 +137,17 @@
 .industrial-pc-identity h4 {
   margin: 0;
   color: #18313e;
-  font-size: 17px;
+  font-size: 16px;
   overflow-wrap: anywhere;
 }
 
 .industrial-pc-status {
   flex: 0 0 auto;
-  padding: 6px 10px;
+  padding: 5px 9px;
   border-radius: 999px;
   background: #edf1f3;
   color: #526571;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 750;
 }
 
@@ -140,9 +179,9 @@
 .industrial-pc-info-item {
   display: grid;
   align-content: start;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
-  padding: 14px 16px;
+  padding: 10px 12px;
   border-right: 1px solid #e5ecef;
 }
 
@@ -154,13 +193,14 @@
 .industrial-pc-info-value strong,
 .industrial-pc-info-item > div > strong {
   color: #213642;
-  font-size: 14px;
+  font-size: 13px;
+  line-height: 1.35;
   overflow-wrap: anywhere;
 }
 
 .industrial-pc-info-item > small:not(:first-child) {
   color: #617382;
-  font-size: 12px;
+  font-size: 11px;
   letter-spacing: 0;
   text-transform: none;
 }
@@ -169,8 +209,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  gap: 18px;
-  padding: 14px 18px;
+  gap: 12px;
+  padding: 10px 14px;
 }
 
 .industrial-pc-activation {
@@ -201,6 +241,12 @@
 .industrial-pc-actions .button,
 .industrial-pc-activation .button {
   margin: 0;
+}
+
+.industrial-pc-row .button.small {
+  min-height: 38px;
+  padding: 8px 12px;
+  font-size: 12px;
 }
 
 .industrial-pc-code summary {
@@ -245,7 +291,7 @@
 
 .industrial-pc-link-form {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: end;
 }
 
@@ -254,11 +300,30 @@
 }
 
 .industrial-pc-activation .company-activation-code {
-  font-size: 16px;
+  font-size: 14px;
   overflow-wrap: anywhere;
 }
 
-@media (max-width: 860px) {
+.industrial-pc-create-panel + .industrial-pc-management-panel,
+.industrial-pc-management-panel + .company-dashboard-metrics {
+  margin-top: 14px;
+}
+
+.company-dashboard-metrics .metric {
+  min-height: 0;
+  padding: 14px 16px;
+}
+
+.company-dashboard-metrics .metric small {
+  font-size: 13px;
+}
+
+.company-dashboard-metrics .metric strong {
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+@media (max-width: 1100px) {
   .industrial-pc-info-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -272,10 +337,16 @@
   }
 
   .industrial-pc-footer {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
     align-items: start;
   }
 
+  .industrial-pc-controls {
+    justify-content: flex-start;
+  }
+}
+
+@media (max-width: 860px) {
   .company-detail-header {
     align-items: flex-start;
   }
@@ -291,10 +362,16 @@
 }
 
 @media (max-width: 560px) {
+  .industrial-pc-create-panel,
+  .industrial-pc-management-panel {
+    padding: 13px;
+  }
+
   .industrial-pc-card-header {
     align-items: flex-start;
     flex-direction: column;
     gap: 10px;
+    padding: 10px 12px;
   }
 
   .industrial-pc-info-grid {
@@ -304,6 +381,7 @@
   .industrial-pc-info-item,
   .industrial-pc-info-item:nth-child(even) {
     border-right: 0;
+    padding: 9px 12px;
   }
 
   .industrial-pc-info-item + .industrial-pc-info-item {
@@ -316,6 +394,23 @@
   }
 
   .industrial-pc-actions .button {
-    flex: 1 1 100%;
+    flex: 1 1 130px;
+  }
+
+  .industrial-pc-activation {
+    align-items: stretch;
+  }
+
+  .industrial-pc-code > div {
+    align-items: stretch;
+  }
+
+  .industrial-pc-code > div .button,
+  .industrial-pc-activation > .button {
+    flex: 1 1 130px;
+  }
+
+  .company-dashboard-metrics .metric {
+    padding: 12px 14px;
   }
 }
