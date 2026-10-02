@@ -285,10 +285,6 @@
 }
 
 .industrial-pc-code > div {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
   margin-top: 8px;
 }
 
@@ -442,11 +438,6 @@
     align-items: stretch;
   }
 
-  .industrial-pc-code > div {
-    align-items: stretch;
-  }
-
-  .industrial-pc-code > div .button,
   .industrial-pc-activation > .button {
     flex: 1 1 130px;
   }

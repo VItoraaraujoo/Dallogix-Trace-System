@@ -96,7 +96,7 @@ export function company(store) {
         (installation.activated_at ? ' desde ' + esc(dataHora(installation.activated_at)) : '') + '</p>'
       : code
       ? '<details class="industrial-pc-code"><summary>Ver código de ativação</summary><div><code>' + esc(code) +
-        '</code><button class="button secondary small" data-action="copy-industrial-pc-code" data-code="' + esc(code) + '" type="button">Copiar código</button></div></details><button class="button secondary small" data-action="revoke-industrial-pc-access" data-id="' + id + '" type="button">Cancelar código</button>'
+        '</code></div></details>'
       : '<p class="industrial-pc-note">Nenhum código pendente.</p><button class="button primary small" data-action="generate-industrial-pc-code" data-id="' + id + '" type="button" ' +
         (licenseActive ? '' : 'disabled') + '>Gerar código</button>';
     const accessSummary = archived ? 'Arquivado' : isBlocked ? 'Bloqueado' : isActivated ? 'Liberado' : 'Sem bloqueio';

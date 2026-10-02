@@ -15,7 +15,7 @@ import { dalas } from "../telas/dalas/dalas.js?v=202610010001";
 import { dalaActions } from "../telas/acoes-dala/acoes-dala.js?v=202610010001";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
 import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610010001";
-import { company } from "../telas/empresa/empresa.js?v=202610020005";
+import { company } from "../telas/empresa/empresa.js?v=202610020006";
 import { companies } from "../telas/empresas/empresas.js?v=202610010001";
 import { errorLogs } from "../telas/logs-erros/logs-erros.js?v=202610010001";
 import { masterHome } from "../telas/painel-dallogix/painel-dallogix.js?v=202610010001";
@@ -398,7 +398,7 @@ function installLocalIndicator() {
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202610020005").catch(() => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610020006").catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }
@@ -422,7 +422,7 @@ function waitForDocumentStyles() {
 // adicionados quando a rota muda a partir de outra tela.
 const DALA_PAGES = new Set(["dalas", "dala", "dala-edit", "dala-actions"]);
 const DALA_SCREEN_STYLES = "/telas/dalas/dalas.css?v=202610010001";
-const COMPANY_SCREEN_STYLES = "/telas/empresa/empresa.css?v=202610020005";
+const COMPANY_SCREEN_STYLES = "/telas/empresa/empresa.css?v=202610020006";
 async function ensureDalaScreenStyles(page) {
   if (!DALA_PAGES.has(page)) return;
   const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
@@ -982,25 +982,6 @@ function bindActions() {
         }
         return;
       }
-      if (action === "revoke-industrial-pc-access") {
-        const name = node.dataset.name || "este PC industrial";
-        const cancelPendingCode = node.textContent.trim() === "Cancelar código";
-        const confirmation = cancelPendingCode
-          ? "Cancelar o código de ativação de \"" + name + "\"?"
-          : "Revogar o acesso de \"" + name + "\"? O PC será desconectado do Trace até receber um novo código de ativação.";
-        if (!confirm(confirmation)) return;
-        try {
-          await store.revokeIndustrialAccess(node.dataset.id);
-          await store.loadCompanyDetail();
-          render();
-          alert(cancelPendingCode
-            ? "Código de ativação cancelado. A Dala continua vinculada ao PC."
-            : "Acesso do PC industrial revogado. A Dala continua vinculada a ele.");
-        } catch (error) {
-          alert(error.message);
-        }
-        return;
-      }
       if (action === "toggle-industrial-pc-access") {
         const blocked = node.dataset.blocked === "true";
         const activated = node.dataset.activated === "true";
@@ -1055,16 +1036,6 @@ function bindActions() {
           alert("Cadastro do PC industrial excluído. A Dala e o histórico foram preservados.");
         } catch (error) {
           alert(error.message);
-        }
-        return;
-      }
-      if (action === "copy-industrial-pc-code") {
-        const code = node.dataset.code || "";
-        try {
-          await navigator.clipboard.writeText(code);
-          alert("Código deste PC copiado.");
-        } catch (error) {
-          alert(`Código de ativação: ${code}`);
         }
         return;
       }
