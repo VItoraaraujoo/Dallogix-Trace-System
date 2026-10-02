@@ -484,12 +484,7 @@ $upsertTruck = static function (PDO $connection, int $manifestId, array $data): 
 };
 
 $replaceManifestItems = static function (PDO $connection, int $companyId, int $manifestId, int $truckId, array $items, callable $productWriter): void {
-    $connection->prepare("DELETE FROM romaneio_itens WHERE romaneio_id = :romaneio_id")
-        ->execute(["romaneio_id" => $manifestId]);
-    $insert = $connection->prepare(
-        "INSERT INTO romaneio_itens (romaneio_id, product_id, truck_id, planned_quantity)
-         VALUES (:romaneio_id, :product_id, :truck_id, :quantity)",
-    );
+    $normalizedItems = [];
     foreach ($items as $item) {
         if (!is_array($item)) {
             throw new RuntimeException("Item de romaneio recebido pela sincronização é inválido.");
@@ -499,11 +494,29 @@ $replaceManifestItems = static function (PDO $connection, int $companyId, int $m
             throw new RuntimeException("Quantidade de item recebida pela sincronização é inválida.");
         }
         $productId = $productWriter($connection, $companyId, $item);
+        // O snapshot é a fonte de verdade e cada produto deve ocupar uma só
+        // linha. Mantemos a primeira ocorrência para não dobrar a quantidade
+        // quando uma instalação antiga enviar o mesmo item repetido.
+        if (!isset($normalizedItems[$productId])) {
+            $normalizedItems[$productId] = [
+                "product_id" => $productId,
+                "quantity" => (int) $quantity,
+            ];
+        }
+    }
+
+    $connection->prepare("DELETE FROM romaneio_itens WHERE romaneio_id = :romaneio_id")
+        ->execute(["romaneio_id" => $manifestId]);
+    $insert = $connection->prepare(
+        "INSERT INTO romaneio_itens (romaneio_id, product_id, truck_id, planned_quantity)
+         VALUES (:romaneio_id, :product_id, :truck_id, :quantity)",
+    );
+    foreach ($normalizedItems as $normalizedItem) {
         $insert->execute([
             "romaneio_id" => $manifestId,
-            "product_id" => $productId,
+            "product_id" => $normalizedItem["product_id"],
             "truck_id" => $truckId > 0 ? $truckId : null,
-            "quantity" => (int) $quantity,
+            "quantity" => $normalizedItem["quantity"],
         ]);
     }
 };

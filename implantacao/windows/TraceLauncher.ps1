@@ -46,6 +46,8 @@ $browserArgs = @(
     "--disable-session-crashed-bubble",
     "--disable-infobars",
     "--disable-pinch",
+    "--disable-smooth-scrolling",
+    "--disable-features=ElasticOverscroll",
     "--overscroll-history-navigation=0",
     "--password-store=basic"
 )

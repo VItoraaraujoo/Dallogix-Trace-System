@@ -12,7 +12,6 @@ import { rotuloEstado } from "./funcoes/rotulos.js?v=202609240001";
 import { deviceStatusSummary } from "./funcoes/view.js?v=202609280006";
 import { settings } from "../telas/configuracoes/configuracoes.js?v=202610010001";
 import { dalas } from "../telas/dalas/dalas.js?v=202610010001";
-import { dalaActions } from "../telas/acoes-dala/acoes-dala.js?v=202610010001";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
 import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610010001";
 import { company } from "../telas/empresa/empresa.js?v=202610020006";
@@ -53,7 +52,6 @@ const screens = {
   dalas,
   dala: dalaView,
   "dala-edit": dalaEdit,
-  "dala-actions": dalaActions,
   manifest: manifestView,
   "manifest-edit": manifestEdit,
   companies,
@@ -87,7 +85,6 @@ const ROLE_PAGES = {
     "dalas",
     "dala",
     "dala-edit",
-    "dala-actions",
     "users",
     "error-logs",
   ],
@@ -105,7 +102,6 @@ const ROLE_PAGES = {
     "alerts",
     "emergency",
     "dala",
-    "dala-actions",
   ],
   USUARIO: [
     "dashboard",
@@ -164,7 +160,6 @@ const PAGE_LABELS = {
   dalas: "Dalas",
   dala: "Visualizar Dala",
   "dala-edit": "Editar Dala",
-  "dala-actions": "Ações da Dala",
   manifest: "Visualizar romaneio",
   "manifest-edit": "Editar romaneio",
   companies: "Empresas",
@@ -234,7 +229,6 @@ const PAGE_PATHS = Object.freeze({
   dalas: "/telas/dalas/dalas.html",
   dala: "/telas/visualizar-dala/visualizar-dala.html",
   "dala-edit": "/telas/editar-dala/editar-dala.html",
-  "dala-actions": "/telas/acoes-dala/acoes-dala.html",
   companies: "/telas/empresas/empresas.html",
   company: "/telas/empresa/empresa.html",
   "master-home": "/telas/painel-dallogix/painel-dallogix.html",
@@ -247,7 +241,7 @@ const LEGACY_PAGE_IDS = Object.freeze({
   "division.html": "division", "work.html": "work", "occurrences.html": "occurrences",
   "summary.html": "summary", "products.html": "products", "alerts.html": "alerts",
   "emergency.html": "emergency", "settings.html": "settings", "dalas.html": "dalas",
-  "dala.html": "dala", "dala-edit.html": "dala-edit", "dala-actions.html": "dala-actions",
+  "dala.html": "dala", "dala-edit.html": "dala-edit",
   "companies.html": "companies", "company.html": "company", "master-home.html": "master-home",
   "users.html": "users", "error-logs.html": "error-logs",
 });
@@ -420,7 +414,7 @@ function waitForDocumentStyles() {
 // A aplicação navega entre telas usando History API. Nessa navegação o HTML
 // inicial não é recarregado, então os estilos exclusivos de Dalas precisam ser
 // adicionados quando a rota muda a partir de outra tela.
-const DALA_PAGES = new Set(["dalas", "dala", "dala-edit", "dala-actions"]);
+const DALA_PAGES = new Set(["dalas", "dala", "dala-edit"]);
 const DALA_SCREEN_STYLES = "/telas/dalas/dalas.css?v=202610010001";
 const COMPANY_SCREEN_STYLES = "/telas/empresa/empresa.css?v=202610020006";
 async function ensureDalaScreenStyles(page) {
@@ -710,6 +704,8 @@ function refreshRelativeTimes() {
   document.querySelectorAll("[data-relative-time]").forEach((node) => {
     const value = node.dataset.relativeTime || "";
     const text = relativo(value);
+    if (node.dataset.relativeRendered === text) return;
+    node.dataset.relativeRendered = text;
     const icon = node.querySelector(".status-dot");
     if (icon) node.replaceChildren(icon, document.createTextNode(text));
     else node.textContent = text;
@@ -718,7 +714,10 @@ function refreshRelativeTimes() {
 function installRelativeTimeRefresh() {
   if (relativeTimeTimer) window.clearInterval(relativeTimeTimer);
   refreshRelativeTimes();
-  relativeTimeTimer = window.setInterval(refreshRelativeTimes, 1000);
+  // Os horários relativos não precisam de precisão de um segundo. Atualizar
+  // a lista inteira a cada segundo força layout durante a rolagem, sobretudo
+  // no WebView2 do PC industrial.
+  relativeTimeTimer = window.setInterval(refreshRelativeTimes, 5000);
 }
 function installInteractionGuards() {
   document.addEventListener("dragstart", (event) => {
@@ -1316,10 +1315,6 @@ function bindActions() {
         navigate("dala", `?id=${node.dataset.id}&from=${from}`);
         return;
       }
-      if (action === "dala-actions") {
-        navigate("dala-actions", `?id=${node.dataset.id}&from=dalas`);
-        return;
-      }
       if (action === "edit-dala") {
         navigate(
           "dala-edit",
@@ -1334,74 +1329,6 @@ function bindActions() {
       if (action === "open-dala-operation") {
         store.state.selectedLoadingId = Number(node.dataset.loadingId) || null;
         await navigate("work");
-        return;
-      }
-      if (action === "new-dala-action" || action === "edit-dala-action") {
-        const form = document.querySelector("#dala-action-form");
-        const panel = document.querySelector(".dala-action-editor");
-        const selected = action === "edit-dala-action"
-          ? (store.state.dalaActionConfig?.acoes || []).find((item) => String(item.id) === String(node.dataset.id))
-          : null;
-        if (form && panel) {
-          form.reset();
-          form.elements.id.value = selected?.id || "";
-          form.elements.comando.value = selected?.comando || "INICIAR_CARREGAMENTO";
-          form.elements.rotulo.value = selected?.rotulo || "";
-          form.elements.cor.value = selected?.cor || "CINZA";
-          form.elements.modo.value = selected?.modo || "DIRETO";
-          form.elements.visivel.checked = selected ? Boolean(Number(selected.visivel)) : true;
-          panel.hidden = false;
-          panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        }
-        return;
-      }
-      if (action === "cancel-dala-action") {
-        const panel = document.querySelector(".dala-action-editor");
-        if (panel) panel.hidden = true;
-        return;
-      }
-      if (action === "delete-dala-action") {
-        if (!confirm(`Excluir a ação "${node.dataset.name}"?`)) return;
-        try {
-          await store.deleteDalaAction(queryId(), node.dataset.id);
-          render();
-        } catch (error) {
-          alert(error.message);
-        }
-        return;
-      }
-      if (action === "move-dala-action") {
-        const actions = [...(store.state.dalaActionConfig?.acoes || [])];
-        const index = actions.findIndex((item) => String(item.id) === String(node.dataset.id));
-        const target = index + (node.dataset.direction === "up" ? -1 : 1);
-        if (index < 0 || target < 0 || target >= actions.length) return;
-        [actions[index], actions[target]] = [actions[target], actions[index]];
-        try {
-          await store.reorderDalaActions(queryId(), actions.map((item) => item.id));
-          render();
-        } catch (error) {
-          alert(error.message);
-        }
-        return;
-      }
-      if (action === "new-dala-trigger" || action === "edit-dala-trigger") {
-        const form = document.querySelector("#dala-trigger-form");
-        const panel = document.querySelector(".dala-trigger-editor");
-        const triggers = store.state.dalaActionConfig?.gatilhos || [];
-        const selected = action === "edit-dala-trigger"
-          ? triggers.find((item) => String(item.id) === String(node.dataset.id))
-          : triggers[0];
-        if (form && panel && selected) {
-          form.elements.trigger_id.value = selected.id;
-          form.elements.acao_id.value = selected.acao_id || "";
-          panel.hidden = false;
-          panel.scrollIntoView({ behavior: "smooth", block: "nearest" });
-        }
-        return;
-      }
-      if (action === "cancel-dala-trigger") {
-        const panel = document.querySelector(".dala-trigger-editor");
-        if (panel) panel.hidden = true;
         return;
       }
       if (action === "reload-dala-diagnostics") {
@@ -1849,33 +1776,6 @@ function bindForms() {
         alert(`Dala atualizada, mas a verificação de conexão falhou: ${error.message}`);
       }
     });
-  const dalaActionForm = document.querySelector("#dala-action-form");
-  if (dalaActionForm)
-    dalaActionForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const raw = Object.fromEntries(new FormData(dalaActionForm));
-      raw.visivel = dalaActionForm.elements.visivel.checked;
-      try {
-        await store.saveDalaAction(queryId(), raw);
-        document.querySelector(".dala-action-editor")?.setAttribute("hidden", "");
-        render();
-      } catch (error) {
-        alert(error.message);
-      }
-    });
-  const dalaTriggerForm = document.querySelector("#dala-trigger-form");
-  if (dalaTriggerForm)
-    dalaTriggerForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const raw = Object.fromEntries(new FormData(dalaTriggerForm));
-      try {
-        await store.saveDalaTrigger(queryId(), raw);
-        document.querySelector(".dala-trigger-editor")?.setAttribute("hidden", "");
-        render();
-      } catch (error) {
-        alert(error.message);
-      }
-    });
   const manifestForm = document.querySelector("#new-manifest-form");
   if (manifestForm)
     manifestForm.addEventListener("submit", async (event) => {
@@ -1898,6 +1798,15 @@ function bindForms() {
         alert("Adicione ao menos um item com produto e quantidade.");
         return;
       }
+      if (new Set(items.map((item) => String(item.product_id))).size !== items.length) {
+        alert("Selecione cada produto apenas uma vez no romaneio.");
+        return;
+      }
+      if (manifestForm.dataset.submitting === "1") return;
+      manifestForm.dataset.submitting = "1";
+      manifestForm.querySelectorAll("button").forEach((button) => {
+        button.disabled = true;
+      });
       try {
         await store.createManifest({
           number: raw.number,
@@ -1911,6 +1820,11 @@ function bindForms() {
         navigate("manifests");
       } catch (error) {
         alert(error.message);
+      } finally {
+        manifestForm.dataset.submitting = "0";
+        manifestForm.querySelectorAll("button").forEach((button) => {
+          button.disabled = false;
+        });
       }
     });
   const manifestEditForm = document.querySelector("#edit-manifest-form");
@@ -1934,6 +1848,15 @@ function bindForms() {
         alert("Adicione ao menos um item com produto e quantidade.");
         return;
       }
+      if (new Set(items.map((item) => String(item.product_id))).size !== items.length) {
+        alert("Selecione cada produto apenas uma vez no romaneio.");
+        return;
+      }
+      if (manifestEditForm.dataset.submitting === "1") return;
+      manifestEditForm.dataset.submitting = "1";
+      manifestEditForm.querySelectorAll("button").forEach((button) => {
+        button.disabled = true;
+      });
       try {
         await store.updateManifest({
           romaneio_id: manifestEditForm.dataset.id,
@@ -1948,6 +1871,11 @@ function bindForms() {
         await navigate("manifest", `?id=${manifestEditForm.dataset.id}`);
       } catch (error) {
         alert(error.message);
+      } finally {
+        manifestEditForm.dataset.submitting = "0";
+        manifestEditForm.querySelectorAll("button").forEach((button) => {
+          button.disabled = false;
+        });
       }
     });
   // Importação PDF: preenche o formulário manual com os campos extraídos.
@@ -2334,12 +2262,11 @@ async function loadPageData(page) {
     dalas: () => [store.loadEquipments()],
     dala: () => [loadDalaView(queryId())],
     "dala-edit": () => [store.loadEquipment(queryId())],
-    "dala-actions": () => [store.loadEquipment(queryId()), store.loadDalaActionConfig(queryId())],
     "error-logs": () => [store.loadErrorLogs(), store.loadTechnicalDiagnostics(), store.loadDeadLetters()],
     users: () => [store.loadUsers()],
   };
   if (
-    ["manifest", "manifest-edit", "division", "dala", "dala-edit", "dala-actions"].includes(page) &&
+    ["manifest", "manifest-edit", "division", "dala", "dala-edit"].includes(page) &&
     !queryId()
   )
     throw new Error("Registro não informado.");
@@ -2366,15 +2293,12 @@ async function renderPage() {
   await ensureDalaScreenStyles(currentPage);
   await ensureCompanyScreenStyles(currentPage);
 
-  // A navegação não fica bloqueada pelas APIs. A tela abre com o estado local
-  // disponível e recebe os dados atualizados assim que cada consulta termina.
+  // Mantém o shell responsivo enquanto as consultas terminam, mas usa uma
+  // única renderização completa por navegação. Renderizar a tela antiga e
+  // depois substituí-la novamente fazia o conteúdo saltar no WebView2.
   if (root) {
-    try {
-      render();
-    } catch (error) {
-      root.innerHTML =
-        '<div class="panel page-loading" role="status">Abrindo tela…</div>';
-    }
+    root.innerHTML =
+      '<div class="panel page-loading" role="status">Abrindo tela…</div>';
   }
   try {
     await loadPageData(currentPage);
@@ -2386,7 +2310,7 @@ async function renderPage() {
     const returnPage = missingRecord
       ? ["manifest", "manifest-edit", "division"].includes(currentPage)
         ? "manifests"
-        : ["dala", "dala-edit", "dala-actions"].includes(currentPage)
+        : ["dala", "dala-edit"].includes(currentPage)
           ? "dalas"
           : currentPage === "company"
             ? "companies"

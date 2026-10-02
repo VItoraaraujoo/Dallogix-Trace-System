@@ -447,7 +447,7 @@ foreach (array_values($items) as $index => $item) {
 try {
     $pdo->beginTransaction();
 
-    $resolved = [];
+    $resolvedByProduct = [];
     $productById = $pdo->prepare(
         "SELECT id, code, name FROM produtos WHERE id = :id AND company_id = :company_id AND active = 1 LIMIT 1",
     );
@@ -480,8 +480,17 @@ try {
             );
         }
 
-        $resolved[] = ["product" => $product, "quantity" => $item["quantity"]];
+        $resolvedProductId = (int) $product["id"];
+        if (isset($resolvedByProduct[$resolvedProductId])) {
+            $pdo->rollBack();
+            responder_json(["error" => "Produto duplicado nos itens do romaneio."], 422);
+        }
+        $resolvedByProduct[$resolvedProductId] = [
+            "product" => $product,
+            "quantity" => $item["quantity"],
+        ];
     }
+    $resolved = array_values($resolvedByProduct);
 
     $romaneioStatement = $pdo->prepare(
         'INSERT INTO romaneios (company_id, number, scheduled_date, status, expedidor) VALUES (:company_id, :number, :scheduled_date, \'AGUARDANDO\', :expedidor)',

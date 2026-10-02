@@ -11,7 +11,6 @@ function dalaReferenceActions(equipment, canManage, canDelete) {
   const actions = [
     `<button data-action="view-dala" data-id="${equipment.id}" type="button">Visualizar</button>`,
     canManage ? `<button data-action="edit-dala" data-id="${equipment.id}" type="button">Editar</button>` : "",
-    canManage ? `<button data-action="dala-actions" data-id="${equipment.id}" type="button">Ações</button>` : "",
     canDelete ? `<button class="danger" data-action="delete-dala" data-id="${equipment.id}" data-name="${esc(equipment.name)}" type="button">Excluir</button>` : "",
   ].filter(Boolean);
   const withClass = (item) => item.includes('class="danger"')

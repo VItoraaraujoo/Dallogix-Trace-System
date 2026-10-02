@@ -561,7 +561,7 @@ final class ServicoSincronizacaoRemota
             $localId = (int) $this->connection->lastInsertId();
         }
         if (!($localStatePending ?? false) && !$this->possuiEventoLocalPendente($companyId, "romaneio", $romaneioId)) {
-            $this->sincronizarItens($romaneioId, $companyId, $remote["items"] ?? []);
+            $this->sincronizarItens($romaneioId, $companyId, $truckId, $remote["items"] ?? []);
         }
         return $localId;
     }
@@ -829,16 +829,48 @@ final class ServicoSincronizacaoRemota
     }
 
     /** @param list<array<string,mixed>> $items */
-    private function sincronizarItens(int $romaneioId, int $companyId, array $items): void
+    private function sincronizarItens(int $romaneioId, int $companyId, int $truckId, array $items): void
     {
+        $itemsByCode = [];
         foreach ($items as $item) {
+            if (!is_array($item)) {
+                continue;
+            }
             $code = trim((string) ($item["code"] ?? ""));
             if ($code === "") {
                 continue;
             }
-            $product = $this->connection->prepare(
-                "SELECT id FROM produtos WHERE company_id = :company_id AND code = :code LIMIT 1",
-            );
+            // Um snapshot remoto representa cada produto uma única vez. Se
+            // uma versão antiga já enviou a mesma linha duas vezes, a primeira
+            // ocorrência continua sendo a quantidade original do romaneio.
+            $itemsByCode[$code] ??= $item;
+        }
+
+        $product = $this->connection->prepare(
+            "SELECT id FROM produtos WHERE company_id = :company_id AND code = :code LIMIT 1",
+        );
+        $existing = $this->connection->prepare(
+            "SELECT id, truck_id FROM romaneio_itens
+             WHERE romaneio_id = :romaneio_id AND product_id = :product_id
+               AND (truck_id = :truck_id_match OR truck_id IS NULL)
+             ORDER BY CASE WHEN truck_id = :truck_id_order THEN 0 ELSE 1 END, id
+             LIMIT 50",
+        );
+        $update = $this->connection->prepare(
+            "UPDATE romaneio_itens SET truck_id = :truck_id, planned_quantity = :quantity
+             WHERE id = :id AND romaneio_id = :romaneio_id",
+        );
+        $deleteDuplicate = $this->connection->prepare(
+            "DELETE FROM romaneio_itens
+             WHERE id = :id AND romaneio_id = :romaneio_id",
+        );
+        $insert = $this->connection->prepare(
+            "INSERT INTO romaneio_itens (romaneio_id, product_id, truck_id, planned_quantity)
+             VALUES (:romaneio_id, :product_id, :truck_id, :quantity)",
+        );
+
+        foreach ($itemsByCode as $item) {
+            $code = trim((string) ($item["code"] ?? ""));
             $product->execute(["company_id" => $companyId, "code" => $code]);
             $productId = (int) ($product->fetchColumn() ?: 0);
             if (!$productId) {
@@ -852,30 +884,41 @@ final class ServicoSincronizacaoRemota
                 ]);
                 $productId = (int) $this->connection->lastInsertId();
             }
-            $existing = $this->connection->prepare(
-                "SELECT id FROM romaneio_itens WHERE romaneio_id = :romaneio_id
-                 AND product_id = :product_id AND truck_id IS NULL LIMIT 1",
-            );
-            $existing->execute(["romaneio_id" => $romaneioId, "product_id" => $productId]);
-            $itemId = (int) ($existing->fetchColumn() ?: 0);
-            if ($itemId) {
-                $update = $this->connection->prepare(
-                    "UPDATE romaneio_itens SET planned_quantity = :quantity
-                     WHERE id = :id AND romaneio_id = :romaneio_id",
-                );
+            $existing->execute([
+                "romaneio_id" => $romaneioId,
+                "product_id" => $productId,
+                "truck_id_match" => $truckId > 0 ? $truckId : 0,
+                "truck_id_order" => $truckId > 0 ? $truckId : 0,
+            ]);
+            $existingRows = $existing->fetchAll();
+            if ($existingRows !== []) {
+                $itemId = (int) $existingRows[0]["id"];
+                $preferredTruckFound = $truckId > 0
+                    && (int) ($existingRows[0]["truck_id"] ?? 0) === $truckId;
+                // Remove somente as linhas concorrentes do mesmo caminhão ou
+                // sem caminhão. Linhas do mesmo produto em outro caminhão são
+                // preservadas para não quebrar uma divisão legítima de carga.
+                foreach (array_slice($existingRows, 1) as $duplicate) {
+                    $duplicateTruckId = $duplicate["truck_id"] === null
+                        ? null : (int) $duplicate["truck_id"];
+                    if ($preferredTruckFound || $duplicateTruckId === null) {
+                        $deleteDuplicate->execute([
+                            "id" => (int) $duplicate["id"],
+                            "romaneio_id" => $romaneioId,
+                        ]);
+                    }
+                }
                 $update->execute([
+                    "truck_id" => $truckId > 0 ? $truckId : null,
                     "quantity" => max(1, (int) ($item["planned_quantity"] ?? 1)),
                     "id" => $itemId,
                     "romaneio_id" => $romaneioId,
                 ]);
             } else {
-                $insert = $this->connection->prepare(
-                    "INSERT INTO romaneio_itens (romaneio_id, product_id, truck_id, planned_quantity)
-                     VALUES (:romaneio_id, :product_id, NULL, :quantity)",
-                );
                 $insert->execute([
                     "romaneio_id" => $romaneioId,
                     "product_id" => $productId,
+                    "truck_id" => $truckId > 0 ? $truckId : null,
                     "quantity" => max(1, (int) ($item["planned_quantity"] ?? 1)),
                 ]);
             }

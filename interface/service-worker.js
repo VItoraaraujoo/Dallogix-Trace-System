@@ -1,4 +1,4 @@
-const CACHE_NAME = "trace-shell-20261002-06";
+const CACHE_NAME = "trace-shell-20261002-07";
 const SHELL = [
   "/",
   "/service-worker.js",
@@ -19,14 +19,12 @@ const SHELL = [
   "/dalas.html",
   "/dala.html",
   "/dala-edit.html",
-  "/dala-actions.html",
   "/companies.html",
   "/company.html",
   "/master-home.html",
   "/users.html",
   "/error-logs.html",
   "/telas/acesso/acesso.html",
-  "/telas/acoes-dala/acoes-dala.html",
   "/telas/alertas/alertas.html",
   "/telas/configuracoes/configuracoes.html",
   "/telas/dalas/dalas.html",
@@ -49,7 +47,6 @@ const SHELL = [
   "/telas/usuarios/usuarios.html",
   "/telas/visualizar-dala/visualizar-dala.html",
   "/telas/acesso/acesso.js",
-  "/telas/acoes-dala/acoes-dala.js",
   "/telas/alertas/alertas.js",
   "/telas/configuracoes/configuracoes.js",
   "/telas/dalas/dalas.js",
@@ -72,7 +69,6 @@ const SHELL = [
   "/telas/usuarios/usuarios.js",
   "/telas/visualizar-dala/visualizar-dala.js",
   "/telas/acesso/acesso.css",
-  "/telas/acoes-dala/acoes-dala.css",
   "/telas/alertas/alertas.css",
   "/telas/configuracoes/configuracoes.css",
   "/telas/dalas/dalas.css",
