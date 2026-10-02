@@ -272,9 +272,16 @@ try {
     # em uso. Ele é regenerável e deve ficar fora do backup e da substituição
     # para que o tar do Windows não falhe por acesso negado.
     $preservedNames = @(".env", "armazenamento", ".git", "config", "logs", "DallogixTrace.exe.WebView2")
-    $previousNames = @(Get-ChildItem -Path $InstallRoot -Force | Where-Object { $_.Name -notin $preservedNames } | ForEach-Object { $_.Name })
-    if ($previousNames.Count -gt 0) {
-        $archiveExit = Invoke-Tar (@('-czf', $previousArchive, '-C', $InstallRoot) + $previousNames)
+    $applicationEntries = @(Get-ChildItem -Path $InstallRoot -Force | Where-Object { $_.Name -notin $preservedNames })
+    if ($applicationEntries.Count -gt 0) {
+        # Empacote o diretório inteiro e exclua os dados preservados. Passar
+        # cada nome como argumento quebra no tar.exe do Windows quando há
+        # espaços ou acentos (por exemplo, PDFs do projeto).
+        $tarArguments = @('-czf', $previousArchive, '-C', $InstallRoot,
+            '--exclude=./.env', '--exclude=./armazenamento', '--exclude=./.git',
+            '--exclude=./config', '--exclude=./logs',
+            '--exclude=./DallogixTrace.exe.WebView2', '.')
+        $archiveExit = Invoke-Tar $tarArguments
         if ($archiveExit -ne 0) { throw "Backup dos arquivos atuais falhou (codigo $archiveExit)." }
     } else { throw "Nenhum arquivo da aplicacao encontrado para backup." }
     $rollbackRequired = $true
