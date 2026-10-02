@@ -65,12 +65,12 @@ internal sealed class TraceForm : Form
                 if (attempt == 29) { ShowFailure($"A API de ativação local não ficou pronta. Confira as migrations e os logs do PHP/MySQL. Último erro: {activationError}"); return; }
             }
             var webViewOptions = new CoreWebView2EnvironmentOptions(
-                "--disable-smooth-scrolling --disable-features=ElasticOverscroll",
+                "--disable-smooth-scrolling --disable-features=ElasticOverscroll"
             );
             var webViewEnvironment = await CoreWebView2Environment.CreateAsync(
                 browserExecutableFolder: null,
                 userDataFolder: null,
-                options: webViewOptions,
+                options: webViewOptions
             );
             await web.EnsureCoreWebView2Async(webViewEnvironment);
             web.CoreWebView2.Settings.AreDevToolsEnabled = false;
