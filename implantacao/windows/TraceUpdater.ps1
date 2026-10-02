@@ -80,7 +80,8 @@ function Invoke-DockerCompose([string[]]$Arguments) {
     $stderrPath = Join-Path $env:TEMP ("trace-compose-" + $runId + ".err")
     $process = $null
     try {
-        $process = Start-Process -FilePath 'docker.exe' -ArgumentList $Arguments -Wait -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+        $composeArguments = @('compose') + $Arguments
+        $process = Start-Process -FilePath 'docker.exe' -ArgumentList $composeArguments -Wait -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
         return $process.ExitCode
     } finally {
         Add-Content -LiteralPath $ComposeLogPath -Value ("$(Get-Date -Format o) docker compose " + ($Arguments -join ' ')) -Encoding UTF8
