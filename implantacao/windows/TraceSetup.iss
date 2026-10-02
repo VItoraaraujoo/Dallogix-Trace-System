@@ -90,9 +90,9 @@ begin
   LegacyCompose := AddBackslash(LegacyRoot) + 'docker-compose.yml';
   if FileExists(LegacyCompose) and
      (CompareText('C:\DallogixTrace', LegacyRoot) <> 0) then begin
-    MsgBox('Foi encontrada uma instalação anterior em C:\ProgramData\DallogixTrace.' +
-      #13#10#13#10 + 'Pare e remova essa instalação antiga antes de instalar a versão nova em C:\DallogixTrace.' +
-      #13#10 + 'Nenhum arquivo antigo será apagado automaticamente.', mbError, MB_OK);
+    MsgBox('Foi encontrada uma instalação anterior em C:\ProgramData\DallogixTrace.' + #13#10#13#10 +
+      'Pare e remova essa instalação antiga antes de instalar a versão nova em C:\DallogixTrace.' + #13#10 +
+      'Nenhum arquivo antigo será apagado automaticamente.', mbError, MB_OK);
     Exit;
   end;
   VersionFile := ExpandConstant('C:\DallogixTrace\armazenamento\updates\current_version');
