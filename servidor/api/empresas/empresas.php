@@ -237,7 +237,7 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             ],
             201,
         );
-    } catch (PDOException $exception) {
+    } catch (Throwable $exception) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
@@ -409,6 +409,24 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
         json_response(["error" => "Arquive a empresa antes de excluí-la definitivamente."], 409);
     }
 
+    $payload = ler_json_da_requisicao();
+    $confirmation = trim((string) ($payload["confirmation"] ?? ""));
+    $password = (string) ($payload["password"] ?? "");
+    if ($confirmation !== (string) $empresa["name"]) {
+        json_response([
+            "error" => "Digite exatamente o nome da empresa para confirmar a exclusão definitiva.",
+        ], 422);
+    }
+    if ($password === "" || mb_strlen($password) > 128) {
+        json_response(["error" => "A senha atual é obrigatória para excluir uma empresa."], 422);
+    }
+    $passwordStatement = $pdo->prepare("SELECT password_hash FROM usuarios WHERE id = :id LIMIT 1");
+    $passwordStatement->execute(["id" => (int) ($usuarioAtor["id"] ?? 0)]);
+    $passwordHash = (string) ($passwordStatement->fetchColumn() ?: "");
+    if ($passwordHash === "" || !password_verify($password, $passwordHash)) {
+        json_response(["error" => "Senha atual inválida."], 401);
+    }
+
     $dependencias = [
         "usuarios" => "SELECT COUNT(*) FROM usuarios WHERE company_id = :id",
         "equipamentos" => "SELECT COUNT(*) FROM equipamentos WHERE company_id = :id",
@@ -435,6 +453,19 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
         if ($zerarEmpresa) {
             try {
                 $pdo->beginTransaction();
+                registrar_evento_operacional(
+                    $pdo,
+                    $usuarioAtor,
+                    "EMPRESA_EXCLUIDA_DEFINITIVA",
+                    "company",
+                    (int) $id,
+                    [
+                        "target_company_id" => (int) $id,
+                        "company_name" => (string) $empresa["name"],
+                        "forced" => true,
+                        "confirmation" => "nome_e_senha_validados",
+                    ],
+                );
                 $pdo->exec("SET FOREIGN_KEY_CHECKS = 0");
                 remover_empresa_com_dados($pdo, (int) $id);
                 $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
@@ -461,10 +492,31 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
     }
 
     try {
-        $delete = $pdo->prepare("DELETE FROM empresas WHERE id = :id");
+        $pdo->beginTransaction();
+        registrar_evento_operacional(
+            $pdo,
+            $usuarioAtor,
+            "EMPRESA_EXCLUIDA_DEFINITIVA",
+            "company",
+            (int) $id,
+            [
+                "target_company_id" => (int) $id,
+                "company_name" => (string) $empresa["name"],
+                "forced" => false,
+                "confirmation" => "nome_e_senha_validados",
+            ],
+        );
+        $delete = $pdo->prepare("DELETE FROM empresas WHERE id = :id AND archived_at IS NOT NULL");
         $delete->execute(["id" => $id]);
+        if ($delete->rowCount() !== 1) {
+            throw new RuntimeException("A empresa não pôde ser removida.");
+        }
+        $pdo->commit();
         json_response(["data" => ["deleted" => true, "name" => $empresa["name"], "purged" => false]]);
     } catch (PDOException $exception) {
+        if ($pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         json_response(["error" => "Não foi possível remover a empresa com segurança."], 409);
     }
 }
@@ -494,18 +546,32 @@ if (!$isAdminDallogix) {
 }
 
 $pdo = db();
-$industrialPcTableAvailable = (bool) $pdo->query(
+$industrialInstallationsTableAvailable = (bool) $pdo->query(
+    "SELECT 1 FROM information_schema.tables
+     WHERE table_schema = DATABASE() AND table_name = 'instalacoes_industriais'
+     LIMIT 1",
+)->fetchColumn();
+$legacyIndustrialPcTableAvailable = (bool) $pdo->query(
     "SELECT 1 FROM information_schema.tables
      WHERE table_schema = DATABASE() AND table_name = 'status_pc_industrial'
      LIMIT 1",
 )->fetchColumn();
-$industrialPcStatusSelect = $industrialPcTableAvailable
-    ? "(SELECT s.status FROM status_pc_industrial s WHERE s.company_id = empresas.id LIMIT 1)"
-    : "NULL";
-$industrialPcLastSeenSelect = $industrialPcTableAvailable
-    ? "(SELECT s.last_seen_at FROM status_pc_industrial s WHERE s.company_id = empresas.id LIMIT 1)"
-    : "NULL";
 $pcSignalLimitSeconds = max(5, min(300, (int) (getenv("HEALTH_DEVICE_STALE_SECONDS") ?: 30)));
+$industrialPcStatusSelect = $industrialInstallationsTableAvailable
+    ? "(SELECT CASE
+           WHEN EXISTS (SELECT 1 FROM instalacoes_industriais p WHERE p.company_id = empresas.id
+                        AND p.status = 'ONLINE' AND p.last_seen_at >= DATE_SUB(NOW(3), INTERVAL {$pcSignalLimitSeconds} SECOND)) THEN 'ONLINE'
+           WHEN EXISTS (SELECT 1 FROM instalacoes_industriais p WHERE p.company_id = empresas.id AND p.status = 'ERRO') THEN 'ERRO'
+           WHEN EXISTS (SELECT 1 FROM instalacoes_industriais p WHERE p.company_id = empresas.id AND p.sync_token_hash IS NOT NULL) THEN 'OFFLINE'
+           ELSE 'DESCONHECIDO' END)"
+    : ($legacyIndustrialPcTableAvailable
+        ? "(SELECT s.status FROM status_pc_industrial s WHERE s.company_id = empresas.id LIMIT 1)"
+        : "NULL");
+$industrialPcLastSeenSelect = $industrialInstallationsTableAvailable
+    ? "(SELECT MAX(p.last_seen_at) FROM instalacoes_industriais p WHERE p.company_id = empresas.id)"
+    : ($legacyIndustrialPcTableAvailable
+        ? "(SELECT s.last_seen_at FROM status_pc_industrial s WHERE s.company_id = empresas.id LIMIT 1)"
+        : "NULL");
 $freshClpStatus = "CASE WHEN d.status = 'ONLINE' AND (d.last_seen_at IS NULL OR d.last_seen_at < DATE_SUB(NOW(3), INTERVAL {$pcSignalLimitSeconds} SECOND)) THEN 'OFFLINE' ELSE d.status END";
 $industrialPcStatus = static function (mixed $reportedStatus, mixed $lastSeenAt) use ($pcSignalLimitSeconds): string {
     $status = strtoupper(trim((string) ($reportedStatus ?? "")));
@@ -623,12 +689,21 @@ $empresas = $pdo->prepare(
             c.created_at, c.archived_at,
             (SELECT l.status FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_status,
             (SELECT l.blocked_reason FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_reason,
-            " . ($industrialPcTableAvailable
-                ? "(SELECT s.status FROM status_pc_industrial s WHERE s.company_id = c.id LIMIT 1)"
-                : "NULL") . " AS industrial_pc_reported_status,
-            " . ($industrialPcTableAvailable
-                ? "(SELECT s.last_seen_at FROM status_pc_industrial s WHERE s.company_id = c.id LIMIT 1)"
-                : "NULL") . " AS industrial_pc_last_seen_at,
+            " . ($industrialInstallationsTableAvailable
+                ? "(SELECT CASE
+                       WHEN EXISTS (SELECT 1 FROM instalacoes_industriais p WHERE p.company_id = c.id
+                                    AND p.status = 'ONLINE' AND p.last_seen_at >= DATE_SUB(NOW(3), INTERVAL {$pcSignalLimitSeconds} SECOND)) THEN 'ONLINE'
+                       WHEN EXISTS (SELECT 1 FROM instalacoes_industriais p WHERE p.company_id = c.id AND p.status = 'ERRO') THEN 'ERRO'
+                       WHEN EXISTS (SELECT 1 FROM instalacoes_industriais p WHERE p.company_id = c.id AND p.sync_token_hash IS NOT NULL) THEN 'OFFLINE'
+                       ELSE 'DESCONHECIDO' END)"
+                : ($legacyIndustrialPcTableAvailable
+                    ? "(SELECT s.status FROM status_pc_industrial s WHERE s.company_id = c.id LIMIT 1)"
+                    : "NULL")) . " AS industrial_pc_reported_status,
+            " . ($industrialInstallationsTableAvailable
+                ? "(SELECT MAX(p.last_seen_at) FROM instalacoes_industriais p WHERE p.company_id = c.id)"
+                : ($legacyIndustrialPcTableAvailable
+                    ? "(SELECT s.last_seen_at FROM status_pc_industrial s WHERE s.company_id = c.id LIMIT 1)"
+                    : "NULL")) . " AS industrial_pc_last_seen_at,
             COUNT(e.id) AS total_machines,
             COALESCE(SUM(d.status = 'ONLINE' AND d.last_seen_at >= DATE_SUB(NOW(3), INTERVAL {$pcSignalLimitSeconds} SECOND)), 0) AS machines_online,
             MAX(d.last_seen_at) AS last_signal_at,

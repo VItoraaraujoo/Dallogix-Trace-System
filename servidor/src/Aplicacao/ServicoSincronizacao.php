@@ -125,6 +125,17 @@ final class ServicoSincronizacao
             $where = [
                 "q.status IN ('PENDENTE', 'ERRO')",
                 "(q.available_at IS NULL OR q.available_at <= NOW())",
+                // Um evento posterior do mesmo agregado só pode avançar
+                // depois que o anterior foi confirmado ou movido para a fila
+                // morta. Assim o backoff não reordena o estado remoto.
+                "NOT EXISTS (
+                    SELECT 1 FROM fila_sincronizacao anterior
+                    WHERE anterior.company_id = q.company_id
+                      AND anterior.aggregate_type = q.aggregate_type
+                      AND anterior.aggregate_id = q.aggregate_id
+                      AND anterior.id < q.id
+                      AND anterior.status IN ('PENDENTE', 'PROCESSANDO', 'ERRO')
+                )",
             ];
             $params = [];
             if ($companyId !== null) {
@@ -138,7 +149,7 @@ final class ServicoSincronizacao
 
             $statement = $this->connection->prepare(
                 "SELECT q.id, q.company_id, e.remote_company_id, q.event_uuid, q.aggregate_type, q.aggregate_id, q.payload,
-                        q.status, q.attempts, q.last_error, q.available_at, q.created_at
+                        q.status, q.attempts, q.transient_attempts, q.last_error, q.available_at, q.created_at
                  FROM fila_sincronizacao q
                  LEFT JOIN empresas e ON e.id = q.company_id
                  WHERE " . implode(" AND ", $where) .
@@ -153,8 +164,7 @@ final class ServicoSincronizacao
 
             $update = $this->connection->prepare(
                 "UPDATE fila_sincronizacao
-                 SET status = 'PROCESSANDO', attempts = attempts + 1,
-                     processing_started_at = NOW(3), last_error = NULL
+                 SET status = 'PROCESSANDO', processing_started_at = NOW(3), last_error = NULL
                  WHERE id = :id AND status IN ('PENDENTE', 'ERRO')",
             );
             foreach ($events as $event) {
@@ -163,7 +173,7 @@ final class ServicoSincronizacao
                     throw new RuntimeException("Não foi possível reservar evento de sincronização.");
                 }
                 $event["status"] = "PROCESSANDO";
-                $event["attempts"] = (int) $event["attempts"] + 1;
+                $event["attempts"] = (int) $event["attempts"];
             }
             $this->connection->commit();
             return $events;
@@ -194,7 +204,12 @@ final class ServicoSincronizacao
                 $this->marcarComoEnviados([$event]);
                 return ["processed" => true, "status" => "ENVIADO", "id" => $id];
             } catch (\Throwable $exception) {
-                $this->marcarComoFalha([$event], "Mapeamento remoto inválido: " . $exception->getMessage());
+                $this->marcarComoFalha(
+                    [$event],
+                    "Mapeamento remoto inválido: " . $exception->getMessage(),
+                    0,
+                    true,
+                );
                 return [
                     "processed" => false,
                     "status" => "ERRO",
@@ -206,7 +221,7 @@ final class ServicoSincronizacao
         }
 
         $error = $result["error"];
-        $this->marcarComoFalha([$event], $error);
+        $this->marcarComoFalha([$event], $error, (int) ($result["http_code"] ?? 0));
         return [
             "processed" => false,
             "status" => "ERRO",
@@ -242,7 +257,10 @@ final class ServicoSincronizacao
                 ];
             } catch (\Throwable $exception) {
                 $error = "Mapeamento remoto inválido: " . $exception->getMessage();
-                $this->marcarComoFalha($events, $error);
+                if (count($events) > 1) {
+                    return $this->entregarLotePorEvento($events, $remoteUrl, $error, true);
+                }
+                $this->marcarComoFalha($events, $error, 0, true);
                 return [
                     "processed" => false,
                     "status" => "ERRO",
@@ -255,7 +273,14 @@ final class ServicoSincronizacao
             }
         }
 
-        $this->marcarComoFalha($events, $result["error"]);
+        $httpCode = (int) ($result["http_code"] ?? 0);
+        // Respostas 4xx normalmente apontam para um único payload inválido.
+        // Tente os eventos separadamente para que os válidos avancem. Falhas
+        // de rede, 5xx e 429 continuam usando uma única reserva do lote.
+        if ($httpCode >= 400 && $httpCode < 500 && !in_array($httpCode, [408, 429], true) && count($events) > 1) {
+            return $this->entregarLotePorEvento($events, $remoteUrl, $result["error"], false);
+        }
+        $this->marcarComoFalha($events, $result["error"], $httpCode);
         return [
             "processed" => false,
             "status" => "ERRO",
@@ -263,7 +288,40 @@ final class ServicoSincronizacao
             "sent" => 0,
             "failed" => count($events),
             "error" => $result["error"],
-            "http_code" => $result["http_code"],
+            "http_code" => $httpCode,
+        ];
+    }
+
+    /** @param list<array<string,mixed>> $events */
+    private function entregarLotePorEvento(
+        array $events,
+        string $remoteUrl,
+        string $fallbackError,
+        bool $mappingFailure,
+    ): array {
+        $sent = 0;
+        $failed = 0;
+        $firstId = (int) ($events[0]["id"] ?? 0);
+        foreach ($events as $event) {
+            if ($mappingFailure) {
+                $this->marcarComoFalha([$event], $fallbackError, 0, true);
+                $failed++;
+                continue;
+            }
+            $result = $this->entregarEvento($event, $remoteUrl);
+            if (($result["status"] ?? "") === "ENVIADO") {
+                $sent++;
+            } else {
+                $failed++;
+            }
+        }
+        return [
+            "processed" => $failed === 0,
+            "status" => $failed === 0 ? "ENVIADO" : "ERRO",
+            "id" => $firstId,
+            "sent" => $sent,
+            "failed" => $failed,
+            "error" => $failed > 0 ? $fallbackError : null,
         ];
     }
 
@@ -295,7 +353,8 @@ final class ServicoSincronizacao
             ];
         }
         $body = json_encode(["events" => $items], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
-        return $this->postarJson($remoteUrl, $body);
+        $companyId = (int) ($events[0]["company_id"] ?? 0);
+        return $this->postarJson($remoteUrl, $body, $companyId > 0 ? $companyId : null);
     }
 
     private function idEmpresaRemota(array $event): int
@@ -694,15 +753,28 @@ final class ServicoSincronizacao
     }
 
     /** @param list<array<string,mixed>> $events */
-    private function marcarComoFalha(array $events, string $error): void
+    private function marcarComoFalha(
+        array $events,
+        string $error,
+        int $httpCode = 0,
+        bool $permanentOverride = false,
+    ): void
     {
         $maxAttempts = max(1, min(100, (int) (getenv("SYNC_MAX_ATTEMPTS") ?: 5)));
+        $permanent = $permanentOverride || (
+            $httpCode >= 400 &&
+            $httpCode < 500 &&
+            !in_array($httpCode, [408, 429], true)
+        );
+        $incrementPermanentAttempts = $permanent ? 1 : 0;
         $this->connection->beginTransaction();
         try {
             $failed = $this->connection->prepare(
                 "UPDATE fila_sincronizacao
-                 SET status = 'ERRO', last_error = :last_error,
-                     available_at = DATE_ADD(NOW(), INTERVAL LEAST(POWER(2, LEAST(attempts, 8)) * 5, 900) SECOND),
+                 SET status = 'ERRO', attempts = attempts + :increment_attempts,
+                     transient_attempts = transient_attempts + 1,
+                     last_error = :last_error,
+                     available_at = DATE_ADD(NOW(), INTERVAL LEAST(POWER(2, LEAST(transient_attempts, 8)) * 5, 900) SECOND),
                      processing_started_at = NULL
                  WHERE id = :id AND company_id = :company_id AND status = 'PROCESSANDO'",
             );
@@ -711,11 +783,13 @@ final class ServicoSincronizacao
                     "id" => (int) $event["id"],
                     "company_id" => (int) $event["company_id"],
                     "last_error" => $error,
+                    "increment_attempts" => $incrementPermanentAttempts,
                 ]);
                 if ($failed->rowCount() !== 1) {
                     throw new RuntimeException("Evento de sincronização não está mais reservado para falha.");
                 }
-                if ((int) ($event["attempts"] ?? 0) >= $maxAttempts) {
+                $nextPermanentAttempts = (int) ($event["attempts"] ?? 0) + $incrementPermanentAttempts;
+                if ($permanent && $nextPermanentAttempts >= $maxAttempts) {
                     $this->moverParaFilaMorta($event, $error);
                 }
             }

@@ -10,7 +10,8 @@ if (!trace_e_instalacao_local()) {
     responder_json(["data" => ["enabled" => false, "active" => false]]);
 }
 $statement = obter_conexao_banco()->query(
-    "SELECT i.company_id, i.remote_company_id, i.company_name, i.login_domain, i.activated_at,
+    "SELECT i.company_id, i.remote_company_id, i.remote_installation_id, i.remote_equipment_id,
+            i.company_name, i.login_domain, i.activated_at,
             (SELECT l.status FROM licencas l WHERE l.company_id = i.company_id ORDER BY l.id DESC LIMIT 1) AS license_status,
             (SELECT l.blocked_reason FROM licencas l WHERE l.company_id = i.company_id ORDER BY l.id DESC LIMIT 1) AS license_reason
      FROM instalacoes_locais i
@@ -29,6 +30,8 @@ responder_json([
         "active" => true,
         "company_id" => (int) $installation["company_id"],
         "remote_company_id" => (int) $installation["remote_company_id"],
+        "remote_installation_id" => $installation["remote_installation_id"] === null ? null : (int) $installation["remote_installation_id"],
+        "remote_equipment_id" => $installation["remote_equipment_id"] === null ? null : (int) $installation["remote_equipment_id"],
         "company_name" => $installation["company_name"],
         "login_domain" => $installation["login_domain"],
         "activated_at" => $installation["activated_at"],

@@ -128,14 +128,32 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
                 (SELECT rt.plate FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS plate,
                 (SELECT rt.driver_name FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS driver_name,
                 COUNT(DISTINCT rt.id) AS trucks_count,
-                COALESCE((SELECT SUM(ri2.planned_quantity) FROM romaneio_itens ri2 WHERE ri2.romaneio_id = r.id), 0) AS planned_quantity,
-                COALESCE((SELECT COUNT(*) FROM leituras l JOIN carregamentos c2 ON c2.id = l.carregamento_id WHERE c2.romaneio_id = r.id AND l.result = 'VALIDO'), 0) AS loaded_quantity,
-                (SELECT COUNT(*) FROM ocorrencias o WHERE o.carregamento_id IN (SELECT c3.id FROM carregamentos c3 WHERE c3.romaneio_id = r.id)) AS ocorrencias_count,
+                COALESCE(planned.planned_quantity, 0) AS planned_quantity,
+                COALESCE(loaded.loaded_quantity, 0) AS loaded_quantity,
+                COALESCE(occurrences.ocorrencias_count, 0) AS ocorrencias_count,
                 (SELECT c4.id FROM carregamentos c4 WHERE c4.romaneio_id = r.id AND c4.state <> 'FINALIZADO' AND r.status NOT IN ('FINALIZADO', 'CANCELADO') ORDER BY c4.id DESC LIMIT 1) AS active_loading_id,
                 (SELECT c5.state FROM carregamentos c5 WHERE c5.romaneio_id = r.id AND c5.state <> 'FINALIZADO' AND r.status NOT IN ('FINALIZADO', 'CANCELADO') ORDER BY c5.id DESC LIMIT 1) AS active_state,
                 (SELECT e.equipment_code FROM carregamentos c6 JOIN equipamentos e ON e.id = c6.equipment_id WHERE c6.romaneio_id = r.id AND c6.state <> 'FINALIZADO' AND r.status NOT IN ('FINALIZADO', 'CANCELADO') ORDER BY c6.id DESC LIMIT 1) AS active_equipment
          FROM romaneios r
          LEFT JOIN romaneio_caminhoes rt ON rt.romaneio_id = r.id
+         LEFT JOIN (
+             SELECT ri2.romaneio_id, SUM(ri2.planned_quantity) AS planned_quantity
+             FROM romaneio_itens ri2
+             GROUP BY ri2.romaneio_id
+         ) planned ON planned.romaneio_id = r.id
+         LEFT JOIN (
+             SELECT c2.romaneio_id, COUNT(*) AS loaded_quantity
+             FROM leituras l
+             JOIN carregamentos c2 ON c2.id = l.carregamento_id
+             WHERE l.result = 'VALIDO'
+             GROUP BY c2.romaneio_id
+         ) loaded ON loaded.romaneio_id = r.id
+         LEFT JOIN (
+             SELECT c3.romaneio_id, COUNT(*) AS ocorrencias_count
+             FROM ocorrencias o
+             JOIN carregamentos c3 ON c3.id = o.carregamento_id
+             GROUP BY c3.romaneio_id
+         ) occurrences ON occurrences.romaneio_id = r.id
          WHERE {$where}
          GROUP BY r.id
          ORDER BY r.scheduled_date DESC, r.id DESC

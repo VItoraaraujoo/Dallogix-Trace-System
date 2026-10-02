@@ -111,9 +111,27 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
         }
         json_response(["data" => $dala]);
     }
-    $query = $pdo->prepare(
-        "SELECT id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol, created_at, updated_at FROM equipamentos WHERE company_id = :company_id ORDER BY equipment_code",
-    );
+    $pcSignalLimitSeconds = max(5, min(300, (int) (getenv("HEALTH_DEVICE_STALE_SECONDS") ?: 30)));
+    $query = trace_e_instalacao_local()
+        ? $pdo->prepare(
+            "SELECT id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol,
+                    created_at, updated_at
+             FROM equipamentos WHERE company_id = :company_id ORDER BY equipment_code",
+        )
+        : $pdo->prepare(
+            "SELECT e.id, e.equipment_code, e.name, e.plc_ip, e.plc_port, e.external_port,
+                    e.plc_protocol, e.created_at, e.updated_at,
+                    p.name AS industrial_pc_name, p.id AS industrial_pc_id,
+                    CASE WHEN p.status = 'ONLINE' AND (p.last_seen_at IS NULL
+                         OR p.last_seen_at < DATE_SUB(NOW(3), INTERVAL {$pcSignalLimitSeconds} SECOND))
+                         THEN 'OFFLINE' ELSE p.status END AS industrial_pc_status,
+                    p.last_seen_at AS industrial_pc_last_seen_at
+             FROM equipamentos e
+             LEFT JOIN instalacoes_industriais p
+               ON p.equipment_id = e.id AND p.company_id = e.company_id
+             WHERE e.company_id = :company_id
+             ORDER BY COALESCE(p.name, ''), e.name, e.equipment_code",
+        );
     $query->execute(["company_id" => $user["company_id"]]);
     json_response(["data" => $query->fetchAll()]);
 }

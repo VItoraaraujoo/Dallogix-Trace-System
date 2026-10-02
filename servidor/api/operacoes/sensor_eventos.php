@@ -40,7 +40,14 @@ if ($detectedAt !== "") {
     ) {
         json_response(["error" => "Data do evento inválida."], 422);
     }
-    if (abs($parsedDeviceDate->getTimestamp() - time()) <= 300) {
+    // O relógio do dispositivo não pode ficar muito à frente, mas eventos
+    // legítimos podem chegar dias depois quando o PC trabalhou sem internet.
+    // Mantemos o horário do dispositivo dentro de uma janela de retenção para
+    // que o debounce seja calculado no instante real da detecção.
+    $now = new DateTimeImmutable("now");
+    $oldestAccepted = $now->modify("-7 days");
+    $latestAccepted = $now->modify("+5 minutes");
+    if ($parsedDeviceDate >= $oldestAccepted && $parsedDeviceDate <= $latestAccepted) {
         $deviceDetectedAt = $parsedDeviceDate->format("Y-m-d H:i:s.v");
     }
 }
@@ -57,7 +64,8 @@ $pdo = db();
 $pdo->beginTransaction();
 try {
     // Lock the loading so simultaneous sensor events use one authoritative
-    // server-time debounce window.
+    // debounce window. Quando o dispositivo informa o horário, a janela usa
+    // esse horário e continua correta após uma reconexão offline.
     $loadingStatement = $pdo->prepare(
         'SELECT c.id FROM carregamentos c
          JOIN equipamentos e ON e.id = c.equipment_id AND e.id = :equipment_id
@@ -76,17 +84,20 @@ try {
         );
     }
 
+    $debounceReference = $deviceDetectedAt ?? (new DateTimeImmutable("now"))->format("Y-m-d H:i:s.v");
     $debounce = $pdo->prepare(
         "SELECT id FROM eventos_sensor
          WHERE carregamento_id = :carregamento_id
            AND equipment_id = :equipment_id
-           AND detected_at >= DATE_SUB(NOW(3), INTERVAL {$debounceMicroseconds} MICROSECOND)
-           AND detected_at <= NOW(3)
-         ORDER BY detected_at DESC LIMIT 1",
+           AND COALESCE(device_detected_at, detected_at) >= DATE_SUB(:debounce_reference_start, INTERVAL {$debounceMicroseconds} MICROSECOND)
+           AND COALESCE(device_detected_at, detected_at) <= :debounce_reference_end
+         ORDER BY COALESCE(device_detected_at, detected_at) DESC LIMIT 1",
     );
     $debounce->execute([
         "carregamento_id" => $loadingId,
         "equipment_id" => $equipmentId,
+        "debounce_reference_start" => $debounceReference,
+        "debounce_reference_end" => $debounceReference,
     ]);
     $debouncedId = $debounce->fetchColumn();
     if ($debouncedId !== false) {

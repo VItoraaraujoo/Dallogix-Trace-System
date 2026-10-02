@@ -246,15 +246,20 @@ try {
 
     $installation = $pdo->prepare(
         "INSERT INTO instalacoes_locais
-            (id, company_id, remote_company_id, company_name, login_domain, sync_token, activated_at)
-         VALUES (1, :company_id, :remote_company_id, :company_name, :login_domain, :sync_token, NOW())
+            (id, company_id, remote_company_id, remote_installation_id, remote_equipment_id,
+             company_name, login_domain, sync_token, activated_at)
+         VALUES (1, :company_id, :remote_company_id, :remote_installation_id, :remote_equipment_id,
+                 :company_name, :login_domain, :sync_token, NOW())
          ON DUPLICATE KEY UPDATE company_id = VALUES(company_id), remote_company_id = VALUES(remote_company_id),
+            remote_installation_id = VALUES(remote_installation_id), remote_equipment_id = VALUES(remote_equipment_id),
             company_name = VALUES(company_name), login_domain = VALUES(login_domain),
             sync_token = VALUES(sync_token), activated_at = VALUES(activated_at)",
     );
     $installation->execute([
         "company_id" => $localCompanyId,
         "remote_company_id" => $remoteCompany["company_id"],
+        "remote_installation_id" => $remoteCompany["installation_id"],
+        "remote_equipment_id" => $remoteCompany["equipment_id"],
         "company_name" => $remoteCompany["name"],
         "login_domain" => $remoteCompany["login_domain"],
         "sync_token" => $installationToken,

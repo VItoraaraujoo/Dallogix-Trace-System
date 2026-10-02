@@ -25,7 +25,7 @@ foreach ($counts->fetchAll() as $row) {
 }
 
 $recent = $pdo->prepare(
-    "SELECT q.id, q.aggregate_type, q.aggregate_id, q.status, q.attempts, q.last_error, q.available_at, q.created_at FROM fila_sincronizacao q WHERE {$scope} AND q.status IN ('PENDENTE', 'ERRO') ORDER BY q.id DESC LIMIT 20",
+    "SELECT q.id, q.aggregate_type, q.aggregate_id, q.status, q.attempts, q.transient_attempts, q.last_error, q.available_at, q.created_at FROM fila_sincronizacao q WHERE {$scope} AND q.status IN ('PENDENTE', 'ERRO') ORDER BY q.id DESC LIMIT 20",
 );
 $recent->execute($params);
 $remoteUrl = trim((string) (getenv("SYNC_REMOTE_BATCH_URL") ?: ""));
@@ -52,14 +52,15 @@ $centralPcStatus = null;
 if ($centralMode) {
     $industrialPcTableAvailable = (bool) $pdo->query(
         "SELECT 1 FROM information_schema.tables
-         WHERE table_schema = DATABASE() AND table_name = 'status_pc_industrial'
+         WHERE table_schema = DATABASE() AND table_name = 'instalacoes_industriais'
          LIMIT 1",
     )->fetchColumn();
     if ($industrialPcTableAvailable) {
         $centralPc = $pdo->prepare(
             "SELECT status, last_seen_at
-             FROM status_pc_industrial
-             WHERE company_id = :company_id LIMIT 1",
+             FROM instalacoes_industriais
+             WHERE company_id = :company_id AND sync_token_hash IS NOT NULL
+             ORDER BY last_seen_at DESC, id DESC LIMIT 1",
         );
         $centralPc->execute(["company_id" => $user["company_id"]]);
         $centralPcStatus = $centralPc->fetch() ?: null;

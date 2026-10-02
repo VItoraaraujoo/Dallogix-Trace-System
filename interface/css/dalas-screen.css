@@ -49,6 +49,11 @@
   align-items: stretch;
 }
 
+.dala-grid-head-v2.has-industrial-pc,
+.dala-grid-row-v2.has-industrial-pc {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr) minmax(0, 1.2fr) minmax(0, 1.05fr) minmax(70px, .65fr) minmax(0, 1fr) minmax(250px, 2.2fr);
+}
+
 .dala-grid-head-v2 {
   color: #62798a;
   background: #f7fafb;

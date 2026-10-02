@@ -52,6 +52,7 @@ final class ServicoSincronizacaoRemota
                 $centralUrl,
                 $installationToken,
                 (int) $installation["company_id"],
+                (int) ($snapshot["instalacao"]["equipment_id"] ?? 0),
                 (int) ($snapshot["sync_cursor"] ?? 0),
             );
             return ["enabled" => true, "synced" => true, "updated" => $updated];
@@ -70,7 +71,8 @@ final class ServicoSincronizacaoRemota
     private function instalacao(): ?array
     {
         $statement = $this->connection->query(
-            "SELECT i.company_id, i.remote_company_id, i.sync_token
+            "SELECT i.company_id, i.remote_company_id, i.remote_installation_id,
+                    i.remote_equipment_id, i.sync_token
              FROM instalacoes_locais i WHERE i.id = 1 LIMIT 1",
         );
         $row = $statement->fetch();
@@ -167,6 +169,23 @@ final class ServicoSincronizacaoRemota
             throw new RuntimeException("Resposta do servidor central pertence a outra empresa.");
         }
 
+        $remoteInstallation = $snapshot["instalacao"] ?? null;
+        if (!is_array($remoteInstallation)
+            || (int) ($remoteInstallation["id"] ?? 0) < 1
+            || (int) ($remoteInstallation["equipment_id"] ?? 0) < 1
+        ) {
+            throw new RuntimeException(
+                "Resposta do servidor central não identificou este PC e sua Dala; a instalação industrial aceita uma Dala por PC.",
+            );
+        }
+        $storedInstallationId = (int) ($installation["remote_installation_id"] ?? 0);
+        $storedEquipmentId = (int) ($installation["remote_equipment_id"] ?? 0);
+        if (($storedInstallationId > 0 && $storedInstallationId !== (int) $remoteInstallation["id"])
+            || ($storedEquipmentId > 0 && $storedEquipmentId !== (int) $remoteInstallation["equipment_id"])
+        ) {
+            throw new RuntimeException("O PC local está vinculado a outra instalação ou Dala no servidor central.");
+        }
+
         $licenseStatus = strtoupper(trim((string) ($company["license_status"] ?? "")));
         if (!in_array($licenseStatus, ["ATIVA", "BLOQUEADA"], true)) {
             throw new RuntimeException("Resposta do servidor central não informou uma licença válida.");
@@ -178,10 +197,13 @@ final class ServicoSincronizacaoRemota
             }
         }
 
-        if (count($snapshot["equipamentos"]) > 1) {
+        if (count($snapshot["equipamentos"]) !== 1) {
             throw new RuntimeException(
-                "A instalação industrial aceita uma Dala; vincule este PC a uma Dala antes de sincronizar uma empresa com várias.",
+                "A instalação industrial aceita uma Dala por PC e deve receber exatamente a Dala vinculada a este PC.",
             );
+        }
+        if ((int) ($snapshot["equipamentos"][0]["id"] ?? 0) !== (int) $remoteInstallation["equipment_id"]) {
+            throw new RuntimeException("A Dala recebida não corresponde ao vínculo deste PC industrial.");
         }
 
         foreach ($snapshot["equipamentos"] as $equipment) {
@@ -238,6 +260,18 @@ final class ServicoSincronizacaoRemota
         $this->connection->beginTransaction();
         try {
             $this->connection->query("SELECT id FROM instalacoes_locais WHERE id = 1 FOR UPDATE");
+            $remoteInstallation = $snapshot["instalacao"];
+            $updateInstallation = $this->connection->prepare(
+                "UPDATE instalacoes_locais
+                 SET remote_installation_id = :remote_installation_id,
+                     remote_equipment_id = :remote_equipment_id
+                 WHERE id = 1 AND company_id = :company_id"
+            );
+            $updateInstallation->execute([
+                "remote_installation_id" => (int) $remoteInstallation["id"],
+                "remote_equipment_id" => (int) $remoteInstallation["equipment_id"],
+                "company_id" => $companyId,
+            ]);
             $localEquipment = $this->connection->prepare(
                 "SELECT equipment_code FROM equipamentos WHERE company_id = :company_id ORDER BY id",
             );
@@ -939,14 +973,20 @@ final class ServicoSincronizacaoRemota
         ]);
     }
 
-    private function enviarSinaisDeVida(string $centralUrl, string $token, int $companyId, int $syncCursor): void
+    private function enviarSinaisDeVida(string $centralUrl, string $token, int $companyId, int $remoteEquipmentId, int $syncCursor): void
     {
+        if ($remoteEquipmentId < 1) {
+            throw new RuntimeException("A instalação não possui uma Dala vinculada para enviar o heartbeat.");
+        }
         $statement = $this->connection->prepare(
             "SELECT e.remote_equipment_id, e.equipment_code, s.device_type, s.status, s.last_seen_at
              FROM status_dispositivos s JOIN equipamentos e ON e.id = s.equipment_id
-             WHERE e.company_id = :company_id",
+             WHERE e.company_id = :company_id AND e.remote_equipment_id = :remote_equipment_id",
         );
-        $statement->execute(["company_id" => $companyId]);
+        $statement->execute([
+            "company_id" => $companyId,
+            "remote_equipment_id" => $remoteEquipmentId,
+        ]);
         $heartbeats = array_map(static fn (array $row): array => [
             "remote_equipment_id" => $row["remote_equipment_id"] === null ? null : (int) $row["remote_equipment_id"],
             "equipment_code" => $row["equipment_code"],

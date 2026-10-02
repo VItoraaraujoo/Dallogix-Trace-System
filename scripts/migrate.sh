@@ -7,14 +7,22 @@ migrations_dir="$root_dir/banco-de-dados/migrations"
 mysql_query() {
   local sql="$1"
   bash "$root_dir/scripts/docker_compose.sh" --project-directory "$root_dir" exec -T mysql sh -lc \
-    'mysql --batch --skip-column-names -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "$1"' \
+    'export MYSQL_PWD="$MYSQL_PASSWORD"; mysql --batch --skip-column-names -u"$MYSQL_USER" "$MYSQL_DATABASE" -e "$1"' \
     trace-migrate "$sql"
 }
 
 mysql_file() {
   bash "$root_dir/scripts/docker_compose.sh" --project-directory "$root_dir" exec -T mysql sh -lc \
-    'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' < "$1"
+    'export MYSQL_PWD="$MYSQL_PASSWORD"; mysql -u"$MYSQL_USER" "$MYSQL_DATABASE"' < "$1"
 }
+
+migration_lock="dallogix-trace-migrations"
+lock_acquired="$(mysql_query "SELECT GET_LOCK('${migration_lock}', 30)" | tr -d '[:space:]')"
+if [[ "$lock_acquired" != "1" ]]; then
+  echo "ERRO: não foi possível obter a trava de migrations em 30 segundos." >&2
+  exit 1
+fi
+trap 'mysql_query "SELECT RELEASE_LOCK('"'"'${migration_lock}'"'"')" >/dev/null 2>&1 || true' EXIT
 
 mysql_query "CREATE TABLE IF NOT EXISTS schema_migrations (
   version VARCHAR(120) PRIMARY KEY,
@@ -23,6 +31,19 @@ mysql_query "CREATE TABLE IF NOT EXISTS schema_migrations (
 
 applied_count="$(mysql_query 'SELECT COUNT(*) FROM schema_migrations' | tr -d '[:space:]')"
 has_trace_schema="$(mysql_query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'empresas'" | tr -d '[:space:]')"
+if [[ "$has_trace_schema" == "1" ]]; then
+  status_pc_table="$(mysql_query "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = 'status_pc_industrial'" | tr -d '[:space:]')"
+  if [[ "$status_pc_table" != "1" ]]; then
+    status_pc_migration="$migrations_dir/051_status_pc_industrial.sql"
+    [[ -f "$status_pc_migration" ]] || {
+      echo "ERRO: migration 051_status_pc_industrial.sql não encontrada." >&2
+      exit 1
+    }
+    echo "Reparando tabela status_pc_industrial antes das migrations"
+    mysql_file "$status_pc_migration"
+    mysql_query "INSERT IGNORE INTO schema_migrations (version) VALUES ('051_status_pc_industrial')"
+  fi
+fi
 if [[ "$applied_count" == "0" && "$has_trace_schema" == "1" ]]; then
   # Instalações anteriores não tinham controle de versão. O schema atual já
   # contém as 23 migrations históricas; registra-as sem reaplicar ALTERs.

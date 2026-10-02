@@ -13,18 +13,102 @@ if (trace_e_instalacao_local()) {
     responder_json(["error" => "Endpoint disponível somente no servidor central."], 403);
 }
 exigir_metodo_http(["POST"]);
-$company = exigir_instalacao_remota();
+$company = exigir_instalacao_remota(true);
 $companyId = (int) $company["id"];
+$installationId = (int) $company["installation_id"];
+$installationEquipmentId = $company["equipment_id"] === null ? null : (int) $company["equipment_id"];
+$allowFirstDalaLink = (bool) ($company["auto_link_first_dala"] ?? false);
+$assignedEquipmentCode = "";
+$pdo = obter_conexao_banco();
+if ($installationEquipmentId !== null) {
+    $assignedEquipmentStatement = $pdo->prepare(
+        "SELECT equipment_code FROM equipamentos
+         WHERE id = :equipment_id AND company_id = :company_id LIMIT 1",
+    );
+    $assignedEquipmentStatement->execute([
+        "equipment_id" => $installationEquipmentId,
+        "company_id" => $companyId,
+    ]);
+    $assignedEquipmentCode = trim((string) ($assignedEquipmentStatement->fetchColumn() ?: ""));
+    if ($assignedEquipmentCode === "") {
+        responder_json([
+            "error" => "A Dala vinculada a este PC não está cadastrada na empresa no servidor central.",
+            "error_code" => "INSTALLATION_DALA_REQUIRED",
+        ], 409);
+    }
+}
 $payload = ler_json_da_requisicao();
 $events = isset($payload["events"]) && is_array($payload["events"])
     ? $payload["events"]
     : [$payload];
-$pdo = obter_conexao_banco();
 $processed = 0;
 $ignored = 0;
 $mappings = [];
-
-$upsertEquipment = static function (PDO $connection, int $companyId, int $remoteEquipmentId, array $data): int {
+if ($events === []) {
+    responder_json(["error" => "Nenhum evento de sincronização foi informado."], 422);
+}
+foreach ($events as $event) {
+    if (!is_array($event)) {
+        responder_json(["error" => "Evento de sincronização inválido."], 422);
+    }
+}
+if ($installationEquipmentId === null) {
+    // Uma exclusão aplicada limpa o vínculo do PC. Se a resposta se perder,
+    // aceite o reenvio já auditado antes de exigir novamente uma Dala ativa.
+    $remainingEvents = [];
+    $existingDeletion = $pdo->prepare(
+        "SELECT action FROM logs_auditoria
+         WHERE company_id = :company_id AND event_uuid = :event_uuid LIMIT 1",
+    );
+    foreach ($events as $event) {
+        $eventUuid = trim((string) ($event["event_uuid"] ?? ""));
+        $eventCompanyId = filter_var($event["company_id"] ?? null, FILTER_VALIDATE_INT);
+        $eventPayload = is_array($event["payload"] ?? null) ? $event["payload"] : [];
+        if (
+            ($eventPayload["action"] ?? "") === "DALA_EXCLUIDA"
+            && preg_match('/^[a-f0-9-]{16,80}$/i', $eventUuid)
+            && $eventCompanyId !== false
+            && (int) $eventCompanyId === $companyId
+        ) {
+            $existingDeletion->execute(["company_id" => $companyId, "event_uuid" => $eventUuid]);
+            if ($existingDeletion->fetchColumn() === "DALA_EXCLUIDA") {
+                $ignored++;
+                continue;
+            }
+        }
+        $remainingEvents[] = $event;
+    }
+    $events = $remainingEvents;
+    if ($events === []) {
+        responder_json(["data" => ["processed" => 0, "ignored" => $ignored, "mappings" => []]]);
+    }
+    if (!$allowFirstDalaLink) {
+        responder_json([
+            "error" => "Esta instalação antiga tem várias Dalas possíveis. A Master deve vincular a Dala correta ao PC antes da sincronização.",
+            "error_code" => "INSTALLATION_DALA_REQUIRED",
+        ], 409);
+    }
+    $registrationIndex = null;
+    foreach ($events as $index => $event) {
+        $eventPayload = is_array($event["payload"] ?? null) ? $event["payload"] : [];
+        if (($eventPayload["action"] ?? "") === "DALA_CADASTRADA") {
+            $registrationIndex = $index;
+            break;
+        }
+    }
+    if ($registrationIndex === null) {
+        responder_json([
+            "error" => "Este PC aguarda o primeiro cadastro de sua Dala local.",
+            "error_code" => "INSTALLATION_DALA_REQUIRED",
+        ], 409);
+    }
+    if ($registrationIndex > 0) {
+        $registrationEvent = $events[$registrationIndex];
+        array_splice($events, $registrationIndex, 1);
+        array_unshift($events, $registrationEvent);
+    }
+}
+$upsertEquipment = static function (PDO $connection, int $companyId, array $data) use (&$installationEquipmentId, &$assignedEquipmentCode, $installationId): int {
     $code = trim((string) ($data["equipment_code"] ?? ""));
     $name = trim((string) ($data["name"] ?? ""));
     $plcIp = trim((string) ($data["plc_ip"] ?? ""));
@@ -48,90 +132,113 @@ $upsertEquipment = static function (PDO $connection, int $companyId, int $remote
         throw new RuntimeException("Dados da Dala recebidos pela sincronização são inválidos.");
     }
 
-    $equipmentId = 0;
-    if ($remoteEquipmentId > 0) {
-        $find = $connection->prepare(
-            "SELECT id FROM equipamentos WHERE company_id = :company_id
-             AND remote_equipment_id = :remote_equipment_id LIMIT 1",
-        );
-        $find->execute([
-            "company_id" => $companyId,
-            "remote_equipment_id" => $remoteEquipmentId,
-        ]);
-        $equipmentId = (int) ($find->fetchColumn() ?: 0);
+    if ($installationEquipmentId !== null && $code !== $assignedEquipmentCode && $previousCode !== $assignedEquipmentCode) {
+        throw new RuntimeException("O PC industrial tentou atualizar uma Dala que não está vinculada a ele.");
     }
-    if ($equipmentId === 0) {
-        $identity = ["equipment_code = :equipment_code"];
-        $params = [
-            "company_id" => $companyId,
-            "equipment_code" => $code,
-        ];
-        if ($previousCode !== "" && $previousCode !== $code) {
-            $identity[] = "equipment_code = :previous_equipment_code";
-            $params["previous_equipment_code"] = $previousCode;
+    if ($installationEquipmentId === null) {
+        $existingEquipment = $connection->prepare(
+            "SELECT id FROM equipamentos
+             WHERE company_id = :company_id AND equipment_code = :equipment_code
+             LIMIT 1 FOR UPDATE",
+        );
+        $existingEquipment->execute(["company_id" => $companyId, "equipment_code" => $code]);
+        $equipmentId = (int) ($existingEquipment->fetchColumn() ?: 0);
+        if ($equipmentId > 0) {
+            $assignedElsewhere = $connection->prepare(
+                "SELECT id FROM instalacoes_industriais
+                 WHERE equipment_id = :equipment_id AND id <> :installation_id LIMIT 1",
+            );
+            $assignedElsewhere->execute([
+                "equipment_id" => $equipmentId,
+                "installation_id" => $installationId,
+            ]);
+            if ($assignedElsewhere->fetchColumn()) {
+                throw new RuntimeException("A Dala recebida já está vinculada a outro PC industrial.");
+            }
+            $connection->prepare(
+                "UPDATE equipamentos SET name = :name, plc_ip = :plc_ip, plc_port = :plc_port,
+                 external_port = :external_port, plc_protocol = :plc_protocol
+                 WHERE id = :id AND company_id = :company_id",
+            )->execute([
+                "name" => $name,
+                "plc_ip" => $plcIp,
+                "plc_port" => (int) $plcPort,
+                "external_port" => $externalPort === null ? null : (int) $externalPort,
+                "plc_protocol" => $protocol,
+                "id" => $equipmentId,
+                "company_id" => $companyId,
+            ]);
+        } else {
+            $insert = $connection->prepare(
+                "INSERT INTO equipamentos
+                 (company_id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol)
+                 VALUES (:company_id, :equipment_code, :name, :plc_ip, :plc_port, :external_port, :plc_protocol)",
+            );
+            $insert->execute([
+                "company_id" => $companyId,
+                "equipment_code" => $code,
+                "name" => $name,
+                "plc_ip" => $plcIp,
+                "plc_port" => (int) $plcPort,
+                "external_port" => $externalPort === null ? null : (int) $externalPort,
+                "plc_protocol" => $protocol,
+            ]);
+            $equipmentId = (int) $connection->lastInsertId();
         }
-        $find = $connection->prepare(
-            "SELECT id FROM equipamentos WHERE company_id = :company_id
-             AND (" . implode(" OR ", $identity) . ") LIMIT 1",
+        $link = $connection->prepare(
+            "UPDATE instalacoes_industriais SET equipment_id = :equipment_id
+             WHERE id = :installation_id AND company_id = :company_id
+               AND equipment_id IS NULL AND sync_token_hash IS NOT NULL",
         );
-        $find->execute($params);
-        $equipmentId = (int) ($find->fetchColumn() ?: 0);
-    }
-    $values = [
-        "company_id" => $companyId,
-        "remote_equipment_id" => $remoteEquipmentId > 0 ? $remoteEquipmentId : null,
-        "equipment_code" => $code,
-        "name" => $name,
-        "plc_ip" => $plcIp,
-        "plc_port" => (int) $plcPort,
-        "external_port" => $externalPort === null ? null : (int) $externalPort,
-        "plc_protocol" => $protocol,
-    ];
-
-    if ($equipmentId > 0) {
+        $link->execute([
+            "equipment_id" => $equipmentId,
+            "installation_id" => $installationId,
+            "company_id" => $companyId,
+        ]);
+        if ($link->rowCount() !== 1) {
+            throw new RuntimeException("Não foi possível vincular a primeira Dala a este PC industrial.");
+        }
+        $installationEquipmentId = $equipmentId;
+    } else {
+        $equipmentId = $installationEquipmentId;
+        $exists = $connection->prepare(
+            "SELECT id FROM equipamentos WHERE id = :id AND company_id = :company_id LIMIT 1",
+        );
+        $exists->execute(["id" => $equipmentId, "company_id" => $companyId]);
+        if (!$exists->fetchColumn()) {
+            throw new RuntimeException("A Dala vinculada ao PC não existe no servidor central.");
+        }
         $update = $connection->prepare(
-            "UPDATE equipamentos SET remote_equipment_id = :remote_equipment_id,
-             equipment_code = :equipment_code, name = :name, plc_ip = :plc_ip,
+            "UPDATE equipamentos SET equipment_code = :equipment_code, name = :name, plc_ip = :plc_ip,
              plc_port = :plc_port, external_port = :external_port, plc_protocol = :plc_protocol
              WHERE id = :id AND company_id = :company_id",
         );
-        $update->execute([...$values, "id" => $equipmentId]);
-    } else {
-        $insert = $connection->prepare(
-            "INSERT INTO equipamentos
-             (company_id, remote_equipment_id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol)
-             VALUES (:company_id, :remote_equipment_id, :equipment_code, :name, :plc_ip, :plc_port, :external_port, :plc_protocol)",
-        );
-        $insert->execute($values);
-        $equipmentId = (int) $connection->lastInsertId();
+        $update->execute([
+            "equipment_code" => $code,
+            "name" => $name,
+            "plc_ip" => $plcIp,
+            "plc_port" => (int) $plcPort,
+            "external_port" => $externalPort === null ? null : (int) $externalPort,
+            "plc_protocol" => $protocol,
+            "id" => $equipmentId,
+            "company_id" => $companyId,
+        ]);
     }
+    $assignedEquipmentCode = $code;
     InicializadorAcoesDala::garantir($connection, $companyId, $equipmentId);
     return $equipmentId;
 };
 
-$deleteEquipment = static function (PDO $connection, int $companyId, int $remoteEquipmentId, array $data): int {
+$deleteEquipment = static function (PDO $connection, int $companyId, array $data) use (&$installationEquipmentId, &$assignedEquipmentCode, $installationId): int {
     $code = trim((string) ($data["equipment_code"] ?? ""));
-    if ($remoteEquipmentId <= 0 && $code === "") {
+    $previousCode = trim((string) ($data["previous_equipment_code"] ?? ""));
+    if ($code !== $assignedEquipmentCode && $previousCode !== $assignedEquipmentCode) {
+        throw new RuntimeException("O PC industrial tentou excluir uma Dala que não está vinculada a ele.");
+    }
+    if ($installationEquipmentId === null) {
         return 0;
     }
-    $identity = [];
-    $params = ["company_id" => $companyId];
-    if ($remoteEquipmentId > 0) {
-        $identity[] = "remote_equipment_id = :remote_equipment_id";
-        $params["remote_equipment_id"] = $remoteEquipmentId;
-    }
-    if ($code !== "") {
-        $identity[] = "equipment_code = :equipment_code";
-        $params["equipment_code"] = $code;
-    }
-    $find = $connection->prepare(
-        "SELECT id FROM equipamentos WHERE company_id = :company_id AND (" . implode(" OR ", $identity) . ") LIMIT 1",
-    );
-    $find->execute($params);
-    $equipmentId = (int) ($find->fetchColumn() ?: 0);
-    if ($equipmentId === 0) {
-        return 0;
-    }
+    $equipmentId = $installationEquipmentId;
     $activeLoadings = $connection->prepare(
         "UPDATE carregamentos
          SET equipment_id = NULL, state = 'AGUARDANDO', started_at = NULL
@@ -174,6 +281,16 @@ $deleteEquipment = static function (PDO $connection, int $companyId, int $remote
             throw $exception;
         }
     }
+    $connection->prepare(
+        "UPDATE instalacoes_industriais SET equipment_id = NULL
+         WHERE id = :installation_id AND company_id = :company_id AND equipment_id = :equipment_id",
+    )->execute([
+        "installation_id" => $installationId,
+        "company_id" => $companyId,
+        "equipment_id" => $equipmentId,
+    ]);
+    $installationEquipmentId = null;
+    $assignedEquipmentCode = "";
     return $equipmentId;
 };
 
@@ -234,7 +351,7 @@ $upsertProduct = static function (PDO $connection, int $companyId, array $data):
     return $productId;
 };
 
-$upsertManifest = static function (PDO $connection, int $companyId, int $sourceManifestId, array $data): array {
+$upsertManifest = static function (PDO $connection, int $companyId, int $sourceManifestId, array $data) use ($installationId): array {
     $knownRemoteId = filter_var($data["remote_romaneio_id"] ?? null, FILTER_VALIDATE_INT);
     $knownRemoteId = $knownRemoteId !== false && $knownRemoteId !== null && $knownRemoteId > 0
         ? (int) $knownRemoteId : null;
@@ -266,17 +383,14 @@ $upsertManifest = static function (PDO $connection, int $companyId, int $sourceM
     if ($manifestId === 0) {
         $find = $connection->prepare(
             "SELECT id FROM romaneios WHERE company_id = :company_id
+             AND remote_installation_id = :installation_id
              AND remote_romaneio_id = :source_id LIMIT 1",
         );
-        $find->execute(["company_id" => $companyId, "source_id" => $sourceId]);
-        $manifestId = (int) ($find->fetchColumn() ?: 0);
-    }
-    if ($manifestId === 0) {
-        $find = $connection->prepare(
-            "SELECT id FROM romaneios WHERE company_id = :company_id
-             AND number = :number LIMIT 1",
-        );
-        $find->execute(["company_id" => $companyId, "number" => $number]);
+        $find->execute([
+            "company_id" => $companyId,
+            "installation_id" => $installationId,
+            "source_id" => $sourceId,
+        ]);
         $manifestId = (int) ($find->fetchColumn() ?: 0);
     }
     $values = [
@@ -286,18 +400,26 @@ $upsertManifest = static function (PDO $connection, int $companyId, int $sourceM
         "status" => $status,
         "expedidor" => trim((string) ($data["expedidor"] ?? "")) ?: null,
         "company_id" => $companyId,
+        "installation_id" => $installationId,
     ];
     if ($manifestId > 0) {
         $connection->prepare(
-            "UPDATE romaneios SET remote_romaneio_id = :remote_id, number = :number,
+            "UPDATE romaneios SET number = :number,
              scheduled_date = :scheduled_date, status = :status, expedidor = :expedidor
              WHERE id = :id AND company_id = :company_id",
-        )->execute([...$values, "id" => $manifestId]);
+        )->execute([
+            "number" => $number,
+            "scheduled_date" => $scheduledDate,
+            "status" => $status,
+            "expedidor" => $values["expedidor"],
+            "id" => $manifestId,
+            "company_id" => $companyId,
+        ]);
     } else {
         $connection->prepare(
             "INSERT INTO romaneios
-             (company_id, remote_romaneio_id, number, scheduled_date, status, expedidor)
-             VALUES (:company_id, :remote_id, :number, :scheduled_date, :status, :expedidor)",
+             (company_id, remote_installation_id, remote_romaneio_id, number, scheduled_date, status, expedidor)
+             VALUES (:company_id, :installation_id, :remote_id, :number, :scheduled_date, :status, :expedidor)",
         )->execute($values);
         $manifestId = (int) $connection->lastInsertId();
     }
@@ -386,26 +508,25 @@ $replaceManifestItems = static function (PDO $connection, int $companyId, int $m
     }
 };
 
-$findEquipment = static function (PDO $connection, int $companyId, array $data): ?int {
-    $remoteId = filter_var($data["remote_equipment_id"] ?? null, FILTER_VALIDATE_INT);
+$findEquipment = static function (PDO $connection, int $companyId, array $data) use (&$installationEquipmentId, &$assignedEquipmentCode): int {
+    if ($installationEquipmentId === null) {
+        throw new RuntimeException("O PC industrial ainda não possui uma Dala vinculada.");
+    }
     $code = trim((string) ($data["equipment_code"] ?? ""));
-    if (($remoteId === false || $remoteId === null || $remoteId < 1) && $code === "") {
-        return null;
+    $previousCode = trim((string) ($data["previous_equipment_code"] ?? ""));
+    if ($code !== "" && $code !== $assignedEquipmentCode && $previousCode !== $assignedEquipmentCode) {
+        throw new RuntimeException("O PC industrial tentou atualizar uma operação de outra Dala.");
     }
     $statement = $connection->prepare(
-        "SELECT id FROM equipamentos WHERE company_id = :company_id
-         AND ((:remote_id_a IS NOT NULL AND remote_equipment_id = :remote_id_b)
-           OR (:code_a <> '' AND equipment_code = :code_b)) LIMIT 1",
+        "SELECT id FROM equipamentos
+         WHERE id = :equipment_id AND company_id = :company_id LIMIT 1",
     );
-    $statement->execute([
-        "company_id" => $companyId,
-        "remote_id_a" => $remoteId !== false && $remoteId !== null && $remoteId > 0 ? (int) $remoteId : null,
-        "remote_id_b" => $remoteId !== false && $remoteId !== null && $remoteId > 0 ? (int) $remoteId : null,
-        "code_a" => $code,
-        "code_b" => $code,
-    ]);
+    $statement->execute(["equipment_id" => $installationEquipmentId, "company_id" => $companyId]);
     $id = $statement->fetchColumn();
-    return $id === false ? null : (int) $id;
+    if ($id === false) {
+        throw new RuntimeException("A Dala vinculada ao PC não existe no servidor central.");
+    }
+    return (int) $id;
 };
 
 $syncManifestStatus = static function (PDO $connection, int $companyId, int $loadingId, string $state, ?bool $manifestFinalized = null): void {
@@ -446,7 +567,7 @@ $syncManifestStatus = static function (PDO $connection, int $companyId, int $loa
     ]);
 };
 
-$upsertLoading = static function (PDO $connection, int $companyId, int $sourceLoadingId, array $data) use ($upsertManifest, $upsertTruck, $replaceManifestItems, $upsertProduct, $findEquipment, $syncManifestStatus): array {
+$upsertLoading = static function (PDO $connection, int $companyId, int $sourceLoadingId, array $data) use ($installationId, $upsertManifest, $upsertTruck, $replaceManifestItems, $upsertProduct, $findEquipment, $syncManifestStatus): array {
     $knownRemoteLoadingId = filter_var($data["remote_carregamento_id"] ?? null, FILTER_VALIDATE_INT);
     $knownRemoteLoadingId = $knownRemoteLoadingId !== false && $knownRemoteLoadingId !== null && $knownRemoteLoadingId > 0
         ? (int) $knownRemoteLoadingId : null;
@@ -475,21 +596,31 @@ $upsertLoading = static function (PDO $connection, int $companyId, int $sourceLo
     if ($knownRemoteLoadingId !== null) {
         $find = $connection->prepare(
             "SELECT id FROM carregamentos WHERE company_id = :company_id
-             AND id = :remote_id LIMIT 1",
+             AND id = :remote_id AND equipment_id = :equipment_id LIMIT 1",
         );
-        $find->execute(["company_id" => $companyId, "remote_id" => $knownRemoteLoadingId]);
+        $find->execute([
+            "company_id" => $companyId,
+            "remote_id" => $knownRemoteLoadingId,
+            "equipment_id" => $equipmentId,
+        ]);
         $loadingId = (int) ($find->fetchColumn() ?: 0);
     }
     if ($loadingId === 0) {
         $find = $connection->prepare(
             "SELECT id FROM carregamentos WHERE company_id = :company_id
+             AND remote_installation_id = :installation_id
              AND remote_carregamento_id = :source_id LIMIT 1",
         );
-        $find->execute(["company_id" => $companyId, "source_id" => $sourceLoadingId]);
+        $find->execute([
+            "company_id" => $companyId,
+            "installation_id" => $installationId,
+            "source_id" => $sourceLoadingId,
+        ]);
         $loadingId = (int) ($find->fetchColumn() ?: 0);
     }
     $values = [
         "remote_id" => $sourceLoadingId,
+        "installation_id" => $installationId,
         "equipment_id" => $equipmentId,
         "romaneio_id" => $manifest["id"],
         "truck_id" => $truck["id"],
@@ -499,7 +630,8 @@ $upsertLoading = static function (PDO $connection, int $companyId, int $sourceLo
     ];
     if ($loadingId > 0) {
         $connection->prepare(
-            "UPDATE carregamentos SET remote_carregamento_id = :remote_id,
+            "UPDATE carregamentos SET remote_installation_id = :installation_id,
+             remote_carregamento_id = :remote_id,
              equipment_id = :equipment_id, romaneio_id = :romaneio_id,
              truck_id = :truck_id, state = :state, started_at = :started_at
              WHERE id = :id AND company_id = :company_id",
@@ -507,8 +639,8 @@ $upsertLoading = static function (PDO $connection, int $companyId, int $sourceLo
     } else {
         $connection->prepare(
             "INSERT INTO carregamentos
-             (company_id, remote_carregamento_id, equipment_id, romaneio_id, truck_id, state, started_at)
-             VALUES (:company_id, :remote_id, :equipment_id, :romaneio_id, :truck_id, :state, :started_at)",
+             (company_id, remote_installation_id, remote_carregamento_id, equipment_id, romaneio_id, truck_id, state, started_at)
+             VALUES (:company_id, :installation_id, :remote_id, :equipment_id, :romaneio_id, :truck_id, :state, :started_at)",
         )->execute($values);
         $loadingId = (int) $connection->lastInsertId();
     }
@@ -524,17 +656,23 @@ $upsertLoading = static function (PDO $connection, int $companyId, int $sourceLo
     ];
 };
 
-$resolveLoadingId = static function (PDO $connection, int $companyId, int $candidateId, int $sourceId = 0): ?int {
+$resolveLoadingId = static function (PDO $connection, int $companyId, int $candidateId, int $sourceId = 0) use ($installationId, &$installationEquipmentId): ?int {
     if ($candidateId <= 0 && $sourceId <= 0) {
+        return null;
+    }
+    if ($installationEquipmentId === null) {
         return null;
     }
     $statement = $connection->prepare(
         "SELECT id FROM carregamentos WHERE company_id = :company_id
-         AND ((:candidate_a > 0 AND id = :candidate_b)
-           OR (:source_a > 0 AND remote_carregamento_id = :source_b)) LIMIT 1",
+         AND ((:candidate_a > 0 AND id = :candidate_b AND equipment_id = :equipment_id)
+           OR (:source_a > 0 AND remote_installation_id = :installation_id
+               AND remote_carregamento_id = :source_b)) LIMIT 1",
     );
     $statement->execute([
         "company_id" => $companyId,
+        "equipment_id" => $installationEquipmentId,
+        "installation_id" => $installationId,
         "candidate_a" => $candidateId,
         "candidate_b" => $candidateId,
         "source_a" => $sourceId,
@@ -552,10 +690,14 @@ try {
         if (!preg_match('/^[a-f0-9-]{16,80}$/i', $eventUuid) || $eventCompanyId === false || (int) $eventCompanyId !== $companyId) {
             throw new RuntimeException("Evento de sincronização inválido.");
         }
-        $action = trim((string) ($event["payload"]["action"] ?? ""));
-        $data = is_array($event["payload"]["data"] ?? null) ? $event["payload"]["data"] : [];
-        $entityType = trim((string) ($event["aggregate_type"] ?? $event["payload"]["entity_type"] ?? "sincronizacao"));
-        $entityId = (int) ($event["aggregate_id"] ?? $event["payload"]["entity_id"] ?? 0);
+        $eventPayload = is_array($event["payload"] ?? null) ? $event["payload"] : [];
+        $action = trim((string) ($eventPayload["action"] ?? ""));
+        $data = is_array($eventPayload["data"] ?? null) ? $eventPayload["data"] : [];
+        $entityType = trim((string) ($event["aggregate_type"] ?? $eventPayload["entity_type"] ?? "sincronizacao"));
+        $entityId = (int) ($event["aggregate_id"] ?? $eventPayload["entity_id"] ?? 0);
+        if ($installationEquipmentId === null && $action !== "DALA_CADASTRADA") {
+            throw new RuntimeException("O PC precisa sincronizar primeiro o cadastro de sua Dala.");
+        }
         $isReplaySafeEvent = in_array($action, [
             "DALA_CADASTRADA",
             "DALA_ATUALIZADA",
@@ -576,20 +718,23 @@ try {
         );
         $existing->execute(["company_id" => $companyId, "event_uuid" => $eventUuid]);
         $replay = (bool) $existing->fetchColumn();
+        if ($replay && $action === "DALA_EXCLUIDA") {
+            $ignored++;
+            continue;
+        }
         if ($replay && !$isReplaySafeEvent) {
             $ignored++;
             continue;
         }
 
         if (in_array($action, ["DALA_CADASTRADA", "DALA_ATUALIZADA"], true)) {
-            $entityId = $upsertEquipment($pdo, $companyId, $entityId, $data);
+            $entityId = $upsertEquipment($pdo, $companyId, $data);
         }
 
         if ($action === "DALA_EXCLUIDA") {
             $entityId = $deleteEquipment(
                 $pdo,
                 $companyId,
-                (int) ($data["remote_equipment_id"] ?? $entityId),
                 $data,
             );
         }
@@ -660,7 +805,7 @@ try {
                     "carregamento_id" => (int) $loading["id"],
                     "romaneio_id" => (int) $loading["manifest_id"],
                     "truck_id" => (int) $loading["truck_id"],
-                    "equipment_id" => $loading["equipment_id"] === null ? 0 : (int) $loading["equipment_id"],
+                    "equipment_id" => (int) $loading["equipment_id"],
                 ],
             ];
         }
@@ -685,23 +830,7 @@ try {
                     );
                     $update->execute(["id" => $loadingId, "company_id" => $companyId]);
                 } else {
-                    $remoteEquipmentId = filter_var($data["remote_equipment_id"] ?? null, FILTER_VALIDATE_INT);
-                    $equipmentCode = trim((string) ($data["equipment_code"] ?? ""));
-                    $equipment = $pdo->prepare(
-                        "SELECT id FROM equipamentos
-                         WHERE company_id = :company_id
-                           AND ((:remote_id_a IS NOT NULL AND remote_equipment_id = :remote_id_b)
-                             OR (:equipment_code_a <> '' AND equipment_code = :equipment_code_b))
-                         LIMIT 1",
-                    );
-                    $equipment->execute([
-                        "company_id" => $companyId,
-                        "remote_id_a" => $remoteEquipmentId === false ? null : (int) $remoteEquipmentId,
-                        "remote_id_b" => $remoteEquipmentId === false ? null : (int) $remoteEquipmentId,
-                        "equipment_code_a" => $equipmentCode,
-                        "equipment_code_b" => $equipmentCode,
-                    ]);
-                    $equipmentId = $equipment->fetchColumn();
+                    $equipmentId = $findEquipment($pdo, $companyId, $data);
                     if ($equipmentId) {
                         $update = $pdo->prepare(
                             "UPDATE carregamentos
@@ -765,6 +894,7 @@ try {
         if (in_array($action, ["COMANDO_CLP_CONCLUIDO", "COMANDO_CLP_EXPIRADO"], true)) {
             $remoteCommandId = filter_var($data["remote_command_id"] ?? null, FILTER_VALIDATE_INT);
             if ($remoteCommandId !== false && $remoteCommandId > 0) {
+                $commandEquipmentId = $findEquipment($pdo, $companyId, $data);
                 $status = $action === "COMANDO_CLP_EXPIRADO" ? "ERRO" : strtoupper((string) ($data["status"] ?? "ERRO"));
                 if (!in_array($status, ["APLICADO", "REJEITADO", "ERRO"], true)) {
                     $status = "ERRO";
@@ -772,34 +902,21 @@ try {
                 $update = $pdo->prepare(
                     "UPDATE solicitacoes_comandos_clp
                      SET status = :status, completed_at = NOW(3), response_message = :message
-                     WHERE id = :id AND company_id = :company_id",
+                     WHERE id = :id AND company_id = :company_id AND equipment_id = :equipment_id",
                 );
                 $update->execute([
                     "status" => $status,
                     "message" => $data["message"] ?? null,
                     "id" => $remoteCommandId,
                     "company_id" => $companyId,
+                    "equipment_id" => $commandEquipmentId,
                 ]);
                 $entityId = (int) $remoteCommandId;
             }
         }
 
         if ($action === "STATUS_DISPOSITIVO_ALTERADO") {
-            $remoteEquipmentId = filter_var($data["remote_equipment_id"] ?? null, FILTER_VALIDATE_INT);
-            $equipmentCode = trim((string) ($data["equipment_code"] ?? ""));
-            $equipment = $pdo->prepare(
-                "SELECT id FROM equipamentos WHERE company_id = :company_id
-                 AND ((:remote_id_a IS NOT NULL AND remote_equipment_id = :remote_id_b)
-                   OR (:equipment_code_a <> '' AND equipment_code = :equipment_code_b)) LIMIT 1",
-            );
-            $equipment->execute([
-                "company_id" => $companyId,
-                "remote_id_a" => $remoteEquipmentId === false ? null : (int) $remoteEquipmentId,
-                "remote_id_b" => $remoteEquipmentId === false ? null : (int) $remoteEquipmentId,
-                "equipment_code_a" => $equipmentCode,
-                "equipment_code_b" => $equipmentCode,
-            ]);
-            $equipmentId = $equipment->fetchColumn();
+            $equipmentId = $findEquipment($pdo, $companyId, $data);
             $status = strtoupper((string) ($data["status"] ?? "DESCONHECIDO"));
             $deviceType = strtoupper((string) ($data["device_type"] ?? "CLP"));
             if ($equipmentId && in_array($status, ["ONLINE", "OFFLINE", "ERRO", "DESCONHECIDO"], true)) {

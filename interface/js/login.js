@@ -1,7 +1,6 @@
 import "../telas/acesso/acesso.js";
 import {
   configurarSessaoPorAba,
-  guardarTokenSessao,
 } from "./sessao.js?v=202609222100";
 
 configurarSessaoPorAba();
@@ -150,7 +149,6 @@ function bindLoginForm() {
         renderLogin(result.error || "Login ou senha inválidos.");
         return;
       }
-      guardarTokenSessao(result.session_token);
       window.location.replace(defaultPageForUser(result.user));
     } catch (error) {
       renderLogin(

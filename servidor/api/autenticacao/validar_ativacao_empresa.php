@@ -24,13 +24,15 @@ if ($hasInstallationToken && !credencial_instalacao_valida($installationToken)) 
 }
 
 $statement = obter_conexao_banco()->prepare(
-    "SELECT empresas.id, empresas.name, empresas.login_domain,
-            (SELECT l.status FROM licencas l WHERE l.company_id = empresas.id ORDER BY l.id DESC LIMIT 1) AS license_status
-     FROM empresas
-     WHERE activation_code_hash = :code_hash
-       AND activation_code_used_at IS NULL
-       AND activation_code_expires_at > NOW()
-       AND archived_at IS NULL
+    "SELECT p.id AS installation_id, p.company_id, p.equipment_id,
+            c.name, c.login_domain,
+            (SELECT l.status FROM licencas l WHERE l.company_id = c.id ORDER BY l.id DESC LIMIT 1) AS license_status
+     FROM instalacoes_industriais p
+     JOIN empresas c ON c.id = p.company_id
+     WHERE p.activation_code_hash = :code_hash
+       AND p.activation_code_used_at IS NULL
+       AND p.activation_code_expires_at > NOW()
+       AND c.archived_at IS NULL
      LIMIT 1",
 );
 $statement->execute(["code_hash" => hash("sha256", $normalized)]);
@@ -51,26 +53,28 @@ if (($empresa["license_status"] ?? "") !== "ATIVA") {
 if ($hasInstallationToken) {
     $usuarioAtivador = exigir_perfil(["ADMIN_EMPRESA"]);
     exigir_csrf();
-    if ((int) ($usuarioAtivador["company_id"] ?? 0) !== (int) $empresa["id"]) {
+    if ((int) ($usuarioAtivador["company_id"] ?? 0) !== (int) $empresa["company_id"]) {
         responder_json([
             "error" => "O administrador autenticado pertence a outra empresa.",
             "error_code" => "ACTIVATION_COMPANY_MISMATCH",
         ], 403);
     }
     $updateToken = obter_conexao_banco()->prepare(
-        "UPDATE empresas
-         SET installation_token_hash = :token_hash,
+        "UPDATE instalacoes_industriais
+         SET sync_token_hash = :token_hash,
              activation_code = NULL,
              activation_code_hash = NULL,
              activation_code_preview = NULL,
-             activation_code_used_at = NOW()
+             activation_code_used_at = NOW(),
+             activated_at = NOW()
          WHERE id = :id AND activation_code_hash = :code_hash
-           AND activation_code_used_at IS NULL AND activation_code_expires_at > NOW()",
+           AND activation_code_used_at IS NULL AND activation_code_expires_at > NOW()
+           AND sync_token_hash IS NULL",
     );
     $updateToken->execute([
         "token_hash" => hash("sha256", $installationToken),
         "code_hash" => hash("sha256", $normalized),
-        "id" => $empresa["id"],
+        "id" => $empresa["installation_id"],
     ]);
     if ($updateToken->rowCount() !== 1) {
         responder_json([
@@ -82,9 +86,11 @@ if ($hasInstallationToken) {
 
 responder_json([
     "data" => [
-        "company_id" => (int) $empresa["id"],
+        "company_id" => (int) $empresa["company_id"],
         "name" => $empresa["name"],
         "login_domain" => $empresa["login_domain"],
+        "installation_id" => (int) $empresa["installation_id"],
+        "equipment_id" => $empresa["equipment_id"] === null ? null : (int) $empresa["equipment_id"],
         "active" => true,
     ],
 ]);
