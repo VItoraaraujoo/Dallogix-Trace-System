@@ -7,10 +7,14 @@ Set-StrictMode -Version Latest
 # conta restrita do operador.
 $InstallRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))
 $ComposeProfile = @('--profile', 'industrial')
+# O PC industrial tem memória limitada. O Compose padrão constrói várias
+# imagens em paralelo e pode matar o MySQL com código 137 durante a atualização.
+$env:COMPOSE_PARALLEL_LIMIT = '1'
 $StateRoot = Join-Path $InstallRoot "armazenamento\updates"
 $BackupRoot = Join-Path $StateRoot "backups"
 $LogRoot = Join-Path $InstallRoot "armazenamento\logs"
 $ErrorLogPath = Join-Path $LogRoot "update-stable-errors.log"
+$ComposeLogPath = Join-Path $LogRoot "update-compose.log"
 $MaintenanceFile = Join-Path $InstallRoot "armazenamento\.maintenance"
 $createdMaintenance = $false
 $keepMaintenance = $false
@@ -68,6 +72,31 @@ function Write-AtomicTextFile([string]$Path, [string]$Content) {
             Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
         }
     }
+}
+
+function Invoke-DockerCompose([string[]]$Arguments) {
+    $runId = [guid]::NewGuid().ToString('N')
+    $stdoutPath = Join-Path $env:TEMP ("trace-compose-" + $runId + ".out")
+    $stderrPath = Join-Path $env:TEMP ("trace-compose-" + $runId + ".err")
+    $process = $null
+    try {
+        $process = Start-Process -FilePath 'docker.exe' -ArgumentList $Arguments -Wait -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+        return $process.ExitCode
+    } finally {
+        Add-Content -LiteralPath $ComposeLogPath -Value ("$(Get-Date -Format o) docker compose " + ($Arguments -join ' ')) -Encoding UTF8
+        if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath | Add-Content -LiteralPath $ComposeLogPath -Encoding UTF8 }
+        if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath | Add-Content -LiteralPath $ComposeLogPath -Encoding UTF8 }
+        Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
+    }
+}
+
+function Start-TraceStack([switch]$Build) {
+    if ($Build) {
+        $buildExit = Invoke-DockerCompose ($ComposeProfile + @('build'))
+        if ($buildExit -ne 0) { throw "A construcao das imagens nao foi concluida (codigo $buildExit)." }
+    }
+    $startExit = Invoke-DockerCompose ($ComposeProfile + @('up', '-d'))
+    if ($startExit -ne 0) { throw "A nova versao nao iniciou (codigo $startExit)." }
 }
 
 try { $hasLock = $Lock.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $hasLock = $true }
@@ -197,8 +226,7 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "A configuracao da nova versao e invalida." }
     & $GitBash 'scripts/migrate.sh'
     if ($LASTEXITCODE -ne 0) { throw "As migrations da nova versao falharam." }
-    & docker.exe compose @ComposeProfile up -d --build | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "A nova versao nao iniciou." }
+    Start-TraceStack -Build
     $healthy = $false
     $webPort = if ($env:WEB_PORT) { $env:WEB_PORT } else { '8080' }
     1..60 | ForEach-Object { if (-not $healthy) { try { $r = Invoke-WebRequest -UseBasicParsing "http://127.0.0.1:$webPort/api/health.php" -TimeoutSec 3; $health = $r.Content | ConvertFrom-Json; if ($r.StatusCode -eq 200 -and $health.status -eq 'ok' -and $health.mysql -eq $true -and $health.version -eq $manifest.version -and $health.commit -eq $releaseCommit) { $healthy = $true } } catch { Start-Sleep -Seconds 2 } } }
@@ -244,8 +272,7 @@ try {
             } finally {
                 Remove-Item Env:TRACE_ALLOW_RESTORE -ErrorAction SilentlyContinue
             }
-            & docker.exe compose @ComposeProfile up -d --build | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel iniciar a versao anterior." }
+            Start-TraceStack -Build
             $rollbackHealthy = $false
             1..30 | ForEach-Object {
                 if (-not $rollbackHealthy) {
@@ -266,8 +293,13 @@ try {
         }
     } elseif ($stackStopped) {
         Set-Location $InstallRoot
-        & docker.exe compose @ComposeProfile up -d --build | Out-Null
-        if ($LASTEXITCODE -ne 0) {
+        try {
+            Start-TraceStack -Build
+            $restartExit = 0
+        } catch {
+            $restartExit = 1
+        }
+        if ($restartExit -ne 0) {
             [Console]::Error.WriteLine("Nao foi possivel reiniciar a versao anterior apos falha no backup.")
             $keepMaintenance = $true
         } else {
