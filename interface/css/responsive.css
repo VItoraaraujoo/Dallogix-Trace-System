@@ -3593,6 +3593,46 @@ body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergenc
   line-height: 1.45;
 }
 
+/* Em telas industriais altas, os comandos usam toda a coluna disponível. */
+@media (min-width: 960px) and (min-height: 680px) {
+  body.work-page:has(.work-operation-screen) .work-machine-controls {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-controls .work-controls {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls {
+    min-height: 0;
+    flex: 4 1 0;
+    gap: 12px;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls .button {
+    flex: 1 1 0;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone {
+    min-height: 0;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone .button {
+    flex: 1 1 auto;
+  }
+}
+
 body.work-page:has(.work-operation-screen) .work-device-status,
 body.work-page:has(.work-operation-screen) .work-status-column > .work-live-summary {
   flex: 0 0 auto;
