@@ -123,8 +123,11 @@ try {
     New-Item -ItemType File -Force -Path $MaintenanceFile | Out-Null
     $createdMaintenance = $true
     $sql = "SELECT COUNT(*) FROM carregamentos WHERE state IN ('PREPARANDO','CARREGANDO','PAUSADO','FINALIZANDO','EMERGENCIA');"
-    $mysqlCommand = 'mysql -N -B -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "' + $sql + '"'
-    $active = (& docker.exe compose @ComposeProfile exec -T mysql sh -lc $mysqlCommand | Out-String).Trim()
+    # Pass the query through stdin. Windows PowerShell can strip the nested
+    # quotes when a SQL string is assembled into `sh -lc ...`, leaving mysql
+    # with an empty or malformed `-e` argument (ERROR 1064). The container
+    # keeps reading its credentials and database name from its own environment.
+    $active = ($sql | & docker.exe compose @ComposeProfile exec -T mysql sh -lc 'mysql -N -B -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' | Out-String).Trim()
     if ($LASTEXITCODE -ne 0 -or $active -notmatch '^\d+$') { throw "Nao foi possivel confirmar os carregamentos ativos. Atualizacao adiada." }
     if ([int]$active -gt 0) { throw "Atualizacao adiada: existe carregamento ativo ou em intervencao." }
 
