@@ -73,6 +73,22 @@ function Write-AtomicTextFile([string]$Path, [string]$Content) {
     }
 }
 
+function Download-UpdateArtifact([string]$Uri, [string]$Path, [hashtable]$Headers) {
+    # Invoke-WebRequest tenta ler o buffer do console para a barra de progresso
+    # no Windows PowerShell 5.1. Em tarefas agendadas e sessões SSH isso pode
+    # falhar com Win32 0x5 antes de gravar o pacote. WebClient faz o download
+    # diretamente no arquivo e continua funcionando sem console interativo.
+    $client = New-Object System.Net.WebClient
+    try {
+        foreach ($key in $Headers.Keys) {
+            $client.Headers[$key] = [string]$Headers[$key]
+        }
+        $client.DownloadFile($Uri, $Path)
+    } finally {
+        $client.Dispose()
+    }
+}
+
 function Invoke-DockerCompose([string[]]$Arguments) {
     $runId = [guid]::NewGuid().ToString('N')
     $stdoutPath = Join-Path $env:TEMP ("trace-compose-" + $runId + ".out")
@@ -164,7 +180,7 @@ try {
     # O workflow de release publica tar.gz (o formato é o mesmo usado pelo
     # atualizador Linux); não tente abrir esses bytes como ZIP.
     $artifact = Join-Path $work ("trace-" + $manifest.version + ".tar.gz")
-    Invoke-WebRequest -Uri $manifest.artifact_url -Headers $headers -OutFile $artifact -TimeoutSec 120
+    Download-UpdateArtifact $manifest.artifact_url $artifact $headers
     if ((Get-FileHash $artifact -Algorithm SHA256).Hash.ToLower() -ne $manifest.sha256.ToLower()) { throw "Integridade do pacote rejeitada." }
     $release = Join-Path $StateRoot ("releases\" + $manifest.version)
     if (Test-Path $release) { Remove-Item $release -Recurse -Force }
