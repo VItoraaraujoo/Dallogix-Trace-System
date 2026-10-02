@@ -17,6 +17,30 @@
   margin: 0;
 }
 
+.company-rename-panel {
+  padding: clamp(14px, 1.25vw, 20px);
+}
+
+.company-rename-form > .panel-heading {
+  min-height: 0;
+  margin-bottom: 8px;
+  gap: 12px;
+}
+
+.company-rename-form .panel-heading p {
+  margin: 4px 0 0;
+  line-height: 1.35;
+}
+
+.company-rename-form > label {
+  margin: 0;
+}
+
+.company-rename-form input {
+  min-height: 44px;
+  margin-top: 6px;
+}
+
 .industrial-pc-create-panel,
 .industrial-pc-management-panel {
   padding: clamp(14px, 1.25vw, 20px);
@@ -46,8 +70,10 @@
 }
 
 .industrial-pc-create-form label {
+  display: grid;
   gap: 6px;
   font-size: 14px;
+  margin: 0;
 }
 
 .industrial-pc-create-form input,
@@ -56,10 +82,13 @@
 }
 
 .industrial-pc-create-form input {
+  margin-top: 0;
   padding: 10px 12px;
 }
 
 .industrial-pc-create-form > .button {
+  align-self: end;
+  margin: 0;
   padding: 9px 16px;
   font-size: 14px;
 }
@@ -362,6 +391,18 @@
 }
 
 @media (max-width: 560px) {
+  .company-rename-panel {
+    padding: 14px;
+  }
+
+  .company-rename-form > .panel-heading {
+    align-items: stretch;
+  }
+
+  .company-rename-form > .panel-heading > .button {
+    width: 100%;
+  }
+
   .industrial-pc-create-panel,
   .industrial-pc-management-panel {
     padding: 13px;
