@@ -50,6 +50,37 @@ function Read-EnvValues([string]$Path) {
     return $values
 }
 
+function Ensure-EnvDefaults([string]$Path, [hashtable]$Defaults) {
+    $lines = New-Object 'System.Collections.Generic.List[string]'
+    foreach ($line in [System.IO.File]::ReadAllLines($Path)) {
+        $lines.Add([string]$line)
+    }
+    foreach ($entry in $Defaults.GetEnumerator()) {
+        $key = [string]$entry.Key
+        $pattern = "^$([regex]::Escape($key))=(.*)$"
+        $matchesForKey = @()
+        for ($index = 0; $index -lt $lines.Count; $index++) {
+            if ($lines[$index] -match $pattern) {
+                $matchesForKey += $index
+            }
+        }
+        if ($matchesForKey.Count -gt 1) {
+            throw "O arquivo .env contem a variavel $key mais de uma vez. Corrija antes de continuar."
+        }
+        if ($matchesForKey.Count -eq 1) {
+            $index = $matchesForKey[0]
+            $current = ($lines[$index] -split "=", 2)[1].Trim().Trim('"').Trim("'")
+            if ([string]::IsNullOrWhiteSpace($current)) {
+                $lines[$index] = "$key=$($entry.Value)"
+            }
+        } else {
+            $lines.Add("$key=$($entry.Value)")
+        }
+    }
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllLines($Path, $lines, $utf8)
+}
+
 function New-HexSecret([Security.Cryptography.RandomNumberGenerator]$Generator) {
     $bytes = New-Object byte[] 32
     $Generator.GetBytes($bytes)
@@ -221,6 +252,14 @@ try {
         Write-Host "Arquivo .env existente preservado. Conferindo campos obrigatorios..."
     }
 
+    # O perfil padrão usa somente a leitura do sensor M2052 informado para o
+    # INVT TS621. Os valores continuam sobrescrevíveis para outro modelo, mas
+    # uma instalação nova nunca inicia com a sonda Modbus vazia.
+    Ensure-EnvDefaults $envPath @{
+        TRACE_MODBUS_UNIT_ID = '1'
+        TRACE_MODBUS_HEARTBEAT_FUNCTION = '1'
+        TRACE_MODBUS_HEARTBEAT_REGISTER = '2052'
+    }
     $values = Read-EnvValues $envPath
     foreach ($key in @("MYSQL_PASSWORD", "MYSQL_ROOT_PASSWORD", "TRACE_DEVICE_TOKEN", "CAMERA_DEVICE_TOKEN", "TRACE_CENTRAL_URL")) {
         if (-not $values.ContainsKey($key) -or [string]::IsNullOrWhiteSpace($values[$key])) {
@@ -238,6 +277,21 @@ try {
     if ($ProductionMachine -and (-not $values.ContainsKey('COMPOSE_PROFILES') -or
         $values['COMPOSE_PROFILES'] -notmatch '(^|,)industrial(,|$)')) {
         throw "Defina COMPOSE_PROFILES=industrial em .env para este PC de producao."
+    }
+    $modbusUnit = 0
+    $modbusFunction = 0
+    $modbusRegister = 0
+    if (-not [int]::TryParse($values['TRACE_MODBUS_UNIT_ID'], [ref]$modbusUnit) -or
+        $modbusUnit -lt 0 -or $modbusUnit -gt 255) {
+        throw "TRACE_MODBUS_UNIT_ID deve ser um valor entre 0 e 255."
+    }
+    if (-not [int]::TryParse($values['TRACE_MODBUS_HEARTBEAT_FUNCTION'], [ref]$modbusFunction) -or
+        $modbusFunction -notin @(1, 2, 3, 4)) {
+        throw "TRACE_MODBUS_HEARTBEAT_FUNCTION deve ser 1, 2, 3 ou 4."
+    }
+    if (-not [int]::TryParse($values['TRACE_MODBUS_HEARTBEAT_REGISTER'], [ref]$modbusRegister) -or
+        $modbusRegister -lt 0 -or $modbusRegister -gt 65535) {
+        throw "TRACE_MODBUS_HEARTBEAT_REGISTER deve ser um valor entre 0 e 65535."
     }
     $centralUrl = Get-CentralBaseUrl $values["TRACE_CENTRAL_URL"]
     if ($centralUrl -ne $values["TRACE_CENTRAL_URL"].TrimEnd('/')) {

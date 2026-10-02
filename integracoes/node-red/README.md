@@ -22,12 +22,12 @@ Configure no ambiente do Node-RED:
 ```text
 TRACE_API_URL=http://trace-api.local
 TRACE_DEVICE_TOKEN=token-da-dala-deste-pc
-TRACE_MODBUS_UNIT_ID=unidade-confirmada
-TRACE_MODBUS_HEARTBEAT_FUNCTION=funcao-confirmada-3-ou-4
-TRACE_MODBUS_HEARTBEAT_REGISTER=registrador-confirmado
+TRACE_MODBUS_UNIT_ID=1
+TRACE_MODBUS_HEARTBEAT_FUNCTION=1
+TRACE_MODBUS_HEARTBEAT_REGISTER=2052
 ```
 
-Cada PC industrial é dedicado a uma Dala e usa o token do seu próprio gateway. A API devolve somente a Dala vinculada a esse dispositivo e fornece um destino IPv4 privado validado. O endereço da API deve apontar para a instalação local, nunca para a URL pública. Provisione o token com `php scripts/provision_device.php`. A unidade, função e registrador de diagnóstico devem ser confirmados no mapa do CLP; sem os três valores a sonda permanece desabilitada. Os valores `2049` e `2050` dos fluxos de teste não são mapa oficial de I/O.
+Cada PC industrial é dedicado a uma Dala e usa o token do seu próprio gateway. A API devolve somente a Dala vinculada a esse dispositivo e fornece um destino IPv4 privado validado. O endereço da API deve apontar para a instalação local, nunca para a URL pública. Provisione o token com `php scripts/provision_device.php`. O instalador já inicia com o perfil seguro informado para o INVT TS621: unidade 1, função 1 (coil) e endereço 2052 (M2052). Para outro CLP, substitua os três valores no `.env`; as funções 1/2 (coils/entradas discretas) e 3/4 (registros) são validadas antes do envio. Os valores `2049` e `2050` continuam sendo comandos e nunca são usados como heartbeat.
 
 O nó `Modbus Read/Write` só deve ser acrescentado depois de confirmar em bancada a variante do Delta DVP14SS, IP, porta, unidade Modbus, registradores, bobinas e intertravamentos do Ladder. A ausência dessas informações é intencionalmente tratada como bloqueio seguro.
 
@@ -45,7 +45,7 @@ Para testar a lógica sem CLP, importe também `trace-clp-simulador.flow.json`. 
 
 Sequência sugerida: `Resetar` → `Iniciar` → vários `Sensor + produto correto` → `Pausar` → `Retorno`. Depois repita com `Produto incorreto`, `Sensor sem leitura` e `Emergência`. Essa simulação usa somente o contexto do Node-RED e não chama a API nem o CLP real.
 
-O perfil `simulation` sobe um único servidor `modbus-virtual` em `127.0.0.1:1502`. Ele implementa leitura de coils/entradas/registros e escrita de coil/registro em memória, para testes de transporte Modbus TCP. O fluxo operacional `trace-clp-bridge.flow.json` lê o endereço e a porta da Dala cadastrada, sem destino de CLP predefinido. O mapa da simulação está em `integracoes/industrial/register-map.example.json`; ele não deve ser reutilizado como mapa de produção.
+O perfil `simulation` sobe um único servidor `modbus-virtual` em `127.0.0.1:1502`. Ele implementa leitura de coils/entradas/registros e escrita de coil/registro em memória, para testes de transporte Modbus TCP. O fluxo operacional `trace-clp-bridge.flow.json` lê o endereço e a porta da Dala cadastrada, sem destino de CLP predefinido. O mapa da simulação está em `integracoes/industrial/register-map.example.json`; ele não deve ser reutilizado como mapa de produção. O perfil padrão de produção usa apenas leitura de M2052 e não libera comandos de saída.
 
 O [contrato provisório de simulação](../industrial/contrato-provisorio-simulacao.md) documenta os limites dessa bancada e os cenários automatizados com `node --test testes/clp-provisorio-simulacao.mjs`. Ele não altera o bloqueio de escritas no gateway físico.
 
