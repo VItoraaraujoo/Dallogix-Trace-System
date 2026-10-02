@@ -187,6 +187,38 @@ if ($result === "VALIDO" && $plannedQuantity > 0 && $validCount >= $plannedQuant
     $result = "EXCESSO";
 }
 
+$endProductAlert = null;
+$alertThreshold = limite_alerta_fim_produto_sacas();
+if ($result === "VALIDO" && $productId !== null && $productPlannedQuantity > 0) {
+    $productValidCountAfter = $productValidCount + 1;
+    $productRemainingAfter = max(0, $productPlannedQuantity - $productValidCountAfter);
+    $alertAlreadyRecorded = false;
+    if ($productRemainingAfter > 0 && $productRemainingAfter <= $alertThreshold) {
+        $alertStatement = $pdo->prepare(
+            "SELECT 1
+             FROM logs_auditoria
+             WHERE company_id = :company_id
+               AND action = 'ALERTA_FIM_PRODUTO'
+               AND entity_type = 'carregamento'
+               AND entity_id = :carregamento_id
+               AND JSON_UNQUOTE(JSON_EXTRACT(metadata, '$.product_id')) = :product_id
+             LIMIT 1",
+        );
+        $alertStatement->execute([
+            "company_id" => $usuarioAtor["company_id"],
+            "carregamento_id" => $loadingId,
+            "product_id" => $productId,
+        ]);
+        $alertAlreadyRecorded = (bool) $alertStatement->fetchColumn();
+    }
+    if ($productRemainingAfter > 0 && $productRemainingAfter <= $alertThreshold && !$alertAlreadyRecorded) {
+        $endProductAlert = sprintf(
+            "Faltam %d sacas para finalizar o produto.",
+            $productRemainingAfter,
+        );
+    }
+}
+
 $insert = $pdo->prepare(
     "INSERT INTO leituras (company_id, carregamento_id, sensor_event_id, product_id, barcode, attempt_number, result, read_at) VALUES (:company_id, :carregamento_id, :sensor_event_id, :product_id, :barcode, :attempt_number, :result, NOW(3))",
 );
@@ -235,6 +267,25 @@ if ($result === "VALIDO") {
         "UPDATE carregamentos SET leituras_validas = leituras_validas + 1 WHERE id = :id AND company_id = :company_id",
     );
     $validCounter->execute(["id" => $loadingId, "company_id" => $usuarioAtor["company_id"]]);
+}
+if ($endProductAlert !== null) {
+    record_operational_event(
+        $pdo,
+        $usuarioAtor,
+        "ALERTA_FIM_PRODUTO",
+        "carregamento",
+        (int) $loadingId,
+        [
+            "carregamento_id" => (int) $loadingId,
+            "leitura_id" => $readingId,
+            "product_id" => $productId,
+            "planned_quantity" => $productPlannedQuantity,
+            "valid_readings" => $productValidCount + 1,
+            "remaining_quantity" => max(0, $productPlannedQuantity - ($productValidCount + 1)),
+            "threshold" => $alertThreshold,
+            "message" => $endProductAlert,
+        ],
+    );
 }
 record_operational_event(
     $pdo,
@@ -451,7 +502,10 @@ responder_json(
             "load_status" => $loadStatus,
             "excesso" => $result === "EXCESSO",
             "stop_reason" => in_array($result, ["PRODUTO_INCORRETO", "EXCESSO"], true) ? $result : null,
-            "operator_alert" => in_array($result, ["PRODUTO_INCORRETO", "EXCESSO"], true) ? ($stopAlert ?? null) : null,
+            "operator_alert" => in_array($result, ["PRODUTO_INCORRETO", "EXCESSO"], true)
+                ? ($stopAlert ?? null)
+                : $endProductAlert,
+            "end_product_alert" => $endProductAlert,
         ],
     ],
     201,

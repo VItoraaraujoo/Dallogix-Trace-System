@@ -17,7 +17,15 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
                 COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = c.romaneio_id AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)), 0) AS planned_quantity,
                 COALESCE(c.leituras_validas, 0) AS valid_readings,
                 (SELECT COUNT(*) FROM eventos_sensor se
-                 WHERE se.carregamento_id = c.id AND se.equipment_id = c.equipment_id) AS detected_bags
+                 WHERE se.carregamento_id = c.id AND se.equipment_id = c.equipment_id) AS detected_bags,
+                (SELECT JSON_UNQUOTE(JSON_EXTRACT(la.metadata, '$.message'))
+                  FROM logs_auditoria la
+                  WHERE la.company_id = c.company_id
+                    AND la.action = 'ALERTA_FIM_PRODUTO'
+                    AND la.entity_type = 'carregamento'
+                    AND la.entity_id = c.id
+                  ORDER BY la.id DESC
+                  LIMIT 1) AS end_product_alert
          FROM carregamentos c
          JOIN romaneios r ON r.id = c.romaneio_id
          JOIN romaneio_caminhoes rt ON rt.id = c.truck_id

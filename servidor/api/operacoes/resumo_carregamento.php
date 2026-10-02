@@ -17,7 +17,22 @@ if (!$loadingId) {
 
 $pdo = db();
 $loading = $pdo->prepare(
-    "SELECT c.id, c.state, c.started_at, c.finished_at, COALESCE(c.leituras_validas, 0) AS leituras_validas, r.number AS romaneio_number, rt.plate, e.equipment_code FROM carregamentos c JOIN romaneios r ON r.id = c.romaneio_id JOIN romaneio_caminhoes rt ON rt.id = c.truck_id JOIN equipamentos e ON e.id = c.equipment_id WHERE c.id = :id AND c.company_id = :company_id LIMIT 1",
+    "SELECT c.id, c.state, c.started_at, c.finished_at,
+            COALESCE(c.leituras_validas, 0) AS leituras_validas,
+            r.number AS romaneio_number, rt.plate, e.equipment_code,
+            (SELECT JSON_UNQUOTE(JSON_EXTRACT(la.metadata, '$.message'))
+             FROM logs_auditoria la
+             WHERE la.company_id = c.company_id
+               AND la.action = 'ALERTA_FIM_PRODUTO'
+               AND la.entity_type = 'carregamento'
+               AND la.entity_id = c.id
+             ORDER BY la.id DESC
+             LIMIT 1) AS end_product_alert
+     FROM carregamentos c
+     JOIN romaneios r ON r.id = c.romaneio_id
+     JOIN romaneio_caminhoes rt ON rt.id = c.truck_id
+     JOIN equipamentos e ON e.id = c.equipment_id
+     WHERE c.id = :id AND c.company_id = :company_id LIMIT 1",
 );
 $loading->execute(["id" => $loadingId, "company_id" => $user["company_id"]]);
 $data = $loading->fetch();

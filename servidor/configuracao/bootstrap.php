@@ -147,6 +147,15 @@ function limite_sinal_clp_segundos(): int
     return max(1, min(60, $configurado === false ? 3 : (int) $configurado));
 }
 
+function limite_alerta_fim_produto_sacas(): int
+{
+    $configurado = filter_var(
+        getenv("TRACE_END_PRODUCT_ALERT_THRESHOLD") ?: 5,
+        FILTER_VALIDATE_INT,
+    );
+    return max(1, min(1000, $configurado === false ? 5 : (int) $configurado));
+}
+
 /**
  * Placas são exibidas em várias telas e também atravessam a sincronização.
  * Mantenha o valor em um conjunto simples de caracteres antes de persistir;
