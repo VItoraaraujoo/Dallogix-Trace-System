@@ -3,8 +3,10 @@ declare(strict_types=1);
 
 require_once __DIR__ . "/../../configuracao/bootstrap.php";
 require_once __DIR__ . "/../../src/Aplicacao/InicializadorAcoesDala.php";
+require_once __DIR__ . "/../../src/Aplicacao/ProvisionadorDispositivosLocais.php";
 
 use App\Aplicacao\InicializadorAcoesDala;
+use App\Aplicacao\ProvisionadorDispositivosLocais;
 
 $user = require_session_user();
 if ($user["company_id"] === null) {
@@ -222,6 +224,12 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         ]);
         $id = (int) $pdo->lastInsertId();
         InicializadorAcoesDala::garantir($pdo, (int) $user["company_id"], $id);
+        ProvisionadorDispositivosLocais::garantir(
+            $pdo,
+            (int) $user["company_id"],
+            $id,
+            $data["code"],
+        );
         record_operational_event(
             $pdo,
             $user,
@@ -295,6 +303,12 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
             "id" => $id,
             "company_id" => $user["company_id"],
         ]);
+        ProvisionadorDispositivosLocais::garantir(
+            $pdo,
+            (int) $user["company_id"],
+            (int) $id,
+            $data["code"],
+        );
         record_operational_event(
             $pdo,
             $user,

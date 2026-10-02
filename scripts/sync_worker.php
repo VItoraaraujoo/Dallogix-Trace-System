@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 require_once __DIR__ . "/../servidor/configuracao/bootstrap.php";
 require_once __DIR__ . "/../servidor/src/Aplicacao/ServicoSincronizacao.php";
+require_once __DIR__ . "/../servidor/src/Aplicacao/ProvisionadorDispositivosLocais.php";
 require_once __DIR__ . "/../servidor/src/Aplicacao/ServicoSincronizacaoRemota.php";
 
 use App\Aplicacao\ServicoSincronizacao;

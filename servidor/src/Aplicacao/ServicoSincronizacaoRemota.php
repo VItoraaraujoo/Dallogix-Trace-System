@@ -493,6 +493,12 @@ final class ServicoSincronizacaoRemota
                  WHERE id = :id AND company_id = :company_id",
             );
             $update->execute([...$data, "id" => $localId, "company_id" => $companyId]);
+            ProvisionadorDispositivosLocais::garantir(
+                $this->connection,
+                $companyId,
+                $localId,
+                $code,
+            );
             return $localId;
         }
         $insert = $this->connection->prepare(
@@ -501,7 +507,14 @@ final class ServicoSincronizacaoRemota
              VALUES (:company_id, :remote_equipment_id, :equipment_code, :name, :plc_ip, :plc_port, :external_port, :plc_protocol)",
         );
         $insert->execute(["company_id" => $companyId, ...$data]);
-        return (int) $this->connection->lastInsertId();
+        $localId = (int) $this->connection->lastInsertId();
+        ProvisionadorDispositivosLocais::garantir(
+            $this->connection,
+            $companyId,
+            $localId,
+            $code,
+        );
+        return $localId;
     }
 
     /** @param array<string,mixed> $remote */
