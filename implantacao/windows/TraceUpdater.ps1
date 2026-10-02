@@ -125,7 +125,20 @@ try {
     }
     $headers = @{}
     if ($env:UPDATE_MANIFEST_TOKEN) { $headers.Authorization = "Bearer $($env:UPDATE_MANIFEST_TOKEN)" }
-    $manifest = Invoke-RestMethod -Uri $ManifestUrl -Headers $headers -TimeoutSec 20
+    $manifest = $null
+    $manifestError = $null
+    for ($attempt = 1; $attempt -le 3 -and -not $manifest; $attempt++) {
+        try {
+            $manifest = Invoke-RestMethod -Uri $ManifestUrl -Headers $headers -TimeoutSec 20
+        } catch {
+            $manifestError = $_
+            if ($attempt -lt 3) { Start-Sleep -Seconds ([int][math]::Pow(2, $attempt)) }
+        }
+    }
+    if (-not $manifest) {
+        if ($manifestError) { throw $manifestError }
+        throw 'Nao foi possivel ler o manifesto de atualizacao.'
+    }
     $manifestChannel = if ($manifest.channel) { $manifest.channel } else { $Channel }
     if ($manifestChannel -ne $Channel) { throw "Manifesto de canal diferente do configurado." }
     foreach ($field in @("version", "artifact_url", "sha256", "signature")) { if (-not $manifest.$field) { throw "Manifesto sem $field." } }
@@ -227,7 +240,10 @@ try {
     if ($LASTEXITCODE -ne 0) { throw "Backup do banco falhou." }
     $databaseBackup = ($backupOutput | Where-Object { $_ -like 'Backup criado: *' } | Select-Object -Last 1) -replace '^Backup criado: ', ''
     if (-not $databaseBackup) { throw "O backup do banco nao informou seu caminho." }
-    $preservedNames = @(".env", "armazenamento", ".git", "config", "logs")
+    # O WebView2 mantém arquivos de cache abertos enquanto a interface está
+    # em uso. Ele é regenerável e deve ficar fora do backup e da substituição
+    # para que o tar do Windows não falhe por acesso negado.
+    $preservedNames = @(".env", "armazenamento", ".git", "config", "logs", "DallogixTrace.exe.WebView2")
     $previousNames = @(Get-ChildItem -Path $InstallRoot -Force | Where-Object { $_.Name -notin $preservedNames } | ForEach-Object { $_.Name })
     if ($previousNames.Count -gt 0) {
         & tar.exe -czf $previousArchive -C $InstallRoot @previousNames
