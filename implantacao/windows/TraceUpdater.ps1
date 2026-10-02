@@ -59,17 +59,21 @@ $work = $null
 
 function Write-AtomicTextFile([string]$Path, [string]$Content) {
     $temporaryPath = "$Path.tmp-$([guid]::NewGuid().ToString('N'))"
+    $backupPath = "$Path.bak-$([guid]::NewGuid().ToString('N'))"
     $utf8 = New-Object System.Text.UTF8Encoding($false)
     try {
         [IO.File]::WriteAllText($temporaryPath, $Content, $utf8)
         if (Test-Path -LiteralPath $Path -PathType Leaf) {
-            [IO.File]::Replace($temporaryPath, $Path, $null)
+            [IO.File]::Replace($temporaryPath, $Path, $backupPath)
         } else {
             [IO.File]::Move($temporaryPath, $Path)
         }
     } finally {
         if (Test-Path -LiteralPath $temporaryPath -PathType Leaf) {
             Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
+        }
+        if (Test-Path -LiteralPath $backupPath -PathType Leaf) {
+            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
         }
     }
 }
