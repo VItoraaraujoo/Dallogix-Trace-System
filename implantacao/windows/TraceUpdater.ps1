@@ -59,21 +59,16 @@ $work = $null
 
 function Write-AtomicTextFile([string]$Path, [string]$Content) {
     $temporaryPath = "$Path.tmp-$([guid]::NewGuid().ToString('N'))"
-    $backupPath = "$Path.bak-$([guid]::NewGuid().ToString('N'))"
     $utf8 = New-Object System.Text.UTF8Encoding($false)
     try {
         [IO.File]::WriteAllText($temporaryPath, $Content, $utf8)
-        if (Test-Path -LiteralPath $Path -PathType Leaf) {
-            [IO.File]::Replace($temporaryPath, $Path, $backupPath)
-        } else {
-            [IO.File]::Move($temporaryPath, $Path)
-        }
+        # Move-Item com -Force substitui o destino no mesmo volume sem a
+        # sobrecarga File.Replace que o Windows PowerShell interpreta com
+        # backup nulo e rejeita como caminho inválido.
+        Move-Item -LiteralPath $temporaryPath -Destination $Path -Force
     } finally {
         if (Test-Path -LiteralPath $temporaryPath -PathType Leaf) {
             Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
-        }
-        if (Test-Path -LiteralPath $backupPath -PathType Leaf) {
-            Remove-Item -LiteralPath $backupPath -Force -ErrorAction SilentlyContinue
         }
     }
 }
