@@ -95,7 +95,16 @@ function Invoke-Tar([string[]]$Arguments) {
     $stderrPath = Join-Path $env:TEMP ("trace-tar-" + $runId + ".err")
     $process = $null
     try {
-        $process = Start-Process -FilePath 'tar.exe' -ArgumentList $Arguments -Wait -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
+        # Start-Process concatena arrays em uma única linha. Preserve aspas
+        # nos caminhos que contêm espaços (por exemplo, PDFs do projeto),
+        # caso contrário o tar recebe vários argumentos inexistentes.
+        $argumentLine = ($Arguments | ForEach-Object {
+            $argument = [string]$_
+            if ($argument -match '[\s"]') {
+                '"' + ($argument -replace '"', '\"') + '"'
+            } else { $argument }
+        }) -join ' '
+        $process = Start-Process -FilePath 'tar.exe' -ArgumentList $argumentLine -Wait -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
         if (Test-Path -LiteralPath $stderrPath) {
             Get-Content -LiteralPath $stderrPath | Add-Content -LiteralPath $ComposeLogPath -Encoding UTF8
         }
