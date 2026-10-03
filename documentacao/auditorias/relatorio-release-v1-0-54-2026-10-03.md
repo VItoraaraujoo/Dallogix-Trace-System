@@ -1,9 +1,12 @@
 # Relatório de revisão e publicação — v1.0.54
 
-**Data:** 03/10/2026  
-**Repositório:** `VItoraaraujoo/Dallogix-Trace-System`  
-**Commit publicado:** `de8fc35d637ef5401ceaf087f2a5fb0c3d62a686`  
-**Tag:** `v1.0.54`  
+**Data:** 03/10/2026
+
+**Repositório:** `VItoraaraujoo/Dallogix-Trace-System`
+
+**Commit publicado:** `de8fc35d637ef5401ceaf087f2a5fb0c3d62a686`
+
+**Tag:** `v1.0.54`
 **Execução de release:** GitHub Actions `Publicar versão de produção #61`
 
 ## Resultado da publicação
@@ -71,4 +74,3 @@ Esses estados não são substituídos por um valor presumido: câmera, sensor e 
 - A câmera não foi declarada online porque não havia configuração/stream real disponível no PC.
 - Não foi inventado benchmark de produção; os testes de carga física e de câmera dependem do equipamento conectado.
 - Nomes técnicos de protocolos, campos de payload, migrations e tabelas históricas permanecem como contratos de compatibilidade. Renomeá-los globalmente para português exigiria uma migração coordenada entre Central, PC, Node-RED e instalador e não foi feito de forma insegura.
-
