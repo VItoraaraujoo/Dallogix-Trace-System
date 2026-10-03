@@ -117,6 +117,52 @@ function Invoke-Tar([string[]]$Arguments) {
     }
 }
 
+function Format-ProcessArguments([string[]]$Arguments) {
+    return ($Arguments | ForEach-Object {
+        $argument = [string]$_
+        if ($argument -match '[\s"]') {
+            '"' + ($argument -replace '"', '\\"') + '"'
+        } else { $argument }
+    }) -join ' '
+}
+
+function Invoke-External([string]$FilePath, [string[]]$Arguments, [string]$InputText) {
+    $startInfo = New-Object System.Diagnostics.ProcessStartInfo
+    $startInfo.FileName = $FilePath
+    $startInfo.Arguments = Format-ProcessArguments $Arguments
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    $startInfo.RedirectStandardInput = ($null -ne $InputText)
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $startInfo
+    try {
+        [void]$process.Start()
+        if ($null -ne $InputText) {
+            $process.StandardInput.Write($InputText)
+            $process.StandardInput.Close()
+        }
+        $stdout = $process.StandardOutput.ReadToEnd()
+        $stderr = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+        return [pscustomobject]@{
+            ExitCode = $process.ExitCode
+            Stdout = $stdout
+            Stderr = $stderr
+        }
+    } finally {
+        $process.Dispose()
+    }
+}
+
+function Invoke-GitBash([string[]]$Arguments) {
+    $result = Invoke-External $GitBash $Arguments $null
+    if ($result.Stdout) { Add-Content -LiteralPath $ComposeLogPath -Value $result.Stdout -Encoding UTF8 }
+    if ($result.Stderr) { Add-Content -LiteralPath $ComposeLogPath -Value $result.Stderr -Encoding UTF8 }
+    return $result
+}
+
 function Invoke-DockerCompose([string[]]$Arguments) {
     $runId = [guid]::NewGuid().ToString('N')
     $stdoutPath = Join-Path $env:TEMP ("trace-compose-" + $runId + ".out")
@@ -146,9 +192,9 @@ function Start-TraceStack([switch]$Build) {
 try { $hasLock = $Lock.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $hasLock = $true }
 try {
     if (-not $hasLock) { throw "Já existe uma atualização em execução." }
-    $dockerInfo = & docker.exe info --format '{{.OSType}}'
-    $dockerOs = ([string]$dockerInfo).Trim()
-    if ($LASTEXITCODE -ne 0 -or $dockerOs -ne 'linux') {
+    $dockerInfo = Invoke-External 'docker.exe' @('info', '--format', '{{.OSType}}') $null
+    $dockerOs = ([string]$dockerInfo.Stdout).Trim()
+    if ($dockerInfo.ExitCode -ne 0 -or $dockerOs -ne 'linux') {
         throw "A tarefa agendada nao consegue acessar o mecanismo Linux do Docker Desktop."
     }
     $headers = @{}
@@ -214,8 +260,9 @@ try {
     # quotes when a SQL string is assembled into `sh -lc ...`, leaving mysql
     # with an empty or malformed `-e` argument (ERROR 1064). The container
     # keeps reading its credentials and database name from its own environment.
-    $active = ($sql | & docker.exe compose @ComposeProfile exec -T mysql sh -lc 'mysql -N -B -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' | Out-String).Trim()
-    if ($LASTEXITCODE -ne 0 -or $active -notmatch '^\d+$') { throw "Nao foi possivel confirmar os carregamentos ativos. Atualizacao adiada." }
+    $activeResult = Invoke-External 'docker.exe' (@('compose') + $ComposeProfile + @('exec', '-T', 'mysql', 'sh', '-lc', 'mysql -N -B -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"')) $sql
+    $active = ([string]$activeResult.Stdout).Trim()
+    if ($activeResult.ExitCode -ne 0 -or $active -notmatch '^\d+$') { throw "Nao foi possivel confirmar os carregamentos ativos. Atualizacao adiada." }
     if ([int]$active -gt 0) { throw "Atualizacao adiada: existe carregamento ativo ou em intervencao." }
 
     # O workflow de release publica tar.gz (o formato é o mesmo usado pelo
@@ -253,19 +300,20 @@ try {
     $stamp = Get-Date -Format "yyyyMMdd-HHmmss"
     $previousArchive = Join-Path $BackupRoot ("pre-" + $manifest.version + "-" + $stamp + ".tar.gz")
     $stackStopped = $true
-    & docker.exe compose @ComposeProfile stop | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel parar os containers antes do backup." }
-    & docker.exe compose @ComposeProfile up -d mysql | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel iniciar o MySQL para o backup." }
+    $stopExit = Invoke-DockerCompose ($ComposeProfile + @('stop'))
+    if ($stopExit -ne 0) { throw "Nao foi possivel parar os containers antes do backup." }
+    $mysqlStartExit = Invoke-DockerCompose ($ComposeProfile + @('up', '-d', 'mysql'))
+    if ($mysqlStartExit -ne 0) { throw "Nao foi possivel iniciar o MySQL para o backup." }
     $mysqlReady = $false
     for ($attempt = 0; $attempt -lt 30; $attempt++) {
-        & docker.exe compose @ComposeProfile exec -T mysql sh -lc 'mysqladmin ping -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" --silent' | Out-Null
-        if ($LASTEXITCODE -eq 0) { $mysqlReady = $true; break }
+        $pingExit = Invoke-DockerCompose ($ComposeProfile + @('exec', '-T', 'mysql', 'sh', '-lc', 'mysqladmin ping -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" --silent'))
+        if ($pingExit -eq 0) { $mysqlReady = $true; break }
         Start-Sleep -Seconds 2
     }
     if (-not $mysqlReady) { throw "O MySQL nao ficou pronto para o backup." }
-    $backupOutput = & $GitBash 'scripts/backup_db.sh'
-    if ($LASTEXITCODE -ne 0) { throw "Backup do banco falhou." }
+    $backupResult = Invoke-GitBash @('scripts/backup_db.sh')
+    if ($backupResult.ExitCode -ne 0) { throw "Backup do banco falhou." }
+    $backupOutput = $backupResult.Stdout -split "`r?`n"
     $databaseBackup = ($backupOutput | Where-Object { $_ -like 'Backup criado: *' } | Select-Object -Last 1) -replace '^Backup criado: ', ''
     if (-not $databaseBackup) { throw "O backup do banco nao informou seu caminho." }
     # O WebView2 mantém arquivos de cache abertos enquanto a interface está
@@ -289,10 +337,10 @@ try {
     Get-ChildItem $source -Force | Where-Object { $_.Name -notin $preservedNames } | Copy-Item -Destination $InstallRoot -Recurse -Force
     $releaseMetadata = @{ version = $manifest.version; commit = $releaseCommit } | ConvertTo-Json -Compress
     Write-AtomicTextFile (Join-Path $InstallRoot 'servidor\.release.json') ($releaseMetadata + "`n")
-    & docker.exe compose @ComposeProfile config --quiet
-    if ($LASTEXITCODE -ne 0) { throw "A configuracao da nova versao e invalida." }
-    & $GitBash 'scripts/migrate.sh'
-    if ($LASTEXITCODE -ne 0) { throw "As migrations da nova versao falharam." }
+    $configExit = Invoke-DockerCompose ($ComposeProfile + @('config', '--quiet'))
+    if ($configExit -ne 0) { throw "A configuracao da nova versao e invalida." }
+    $migrationResult = Invoke-GitBash @('scripts/migrate.sh')
+    if ($migrationResult.ExitCode -ne 0) { throw "As migrations da nova versao falharam." }
     Start-TraceStack -Build
     $healthy = $false
     $webPort = if ($env:WEB_PORT) { $env:WEB_PORT } else { '8080' }
@@ -315,27 +363,28 @@ try {
             [IO.File]::WriteAllText($failedMarker, (Get-Date -Format o))
             Write-Warning "A atualização falhou; iniciando rollback automático."
             Set-Location $InstallRoot
-            & docker.exe compose @ComposeProfile stop | Out-Null
+            $rollbackStopExit = Invoke-DockerCompose ($ComposeProfile + @('stop'))
+            if ($rollbackStopExit -ne 0) { throw "Nao foi possivel parar os containers para o rollback." }
             $restoreRoot = Join-Path $StateRoot (".rollback-" + [guid]::NewGuid().ToString("N"))
             New-Item -ItemType Directory -Force -Path $restoreRoot | Out-Null
             $rollbackExtractExit = Invoke-Tar @('-xzf', $previousArchive, '-C', $restoreRoot)
             if ($rollbackExtractExit -ne 0) { throw "Não foi possível extrair o backup anterior (codigo $rollbackExtractExit)." }
             Get-ChildItem -Path $InstallRoot -Force | Where-Object { $_.Name -notin $preservedNames } | Remove-Item -Recurse -Force
             Get-ChildItem $restoreRoot -Force | Copy-Item -Destination $InstallRoot -Recurse -Force
-            & docker.exe compose @ComposeProfile up -d mysql | Out-Null
-            if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel iniciar o MySQL anterior." }
+            $rollbackMysqlExit = Invoke-DockerCompose ($ComposeProfile + @('up', '-d', 'mysql'))
+            if ($rollbackMysqlExit -ne 0) { throw "Nao foi possivel iniciar o MySQL anterior." }
             $mysqlReady = $false
             1..30 | ForEach-Object {
                 if (-not $mysqlReady) {
-                    & docker.exe compose @ComposeProfile exec -T mysql sh -lc 'mysqladmin ping -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" --silent' | Out-Null
-                    if ($LASTEXITCODE -eq 0) { $mysqlReady = $true } else { Start-Sleep -Seconds 2 }
+                    $rollbackPingExit = Invoke-DockerCompose ($ComposeProfile + @('exec', '-T', 'mysql', 'sh', '-lc', 'mysqladmin ping -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" --silent'))
+                    if ($rollbackPingExit -eq 0) { $mysqlReady = $true } else { Start-Sleep -Seconds 2 }
                 }
             }
             if (-not $mysqlReady) { throw "O banco não ficou disponível para o rollback." }
             $env:TRACE_ALLOW_RESTORE = '1'
             try {
-                & $GitBash 'scripts/restore_db.sh' $databaseBackup
-                if ($LASTEXITCODE -ne 0) { throw "Não foi possível restaurar o backup do banco." }
+                $restoreResult = Invoke-GitBash @('scripts/restore_db.sh', $databaseBackup)
+                if ($restoreResult.ExitCode -ne 0) { throw "Não foi possível restaurar o backup do banco." }
             } finally {
                 Remove-Item Env:TRACE_ALLOW_RESTORE -ErrorAction SilentlyContinue
             }
