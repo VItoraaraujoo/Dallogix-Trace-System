@@ -40,27 +40,6 @@ if (
     if (!$dala) {
         json_response(["error" => "Dala não encontrada."], 404);
     }
-    if (!trace_e_instalacao_local()) {
-        $staleSeconds = limite_sinal_clp_segundos();
-        $reported = $pdo->prepare(
-            "SELECT CASE
-                WHEN status = 'ONLINE' AND last_seen_at >= DATE_SUB(NOW(3), INTERVAL {$staleSeconds} SECOND) THEN 'ONLINE'
-                WHEN status = 'ERRO' THEN 'ERRO'
-                ELSE 'OFFLINE' END AS effective_status
-             FROM status_dispositivos
-             WHERE equipment_id = :equipment_id AND device_type = 'CLP' LIMIT 1",
-        );
-        $reported->execute(["equipment_id" => $id]);
-        $effectiveStatus = $reported->fetchColumn();
-        json_response([
-            "data" => [
-                "status" => $effectiveStatus ?: "OFFLINE",
-                "message" => $effectiveStatus === "ONLINE"
-                    ? "CLP respondeu à verificação Modbus no PC industrial; heartbeat remoto recente."
-                    : "Sem verificação Modbus recente do PC industrial; confira o gateway local e a sincronização.",
-            ],
-        ]);
-    }
     $host = (string) $dala["plc_ip"];
     $port = (int) $dala["plc_port"];
     if (!$host || $port < 1) {
@@ -71,7 +50,7 @@ if (
             ],
         ]);
     }
-    $resolvedHost = resolver_destino_clp_local($host, $port);
+    $resolvedHost = trace_e_instalacao_local() ? resolver_destino_clp_local($host, $port) : $host;
     if ($resolvedHost === null) {
         json_response([
             "data" => [
@@ -80,22 +59,64 @@ if (
             ],
         ]);
     }
-    $connection = @fsockopen($resolvedHost, $port, $errno, $errstr, 2.0);
-    if ($connection) {
-        fclose($connection);
+    $staleSeconds = limite_sinal_clp_segundos();
+    $reported = $pdo->prepare(
+        "SELECT status, last_seen_at, details,
+                CASE WHEN status = 'ONLINE'
+                  AND last_seen_at >= DATE_SUB(NOW(3), INTERVAL {$staleSeconds} SECOND)
+                  THEN 1 ELSE 0 END AS heartbeat_recente
+         FROM status_dispositivos
+         WHERE equipment_id = :equipment_id AND device_type = 'CLP' LIMIT 1",
+    );
+    $reported->execute(["equipment_id" => $id]);
+    $heartbeat = $reported->fetch() ?: [];
+    $details = is_string($heartbeat["details"] ?? null)
+        ? json_decode((string) $heartbeat["details"], true)
+        : ($heartbeat["details"] ?? null);
+    $modbusValido = (int) ($heartbeat["heartbeat_recente"] ?? 0) === 1
+        && heartbeat_modbus_valido($details, (string) $resolvedHost, $port);
+    if ($modbusValido) {
+        $funcao = (int) ($details["modbus_function"] ?? 0);
+        $registrador = (int) ($details["diagnostic_register"] ?? 0);
+        $unidade = (int) ($details["modbus_unit_id"] ?? 0);
         json_response([
             "data" => [
                 "status" => "ONLINE",
-                "message" => "Conexão TCP estabelecida; protocolo Modbus ainda não verificado.",
+                "message" => "Modbus verificado no endereço {$host}:{$port} (unidade {$unidade}, FC{$funcao}, registrador {$registrador}).",
                 "target" => "{$host}:{$port}",
+                "verification" => [
+                    "protocol" => "MODBUS_TCP",
+                    "unit" => $unidade,
+                    "function" => $funcao,
+                    "register" => $registrador,
+                    "last_seen_at" => $heartbeat["last_seen_at"] ?? null,
+                ],
             ],
         ]);
     }
+
+    $tcpReachable = false;
+    if (trace_e_instalacao_local()) {
+        $connection = @fsockopen($resolvedHost, $port, $errno, $errstr, 2.0);
+        if ($connection) {
+            fclose($connection);
+            $tcpReachable = true;
+        }
+    }
+    $message = $tcpReachable
+        ? "Conexão TCP aberta, mas nenhuma resposta Modbus válida foi confirmada para {$host}:{$port}."
+        : "Nenhuma resposta Modbus válida foi confirmada para {$host}:{$port}.";
     json_response([
         "data" => [
             "status" => "OFFLINE",
-            "message" => "Não foi possível abrir conexão TCP com o endereço cadastrado.",
+            "message" => $message,
             "target" => "{$host}:{$port}",
+            "verification" => [
+                "protocol" => "MODBUS_TCP",
+                "confirmed" => false,
+                "tcp_reachable" => $tcpReachable,
+                "last_seen_at" => $heartbeat["last_seen_at"] ?? null,
+            ],
         ],
     ]);
 }
@@ -303,6 +324,12 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
             "id" => $id,
             "company_id" => $user["company_id"],
         ]);
+        // O último heartbeat pode pertencer ao IP anterior. Invalide-o para
+        // que a interface aguarde uma leitura Modbus válida do novo destino.
+        $pdo->prepare(
+            "DELETE FROM status_dispositivos
+             WHERE equipment_id = :equipment_id AND device_type = 'CLP'",
+        )->execute(["equipment_id" => $id]);
         ProvisionadorDispositivosLocais::garantir(
             $pdo,
             (int) $user["company_id"],

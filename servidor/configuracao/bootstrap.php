@@ -160,6 +160,34 @@ function limite_sinal_clp_segundos(): int
     return max(1, min(60, $configurado === false ? 3 : (int) $configurado));
 }
 
+/**
+ * Confirma que o último sinal recebido representa uma leitura Modbus real
+ * para o mesmo destino atualmente cadastrado. Uma conexão TCP aberta, por si
+ * só, não confirma protocolo, unidade, função ou registrador.
+ */
+function heartbeat_modbus_valido(mixed $details, string $hostEsperado, int $portaEsperada): bool
+{
+    if (is_string($details)) {
+        $details = json_decode($details, true);
+    }
+    if (!is_array($details)) {
+        return false;
+    }
+
+    $funcao = filter_var($details["modbus_function"] ?? null, FILTER_VALIDATE_INT);
+    $unidade = filter_var($details["modbus_unit_id"] ?? null, FILTER_VALIDATE_INT);
+    $registrador = filter_var($details["diagnostic_register"] ?? null, FILTER_VALIDATE_INT);
+    $porta = filter_var($details["plc_port"] ?? null, FILTER_VALIDATE_INT);
+
+    return strtolower(trim((string) ($details["communication"] ?? ""))) === "modbus_tcp"
+        && trim((string) ($details["plc_ip"] ?? "")) === trim($hostEsperado)
+        && $porta !== false && (int) $porta === $portaEsperada
+        && $unidade !== false && (int) $unidade >= 0 && (int) $unidade <= 255
+        && $funcao !== false && in_array((int) $funcao, [1, 2, 3, 4], true)
+        && $registrador !== false && (int) $registrador >= 0 && (int) $registrador <= 65535
+        && array_key_exists("diagnostic_value", $details);
+}
+
 function limite_alerta_fim_produto_sacas(): int
 {
     $configurado = filter_var(
