@@ -177,11 +177,54 @@ final class ServicoGatewayClp
             }
 
             $staleUnlock = false;
+            $stateChanged = false;
+            $stateTransition = null;
             if ($status === "APLICADO" && $request["command"] === "DESBLOQUEAR_MAQUINA") {
                 $staleUnlock = !$this->ehUltimaSolicitacaoDeDesbloqueio((int) $request["carregamento_id"], $requestId);
                 if ($staleUnlock) {
                     $status = "REJEITADO";
                     $message = "ACK de desbloqueio obsoleto após outra solicitação de segurança.";
+                }
+            }
+
+            if ($status === "APLICADO" && in_array($request["command"], ["INICIAR_CARREGAMENTO", "PAUSAR_CARREGAMENTO"], true)) {
+                $loadingState = $this->connection->prepare(
+                    "SELECT state FROM carregamentos
+                     WHERE id = :id AND company_id = :company_id LIMIT 1 FOR UPDATE",
+                );
+                $loadingState->execute([
+                    "id" => $request["carregamento_id"],
+                    "company_id" => $request["company_id"],
+                ]);
+                $previousState = (string) $loadingState->fetchColumn();
+                $targetState = $request["command"] === "INICIAR_CARREGAMENTO"
+                    ? "CARREGANDO"
+                    : "PAUSADO";
+                $allowedStates = $request["command"] === "INICIAR_CARREGAMENTO"
+                    ? ["PREPARANDO", "PAUSADO"]
+                    : ["PREPARANDO", "CARREGANDO"];
+                if (!in_array($previousState, $allowedStates, true)) {
+                    $status = "ERRO";
+                    $message = "O estado do carregamento mudou antes da confirmação física; o comando não foi aplicado ao estado local.";
+                } else {
+                    $stateUpdate = $this->connection->prepare(
+                        "UPDATE carregamentos SET state = :state
+                         WHERE id = :id AND company_id = :company_id AND state = :previous_state",
+                    );
+                    $stateUpdate->execute([
+                        "state" => $targetState,
+                        "id" => $request["carregamento_id"],
+                        "company_id" => $request["company_id"],
+                        "previous_state" => $previousState,
+                    ]);
+                    $stateChanged = $stateUpdate->rowCount() === 1;
+                    if ($stateChanged) {
+                        $stateTransition = [
+                            "previous_state" => $previousState,
+                            "state" => $targetState,
+                            "command" => $request["command"],
+                        ];
+                    }
                 }
             }
 
@@ -229,7 +272,6 @@ final class ServicoGatewayClp
                 ],
             );
 
-            $stateChanged = false;
             if ($status === "APLICADO" && $request["command"] === "DESBLOQUEAR_MAQUINA") {
                 $loading = $this->connection->prepare(
                     "UPDATE carregamentos SET state = 'PREPARANDO'
@@ -258,6 +300,24 @@ final class ServicoGatewayClp
                         ],
                     );
                 }
+            }
+            if ($stateChanged && $stateTransition !== null) {
+                \record_operational_event(
+                    $this->connection,
+                    $actor,
+                    "ESTADO_CARREGAMENTO_ALTERADO",
+                    "carregamento",
+                    (int) $request["carregamento_id"],
+                    [
+                        "previous_state" => $stateTransition["previous_state"],
+                        "state" => $stateTransition["state"],
+                        "command_request_id" => $requestId,
+                        "command" => $stateTransition["command"],
+                        "device_id" => $deviceId,
+                        "remote_carregamento_id" => $request["remote_carregamento_id"] === null
+                            ? null : (int) $request["remote_carregamento_id"],
+                    ],
+                );
             }
             $this->connection->commit();
             return [

@@ -34,9 +34,14 @@ if (!$loadingId) {
 
 try {
     $service = new ServicoComandoClp(db());
-    $data = $command === "EMERGENCIA"
-        ? $service->solicitarEmergencia($user, (int) $loadingId)
-        : $service->solicitarReversao($user, (int) $loadingId, $command);
+    $data = match (true) {
+        in_array($command, ["INICIAR_CARREGAMENTO", "PAUSAR_CARREGAMENTO"], true)
+            => $service->solicitarOperacao($user, (int) $loadingId, $command),
+        $command === "EMERGENCIA"
+            => $service->solicitarEmergencia($user, (int) $loadingId),
+        default
+            => $service->solicitarReversao($user, (int) $loadingId, $command),
+    };
     json_response(["data" => $data]);
 } catch (ExcecaoComandoClp $exception) {
     json_response(

@@ -32,6 +32,110 @@ final class ServicoComandoClp
     }
 
     /** @param array{id:int|string, company_id:int|string|null} $user */
+    public function solicitarOperacao(
+        array $user,
+        int $loadingId,
+        string $command,
+    ): array {
+        $allowed = ["INICIAR_CARREGAMENTO", "PAUSAR_CARREGAMENTO"];
+        if (!in_array($command, $allowed, true)) {
+            throw new ExcecaoComandoClp(
+                "Carregamento e comando operacional válido são obrigatórios.",
+                422,
+            );
+        }
+        if ($user["company_id"] === null) {
+            throw new ExcecaoComandoClp("Usuário sem empresa vinculada.", 403);
+        }
+
+        $this->connection->beginTransaction();
+        try {
+            $loading = $this->localizarCarregamento($loadingId, (int) $user["company_id"]);
+            if (!$loading) {
+                throw new ExcecaoComandoClp(
+                    "Carregamento não encontrado para esta empresa.",
+                    404,
+                );
+            }
+            $allowedStates = $command === "INICIAR_CARREGAMENTO"
+                ? ["PREPARANDO", "PAUSADO"]
+                : ["PREPARANDO", "CARREGANDO"];
+            if (!in_array($loading["state"], $allowedStates, true)) {
+                throw new ExcecaoComandoClp(
+                    $command === "INICIAR_CARREGAMENTO"
+                        ? "Para iniciar, o carregamento precisa estar em preparação ou pausado."
+                        : "Para parar, o carregamento precisa estar em preparação ou carregando.",
+                    409,
+                );
+            }
+            $this->disponibilidadeClp->validarComando(
+                (int) $user["company_id"],
+                (int) $loading["equipment_id"],
+            );
+            if ($this->possuiComandoPendente($loadingId)) {
+                throw new ExcecaoComandoClp(
+                    "Já existe um comando aguardando o gateway industrial.",
+                    409,
+                );
+            }
+            $insert = $this->connection->prepare(
+                "INSERT INTO solicitacoes_comandos_clp
+                (company_id, equipment_id, carregamento_id, command, requested_by)
+                VALUES (:company_id, :equipment_id, :carregamento_id, :command, :requested_by)",
+            );
+            $insert->execute([
+                "company_id" => $user["company_id"],
+                "equipment_id" => $loading["equipment_id"],
+                "carregamento_id" => $loadingId,
+                "command" => $command,
+                "requested_by" => $user["id"],
+            ]);
+            $requestId = (int) $this->connection->lastInsertId();
+            \record_operational_event(
+                $this->connection,
+                $user,
+                $command,
+                "plc_command_request",
+                $requestId,
+                [
+                    "command" => $command,
+                    "carregamento_id" => $loadingId,
+                    "equipment_id" => (int) $loading["equipment_id"],
+                    "remote_carregamento_id" => $loading["remote_carregamento_id"] === null
+                        ? null : (int) $loading["remote_carregamento_id"],
+                    "requires_clp_adapter" => true,
+                ],
+            );
+            $this->connection->commit();
+        } catch (Throwable $exception) {
+            if ($this->connection->inTransaction()) {
+                $this->connection->rollBack();
+            }
+            if ($exception instanceof ExcecaoComandoClp || $exception instanceof ExcecaoDisponibilidadeClp) {
+                throw $exception;
+            }
+            error_log(
+                "PLC operational command request could not be created: " .
+                    $exception->getMessage(),
+            );
+            throw new ExcecaoComandoClp(
+                "Não foi possível registrar o comando operacional.",
+                500,
+            );
+        }
+
+        return [
+            "command_request_id" => $requestId,
+            "carregamento_id" => $loadingId,
+            "equipment_id" => (int) $loading["equipment_id"],
+            "command" => $command,
+            "status" => "PENDENTE",
+            "state" => $loading["state"],
+            "message" => "Comando registrado e aguardando escrita física confirmada pelo gateway industrial.",
+        ];
+    }
+
+    /** @param array{id:int|string, company_id:int|string|null} $user */
     public function solicitarReversao(
         array $user,
         int $loadingId,

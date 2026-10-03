@@ -94,59 +94,113 @@ test("falha HTTP não é tratada como cadastro válido", () => {
   assert.equal(result?.[0]?.length || 0, 0);
 });
 
-test("comandos físicos continuam rejeitados sem habilitar o simulador isolado", () => {
-  const result = runtime()("command-safe-gate", commandResponse("INICIAR_CARREGAMENTO"));
-  assert.equal(result.payload.status, "REJEITADO");
-  assert.match(result.payload.message, /nenhuma escrita foi executada/i);
+test("fila de comandos preserva o destino físico da Dala", () => {
+  const call = runtime();
+  const result = call("command-claim-dispatch", {
+    statusCode: 200,
+    traceToken: "test-device-token",
+    payload: { data: [{ id: 5, plc_connect_ip: "192.168.1.10", plc_port: 502, plc_protocol: "MODBUS_TCP" }] },
+  });
+  assert.equal(result[0][0].traceEquipment.plc_connect_ip, "192.168.1.10");
+  assert.equal(result[0][0].modbusPort, 502);
+  assert.equal(result[0][0].payload.action, "CLAIM");
 });
 
-test("comandos fictícios só são confirmados com os dois flags e modo local", () => {
+function physicalCommand(command, loadingState) {
+  return {
+    ...commandResponse(command, loadingState),
+    traceEquipment: { id: 5, plc_connect_ip: "192.168.1.10", plc_port: 502, plc_protocol: "MODBUS_TCP" },
+    modbusHost: "192.168.1.10",
+    modbusPort: 502,
+    modbusUnit: 1,
+  };
+}
+
+function physicalFrame(call, command, loadingState) {
+  const gated = call("command-safe-gate", physicalCommand(command, loadingState));
+  assert.ok(gated[0], `o comando ${command} deve seguir para escrita física`);
+  assert.equal(gated[1], null);
+  const written = call("command-write-frame", gated[0]);
+  return { gated, written };
+}
+
+test("iniciar e parar escrevem M2049 com FC5", () => {
+  const call = runtime();
+  const start = physicalFrame(call, "INICIAR_CARREGAMENTO", "PREPARANDO").written;
+  assert.equal(start.payload[7], 5);
+  assert.equal(start.payload.readUInt16BE(8), 2049);
+  assert.equal(start.payload.readUInt16BE(10), 0xff00);
+  const stop = physicalFrame(call, "PAUSAR_CARREGAMENTO", "CARREGANDO").written;
+  assert.equal(stop.payload.readUInt16BE(8), 2049);
+  assert.equal(stop.payload.readUInt16BE(10), 0x0000);
+});
+
+test("reversão escreve M2050 e emergência escreve M2051", () => {
+  const call = runtime();
+  const reverse = physicalFrame(call, "REVERSAO_ATIVAR", "PAUSADO").written;
+  assert.equal(reverse.payload.readUInt16BE(8), 2050);
+  assert.equal(reverse.payload.readUInt16BE(10), 0xff00);
+  const reverseOff = physicalFrame(call, "REVERSAO_DESATIVAR", "PAUSADO").written;
+  assert.equal(reverseOff.payload.readUInt16BE(8), 2050);
+  assert.equal(reverseOff.payload.readUInt16BE(10), 0x0000);
+  const emergency = physicalFrame(call, "EMERGENCIA", "CARREGANDO").written;
+  assert.equal(emergency.payload.readUInt16BE(8), 2051);
+  assert.equal(emergency.payload.readUInt16BE(10), 0xff00);
+});
+
+test("eco FC5 válido conclui o pedido como aplicado", () => {
+  const call = runtime();
+  const { written } = physicalFrame(call, "INICIAR_CARREGAMENTO", "PREPARANDO");
+  const completed = call("command-write-result", {
+    ...written,
+    payload: Buffer.from(written.payload),
+    modbusStartedAt: Date.now(),
+  });
+  assert.equal(completed.payload.status, "APLICADO");
+  assert.match(completed.payload.message, /M2049 ligada/);
+});
+
+test("eco FC5 incorreto não confirma escrita", () => {
+  const call = runtime();
+  const { written } = physicalFrame(call, "REVERSAO_ATIVAR", "PAUSADO");
+  const invalidEcho = Buffer.from(written.payload);
+  invalidEcho.writeUInt16BE(2049, 8);
+  const completed = call("command-write-result", {
+    ...written,
+    payload: invalidEcho,
+    modbusStartedAt: Date.now(),
+  });
+  assert.equal(completed.payload.status, "ERRO");
+  assert.match(completed.payload.message, /não confirmou/i);
+});
+
+test("comando sem endereço confirmado é concluído como rejeitado sem escrita", () => {
+  const result = runtime()("command-safe-gate", commandResponse("DESBLOQUEAR_MAQUINA", "EMERGENCIA"));
+  assert.equal(result[0], null);
+  assert.equal(result[1].payload.status, "REJEITADO");
+  assert.match(result[1].payload.message, /sem endereço físico confirmado/i);
+});
+
+test("simulação isolada não envia FC5", () => {
   const values = {
     ...configuration,
     TRACE_LOCAL_SIMULATION: "1",
     TRACE_SIMULATOR_ONLY_COMMANDS: "1",
   };
-  const call = runtime(values);
-  const result = call("command-safe-gate", commandResponse("INICIAR_CARREGAMENTO"));
-  assert.equal(result.payload.status, "APLICADO");
-  assert.match(result.payload.message, /SIMULAÇÃO LOCAL/);
-  assert.match(result.payload.message, /Nenhuma escrita Modbus ou saída física/);
+  const result = runtime(values)("command-safe-gate", commandResponse("INICIAR_CARREGAMENTO", "PREPARANDO"));
+  assert.equal(result[0], null);
+  assert.equal(result[1].payload.status, "APLICADO");
+  assert.match(result[1].payload.message, /Nenhuma escrita Modbus foi executada/);
 });
 
-test("modo central não aceita habilitar o confirmador de comandos simulados", () => {
+test("modo central não habilita simulador para escapar do caminho físico", () => {
   const values = {
     ...configuration,
     TRACE_INSTALLATION_MODE: "central",
     TRACE_LOCAL_SIMULATION: "1",
     TRACE_SIMULATOR_ONLY_COMMANDS: "1",
   };
-  const result = runtime(values)("command-safe-gate", commandResponse("INICIAR_CARREGAMENTO"));
-  assert.equal(result.payload.status, "REJEITADO");
-});
-
-test("simulador local acompanha transições e recusa comando fora de ordem", () => {
-  const call = runtime({
-    ...configuration,
-    TRACE_LOCAL_SIMULATION: "1",
-    TRACE_SIMULATOR_ONLY_COMMANDS: "1",
-  });
-  assert.equal(call("command-safe-gate", commandResponse("INICIAR_CARREGAMENTO")).payload.status, "APLICADO");
-  assert.equal(call("command-safe-gate", commandResponse("PAUSAR_CARREGAMENTO")).payload.status, "APLICADO");
-  const invalid = runtime({
-    ...configuration,
-    TRACE_LOCAL_SIMULATION: "1",
-    TRACE_SIMULATOR_ONLY_COMMANDS: "1",
-  })("command-safe-gate", commandResponse("PAUSAR_CARREGAMENTO"));
-  assert.equal(invalid.payload.status, "REJEITADO");
-  assert.match(invalid.payload.message, /não permitido no estado AGUARDANDO/i);
-});
-
-test("emergência continua física mesmo com a simulação de comandos ativa", () => {
-  const result = runtime({
-    ...configuration,
-    TRACE_LOCAL_SIMULATION: "1",
-    TRACE_SIMULATOR_ONLY_COMMANDS: "1",
-  })("command-safe-gate", commandResponse("EMERGENCIA"));
-  assert.equal(result.payload.status, "REJEITADO");
-  assert.match(result.payload.message, /acionada fisicamente/i);
+  const result = runtime(values)("command-safe-gate", physicalCommand("INICIAR_CARREGAMENTO", "PREPARANDO"));
+  assert.ok(result[0]);
+  assert.equal(result[1], null);
 });
