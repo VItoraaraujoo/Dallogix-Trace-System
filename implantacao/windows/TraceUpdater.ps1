@@ -90,7 +90,7 @@ function Schedule-TraceDesktopRestart {
     $taskName = 'Dallogix Trace Reiniciar Interface'
     $action = New-ScheduledTaskAction -Execute $desktop -WorkingDirectory $InstallRoot
     $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(15)
-    $principal = New-ScheduledTaskPrincipal -UserId $interactiveUser -LogonType InteractiveToken -RunLevel LeastPrivilege
+    $principal = New-ScheduledTaskPrincipal -UserId $interactiveUser -LogonType Interactive -RunLevel Limited
     $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
     Start-ScheduledTask -TaskName $taskName
