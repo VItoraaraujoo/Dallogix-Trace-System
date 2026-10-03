@@ -27,6 +27,9 @@ empresa nem acionam CLP físico.
 Execute com `node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs`
 e `python3 testes/modbus-transporte.py`. Os testes PHP isolados são executados
 por `composer test`.
+O teste `produtos-romaneio.mjs` confirma que um novo romaneio só oferece
+produtos ativos; na edição, o produto inativo já gravado permanece visível
+somente para ser substituído.
 As rotas centrais de conectividade e a idempotência do sensor são verificadas
 sem tocar no banco real por `api-conectividade-isolada.php` e
 `api-sensor-idempotencia-isolada.php`, com os cenários definidos no workflow de

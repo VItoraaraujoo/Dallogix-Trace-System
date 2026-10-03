@@ -26,15 +26,19 @@ try {
         "SELECT SUM(status = 'PENDENTE') AS pending,
                 SUM(status = 'PROCESSANDO') AS processing,
                 SUM(status = 'ERRO') AS errors,
-                MIN(CASE WHEN status IN ('PENDENTE', 'PROCESSANDO', 'ERRO') THEN created_at END) AS oldest_at
+                TIMESTAMPDIFF(
+                    SECOND,
+                    MIN(CASE WHEN status IN ('PENDENTE', 'PROCESSANDO', 'ERRO') THEN created_at END),
+                    NOW()
+                ) AS oldest_age_seconds
          FROM fila_sincronizacao{$companyCondition}",
     );
     $queueStatement->execute($companyParams);
     $queue = $queueStatement->fetch() ?: [];
     $queueDepth = (int) ($queue["pending"] ?? 0) + (int) ($queue["processing"] ?? 0) + (int) ($queue["errors"] ?? 0);
-    $oldestAge = $queue["oldest_at"]
-        ? max(0, (int) $pdo->query("SELECT TIMESTAMPDIFF(SECOND, " . $pdo->quote($queue["oldest_at"]) . ", NOW())")->fetchColumn())
-        : null;
+    $oldestAge = $queue["oldest_age_seconds"] === null
+        ? null
+        : max(0, (int) $queue["oldest_age_seconds"]);
     $deadLetterStatement = $pdo->prepare(
         "SELECT COUNT(*) FROM sync_dead_letter_queue
          WHERE resolved_at IS NULL" . ($installationCompanyId === null ? "" : " AND company_id = :company_id"),

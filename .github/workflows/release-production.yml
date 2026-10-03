@@ -118,7 +118,7 @@ jobs:
 
       - name: Validar integração industrial isolada
         run: |
-          node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs testes/estado-fisico.mjs
+          node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs testes/estado-fisico.mjs testes/produtos-romaneio.mjs
           python3 testes/modbus-transporte.py
           php testes/api-conectividade-isolada.php online
           php testes/api-conectividade-isolada.php stale

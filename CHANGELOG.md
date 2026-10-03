@@ -19,6 +19,13 @@ um release, mova os itens para uma seção com a versão/tag e a data reais.
 - Documentada a necessidade de root no passo único de preparação do volume
   persistente do Node-RED.
 - Adicionada verificação de módulos JavaScript sem referência nas telas.
+- Removidas três configurações PHP órfãs sem referências no runtime.
+- Adicionados índices idempotentes para ordem por agregado e reserva eficiente
+  da fila de sincronização.
+- Reduzida uma consulta do endpoint de prontidão ao calcular a idade da fila
+  junto com os contadores.
+- Adicionado teste para impedir produtos inativos em novos romaneios e
+  mantida a substituição segura de produtos inativos em romaneios antigos.
 
 ## Releases anteriores
 
