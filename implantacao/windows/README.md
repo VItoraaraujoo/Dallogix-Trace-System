@@ -23,10 +23,11 @@ O pacote de produção é compilado com `Build-TraceSetup.ps1` a partir de uma *
 2. Execute o `TraceSetup.exe` aprovado com a conta técnica administradora. O assistente instala em `C:\DallogixTrace`, instala o WebView2 Runtime oficial se estiver ausente, cria o `.env` com segredos aleatórios quando necessário, aplica migrations e só conclui depois que o gateway Node-RED e a API de ativação estiverem saudáveis. A instalação inicial precisa de acesso à internet para validar a versão Central e, se necessário, baixar o Runtime WebView2.
 3. Mantenha `WEB_BIND_ADDRESS=127.0.0.1`. Nenhum acesso remoto entra no PC industrial; todo gerenciamento remoto ocorre no servidor central.
 4. O instalador cria `Dallogix Trace.lnk` na área de trabalho e no menu Iniciar. Ele também registra `DallogixTrace.exe` para iniciar após o login do Windows; o aplicativo inicia o Docker Desktop quando necessário, aguarda o mecanismo Linux e abre o Trace em tela cheia.
-5. Depois de ativar o PC localmente com o código e o administrador da empresa, vincule a Dala na Master. O ID, o código e o token da Dala são opcionais durante a instalação inicial; não use valores fictícios.
-6. Teste `DallogixTrace.exe` pela área de trabalho ou `TraceLauncher.cmd` com a conta técnica.
-7. Configure a conta `trace-operator` para login automático e use Windows Assigned Access/Shell Launcher somente se o PC precisar iniciar diretamente no modo quiosque.
-8. Mantenha uma conta técnica administrativa separada da conta do operador.
+5. Depois de ativar o PC localmente com o código e o administrador da empresa, vincule a Dala na Master. O ID, o código e o token da Dala são opcionais durante a instalação inicial; não use valores fictícios. Sem uma Dala vinculada e sem CLP `ONLINE`, o botão de partida permanece bloqueado.
+6. Antes de testar `Ligar esteira`, confirme na tela da Dala: PC industrial `ONLINE`, CLP `ONLINE`, IP `192.168.1.10`, porta `502` e unidade Modbus `1`. O gateway só conclui a partida após escrever M2049=1 e validar o eco FC5 real.
+7. Teste `DallogixTrace.exe` pela área de trabalho ou `TraceLauncher.cmd` com a conta técnica.
+8. Configure a conta `trace-operator` para login automático e use Windows Assigned Access/Shell Launcher somente se o PC precisar iniciar diretamente no modo quiosque.
+9. Mantenha uma conta técnica administrativa separada da conta do operador.
 
 O sistema será apresentado ao operador como `TraceLauncher`, equivalente ao `Trace.exe`. A transformação opcional do `.cmd` em um `.exe` deve ser feita somente no instalador oficial da empresa; o comportamento e os serviços continuam os mesmos.
 
@@ -52,7 +53,7 @@ Invoke-WebRequest http://127.0.0.1:8080/api/health.php
 
 O launcher não cobra, não bloqueia o Windows e não altera dados de produção. O bloqueio mensal continua sendo manual pelo administrador Master dentro do Trace.
 
-O assistente de instalação nunca aprova o mapa de I/O. Até a aprovação documental e de bancada, `physical_clp_enabled` permanece `false` e `io_map_status` permanece `CONFIRMAR`; a seleção de uma conexão física prevista pode identificar o modo `PHYSICAL`, mas não habilita escrita. Nessa condição, o Agent envia presença e saúde, mas nenhuma escrita física no CLP é permitida.
+O assistente de instalação não inventa resposta do CLP: `TRACE_LOCAL_SIMULATION` e `TRACE_SIMULATOR_ONLY_COMMANDS` precisam permanecer em `0`. A instalação só comprova containers, API e gateway saudáveis; a prontidão para comando depende de Dala vinculada, CLP `ONLINE` e eco Modbus físico. O gateway nunca apresenta `APLICADO` apenas porque abriu uma conexão TCP.
 
 O `TraceAgent` mantém a presença da máquina no servidor central por HTTPS/443, iniciado pelo PC industrial. O heartbeat não depende de conexões recebidas e não exige abertura de porta no roteador. Se a internet cair, o Agent registra a falha, enquanto o Trace continua operando localmente com o CLP e a fila de sincronização.
 

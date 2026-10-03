@@ -274,6 +274,12 @@ try {
     if (-not $values.ContainsKey("TRACE_INSTALLATION_MODE") -or $values["TRACE_INSTALLATION_MODE"] -ne "local") {
         throw "Defina TRACE_INSTALLATION_MODE=local em .env antes de continuar."
     }
+    if ($values.ContainsKey("TRACE_LOCAL_SIMULATION") -and $values["TRACE_LOCAL_SIMULATION"] -ne "0") {
+        throw "TRACE_LOCAL_SIMULATION deve ser 0 no PC industrial de produção. A instalação não continuará em modo simulado."
+    }
+    if ($values.ContainsKey("TRACE_SIMULATOR_ONLY_COMMANDS") -and $values["TRACE_SIMULATOR_ONLY_COMMANDS"] -ne "0") {
+        throw "TRACE_SIMULATOR_ONLY_COMMANDS deve ser 0 no PC industrial de produção. A instalação não continuará com comandos simulados."
+    }
     if ($ProductionMachine -and (-not $values.ContainsKey('COMPOSE_PROFILES') -or
         $values['COMPOSE_PROFILES'] -notmatch '(^|,)industrial(,|$)')) {
         throw "Defina COMPOSE_PROFILES=industrial em .env para este PC de producao."
@@ -361,6 +367,8 @@ try {
     }
 
     Write-Host "OK: Trace local pronto para ativacao em $localUrl"
+    Write-Host "Modo físico: simulação desativada; comandos não serão falsamente confirmados."
+    Write-Host "Depois da ativação, vincule a Dala e confirme CLP ONLINE antes de testar Ligar esteira."
     Write-Host "Use o codigo de ativacao e o administrador da empresa cadastrados no servidor central."
     if (-not $NoBrowser) {
         try {

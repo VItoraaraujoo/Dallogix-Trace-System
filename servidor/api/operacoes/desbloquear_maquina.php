@@ -7,7 +7,7 @@ require_once __DIR__ . "/../../src/Aplicacao/ServicoDisponibilidadeClp.php";
 use App\Aplicacao\ExcecaoDisponibilidadeClp;
 use App\Aplicacao\ServicoDisponibilidadeClp;
 
-$user = require_role(["ADMIN_EMPRESA", "SUPERVISOR"]);
+$user = require_role(["ADMIN_EMPRESA", "SUPERVISOR", "USUARIO"]);
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     json_response(["error" => "Método não permitido."], 405);
 }
