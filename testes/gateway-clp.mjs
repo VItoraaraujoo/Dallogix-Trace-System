@@ -62,10 +62,10 @@ test("sonda usa unidade, função e registrador explicitamente configurados", ()
   assert.equal(msg.payload.readUInt16BE(8), 23);
   assert.equal(msg.modbusTransaction, msg.payload.readUInt16BE(0));
 });
-test("instalação nova usa o perfil seguro do sensor M2052", () => {
+test("instalação nova usa o perfil comprovado do sensor M2052", () => {
   const msg = runtime({ TRACE_API_URL: "http://api.local" })("modbus-frame", { modbusHost: "192.168.4.8", modbusPort: 502 });
   assert.equal(msg.payload[6], 1);
-  assert.equal(msg.payload[7], 1);
+  assert.equal(msg.payload[7], 3);
   assert.equal(msg.payload.readUInt16BE(8), 2052);
 });
 test("resposta correlacionada e completa produz ONLINE", () => {

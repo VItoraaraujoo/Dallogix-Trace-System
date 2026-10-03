@@ -7,6 +7,10 @@ um release, mova os itens para uma seção com a versão/tag e a data reais.
 
 ## Não publicado
 
+- Alinhado o perfil padrão do gateway industrial à leitura Modbus comprovada em
+  bancada no INVT TS621: unidade 1, função 3 e endereço 2052. O IP e a porta
+  continuam sendo obtidos do cadastro da Dala, e o gateway só publica `ONLINE`
+  após validar o quadro recebido.
 - Mantidas as proteções CSRF e de limite de tentativas de login/ativação mesmo
   quando as antigas variáveis de teste estiverem definidas.
 - Restringido o sistema de arquivos do MySQL, mantendo o processo como UID 999,
