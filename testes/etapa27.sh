@@ -10,7 +10,7 @@ app_js="$(curl -sS "$base_url/js/aplicacao.js")"
 printf '%s' "$app_js" | grep -q 'emergency: () => \[store.loadActiveLoading()' || fail "emergency sem carregamento ativo"
 printf '%s' "$app_js" | grep -q 'Emergência liberada' || fail "fluxo de desbloqueio sem confirmação"
 view_js="$(curl -sS "$base_url/js/funcoes/view.js")"
-printf '%s' "$view_js" | grep -q 'Desbloquear máquina' || fail "tela de emergência sem botão de desbloqueio"
+printf '%s' "$view_js" | grep -q 'Liberar emergência' || fail "tela de emergência sem botão de liberação"
 store_js="$(curl -sS "$base_url/js/classes/ArmazenamentoTrace.js")"
 printf '%s' "$store_js" | grep -q 'await this.loadActiveLoading();' || fail "estado não é recarregado após desbloqueio"
 

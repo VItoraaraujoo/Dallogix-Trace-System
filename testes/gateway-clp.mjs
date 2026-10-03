@@ -156,8 +156,8 @@ test("eco FC5 válido conclui o pedido como aplicado", () => {
     payload: Buffer.from(written.payload),
     modbusStartedAt: Date.now(),
   });
-  assert.equal(completed.payload.status, "APLICADO");
-  assert.match(completed.payload.message, /M2049 ligada/);
+  assert.equal(completed[0].payload.status, "APLICADO");
+  assert.match(completed[0].payload.message, /M2049 ligada/);
 });
 
 test("eco FC5 incorreto não confirma escrita", () => {
@@ -170,15 +170,52 @@ test("eco FC5 incorreto não confirma escrita", () => {
     payload: invalidEcho,
     modbusStartedAt: Date.now(),
   });
-  assert.equal(completed.payload.status, "ERRO");
-  assert.match(completed.payload.message, /não confirmou/i);
+  assert.equal(completed[0].payload.status, "ERRO");
+  assert.match(completed[0].payload.message, /não confirmou/i);
 });
 
-test("comando sem endereço confirmado é concluído como rejeitado sem escrita", () => {
-  const result = runtime()("command-safe-gate", commandResponse("DESBLOQUEAR_MAQUINA", "EMERGENCIA"));
+test("comando desconhecido é concluído como rejeitado sem escrita", () => {
+  const result = runtime()("command-safe-gate", commandResponse("COMANDO_DESCONHECIDO", "EMERGENCIA"));
   assert.equal(result[0], null);
   assert.equal(result[1].payload.status, "REJEITADO");
   assert.match(result[1].payload.message, /sem endereço físico confirmado/i);
+});
+
+test("liberação escreve M2051=0 e só conclui após confirmar M17=0", () => {
+  const call = runtime();
+  const { written } = physicalFrame(call, "DESBLOQUEAR_MAQUINA", "EMERGENCIA");
+  assert.equal(written.payload.readUInt16BE(8), 2051);
+  assert.equal(written.payload.readUInt16BE(10), 0x0000);
+
+  const echo = call("command-write-result", {
+    ...written,
+    payload: Buffer.from(written.payload),
+    modbusStartedAt: Date.now(),
+  });
+  assert.equal(echo[0], null);
+  assert.ok(echo[1]);
+
+  const resetRead = call("command-reset-read-frame", echo[1]);
+  assert.equal(resetRead.payload[7], 1);
+  assert.equal(resetRead.payload.readUInt16BE(8), 17);
+  const frame = Buffer.from([0, 0, 0, 0, 0, 4, 1, 1, 1, 0]);
+  frame.writeUInt16BE(resetRead.modbusResetTransaction, 0);
+  const released = call("command-reset-read-result", {
+    ...resetRead,
+    payload: frame,
+    modbusResetStartedAt: Date.now(),
+  });
+  assert.equal(released.payload.status, "APLICADO");
+  assert.match(released.payload.message, /M17 confirmado em 0/);
+
+  frame[9] = 1;
+  const blocked = call("command-reset-read-result", {
+    ...resetRead,
+    payload: frame,
+    modbusResetStartedAt: Date.now(),
+  });
+  assert.equal(blocked.payload.status, "ERRO");
+  assert.match(blocked.payload.message, /continua bloqueada/);
 });
 
 test("simulação isolada não envia FC5", () => {

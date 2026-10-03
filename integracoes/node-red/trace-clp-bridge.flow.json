@@ -11,7 +11,7 @@
     "type": "comment",
     "z": "trace-clp-bridge",
     "name": "TRACE / Node-RED local",
-    "info": "Configure TRACE_API_URL, TRACE_DEVICE_TOKEN e TRACE_MODBUS_UNIT_ID no ambiente do Node-RED. O heartbeat lê M2052 e publica ONLINE somente depois de uma resposta Modbus válida. Os botões operacionais entram na fila local, são reservados por este gateway, escritos por Modbus TCP FC5 e concluídos somente após o eco da mesma bobina. M2049 liga/desliga o motor, M2050 liga/desliga a reversão e M2051 aciona a emergência. DESBLOQUEAR_MAQUINA permanece bloqueado porque não há endereço de reset confirmado.",
+    "info": "Configure TRACE_API_URL, TRACE_DEVICE_TOKEN e TRACE_MODBUS_UNIT_ID no ambiente do Node-RED. O heartbeat lê M2052 e publica ONLINE somente depois de uma resposta Modbus válida. Os botões operacionais entram na fila local, são reservados por este gateway, escritos por Modbus TCP FC5 e concluídos somente após o eco da mesma bobina. M2049 liga/desliga o motor, M2050 liga/desliga a reversão e M2051 aciona e libera a emergência; após escrever M2051=0, o gateway lê M17 e só conclui a liberação quando M17=0.",
     "x": 180,
     "y": 80,
     "wires": []
@@ -319,7 +319,7 @@
     "type": "function",
     "z": "trace-clp-bridge",
     "name": "Validar comando físico",
-    "func": "if (msg.statusCode !== 200) return [null, null];\nconst response = msg.payload && (msg.payload.data || msg.payload);\nif (!response || !response.id) return [null, null];\nconst command = String(response.command || '');\nconst commandMap = {\n    INICIAR_CARREGAMENTO: { coil: 2049, value: true, label: 'motor ligado' },\n    PAUSAR_CARREGAMENTO: { coil: 2049, value: false, label: 'motor desligado' },\n    REVERSAO_ATIVAR: { coil: 2050, value: true, label: 'reversão ligada' },\n    REVERSAO_DESATIVAR: { coil: 2050, value: false, label: 'reversão desligada' },\n    EMERGENCIA: { coil: 2051, value: true, label: 'emergência acionada' },\n};\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst token = String(msg.traceToken || '');\nconst complete = (status, message) => {\n    if (!baseUrl || !token) return null;\n    msg.url = `${baseUrl}/api/plc_gateway.php`;\n    msg.method = 'POST';\n    msg.headers = { 'X-Device-Token': token, 'Content-Type': 'application/json' };\n    msg.payload = { action: 'COMPLETE', request_id: Number(response.id), status, message };\n    return msg;\n};\nconst map = commandMap[command];\nif (!map) return [null, complete('REJEITADO', 'Comando sem endereço físico confirmado no mapa Modbus deste CLP; nenhuma escrita foi executada.')];\nconst state = String(response.loading_state || '');\nconst allowedStates = {\n    INICIAR_CARREGAMENTO: ['PREPARANDO', 'PAUSADO'],\n    PAUSAR_CARREGAMENTO: ['PREPARANDO', 'CARREGANDO'],\n    REVERSAO_ATIVAR: ['PAUSADO'],\n    REVERSAO_DESATIVAR: ['PAUSADO'],\n    EMERGENCIA: ['AGUARDANDO', 'PREPARANDO', 'CARREGANDO', 'PAUSADO', 'FINALIZANDO', 'EMERGENCIA'],\n};\nif (!allowedStates[command]?.includes(state)) {\n    return [null, complete('REJEITADO', `Comando ${command} não permitido no estado ${state || 'DESCONHECIDO'}; nenhuma escrita foi executada.`)];\n}\nconst installationMode = String(env.get('TRACE_INSTALLATION_MODE') || '').toLowerCase();\nconst simulatorOnly = String(env.get('TRACE_LOCAL_SIMULATION') || '0') === '1'\n    && String(env.get('TRACE_SIMULATOR_ONLY_COMMANDS') || '0') === '1'\n    && ['local', 'industrial'].includes(installationMode);\nif (simulatorOnly) {\n    const loadingId = String(response.carregamento_id || '');\n    const states = flow.get('trace_simulated_loading_states') || {};\n    const simulated = states[loadingId] || {\n        loading_state: String(response.loading_state || ''),\n        reversal_active: false,\n    };\n    const transitions = {\n        INICIAR_CARREGAMENTO: { from: ['PREPARANDO', 'PAUSADO'], to: 'CARREGANDO' },\n        PAUSAR_CARREGAMENTO: { from: ['PREPARANDO', 'CARREGANDO'], to: 'PAUSADO' },\n        REVERSAO_ATIVAR: { from: ['PAUSADO'], to: 'PAUSADO' },\n        REVERSAO_DESATIVAR: { from: ['PAUSADO'], to: 'PAUSADO' },\n        EMERGENCIA: { from: ['AGUARDANDO', 'PREPARANDO', 'CARREGANDO', 'PAUSADO', 'FINALIZANDO'], to: 'EMERGENCIA' },\n    };\n    const transition = transitions[command];\n    if (!transition || !transition.from.includes(simulated.loading_state)) {\n        const state = simulated.loading_state || 'DESCONHECIDO';\n        return [null, complete('REJEITADO', `SIMULAÇÃO LOCAL: ${command} não permitido no estado ${state}. Nenhuma escrita Modbus foi executada.`)];\n    }\n    simulated.loading_state = transition.to;\n    if (command === 'REVERSAO_ATIVAR') simulated.reversal_active = true;\n    if (command === 'REVERSAO_DESATIVAR') simulated.reversal_active = false;\n    states[loadingId] = simulated;\n    flow.set('trace_simulated_loading_states', states);\n    return [null, complete('APLICADO', `SIMULAÇÃO LOCAL: ${command} confirmado; estado ${simulated.loading_state}, reversão ${simulated.reversal_active ? 'ativa' : 'inativa'}. Nenhuma escrita Modbus foi executada.`)];\n}\nconst equipment = msg.traceEquipment || {};\nconst host = String(msg.modbusHost || equipment.plc_connect_ip || '').trim();\nconst port = Number(msg.modbusPort || equipment.plc_port || 0);\nconst unit = Number(msg.modbusUnit ?? equipment.modbus_unit_id ?? env.get('TRACE_MODBUS_UNIT_ID') ?? 1);\nconst protocol = String(equipment.plc_protocol || 'MODBUS_TCP').toUpperCase();\nif (!host || !Number.isInteger(port) || port < 1 || port > 65535 || protocol !== 'MODBUS_TCP' || !Number.isInteger(unit) || unit < 0 || unit > 255) {\n    return [null, complete('ERRO', 'Destino Modbus TCP, porta, protocolo ou unidade inválidos; nenhuma escrita foi executada.')];\n}\nmsg.commandResponse = response;\nmsg.commandMap = map;\nmsg.modbusHost = host;\nmsg.modbusPort = port;\nmsg.modbusUnit = unit;\nreturn [msg, null];",
+    "func": "if (msg.statusCode !== 200) return [null, null];\nconst response = msg.payload && (msg.payload.data || msg.payload);\nif (!response || !response.id) return [null, null];\nconst command = String(response.command || '');\nconst commandMap = {\n    INICIAR_CARREGAMENTO: { coil: 2049, value: true, label: 'motor ligado' },\n    PAUSAR_CARREGAMENTO: { coil: 2049, value: false, label: 'motor desligado' },\n    REVERSAO_ATIVAR: { coil: 2050, value: true, label: 'reversão ligada' },\n    REVERSAO_DESATIVAR: { coil: 2050, value: false, label: 'reversão desligada' },\n    EMERGENCIA: { coil: 2051, value: true, label: 'emergência acionada' },\n    DESBLOQUEAR_MAQUINA: { coil: 2051, value: false, label: 'emergência liberada' },\n};\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst token = String(msg.traceToken || '');\nconst complete = (status, message) => {\n    if (!baseUrl || !token) return null;\n    msg.url = `${baseUrl}/api/plc_gateway.php`;\n    msg.method = 'POST';\n    msg.headers = { 'X-Device-Token': token, 'Content-Type': 'application/json' };\n    msg.payload = { action: 'COMPLETE', request_id: Number(response.id), status, message };\n    return msg;\n};\nconst map = commandMap[command];\nif (!map) return [null, complete('REJEITADO', 'Comando sem endereço físico confirmado no mapa Modbus deste CLP; nenhuma escrita foi executada.')];\nconst state = String(response.loading_state || '');\nconst allowedStates = {\n    INICIAR_CARREGAMENTO: ['PREPARANDO', 'PAUSADO'],\n    PAUSAR_CARREGAMENTO: ['PREPARANDO', 'CARREGANDO'],\n    REVERSAO_ATIVAR: ['PAUSADO'],\n    REVERSAO_DESATIVAR: ['PAUSADO'],\n    EMERGENCIA: ['AGUARDANDO', 'PREPARANDO', 'CARREGANDO', 'PAUSADO', 'FINALIZANDO', 'EMERGENCIA'],\n    DESBLOQUEAR_MAQUINA: ['EMERGENCIA'],\n};\nif (!allowedStates[command]?.includes(state)) {\n    return [null, complete('REJEITADO', `Comando ${command} não permitido no estado ${state || 'DESCONHECIDO'}; nenhuma escrita foi executada.`)];\n}\nconst installationMode = String(env.get('TRACE_INSTALLATION_MODE') || '').toLowerCase();\nconst simulatorOnly = String(env.get('TRACE_LOCAL_SIMULATION') || '0') === '1'\n    && String(env.get('TRACE_SIMULATOR_ONLY_COMMANDS') || '0') === '1'\n    && ['local', 'industrial'].includes(installationMode);\nif (simulatorOnly) {\n    const loadingId = String(response.carregamento_id || '');\n    const states = flow.get('trace_simulated_loading_states') || {};\n    const simulated = states[loadingId] || {\n        loading_state: String(response.loading_state || ''),\n        reversal_active: false,\n    };\n    const transitions = {\n        INICIAR_CARREGAMENTO: { from: ['PREPARANDO', 'PAUSADO'], to: 'CARREGANDO' },\n        PAUSAR_CARREGAMENTO: { from: ['PREPARANDO', 'CARREGANDO'], to: 'PAUSADO' },\n        REVERSAO_ATIVAR: { from: ['PAUSADO'], to: 'PAUSADO' },\n        REVERSAO_DESATIVAR: { from: ['PAUSADO'], to: 'PAUSADO' },\n        EMERGENCIA: { from: ['AGUARDANDO', 'PREPARANDO', 'CARREGANDO', 'PAUSADO', 'FINALIZANDO'], to: 'EMERGENCIA' },\n        DESBLOQUEAR_MAQUINA: { from: ['EMERGENCIA'], to: 'PREPARANDO' },\n    };\n    const transition = transitions[command];\n    if (!transition || !transition.from.includes(simulated.loading_state)) {\n        const state = simulated.loading_state || 'DESCONHECIDO';\n        return [null, complete('REJEITADO', `SIMULAÇÃO LOCAL: ${command} não permitido no estado ${state}. Nenhuma escrita Modbus foi executada.`)];\n    }\n    simulated.loading_state = transition.to;\n    if (command === 'REVERSAO_ATIVAR') simulated.reversal_active = true;\n    if (command === 'REVERSAO_DESATIVAR') simulated.reversal_active = false;\n    states[loadingId] = simulated;\n    flow.set('trace_simulated_loading_states', states);\n    return [null, complete('APLICADO', `SIMULAÇÃO LOCAL: ${command} confirmado; estado ${simulated.loading_state}, reversão ${simulated.reversal_active ? 'ativa' : 'inativa'}. Nenhuma escrita Modbus foi executada.`)];\n}\nconst equipment = msg.traceEquipment || {};\nconst host = String(msg.modbusHost || equipment.plc_connect_ip || '').trim();\nconst port = Number(msg.modbusPort || equipment.plc_port || 0);\nconst unit = Number(msg.modbusUnit ?? equipment.modbus_unit_id ?? env.get('TRACE_MODBUS_UNIT_ID') ?? 1);\nconst protocol = String(equipment.plc_protocol || 'MODBUS_TCP').toUpperCase();\nif (!host || !Number.isInteger(port) || port < 1 || port > 65535 || protocol !== 'MODBUS_TCP' || !Number.isInteger(unit) || unit < 0 || unit > 255) {\n    return [null, complete('ERRO', 'Destino Modbus TCP, porta, protocolo ou unidade inválidos; nenhuma escrita foi executada.')];\n}\nmsg.commandResponse = response;\nmsg.commandMap = map;\nmsg.modbusHost = host;\nmsg.modbusPort = port;\nmsg.modbusUnit = unit;\nreturn [msg, null];",
     "outputs": 2,
     "timeout": 0,
     "noerr": 0,
@@ -382,8 +382,8 @@
     "type": "function",
     "z": "trace-clp-bridge",
     "name": "Confirmar eco da escrita FC5",
-    "func": "const response = msg.commandResponse;\nconst frame = Buffer.isBuffer(msg.payload) ? msg.payload : Buffer.alloc(0);\nconst age = Date.now() - Number(msg.modbusStartedAt);\nconst expectedValue = Number(msg.modbusValue);\nconst valid = !!response && Number.isFinite(age) && age >= 0 && age <= 5000\n    && frame.length === 12\n    && frame.readUInt16BE(0) === Number(msg.modbusTransaction)\n    && frame.readUInt16BE(2) === 0\n    && frame.readUInt16BE(4) === 6\n    && frame[6] === Number(msg.modbusUnit)\n    && frame[7] === 5\n    && frame.readUInt16BE(8) === Number(msg.modbusCoil)\n    && frame.readUInt16BE(10) === expectedValue;\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst token = String(msg.traceToken || '');\nif (!baseUrl || !token || !response?.id) return null;\nmsg.url = `${baseUrl}/api/plc_gateway.php`;\nmsg.method = 'POST';\nmsg.headers = { 'X-Device-Token': token, 'Content-Type': 'application/json' };\nmsg.payload = valid\n    ? { action: 'COMPLETE', request_id: Number(response.id), status: 'APLICADO', message: `Escrita Modbus FC5 confirmada por eco: M${msg.modbusCoil} ${expectedValue === 0xff00 ? 'ligada' : 'desligada'}.` }\n    : { action: 'COMPLETE', request_id: Number(response.id), status: 'ERRO', message: `O CLP não confirmou o eco Modbus FC5 de M${msg.modbusCoil}; o comando não foi marcado como aplicado.` };\nreturn msg;",
-    "outputs": 1,
+    "func": "const response = msg.commandResponse;\nconst frame = Buffer.isBuffer(msg.payload) ? msg.payload : Buffer.alloc(0);\nconst age = Date.now() - Number(msg.modbusStartedAt);\nconst expectedValue = Number(msg.modbusValue);\nconst valid = !!response && Number.isFinite(age) && age >= 0 && age <= 5000\n    && frame.length === 12\n    && frame.readUInt16BE(0) === Number(msg.modbusTransaction)\n    && frame.readUInt16BE(2) === 0\n    && frame.readUInt16BE(4) === 6\n    && frame[6] === Number(msg.modbusUnit)\n    && frame[7] === 5\n    && frame.readUInt16BE(8) === Number(msg.modbusCoil)\n    && frame.readUInt16BE(10) === expectedValue;\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst token = String(msg.traceToken || '');\nif (!baseUrl || !token || !response?.id) return [null, null];\nmsg.url = `${baseUrl}/api/plc_gateway.php`;\nmsg.method = 'POST';\nmsg.headers = { 'X-Device-Token': token, 'Content-Type': 'application/json' };\nif (!valid) {\n    msg.payload = { action: 'COMPLETE', request_id: Number(response.id), status: 'ERRO', message: `O CLP não confirmou o eco Modbus FC5 de M${msg.modbusCoil}; o comando não foi marcado como aplicado.` };\n    return [msg, null];\n}\nif (response.command === 'DESBLOQUEAR_MAQUINA') {\n    msg.modbusResetCoil = 17;\n    msg.modbusResetStartedAt = Date.now();\n    return [null, msg];\n}\nmsg.payload = { action: 'COMPLETE', request_id: Number(response.id), status: 'APLICADO', message: `Escrita Modbus FC5 confirmada por eco: M${msg.modbusCoil} ${expectedValue === 0xff00 ? 'ligada' : 'desligada'}.` };\nreturn [msg, null];",
+    "outputs": 2,
     "timeout": 0,
     "noerr": 0,
     "initialize": "",
@@ -394,6 +394,9 @@
     "wires": [
       [
         "command-complete-http"
+      ],
+      [
+        "command-reset-read-frame"
       ]
     ]
   },
@@ -403,7 +406,8 @@
     "z": "trace-clp-bridge",
     "name": "Falha de escrita Modbus",
     "scope": [
-      "command-write-tcp"
+      "command-write-tcp",
+      "command-reset-read-tcp"
     ],
     "uncaught": false,
     "x": 1430,
@@ -418,8 +422,8 @@
     "id": "command-write-error",
     "type": "function",
     "z": "trace-clp-bridge",
-    "name": "Concluir erro de escrita",
-    "func": "const response = msg.commandResponse;\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst token = String(msg.traceToken || '');\nif (!baseUrl || !token || !response?.id) return null;\nconst detail = String(msg.error?.message || 'sem resposta do socket').slice(0, 400);\nmsg.url = `${baseUrl}/api/plc_gateway.php`;\nmsg.method = 'POST';\nmsg.headers = { 'X-Device-Token': token, 'Content-Type': 'application/json' };\nmsg.payload = { action: 'COMPLETE', request_id: Number(response.id), status: 'ERRO', message: `Falha na escrita Modbus FC5: ${detail}. O comando não foi marcado como aplicado.` };\nreturn msg;",
+    "name": "Concluir erro de comunicação Modbus",
+    "func": "const response = msg.commandResponse;\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst token = String(msg.traceToken || '');\nif (!baseUrl || !token || !response?.id) return null;\nconst detail = String(msg.error?.message || 'sem resposta do socket').slice(0, 400);\nmsg.url = `${baseUrl}/api/plc_gateway.php`;\nmsg.method = 'POST';\nmsg.headers = { 'X-Device-Token': token, 'Content-Type': 'application/json' };\nmsg.payload = { action: 'COMPLETE', request_id: Number(response.id), status: 'ERRO', message: `Falha na comunicação Modbus durante o comando: ${detail}. O comando não foi marcado como aplicado.` };\nreturn msg;",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
@@ -428,6 +432,66 @@
     "libs": [],
     "x": 1660,
     "y": 400,
+    "wires": [
+      [
+        "command-complete-http"
+      ]
+    ]
+  },
+  {
+    "id": "command-reset-read-frame",
+    "type": "function",
+    "z": "trace-clp-bridge",
+    "name": "Ler retorno M17 após liberação",
+    "func": "const response = msg.commandResponse;\nconst unit = Number(msg.modbusUnit);\nif (!response?.id || !Number.isInteger(unit) || unit < 0 || unit > 255) return null;\nconst transaction = ((flow.get('modbus_command_transaction') || 0) + 1) & 0xffff;\nflow.set('modbus_command_transaction', transaction);\nconst frame = Buffer.alloc(12);\nframe.writeUInt16BE(transaction, 0);\nframe.writeUInt16BE(0, 2);\nframe.writeUInt16BE(6, 4);\nframe[6] = unit;\nframe[7] = 1;\nframe.writeUInt16BE(Number(msg.modbusResetCoil || 17), 8);\nframe.writeUInt16BE(1, 10);\nmsg.modbusResetTransaction = transaction;\nmsg.modbusResetStartedAt = Date.now();\nmsg.payload = frame;\nmsg.host = msg.modbusHost;\nmsg.port = msg.modbusPort;\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1170,
+    "y": 460,
+    "wires": [
+      [
+        "command-reset-read-tcp"
+      ]
+    ]
+  },
+  {
+    "id": "command-reset-read-tcp",
+    "type": "tcp request",
+    "z": "trace-clp-bridge",
+    "name": "Ler confirmação física M17",
+    "server": "",
+    "port": "",
+    "out": "time",
+    "ret": "buffer",
+    "splitc": "500",
+    "newline": "",
+    "tls": "",
+    "x": 1410,
+    "y": 460,
+    "wires": [
+      [
+        "command-reset-read-result"
+      ]
+    ]
+  },
+  {
+    "id": "command-reset-read-result",
+    "type": "function",
+    "z": "trace-clp-bridge",
+    "name": "Confirmar emergência liberada",
+    "func": "const response = msg.commandResponse;\nconst frame = Buffer.isBuffer(msg.payload) ? msg.payload : Buffer.alloc(0);\nconst age = Date.now() - Number(msg.modbusResetStartedAt);\nconst valid = !!response && Number.isFinite(age) && age >= 0 && age <= 5000\n    && frame.length === 10\n    && frame.readUInt16BE(0) === Number(msg.modbusResetTransaction)\n    && frame.readUInt16BE(2) === 0\n    && frame.readUInt16BE(4) === 4\n    && frame[6] === Number(msg.modbusUnit)\n    && frame[7] === 1\n    && frame[8] === 1;\nconst output = valid ? (frame[9] & 1) : 1;\nconst released = valid && output === 0;\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst token = String(msg.traceToken || '');\nif (!baseUrl || !token || !response?.id) return null;\nmsg.url = `${baseUrl}/api/plc_gateway.php`;\nmsg.method = 'POST';\nmsg.headers = { 'X-Device-Token': token, 'Content-Type': 'application/json' };\nmsg.payload = released\n    ? { action: 'COMPLETE', request_id: Number(response.id), status: 'APLICADO', message: 'Emergência liberada: M2051 desligada e retorno M17 confirmado em 0.' }\n    : { action: 'COMPLETE', request_id: Number(response.id), status: 'ERRO', message: `O retorno físico M17 não confirmou a liberação da emergência${valid ? ` (valor ${output})` : ''}; a operação continua bloqueada.` };\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1650,
+    "y": 460,
     "wires": [
       [
         "command-complete-http"
@@ -476,7 +540,7 @@
     "type": "comment",
     "z": "trace-clp-bridge",
     "name": "Mapa físico aprovado para este CLP",
-    "info": "M2049: liga/desliga o motor; M2050: liga/desliga a reversão; M2051: aciona a emergência; M2052: leitura do sensor de contagem. As escritas usam Modbus TCP FC5 e só concluem após validar o eco. DESBLOQUEAR_MAQUINA continua sem escrita porque não há endereço confirmado.",
+    "info": "M2049: liga/desliga o motor; M2050: liga/desliga a reversão; M2051: aciona/libera a emergência; M17: retorno físico da emergência; M2052: leitura do sensor de contagem. Escritas usam FC5 e o desbloqueio só conclui após ler M17=0.",
     "x": 420,
     "y": 400,
     "wires": []

@@ -14,8 +14,8 @@ necessário.
 - publica `OFFLINE` quando o CLP não responde, o endereço/porta são inválidos ou a resposta Modbus é inválida;
 - consulta a fila de comandos a cada 2 segundos;
 - reserva comandos pela API, prioriza `EMERGENCIA`, escreve as bobinas confirmadas por Modbus TCP FC5 e só os conclui depois de validar o eco do CLP;
-- usa M2049 para ligar/desligar o motor, M2050 para ligar/desligar a reversão e M2051 para acionar a emergência;
-- mantém `DESBLOQUEAR_MAQUINA` rejeitado até existir um endereço de reset confirmado;
+- usa M2049 para ligar/desligar o motor, M2050 para ligar/desligar a reversão e M2051 para acionar/liberar a emergência;
+- mantém a emergência travada até `DESBLOQUEAR_MAQUINA` escrever M2051=0 e confirmar a saída física M17=0;
 - não acessa o banco diretamente.
 
 Configure no ambiente do Node-RED:
@@ -101,7 +101,8 @@ O painel cria uma solicitação local; o gateway é o único componente que escr
 
 1. `POST ${TRACE_API_URL}/plc_gateway.php` com o token individual da Dala em `X-Device-Token` e `{"action":"CLAIM","equipment_id":N}`;
 2. validar o estado permitido e o destino Modbus da Dala;
-3. enviar FC5 na bobina M2049, M2050 ou M2051 conforme o comando;
-4. retornar `{"action":"COMPLETE","request_id":N,"status":"APLICADO"}` ou `REJEITADO`/`ERRO`, com uma mensagem curta. Somente o mesmo dispositivo que reservou o comando pode concluí-lo.
+3. enviar FC5 na bobina M2049, M2050 ou M2051 conforme o comando; para liberar a emergência, escrever M2051=0;
+4. depois da liberação, ler M17 por FC1 e só retornar `APLICADO` quando M17=0; se o retorno continuar 1 ou for inválido, retornar `ERRO` e manter a operação bloqueada;
+5. retornar `{"action":"COMPLETE","request_id":N,"status":"APLICADO"}` ou `REJEITADO`/`ERRO`, com uma mensagem curta. Somente o mesmo dispositivo que reservou o comando pode concluí-lo.
 
-O mapa físico usado pelo gateway é: `2049` motor, `2050` reversão, `2051` emergência e `2052` sensor de contagem. Cada escrita usa função 5, unidade Modbus configurada na instalação e confirmação por eco. Se o eco for inválido ou não chegar, o pedido termina como `ERRO`; o Trace nunca apresenta `APLICADO` apenas porque abriu uma conexão TCP.
+O mapa físico usado pelo gateway é: `2049` motor, `2050` reversão, `2051` emergência, `17` retorno físico da emergência e `2052` sensor de contagem. Cada escrita usa função 5, unidade Modbus configurada na instalação e confirmação por eco; a confirmação de liberação usa função 1 na bobina 17. Se o eco ou o retorno forem inválidos ou não chegarem, o pedido termina como `ERRO`; o Trace nunca apresenta `APLICADO` apenas porque abriu uma conexão TCP.
