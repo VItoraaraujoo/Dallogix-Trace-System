@@ -6,26 +6,15 @@ O usuário confirmou que o CLP está em bancada sem máquina conectada e autoriz
 
 ## Resultado observado
 
-Foi enviada uma requisição Modbus TCP FC5 para o endereço informado `2049`, com o frame de desligamento:
+O teste usou Modbus TCP FC5 para escrever cada coil e FC1 para ler o retorno. O parser foi corrigido para interpretar os bytes do frame completo; os frames retornados pelo CLP confirmaram os endereços `0x0801` (`2049`) e `0x0802` (`2050`).
 
-```text
-Requisição: 000100000006010508010000
-Resposta:   000100000006010508010000
-```
-
-O frame enviado contém o endereço `0x0801` (`2049`), mas a resposta do CLP foi interpretada pelo equipamento como endereço `1` (`0x0001`). O retorno não confirma que `M2049` seja o endereço Modbus correto.
-
-Depois da tentativa, foi feita somente leitura FC1 nos endereços `1`, `2049`, `2050` e `2051`. Todos retornaram valor `0`:
-
-```text
-1     -> 00010000000401010100 -> 0
-2049  -> 00020000000401010100 -> 0
-2050  -> 00030000000401010100 -> 0
-2051  -> 00040000000401010100 -> 0
-```
+| Endereço | Leitura inicial | FC5 ON | Leitura após ON | FC5 OFF | Leitura após OFF |
+| --- | ---: | --- | ---: | --- | ---: |
+| `2049` / `M2049` | `0` | `00020000000601050801FF00` | `1` (`00030000000401010101`) | `000400000006010508010000` | `0` (`00050000000401010100`) |
+| `2050` / `M2050` | `0` | `00070000000601050802FF00` | `1` (`00080000000401010101`) | `000900000006010508020000` | `0` (`000A0000000401010100`) |
 
 ## Decisão de segurança
 
-O teste não foi declarado como sucesso para o motor ou reverso. O CLP respondeu a TCP/Modbus, mas o eco do endereço contradiz o mapa informado. Nenhuma nova escrita foi enviada para `2050`, e `2051` permaneceu somente leitura.
+As duas saídas testadas responderam ao endereço correto e retornaram ao estado `0` após o teste. O endereço `2051` não foi escrito por software; a emergência continua exclusivamente física.
 
-Para continuar, é necessário confirmar no manual ou no software do CLP a relação entre `M2049`/`M2050` e o endereço Modbus usado na FC5, incluindo o offset e a unidade. Até essa confirmação, o gateway Trace permanece corretamente bloqueado para escritas físicas.
+O gateway Trace ainda mantém a escrita física bloqueada no fluxo de produção até que esse mapa e os intertravamentos sejam formalmente incorporados ao adaptador industrial. O teste direto comprovou o transporte Modbus e as saídas da bancada, sem declarar que o botão de emergência pode ser substituído pelo software.

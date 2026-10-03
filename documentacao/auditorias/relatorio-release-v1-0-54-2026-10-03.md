@@ -72,7 +72,7 @@ Esses estados não são substituídos por um valor presumido: câmera, sensor e 
 
 ## Limites que continuam explícitos
 
-- A bateria não enviou comandos físicos ao CLP; os endereços `2049`, `2050` e `2051` continuam protegidos contra escrita sem confirmação operacional.
+- No momento da publicação, a bateria não enviou comandos físicos ao CLP. O teste físico posterior de `2049` e `2050` está registrado separadamente em `teste-fisico-modbus-2026-10-03.md`; `2051` continua protegido e não recebeu escrita por software.
 - A câmera não foi declarada online porque não havia configuração/stream real disponível no PC.
 - Não foi inventado benchmark de produção; os testes de carga física e de câmera dependem do equipamento conectado.
 - Nomes técnicos de protocolos, campos de payload, migrations e tabelas históricas permanecem como contratos de compatibilidade. Renomeá-los globalmente para português exigiria uma migração coordenada entre Central, PC, Node-RED e instalador e não foi feito de forma insegura.
