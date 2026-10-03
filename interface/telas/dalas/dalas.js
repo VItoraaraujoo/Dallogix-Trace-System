@@ -39,7 +39,7 @@ export function dalas(store) {
   const cells = (equipment) => `<div class="dala-grid-row-v2 ${hasIndustrialPc ? "has-industrial-pc" : ""}" role="row">
 <div class="dala-grid-cell-v2" data-label="Nome" role="cell"><strong>${esc(equipment.name)}</strong></div>
 <div class="dala-grid-cell-v2" data-label="Identificador" role="cell"><code>${esc(equipment.equipment_code)}</code></div>
-${hasIndustrialPc ? `<div class="dala-grid-cell-v2" data-label="PC industrial" role="cell"><span>${equipment.industrial_pc_name ? esc(equipment.industrial_pc_name) : "Não vinculado"}</span>${equipment.industrial_pc_status ? `<small>${esc(equipment.industrial_pc_status)}${equipment.industrial_pc_last_seen_at ? ` · ${esc(dataHora(equipment.industrial_pc_last_seen_at))}` : ""}</small>` : ""}</div>` : ""}
+${hasIndustrialPc ? `<div class="dala-grid-cell-v2" data-label="PC industrial" role="cell">${equipment.industrial_pc_name ? `<div class="dala-industrial-pc-info"><strong>${esc(equipment.industrial_pc_name)}</strong>${equipment.industrial_pc_status ? `<small>${esc(equipment.industrial_pc_status)}${equipment.industrial_pc_last_seen_at ? ` · ${esc(dataHora(equipment.industrial_pc_last_seen_at))}` : ""}</small>` : ""}</div>` : "<span>Não vinculado</span>"}</div>` : ""}
 <div class="dala-grid-cell-v2" data-label="IP do CLP" role="cell">${esc(equipment.plc_ip || "—")}</div>
 <div class="dala-grid-cell-v2" data-label="Porta do CLP" role="cell">${esc(equipment.plc_port || "—")}</div>
 <div class="dala-grid-cell-v2" data-label="Status" role="cell">${dalaStatusCell(equipment)}</div>

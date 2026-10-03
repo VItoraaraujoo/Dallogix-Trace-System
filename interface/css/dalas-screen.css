@@ -95,6 +95,26 @@
   font-size: 15px;
 }
 
+.dala-industrial-pc-info {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  gap: 4px;
+  text-align: left;
+}
+
+.dala-industrial-pc-info strong {
+  overflow-wrap: anywhere;
+  line-height: 1.25;
+}
+
+.dala-industrial-pc-info small {
+  color: #62798a;
+  font-size: 12px;
+  line-height: 1.3;
+  overflow-wrap: anywhere;
+}
+
 .dala-grid-cell-v2 code {
   color: #35566b;
   white-space: normal;
