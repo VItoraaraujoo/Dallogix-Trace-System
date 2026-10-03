@@ -73,6 +73,14 @@ function Write-AtomicTextFile([string]$Path, [string]$Content) {
     }
 }
 
+function Append-UpdateLog([string]$Path, [string]$Content) {
+    try {
+        [IO.File]::AppendAllText($Path, $Content + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding($false)))
+    } catch {
+        Write-Warning ("Nao foi possivel gravar o log " + $Path + ": " + $_.Exception.Message)
+    }
+}
+
 function Download-UpdateArtifact([string]$Uri, [string]$Path, [hashtable]$Headers) {
     # Invoke-WebRequest tenta ler o buffer do console para a barra de progresso
     # no Windows PowerShell 5.1. Em tarefas agendadas e sessões SSH isso pode
@@ -106,10 +114,10 @@ function Invoke-Tar([string[]]$Arguments) {
         }) -join ' '
         $process = Start-Process -FilePath 'tar.exe' -ArgumentList $argumentLine -Wait -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
         if (Test-Path -LiteralPath $stderrPath) {
-            Get-Content -LiteralPath $stderrPath | Add-Content -LiteralPath $ComposeLogPath -Encoding UTF8
+            Append-UpdateLog $ComposeLogPath ((Get-Content -LiteralPath $stderrPath -Raw))
         }
         if (Test-Path -LiteralPath $stdoutPath) {
-            Get-Content -LiteralPath $stdoutPath | Add-Content -LiteralPath $ComposeLogPath -Encoding UTF8
+            Append-UpdateLog $ComposeLogPath ((Get-Content -LiteralPath $stdoutPath -Raw))
         }
         return $process.ExitCode
     } finally {
@@ -121,7 +129,11 @@ function Format-ProcessArguments([string[]]$Arguments) {
     return ($Arguments | ForEach-Object {
         $argument = [string]$_
         if ($argument -match '[\s"]') {
-            '"' + ($argument -replace '"', '\\"') + '"'
+            # Uma barra antes da aspa preserva a aspa dentro do argumento no
+            # parser de linha de comando do Windows PowerShell 5.1. Duas
+            # barras fazem o sh receber a aspa como literal e quebram a
+            # consulta de pré-verificação do MySQL.
+            '"' + ($argument -replace '"', '\"') + '"'
         } else { $argument }
     }) -join ' '
 }
@@ -130,6 +142,10 @@ function Invoke-External([string]$FilePath, [string[]]$Arguments, [string]$Input
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
     $startInfo.FileName = $FilePath
     $startInfo.Arguments = Format-ProcessArguments $Arguments
+    # ProcessStartInfo não herda de forma confiável o diretório atual do
+    # Windows PowerShell 5.1. Compose e os scripts Bash precisam resolver os
+    # arquivos relativos dentro da instalação do Trace.
+    $startInfo.WorkingDirectory = (Get-Location).Path
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
     $startInfo.RedirectStandardOutput = $true
@@ -158,26 +174,17 @@ function Invoke-External([string]$FilePath, [string[]]$Arguments, [string]$Input
 
 function Invoke-GitBash([string[]]$Arguments) {
     $result = Invoke-External $GitBash $Arguments $null
-    if ($result.Stdout) { Add-Content -LiteralPath $ComposeLogPath -Value $result.Stdout -Encoding UTF8 }
-    if ($result.Stderr) { Add-Content -LiteralPath $ComposeLogPath -Value $result.Stderr -Encoding UTF8 }
+    if ($result.Stdout) { Append-UpdateLog $ComposeLogPath $result.Stdout }
+    if ($result.Stderr) { Append-UpdateLog $ComposeLogPath $result.Stderr }
     return $result
 }
 
 function Invoke-DockerCompose([string[]]$Arguments) {
-    $runId = [guid]::NewGuid().ToString('N')
-    $stdoutPath = Join-Path $env:TEMP ("trace-compose-" + $runId + ".out")
-    $stderrPath = Join-Path $env:TEMP ("trace-compose-" + $runId + ".err")
-    $process = $null
-    try {
-        $composeArguments = @('compose') + $Arguments
-        $process = Start-Process -FilePath 'docker.exe' -ArgumentList $composeArguments -Wait -PassThru -NoNewWindow -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
-        return $process.ExitCode
-    } finally {
-        Add-Content -LiteralPath $ComposeLogPath -Value ("$(Get-Date -Format o) docker compose " + ($Arguments -join ' ')) -Encoding UTF8
-        if (Test-Path -LiteralPath $stdoutPath) { Get-Content -LiteralPath $stdoutPath | Add-Content -LiteralPath $ComposeLogPath -Encoding UTF8 }
-        if (Test-Path -LiteralPath $stderrPath) { Get-Content -LiteralPath $stderrPath | Add-Content -LiteralPath $ComposeLogPath -Encoding UTF8 }
-        Remove-Item -LiteralPath $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
-    }
+    $result = Invoke-External 'docker.exe' (@('compose') + $Arguments) $null
+    Append-UpdateLog $ComposeLogPath ("$(Get-Date -Format o) docker compose " + ($Arguments -join ' '))
+    if ($result.Stdout) { Append-UpdateLog $ComposeLogPath $result.Stdout }
+    if ($result.Stderr) { Append-UpdateLog $ComposeLogPath $result.Stderr }
+    return $result.ExitCode
 }
 
 function Start-TraceStack([switch]$Build) {
@@ -260,7 +267,7 @@ try {
     # quotes when a SQL string is assembled into `sh -lc ...`, leaving mysql
     # with an empty or malformed `-e` argument (ERROR 1064). The container
     # keeps reading its credentials and database name from its own environment.
-    $activeResult = Invoke-External 'docker.exe' (@('compose') + $ComposeProfile + @('exec', '-T', 'mysql', 'sh', '-lc', 'mysql -N -B -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"')) $sql
+    $activeResult = Invoke-External 'docker.exe' (@('compose') + $ComposeProfile + @('exec', '-T', 'mysql', 'sh', '-lc', 'mysql -N -B -u$MYSQL_USER -p$MYSQL_PASSWORD $MYSQL_DATABASE')) $sql
     $active = ([string]$activeResult.Stdout).Trim()
     if ($activeResult.ExitCode -ne 0 -or $active -notmatch '^\d+$') { throw "Nao foi possivel confirmar os carregamentos ativos. Atualizacao adiada." }
     if ([int]$active -gt 0) { throw "Atualizacao adiada: existe carregamento ativo ou em intervencao." }
@@ -306,8 +313,8 @@ try {
     if ($mysqlStartExit -ne 0) { throw "Nao foi possivel iniciar o MySQL para o backup." }
     $mysqlReady = $false
     for ($attempt = 0; $attempt -lt 30; $attempt++) {
-        $pingExit = Invoke-DockerCompose ($ComposeProfile + @('exec', '-T', 'mysql', 'sh', '-lc', 'mysqladmin ping -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" --silent'))
-        if ($pingExit -eq 0) { $mysqlReady = $true; break }
+        $pingResult = Invoke-External 'docker.exe' (@('compose') + $ComposeProfile + @('exec', '-T', 'mysql', 'sh', '-lc', 'mysqladmin ping -u$MYSQL_USER -p$MYSQL_PASSWORD --silent')) $null
+        if ($pingResult.ExitCode -eq 0) { $mysqlReady = $true; break }
         Start-Sleep -Seconds 2
     }
     if (-not $mysqlReady) { throw "O MySQL nao ficou pronto para o backup." }
@@ -354,7 +361,7 @@ try {
     $originalError = $_
     $errorMessage = if ($_.Exception -and $_.Exception.Message) { $_.Exception.Message } else { [string]$_ }
     try {
-        Add-Content -LiteralPath $ErrorLogPath -Value ("$(Get-Date -Format o) $errorMessage") -Encoding UTF8
+        Append-UpdateLog $ErrorLogPath ("$(Get-Date -Format o) $errorMessage")
     } catch {
         Write-Warning "Nao foi possivel registrar o erro do atualizador: $($_.Exception.Message)"
     }
@@ -376,8 +383,8 @@ try {
             $mysqlReady = $false
             1..30 | ForEach-Object {
                 if (-not $mysqlReady) {
-                    $rollbackPingExit = Invoke-DockerCompose ($ComposeProfile + @('exec', '-T', 'mysql', 'sh', '-lc', 'mysqladmin ping -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" --silent'))
-                    if ($rollbackPingExit -eq 0) { $mysqlReady = $true } else { Start-Sleep -Seconds 2 }
+                    $rollbackPingResult = Invoke-External 'docker.exe' (@('compose') + $ComposeProfile + @('exec', '-T', 'mysql', 'sh', '-lc', 'mysqladmin ping -u$MYSQL_USER -p$MYSQL_PASSWORD --silent')) $null
+                    if ($rollbackPingResult.ExitCode -eq 0) { $mysqlReady = $true } else { Start-Sleep -Seconds 2 }
                 }
             }
             if (-not $mysqlReady) { throw "O banco não ficou disponível para o rollback." }
