@@ -6,6 +6,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 $PackageRoot = (Resolve-Path -LiteralPath $PackageRoot).Path
 $taskName = 'Dallogix Trace Atualizacao Estavel'
+$legacyTaskName = 'Dallogix Trace Atualizacao'
 $manifestUrl = 'https://github.com/VItoraaraujoo/Dallogix-Trace-System/releases/latest/download/manifest.json'
 $publicKey = Join-Path $PackageRoot 'servidor\configuracao\trace-update-public.pem'
 $envPath = Join-Path $PackageRoot '.env'
@@ -94,6 +95,10 @@ if ($changed) {
 }
 
 $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+$legacyTask = Get-ScheduledTask -TaskName $legacyTaskName -ErrorAction SilentlyContinue
+if ($legacyTask) {
+    Unregister-ScheduledTask -TaskName $legacyTaskName -Confirm:$false -ErrorAction Stop
+}
 $preflightTask = "$taskName Preflight"
 $preflightMarker = Join-Path $stateRoot 'preflight-ok.txt'
 Remove-Item -LiteralPath $preflightMarker -Force -ErrorAction SilentlyContinue

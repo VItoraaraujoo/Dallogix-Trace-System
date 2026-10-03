@@ -58,6 +58,6 @@ O `TraceAgent` mantém a presença da máquina no servidor central por HTTPS/443
 
 ## Atualizações remotas
 
-`TraceUpdater.ps1` valida manifesto, assinatura e SHA-256, bloqueia a troca durante carregamentos, para os escritores, faz backup, aplica migrations e só registra a versão depois de verificar PHP e MySQL. Em falha, tenta restaurar arquivos e banco e registra a versão falha para evitar tentativas repetidas. A tarefa roda como `SYSTEM`; o log fica em `armazenamento\logs\update-stable.log`. O contrato completo está em [documentacao/operacao/atualizacoes-remotas.md](../../documentacao/operacao/atualizacoes-remotas.md).
+`TraceUpdater.ps1` valida manifesto, assinatura e SHA-256, bloqueia a troca durante carregamentos, encerra a interface WebView2 somente depois dessa verificação, para os escritores, faz backup, aplica migrations e só registra a versão depois de verificar PHP e MySQL. Ao concluir, agenda a reabertura da interface na sessão interativa; em falha, tenta restaurar arquivos e banco e registra a versão falha para evitar tentativas repetidas. A tarefa roda como `SYSTEM`; o log fica em `armazenamento\logs\update-stable.log`. O contrato completo está em [documentacao/operacao/atualizacoes-remotas.md](../../documentacao/operacao/atualizacoes-remotas.md).
 
 Instalacoes Windows anteriores precisam receber uma vez o novo instalador de release para obter a tarefa e o marcador da versão. Publicar uma tag no GitHub nao altera PCs que ainda nao foram preparados para atualizacao automatica.

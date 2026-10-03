@@ -52,11 +52,5 @@ if ($hasEquipment) {
     Unregister-ScheduledTask -TaskName "Dallogix Trace Agent" -Confirm:$false -ErrorAction SilentlyContinue
     Write-Output "PC industrial instalado sem Dala; o agente será registrado após o vínculo da primeira Dala."
 }
-$updaterScript = Join-Path $PackageRoot "implantacao\windows\TraceUpdater.ps1"
-if (-not (Test-Path $updaterScript)) { throw "Atualizador do Trace não encontrado: $updaterScript" }
-$updateAction = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$updaterScript`""
-$updateTrigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes 1) -RepetitionDuration (New-TimeSpan -Days 3650)
-$updateSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Minutes 30)
-Register-ScheduledTask -TaskName "Dallogix Trace Atualizacao" -Action $updateAction -Trigger $updateTrigger -Principal $taskPrincipal -Settings $updateSettings -Force | Out-Null
 Write-Output "Máquina preparada: $($config.machine_id). Modo: $($config.operation_mode). CLP físico habilitado: $($config.physical_clp_enabled)."
-Write-Output "Sincronização automática com a master configurada a cada minuto."
+Write-Output "Atualizacao automatica de releases assinadas configurada pela tarefa estavel."

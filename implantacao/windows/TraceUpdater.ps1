@@ -53,9 +53,50 @@ $Lock = [System.Threading.Mutex]::new($false, 'Global\DallogixTraceStableUpdater
 $hasLock = $false
 $rollbackRequired = $false
 $stackStopped = $false
+$desktopStopped = $false
+$desktopRestartScheduled = $false
 $previousArchive = $null
 $databaseBackup = $null
 $work = $null
+
+function Stop-TraceDesktop {
+    $processes = @(Get-Process -Name 'DallogixTrace' -ErrorAction SilentlyContinue)
+    if ($processes.Count -eq 0) { return }
+    foreach ($process in $processes) {
+        Stop-Process -Id $process.Id -Force -ErrorAction Stop
+    }
+    for ($attempt = 0; $attempt -lt 30; $attempt++) {
+        if (@(Get-Process -Name 'DallogixTrace' -ErrorAction SilentlyContinue).Count -eq 0) {
+            $script:desktopStopped = $true
+            return
+        }
+        Start-Sleep -Seconds 1
+    }
+    throw 'A interface DallogixTrace.exe permaneceu aberta; a atualizacao foi adiada para nao substituir arquivos em uso.'
+}
+
+function Schedule-TraceDesktopRestart {
+    if (-not $desktopStopped -or $desktopRestartScheduled) { return }
+    $interactiveUser = [string](Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue | Select-Object -ExpandProperty UserName -ErrorAction SilentlyContinue)
+    if ([string]::IsNullOrWhiteSpace($interactiveUser)) {
+        Append-UpdateLog $ErrorLogPath 'Interface desktop nao reiniciada: nenhuma sessao interativa encontrada.'
+        return
+    }
+    $desktop = Join-Path $InstallRoot 'DallogixTrace.exe'
+    if (-not (Test-Path -LiteralPath $desktop -PathType Leaf)) {
+        Append-UpdateLog $ErrorLogPath "Interface desktop nao reiniciada: executavel ausente em $desktop."
+        return
+    }
+    $taskName = 'Dallogix Trace Reiniciar Interface'
+    $action = New-ScheduledTaskAction -Execute $desktop -WorkingDirectory $InstallRoot
+    $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(15)
+    $principal = New-ScheduledTaskPrincipal -UserId $interactiveUser -LogonType InteractiveToken -RunLevel LeastPrivilege
+    $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
+    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
+    Start-ScheduledTask -TaskName $taskName
+    $script:desktopRestartScheduled = $true
+    Append-UpdateLog $ComposeLogPath "Interface desktop agendada para reinicio na sessao $interactiveUser."
+}
 
 function Write-AtomicTextFile([string]$Path, [string]$Content) {
     $temporaryPath = "$Path.tmp-$([guid]::NewGuid().ToString('N'))"
@@ -271,6 +312,11 @@ try {
     $active = ([string]$activeResult.Stdout).Trim()
     if ($activeResult.ExitCode -ne 0 -or $active -notmatch '^\d+$') { throw "Nao foi possivel confirmar os carregamentos ativos. Atualizacao adiada." }
     if ([int]$active -gt 0) { throw "Atualizacao adiada: existe carregamento ativo ou em intervencao." }
+    # A interface WebView2 mantém o executável aberto e impede a substituição
+    # do binário durante uma atualização. Só a encerre depois de confirmar
+    # que não há carregamento ativo; a interface será reaberta na sessão
+    # interativa após o healthcheck da nova versão.
+    Stop-TraceDesktop
 
     # O workflow de release publica tar.gz (o formato é o mesmo usado pelo
     # atualizador Linux); não tente abrir esses bytes como ZIP.
@@ -356,6 +402,7 @@ try {
     Write-AtomicTextFile $current "$($manifest.version)`n"
     Remove-Item -LiteralPath $failedMarker -Force -ErrorAction SilentlyContinue
     $rollbackRequired = $false
+    Schedule-TraceDesktopRestart
     Write-Output "Trace atualizado com sucesso para $($manifest.version). Backup: $databaseBackup"
 } catch {
     $originalError = $_
@@ -443,6 +490,7 @@ try {
     }
     throw $originalError
 } finally {
+    if ($desktopStopped -and -not $desktopRestartScheduled -and -not $keepMaintenance) { Schedule-TraceDesktopRestart }
     if ($createdMaintenance -and -not $keepMaintenance -and (Test-Path -LiteralPath $MaintenanceFile)) { Remove-Item -LiteralPath $MaintenanceFile -Force }
     if ($work -and (Test-Path -LiteralPath $work)) { Remove-Item -LiteralPath $work -Recurse -Force }
     if ($hasLock) { $Lock.ReleaseMutex() }
