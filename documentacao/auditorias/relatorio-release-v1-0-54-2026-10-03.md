@@ -16,6 +16,8 @@
 - O Central responde `status=ok`, com PHP e MySQL saudáveis, versão `v1.0.54` e o commit `de8fc35`.
 - A release contém `TraceSetup.exe`, `trace-v1.0.54.tar.gz`, `manifest.json` e `dallogix-trace-sbom.spdx.json`.
 
+O endpoint comprovado nesta publicação é `https://trace.santocloud.com.br`. O host `trece.dallogix.com` informado como domínio de produção não resolve no DNS durante esta revisão; por isso a URL ativa não foi trocada para um endereço sem DNS/HTTPS confirmado.
+
 ## Verificações automatizadas
 
 Executadas no checkout da tag publicada:
