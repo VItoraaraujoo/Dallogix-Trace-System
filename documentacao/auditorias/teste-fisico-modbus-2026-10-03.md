@@ -18,3 +18,12 @@ O teste usou Modbus TCP FC5 para escrever cada coil e FC1 para ler o retorno. O 
 As duas saídas testadas responderam ao endereço correto e retornaram ao estado `0` após o teste. O endereço `2051` não foi escrito por software; a emergência continua exclusivamente física.
 
 O gateway Trace ainda mantém a escrita física bloqueada no fluxo de produção até que esse mapa e os intertravamentos sejam formalmente incorporados ao adaptador industrial. O teste direto comprovou o transporte Modbus e as saídas da bancada, sem declarar que o botão de emergência pode ser substituído pelo software.
+
+## Repetição do teste
+
+Uma segunda execução independente repetiu os seis passos de `2049` e `2050` e obteve os mesmos frames e confirmações (`ON=1`, `OFF=0`). Na mesma execução, a leitura FC1 de `2051` retornou `0` e a leitura FC3 de `2052` retornou `0`, com respostas válidas:
+
+```text
+2051 FC1: 00010000000401010100 -> 0
+2052 FC3: 0002000000050103020000 -> 0
+```
