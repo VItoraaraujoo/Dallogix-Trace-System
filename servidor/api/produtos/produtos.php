@@ -258,17 +258,44 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
         json_response(["error" => "Produto não informado."], 422);
     }
     $find = $pdo->prepare(
-        "SELECT id FROM produtos WHERE id = :id AND company_id = :company_id LIMIT 1",
+        "SELECT p.id, p.code, p.name, p.category, p.active, p.remote_product_id,
+                COALESCE((SELECT cp.barcode FROM codigos_produtos cp
+                          WHERE cp.product_id = p.id ORDER BY cp.id LIMIT 1), '') AS barcode
+         FROM produtos p
+         WHERE p.id = :id AND p.company_id = :company_id LIMIT 1",
     );
     $find->execute(["id" => $productId, "company_id" => $usuarioAtor["company_id"]]);
-    if (!$find->fetch()) {
+    $productBeforeDelete = $find->fetch();
+    if (!$productBeforeDelete) {
         json_response(["error" => "Produto não encontrado."], 404);
     }
     try {
         $pdo->beginTransaction();
+        // Remove referências de catálogo e os itens planejados do produto.
+        // Leituras e ocorrências permanecem preservadas, sem apontar para um
+        // cadastro que deixou de existir.
         $pdo->prepare(
             "DELETE FROM codigos_produtos WHERE product_id = :id",
         )->execute(["id" => $productId]);
+        $pdo->prepare(
+            "UPDATE leituras SET product_id = NULL WHERE product_id = :id",
+        )->execute(["id" => $productId]);
+        $pdo->prepare(
+            "UPDATE ocorrencias SET product_id = NULL WHERE product_id = :id",
+        )->execute(["id" => $productId]);
+        $pdo->prepare(
+            "DELETE FROM romaneio_itens WHERE product_id = :id",
+        )->execute(["id" => $productId]);
+        // Eventos locais antigos do mesmo produto não podem reaparecer depois
+        // da exclusão. O evento de exclusão é gravado logo abaixo.
+        $pdo->prepare(
+            "DELETE FROM fila_sincronizacao
+             WHERE company_id = :company_id AND aggregate_type = 'produto'
+               AND aggregate_id = :id AND status IN ('PENDENTE', 'ERRO')",
+        )->execute([
+            "company_id" => $usuarioAtor["company_id"],
+            "id" => $productId,
+        ]);
         $pdo->prepare("DELETE FROM produtos WHERE id = :id")->execute([
             "id" => $productId,
         ]);
@@ -278,44 +305,22 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
             "PRODUTO_EXCLUIDO",
             "produto",
             $productId,
-            [],
+            [
+                "remote_product_id" => $productBeforeDelete["remote_product_id"] === null
+                    ? $productId
+                    : (int) $productBeforeDelete["remote_product_id"],
+                "code" => $productBeforeDelete["code"],
+                "name" => $productBeforeDelete["name"],
+                "category" => $productBeforeDelete["category"],
+                "active" => (int) $productBeforeDelete["active"],
+                "barcode" => $productBeforeDelete["barcode"],
+            ],
         );
         $pdo->commit();
         json_response(["data" => ["deleted" => true]]);
     } catch (PDOException $exception) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
-        }
-        if ((int) $exception->errorInfo[1] === 1451) {
-            // Produto com histórico (romaneios/carregamentos): apenas desativa para preservar o histórico.
-            $pdo->beginTransaction();
-            try {
-                $pdo->prepare(
-                    "UPDATE produtos SET active = 0 WHERE id = :id",
-                )->execute(["id" => $productId]);
-                record_operational_event(
-                    $pdo,
-                    $usuarioAtor,
-                    "PRODUTO_DESATIVADO",
-                    "produto",
-                    $productId,
-                    ["motivo" => "possui histórico vinculado"],
-                );
-                $pdo->commit();
-            } catch (Throwable $fallbackException) {
-                if ($pdo->inTransaction()) {
-                    $pdo->rollBack();
-                }
-                throw $fallbackException;
-            }
-            json_response([
-                "data" => [
-                    "deleted" => false,
-                    "deactivated" => true,
-                    "message" =>
-                    "Produto possui histórico vinculado e foi desativado.",
-                ],
-            ]);
         }
         json_response(["error" => "Não foi possível excluir o produto."], 500);
     }

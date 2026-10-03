@@ -24,7 +24,8 @@ const products = search
 <label>Código de Barras <b class="required">*</b><input name="barcode" required value="${editing ? esc((editing.barcodes || "").split(",")[0]) : ""}" /><small>Exemplo: 7898250782592.</small></label>
 <label>SKU<input name="code" value="${editing ? esc(editing.code || "") : ""}" /><small>Opcional; gerado automaticamente se ficar vazio.</small></label>
 <label>Categoria<input name="category" value="${editing ? esc(editing.category || "") : ""}" /><small>Opcional.</small></label>
-</div><div class="actions${editing ? " product-edit-actions" : ""}">${button("Salvar", "submit-product", editing ? "secondary" : "primary")}${button("Cancelar", "cancel-product", "ghost")}</div></form></section><br>`
+${editing ? `<label class="product-status-field">Status<input type="hidden" name="active" value="${Number(editing.active) ? "1" : "0"}" /><span class="product-status-control"><span class="badge ${Number(editing.active) ? "green" : "red"}">${Number(editing.active) ? "Ativo" : "Inativo"}</span>${button(Number(editing.active) ? "Desativar produto" : "Ativar produto", "toggle-product-active", "secondary", `data-id="${editing.id}" data-active="${Number(editing.active) ? "1" : "0"}"`)}</span><small>Produtos inativos não aparecem em novos romaneios.</small></label>` : ""}
+</div><div class="actions${editing ? " product-edit-actions" : ""}">${button("Salvar", "submit-product", editing ? "secondary" : "primary")}${editing ? button("Excluir produto", "delete-product-edit", "danger", `data-id="${editing.id}" data-name="${esc(editing.name)}"`) : ""}${button("Cancelar", "cancel-product", "ghost")}</div></form></section><br>`
     : "";
   return `<div class="title-row with-actions"><div><h2>Produtos</h2></div>${button(open ? "Fechar formulário" : "+ Novo produto", "toggle-product-form")}</div>
 ${form}
@@ -41,7 +42,7 @@ ${form}
 \t<td data-label="SKU">${esc(product.code || "—")}</td>
 \t<td data-label="Categoria">${esc(product.category || "—")}</td>
 \t<td data-label="Ativo"><span class="badge ${Number(product.active) ? "green" : "red"}">${Number(product.active) ? "Sim" : "Não"}</span></td>
-\t<td data-label="Ações"><div class="table-actions"><button class="text-link" data-action="edit-product" data-id="${product.id}" type="button">Editar</button><button class="text-link danger-link" data-action="delete-product" data-id="${product.id}" data-name="${esc(product.name)}" type="button">Excluir</button></div></td>
+\t<td data-label="Ações"><div class="table-actions"><button class="text-link" data-action="edit-product" data-id="${product.id}" type="button">Editar</button></div></td>
 \t</tr>`,
           )
           .join("")

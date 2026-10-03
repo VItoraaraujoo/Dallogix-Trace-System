@@ -1393,15 +1393,36 @@ function bindActions() {
         window.scrollTo({ top: 0, behavior: "smooth" });
         return;
       }
-      if (action === "delete-product") {
-        if (!confirm(`Excluir o produto "${node.dataset.name}"?`)) return;
+      if (action === "toggle-product-active") {
+        const product = (store.state.products || []).find(
+          (item) => Number(item.id) === Number(node.dataset.id),
+        );
+        if (!product) return;
+        const nextActive = node.dataset.active === "1" ? 0 : 1;
+        const productForm = document.querySelector("#product-form");
+        const raw = productForm
+          ? Object.fromEntries(new FormData(productForm))
+          : product;
         try {
-          const result = await store.deleteProduct(node.dataset.id);
-          alert(
-            result?.deactivated
-              ? "Produto possui histórico vinculado e foi desativado."
-              : "Produto excluído.",
-          );
+          await store.updateProduct({
+            id: product.id,
+            ...raw,
+            active: nextActive,
+          });
+          alert(nextActive ? "Produto ativado." : "Produto desativado.");
+          render();
+        } catch (error) {
+          alert(error.message);
+        }
+        return;
+      }
+      if (action === "delete-product-edit") {
+        if (!confirm(`Excluir o produto "${node.dataset.name}"? Os itens de romaneios vinculados serão removidos.`)) return;
+        try {
+          await store.deleteProduct(node.dataset.id);
+          alert("Produto excluído.");
+          store.state.productFormOpen = false;
+          store.state.editingProductId = null;
           render();
         } catch (error) {
           alert(error.message);

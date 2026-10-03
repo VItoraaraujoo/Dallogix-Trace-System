@@ -21,7 +21,9 @@ O sistema permanece **local-first**: o banco local é a fonte de operação e a 
 - Severidade: média
 - Local: `interface/js/telas/dalas.js`, `servidor/api/equipamentos.php`
 - Correção: o operador não recebe ações de criação, edição ou exclusão. Exclusão é permitida para os demais perfis, conforme regra de negócio definida; criação e edição ficam restritas a administradores.
-- Mitigação: exclusões continuam registradas na auditoria e bloqueadas quando há histórico vinculado.
+- Mitigação: exclusões continuam registradas na auditoria. A exclusão física do
+  produto remove seus itens planejados, desvincula leituras e ocorrências e não
+  depende de um bloqueio por histórico vinculado.
 
 ### OPS-01 — foto somente em incidente
 

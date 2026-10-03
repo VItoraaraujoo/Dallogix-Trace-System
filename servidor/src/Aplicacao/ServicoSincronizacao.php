@@ -465,7 +465,7 @@ final class ServicoSincronizacao
             return $payload;
         }
 
-        if (in_array($action, ["PRODUTO_CADASTRADO", "PRODUTO_ATUALIZADO"], true)) {
+        if (in_array($action, ["PRODUTO_CADASTRADO", "PRODUTO_ATUALIZADO", "PRODUTO_EXCLUIDO"], true)) {
             $product = $this->connection->prepare(
                 "SELECT p.code, p.name, p.category, p.active,
                         COALESCE((SELECT cp.barcode FROM codigos_produtos cp

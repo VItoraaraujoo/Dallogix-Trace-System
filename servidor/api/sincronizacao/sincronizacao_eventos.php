@@ -351,6 +351,40 @@ $upsertProduct = static function (PDO $connection, int $companyId, array $data):
     return $productId;
 };
 
+$deleteProduct = static function (PDO $connection, int $companyId, array $data, int $sourceId): int {
+    $remoteId = filter_var($data["remote_product_id"] ?? $sourceId, FILTER_VALIDATE_INT);
+    $remoteId = $remoteId !== false && $remoteId !== null && $remoteId > 0 ? (int) $remoteId : $sourceId;
+    $code = trim((string) ($data["code"] ?? ""));
+    $find = $connection->prepare(
+        $code !== ""
+            ? "SELECT id FROM produtos
+               WHERE company_id = :company_id AND code = :code LIMIT 1"
+            : "SELECT id FROM produtos
+               WHERE company_id = :company_id
+                 AND (id = :remote_id OR remote_product_id = :remote_id)
+               LIMIT 1",
+    );
+    $find->execute($code !== ""
+        ? ["company_id" => $companyId, "code" => $code]
+        : ["company_id" => $companyId, "remote_id" => $remoteId]);
+    $productId = (int) ($find->fetchColumn() ?: 0);
+    if ($productId < 1) {
+        return $remoteId;
+    }
+
+    $connection->prepare("DELETE FROM codigos_produtos WHERE product_id = :id")
+        ->execute(["id" => $productId]);
+    $connection->prepare("UPDATE leituras SET product_id = NULL WHERE product_id = :id")
+        ->execute(["id" => $productId]);
+    $connection->prepare("UPDATE ocorrencias SET product_id = NULL WHERE product_id = :id")
+        ->execute(["id" => $productId]);
+    $connection->prepare("DELETE FROM romaneio_itens WHERE product_id = :id")
+        ->execute(["id" => $productId]);
+    $connection->prepare("DELETE FROM produtos WHERE id = :id AND company_id = :company_id")
+        ->execute(["id" => $productId, "company_id" => $companyId]);
+    return $productId;
+};
+
 $upsertManifest = static function (PDO $connection, int $companyId, int $sourceManifestId, array $data) use ($installationId): array {
     $knownRemoteId = filter_var($data["remote_romaneio_id"] ?? null, FILTER_VALIDATE_INT);
     $knownRemoteId = $knownRemoteId !== false && $knownRemoteId !== null && $knownRemoteId > 0
@@ -717,6 +751,7 @@ try {
             "DALA_EXCLUIDA",
             "PRODUTO_CADASTRADO",
             "PRODUTO_ATUALIZADO",
+            "PRODUTO_EXCLUIDO",
             "ROMANEIO_CRIADO",
             "ROMANEIO_ATUALIZADO",
             "ROMANEIO_CANCELADO",
@@ -754,6 +789,10 @@ try {
 
         if (in_array($action, ["PRODUTO_CADASTRADO", "PRODUTO_ATUALIZADO"], true)) {
             $entityId = $upsertProduct($pdo, $companyId, $data);
+        }
+
+        if ($action === "PRODUTO_EXCLUIDO") {
+            $entityId = $deleteProduct($pdo, $companyId, $data, $entityId);
         }
 
         if (in_array($action, ["ROMANEIO_CRIADO", "ROMANEIO_ATUALIZADO", "ROMANEIO_CANCELADO"], true)) {
