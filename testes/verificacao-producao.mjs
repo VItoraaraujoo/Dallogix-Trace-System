@@ -50,6 +50,10 @@ printf '%s\n' "$TRACE_TEST_MYSQL_RESULT"
       env: { ...process.env, PATH: bin, TRACE_DOCKER_BIN: "", TRACE_TEST_DOCKER_ARGS: argumentLog,
         TRACE_TEST_MYSQL_RESULT: result, TRACE_TEST_MYSQL_EXIT: exitCode,
         SYNC_REMOTE_URL: "", SYNC_REMOTE_BATCH_URL: "", TRACE_CENTRAL_URL: "",
+        // O ambiente protegido pode definir perfis do Compose para a release.
+        // O fixture deve validar apenas as variáveis escritas no seu próprio
+        // arquivo, sem ativar a exigência de credenciais Node-RED.
+        COMPOSE_PROFILES: "",
         TRACE_TESTING_DISABLE_CSRF: "0", TRACE_TESTING_DISABLE_LOGIN_RATE_LIMIT: "0",
         TRACE_LOCAL_SIMULATION: "0", TRACE_SIMULATOR_ONLY_COMMANDS: "0" },
     });
