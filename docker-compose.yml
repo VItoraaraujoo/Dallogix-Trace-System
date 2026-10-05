@@ -1,3 +1,9 @@
+x-trace-logging: &trace-logging
+  driver: json-file
+  options:
+    max-size: "5m"
+    max-file: "3"
+
 services:
   nginx:
     image: cgr.dev/chainguard/nginx:latest@sha256:f5bfac85024ea2d7c16a28ac21e985c6d19a20a60ae74838f056297d44467525
@@ -9,6 +15,7 @@ services:
     pids_limit: 256
     mem_limit: 128m
     cpus: "0.50"
+    logging: *trace-logging
     tmpfs:
       - /run:rw,nosuid,nodev,size=8m,uid=65532,gid=65532,mode=0755
       - /var/lib/nginx/tmp:rw,nosuid,nodev,size=16m,uid=65532,gid=65532,mode=0755
@@ -36,6 +43,7 @@ services:
     pids_limit: 256
     mem_limit: 512m
     cpus: "1.50"
+    logging: *trace-logging
     tmpfs:
       - /tmp
     volumes:
@@ -95,10 +103,14 @@ services:
       context: ./docker/mysql
       dockerfile: Dockerfile
     restart: unless-stopped
+    logging: *trace-logging
     user: "999:999"
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    mem_limit: 512m
+    cpus: "1.00"
     tmpfs:
       - /tmp:rw,nosuid,nodev,mode=1777
       - /var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999
@@ -126,8 +138,8 @@ services:
     profiles: ["industrial"]
     image: trace-industrial-pc-node-red:5.0.7-24-minimal-patched1
     build:
-      context: .
-      dockerfile: integracoes/node-red/Dockerfile
+      context: ./integracoes/node-red
+      dockerfile: Dockerfile
     # Executa uma vez como root apenas para preparar o volume persistente
     # para o processo Node-RED (UID 1000); não possui acesso à rede.
     user: "0:0"
@@ -136,6 +148,7 @@ services:
       - >-
         if [ ! -f /data/flows.json ]; then /usr/local/bin/node -e 'const fs=require("fs"); const output="/data/flows.json"; const file="/seed/trace-clp-bridge.flow.json"; fs.writeFileSync(output, fs.readFileSync(file, "utf8"));'; fi; chown -R 1000:1000 /data
     network_mode: "none"
+    logging: *trace-logging
     volumes:
       - node_red_data:/data
       - ./integracoes/node-red:/seed:ro
@@ -144,8 +157,8 @@ services:
     profiles: ["industrial"]
     image: trace-industrial-pc-node-red:5.0.7-24-minimal-patched1
     build:
-      context: .
-      dockerfile: integracoes/node-red/Dockerfile
+      context: ./integracoes/node-red
+      dockerfile: Dockerfile
     restart: unless-stopped
     entrypoint: ["/bin/sh", "/seed/entrypoint.sh"]
     read_only: true
@@ -159,6 +172,7 @@ services:
     pids_limit: 256
     mem_limit: 512m
     cpus: "1.00"
+    logging: *trace-logging
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${NODE_RED_PORT:-1880}:1880"
     environment:
@@ -221,11 +235,7 @@ services:
       timeout: 3s
       retries: 3
       start_period: 10s
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "3"
+    logging: *trace-logging
 
   modbus-virtual:
     profiles: ["simulation"]
@@ -236,11 +246,7 @@ services:
     environment:
       MODBUS_PORT: 1502
       MODBUS_LOG_LEVEL: ${MODBUS_LOG_LEVEL:-INFO}
-    logging:
-      driver: json-file
-      options:
-        max-size: "5m"
-        max-file: "3"
+    logging: *trace-logging
     restart: unless-stopped
     read_only: true
     cap_drop: [ALL]
@@ -266,6 +272,7 @@ services:
     pids_limit: 128
     mem_limit: 256m
     cpus: "0.50"
+    logging: *trace-logging
     tmpfs:
       - /tmp
     environment:
@@ -314,6 +321,7 @@ services:
     pids_limit: 128
     mem_limit: 256m
     cpus: "0.50"
+    logging: *trace-logging
     tmpfs:
       - /tmp
     volumes:

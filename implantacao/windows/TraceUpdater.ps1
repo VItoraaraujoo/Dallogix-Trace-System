@@ -130,6 +130,7 @@ function Get-UpdateRetentionCount([string]$Name, [int]$Default) {
 }
 
 function Invoke-TraceStoragePruning([string]$CurrentVersion) {
+    Append-UpdateLog $ComposeLogPath "Retencao do atualizador iniciada para $CurrentVersion."
     $keepReleases = Get-UpdateRetentionCount 'TRACE_UPDATE_KEEP_RELEASES' 3
     $keepBackups = Get-UpdateRetentionCount 'TRACE_UPDATE_KEEP_BACKUPS' 3
     $releaseRoot = Join-Path $StateRoot 'releases'
@@ -142,9 +143,12 @@ function Invoke-TraceStoragePruning([string]$CurrentVersion) {
     foreach ($release in ($releaseDirs | Select-Object -First $keepReleases)) { $keep[$release.Name] = $true }
     $removedReleases = 0
     foreach ($release in $releaseDirs) {
-        if (-not $keep.ContainsKey($release.Name)) {
-            Remove-Item -LiteralPath $release.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        if ($keep.ContainsKey($release.Name)) { continue }
+        try {
+            Remove-Item -LiteralPath $release.FullName -Recurse -Force -ErrorAction Stop
             if (-not (Test-Path -LiteralPath $release.FullName)) { $removedReleases++ }
+        } catch {
+            Append-UpdateLog $ErrorLogPath "Falha ao remover release antiga $($release.Name): $($_.Exception.Message)"
         }
     }
     $backupFiles = @(Get-ChildItem -LiteralPath $backupRoot -File -Filter 'pre-*.tar.gz' -ErrorAction SilentlyContinue |
@@ -158,8 +162,12 @@ function Invoke-TraceStoragePruning([string]$CurrentVersion) {
     foreach ($temporary in @(Get-ChildItem -LiteralPath $StateRoot -Directory -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -like '.rollback-*' -or $_.Name -like '.staging-*' })) {
         if ($work -and $temporary.FullName -eq $work) { continue }
-        Remove-Item -LiteralPath $temporary.FullName -Recurse -Force -ErrorAction SilentlyContinue
-        if (-not (Test-Path -LiteralPath $temporary.FullName)) { $removedTemporary++ }
+        try {
+            Remove-Item -LiteralPath $temporary.FullName -Recurse -Force -ErrorAction Stop
+            if (-not (Test-Path -LiteralPath $temporary.FullName)) { $removedTemporary++ }
+        } catch {
+            Append-UpdateLog $ErrorLogPath "Falha ao remover sobra temporaria $($temporary.Name): $($_.Exception.Message)"
+        }
     }
     Append-UpdateLog $ComposeLogPath ("Retencao do atualizador: $removedReleases releases, $removedBackups backups e $removedTemporary sobras temporarias removidos; preservados $keepReleases releases e $keepBackups backups.")
 }
@@ -329,6 +337,10 @@ try {
     }
     $installedVersion = (Get-Content -LiteralPath $current -Raw).Trim()
     if ($installedVersion -notmatch '^v\d+\.\d+\.\d+$') { throw "Versao instalada invalida." }
+    # A retenção também roda quando o manifesto ainda não tem uma versão nova.
+    # Assim, instalações antigas limpam sobras na próxima execução agendada,
+    # sem depender da publicação de outra versão apenas para liberar espaço.
+    Invoke-TraceStoragePruning $installedVersion
     if ($Preflight) {
         [IO.File]::WriteAllText((Join-Path $StateRoot 'preflight-ok.txt'), (Get-Date -Format o))
         Write-Host 'Preflight: Docker Linux, chave publica, Git Bash e versao local acessiveis pela tarefa agendada.'
