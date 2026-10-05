@@ -51,6 +51,19 @@ docker_compose() {
   bash "$root_dir/scripts/docker_compose.sh" "${compose_args[@]}" "$@"
 }
 
+docker_volume() {
+  local docker_bin="${TRACE_DOCKER_BIN:-$(command -v docker || true)}"
+  [[ -n "$docker_bin" ]] || {
+    printf 'Docker não encontrado para ler o volume persistente do Node-RED.\n' >&2
+    return 1
+  }
+  if command -v sudo >/dev/null 2>&1 && sudo -n "$docker_bin" info >/dev/null 2>&1; then
+    sudo -n "$docker_bin" "$@"
+  else
+    "$docker_bin" "$@"
+  fi
+}
+
 timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
 staging_dir="$(mktemp -d "$output_dir/.snapshot-${timestamp}.XXXXXX")"
 trap 'rm -rf -- "$staging_dir"' EXIT
@@ -82,7 +95,25 @@ tar -czf "$staging_dir/storage.tar.gz" \
   --exclude=./producao-teste \
   -C "$storage_dir" .
 
-docker_compose exec -T node-red tar -czf - -C /data . > "$staging_dir/node-red-data.tar.gz"
+node_red_container="$(docker_compose ps -q node-red | tr -d '[:space:]')"
+if [[ -n "$node_red_container" ]]; then
+  docker_compose exec -T node-red tar -czf - -C /data . > "$staging_dir/node-red-data.tar.gz"
+else
+  # O Central não sobe o perfil industrial, mas o volume pode conter fluxos
+  # persistentes. Leia-o diretamente para que o snapshot não dependa de um
+  # contêiner Node-RED em execução.
+  node_red_volume="$(docker_compose config --format json | python3 -c 'import json,sys; data=json.load(sys.stdin); print(data.get("volumes", {}).get("node_red_data", {}).get("name", ""))')"
+  [[ "$node_red_volume" =~ ^[A-Za-z0-9_.-]+$ ]] || {
+    printf 'Volume persistente do Node-RED não foi identificado.\n' >&2
+    exit 1
+  }
+  node_red_mount="$(docker_volume volume inspect "$node_red_volume" --format '{{.Mountpoint}}')"
+  [[ -d "$node_red_mount" ]] || {
+    printf 'Ponto de montagem do volume Node-RED não encontrado: %s\n' "$node_red_mount" >&2
+    exit 1
+  }
+  tar -czf "$staging_dir/node-red-data.tar.gz" -C "$node_red_mount" .
+fi
 
 commit="unknown"
 if git -C "$root_dir" rev-parse --verify HEAD >/dev/null 2>&1; then
