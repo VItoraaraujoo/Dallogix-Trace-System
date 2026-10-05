@@ -1,7 +1,8 @@
-/* Estilos da tela operacao; a base responsiva é compartilhada. */
+/* Tela de operação: acompanhamento do romaneio e comandos da Dala. */
 @import url("/css/responsive.css");
 
-/* Ajustes finais da tela de operação: leitura rápida e comandos com área útil. */
+/* A tela trabalha com três blocos claros: cabeçalho, acompanhamento e controle.
+   Todas as regras ficam escopadas para não alterar as demais telas. */
 body.work-page:has(.work-operation-screen) .topbar {
   min-height: 68px;
   height: 68px;
@@ -19,25 +20,38 @@ body.work-page:has(.work-operation-screen) .topbar .local {
 }
 
 body.work-page:has(.work-operation-screen) .work-operation-screen {
-  gap: 8px;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  flex-direction: column;
+  gap: 12px;
 }
 
 body.work-page:has(.work-operation-screen) .work-screen-header {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
+  gap: 16px;
+}
+
+body.work-page:has(.work-operation-screen) .work-screen-heading {
+  min-width: 0;
+  text-align: center;
 }
 
 body.work-page:has(.work-operation-screen) .work-screen-heading h2 {
   margin: 0;
-  font-size: clamp(18px, 1.55vw, 24px);
-  line-height: 1.15;
+  color: var(--navy, #17384a);
+  font-size: clamp(22px, 2vw, 30px);
+  line-height: 1.12;
+  letter-spacing: -0.03em;
 }
 
 body.work-page:has(.work-operation-screen) .work-screen-heading p {
-  margin: 3px 0 0;
-  font-size: 12px;
+  margin: 4px 0 0;
+  color: var(--muted, #6b7785);
+  font-size: 13px;
+  line-height: 1.3;
 }
 
 body.work-page:has(.work-operation-screen) .work-header-state {
@@ -47,161 +61,386 @@ body.work-page:has(.work-operation-screen) .work-header-state {
 }
 
 body.work-page:has(.work-operation-screen) .work-screen-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
   gap: 8px;
-}
-
-body.work-page:has(.work-operation-screen) .work-screen-actions .badge {
-  font-size: 11px;
-  padding: 5px 8px;
-}
-
-body.work-page:has(.work-operation-screen) .work-header-count {
-  color: var(--muted, #6b7785);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
 }
 
 body.work-page:has(.work-operation-screen) .work-back-button {
-  min-height: 34px;
-  padding: 7px 10px;
+  min-height: 36px;
+  padding: 8px 12px;
   white-space: nowrap;
 }
 
-body.work-page:has(.work-operation-screen) .work-device-status {
-  flex: 0 0 auto;
-}
-
-body.work-page:has(.work-operation-screen) .work-device-status .status-compact {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 6px;
-  margin: 0;
-}
-
-body.work-page:has(.work-operation-screen) .work-device-status .status-compact span {
-  display: flex;
-  min-height: 26px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 6px;
-  padding: 4px 8px;
-  border: 1px solid var(--line, #dfe5eb);
-  border-radius: 7px;
-  background: var(--surface, #fff);
-  color: var(--muted, #6b7785);
-  font-size: 11px;
-  line-height: 1;
-}
-
-body.work-page:has(.work-operation-screen) .work-device-status .status-compact strong {
-  font-weight: 700;
-}
-
-body.work-page:has(.work-operation-screen) .work-device-status .status-compact b {
-  margin: 0;
-  font-size: 10px;
-  letter-spacing: 0.04em;
-}
-
-body.work-page:has(.work-operation-screen) .work-device-status .status-online {
-  color: #12834b;
-}
-
-body.work-page:has(.work-operation-screen) .work-device-status .status-offline {
-  color: #a35e00;
-}
-
 body.work-page:has(.work-operation-screen) .work-operation-layout {
-  grid-template-columns: minmax(0, 1.05fr) minmax(390px, 0.95fr);
-  grid-template-areas: "status comandos";
-  gap: 12px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  align-items: start;
+  gap: 16px;
 }
 
 body.work-page:has(.work-operation-screen) .work-status-column {
-  grid-area: status;
   display: flex;
   min-width: 0;
-  min-height: 0;
+  max-height: calc(100dvh - 150px);
   flex-direction: column;
-  gap: 8px;
-  overflow: hidden;
-}
-
-body.work-page:has(.work-operation-screen) .work-machine-panel {
-  grid-area: comandos;
-  min-height: 0;
-  padding: 16px;
-}
-
-body.work-page:has(.work-operation-screen) .work-machine-panel > .panel-heading,
-body.work-page:has(.work-operation-screen) .work-items-panel > .panel-heading {
-  margin-bottom: 8px;
-}
-
-body.work-page:has(.work-operation-screen) .work-machine-panel > .panel-heading h3 {
-  font-size: 21px;
+  gap: 12px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 body.work-page:has(.work-operation-screen) .work-live-summary {
+  display: grid;
   flex: 0 0 auto;
+  gap: 8px;
   margin: 0;
-  padding: 9px 11px;
-  border: 1px solid var(--line, #dfe5eb);
-  border-left: 3px solid var(--cyan, #1a9bc0);
-  border-radius: 8px;
-  background: var(--surface-soft, #f3f6f8);
+  padding: 14px 16px;
+  border: 1px solid #cfe1e8;
+  border-left: 4px solid var(--cyan, #1a9bc0);
+  border-radius: 12px;
+  background: #f7fbfc;
+}
+
+body.work-page:has(.work-operation-screen) .work-live-summary-heading,
+body.work-page:has(.work-operation-screen) .work-live-summary-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
 }
 
 body.work-page:has(.work-operation-screen) .work-live-summary-heading {
-  font-size: 12px;
+  color: var(--ink, #17212b);
+  font-size: 15px;
 }
 
-body.work-page:has(.work-operation-screen) .work-live-summary-heading > span {
+body.work-page:has(.work-operation-screen) .work-live-summary-heading > span,
+body.work-page:has(.work-operation-screen) .work-live-summary-foot {
+  color: var(--muted, #6b7785);
   font-size: 12px;
+  font-variant-numeric: tabular-nums;
 }
 
 body.work-page:has(.work-operation-screen) .work-live-progress {
-  height: 6px;
-  margin-top: 5px;
+  height: 8px;
+  margin: 0;
 }
 
-body.work-page:has(.work-operation-screen) .work-live-summary-foot {
-  display: flex;
-  justify-content: space-between;
-  gap: 8px;
-  margin-top: 5px;
+body.work-page:has(.work-operation-screen) .work-completion-notice {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: #7a5200;
+  background: #fff3cf;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+body.work-page:has(.work-operation-screen) .work-completion-notice.complete {
+  color: #12663c;
+  background: #e5f6ec;
+}
+
+body.work-page:has(.work-operation-screen) .work-completion-notice[hidden] {
+  display: none;
+}
+
+body.work-page:has(.work-operation-screen) .work-manual-reading {
+  display: grid;
+  grid-template-columns: minmax(0, 0.85fr) minmax(300px, 1.15fr);
+  align-items: center;
+  gap: 10px 16px;
+  padding-top: 8px;
+  border-top: 1px solid #cfe1e8;
+}
+
+body.work-page:has(.work-operation-screen) .work-manual-reading-heading {
+  min-width: 0;
+}
+
+body.work-page:has(.work-operation-screen) .work-manual-reading-heading h3,
+body.work-page:has(.work-operation-screen) .work-manual-reading-heading p,
+body.work-page:has(.work-operation-screen) .work-manual-reading-heading small {
+  margin: 0;
+}
+
+body.work-page:has(.work-operation-screen) .work-manual-reading-heading h3 {
+  font-size: 15px;
+}
+
+body.work-page:has(.work-operation-screen) .work-manual-reading-heading p,
+body.work-page:has(.work-operation-screen) .work-manual-reading-heading small {
   color: var(--muted, #6b7785);
-  font-size: 10px;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+body.work-page:has(.work-operation-screen) .manual-operation-reading-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 6px 8px;
+  min-width: 0;
+}
+
+body.work-page:has(.work-operation-screen) .manual-operation-reading-form label {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+  color: var(--muted, #6b7785);
+  font-size: 11px;
+}
+
+body.work-page:has(.work-operation-screen) .manual-operation-reading-form input,
+body.work-page:has(.work-operation-screen) .manual-operation-reading-form button {
+  min-height: 44px;
+}
+
+body.work-page:has(.work-operation-screen) .manual-operation-reading-form input {
+  font-size: 15px;
+}
+
+body.work-page:has(.work-operation-screen) .manual-operation-reading-form .form-feedback,
+body.work-page:has(.work-operation-screen) .manual-reading-blocked {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+body.work-page:has(.work-operation-screen) .manual-reading-blocked {
+  color: #76520a;
+  font-size: 11px;
+}
+
+body.work-page:has(.work-operation-screen) .work-scanner-corrections {
+  flex: 0 0 auto;
 }
 
 body.work-page:has(.work-operation-screen) .work-items-panel {
   display: flex;
   min-width: 0;
-  min-height: 0;
-  height: auto;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   flex-direction: column;
-  overflow: hidden;
-  padding: 12px;
+  height: auto;
+  margin: 0;
+  padding: 14px 16px;
+  overflow: visible;
+}
+
+body.work-page:has(.work-operation-screen) .work-items-panel > .panel-heading {
+  flex: 0 0 auto;
+  min-height: 0;
+  margin-bottom: 8px;
 }
 
 body.work-page:has(.work-operation-screen) .work-items-panel > .panel-heading h3 {
+  margin: 0;
   font-size: 18px;
 }
 
-body.work-page:has(.work-operation-screen) .work-machine-controls {
-  display: flex;
-  min-height: 0;
-  flex: 1 1 auto;
-  flex-direction: column;
+body.work-page:has(.work-operation-screen) .work-items-summary {
+  color: var(--muted, #6b7785);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
 }
 
-body.work-page:has(.work-operation-screen) .work-controls {
-  display: flex;
+body.work-page:has(.work-operation-screen) .work-items-summary strong {
+  color: var(--ink, #17212b);
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-list {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 0;
   min-height: 0;
-  flex: 1 1 auto;
+  max-height: none;
+  overflow: visible;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-card {
+  min-width: 0;
+  padding: 12px 6px;
+  border-bottom: 1px solid var(--line, #dfe5eb);
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-card:first-child {
+  padding-top: 6px;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-card:last-child {
+  padding-bottom: 4px;
+  border-bottom: 0;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-heading,
+body.work-page:has(.work-operation-screen) .work-item-progress-values,
+body.work-page:has(.work-operation-screen) .work-item-progress-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-identity {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 10px;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-identity strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  line-height: 1.25;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-identity code {
+  flex: 0 1 auto;
+  overflow-wrap: anywhere;
+  color: var(--muted, #6b7785);
+  font-size: 11px;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-values {
+  margin: 5px 0;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-values > strong {
+  font-size: 18px;
+  font-variant-numeric: tabular-nums;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-values > strong span {
+  color: var(--muted, #6b7785);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-track {
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e9f0f3;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--cyan, #1a9bc0);
+  transition: width 240ms ease;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-foot {
+  justify-content: flex-end;
+  margin-top: 4px;
+  color: var(--muted, #6b7785);
+  font-size: 11px;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-foot > span:first-child {
+  display: none;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-panel {
+  display: flex;
+  min-width: 0;
+  align-self: start;
   flex-direction: column;
+  gap: 12px;
+  height: auto;
+  margin: 0;
+  padding: 14px;
+  overflow: visible;
+  border: 1px solid #cfe1e8;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 8px 22px rgba(16, 43, 59, 0.07);
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status-panel {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #d7e4e9;
+  border-radius: 10px;
+  background: #f7fbfc;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status-heading > span:last-child {
+  color: var(--muted, #6b7785);
+  font-size: 10px;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status-panel .status-compact {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status-panel .status-compact span {
+  display: flex;
+  min-width: 0;
+  min-height: 28px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding: 5px 7px;
+  border: 1px solid #dfe8ec;
+  border-radius: 7px;
+  background: #fff;
+  color: var(--muted, #6b7785);
+  font-size: 11px;
+  line-height: 1;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status-panel .status-compact strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status-panel .status-compact b {
+  flex: 0 0 auto;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status-panel .status-online {
+  color: #12834b;
+}
+
+body.work-page:has(.work-operation-screen) .work-device-status-panel .status-offline {
+  color: #a35e00;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-panel > .panel-heading {
+  min-height: 0;
+  margin: 0;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-panel > .panel-heading h3 {
+  margin: 3px 0 0;
+  font-size: 21px;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls,
+body.work-page:has(.work-operation-screen) .work-controls {
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  flex: 0 0 auto;
 }
 
 body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls {
@@ -209,44 +448,19 @@ body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-
   min-height: 0;
   flex: 0 0 auto;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: 8px;
 }
 
 body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls .button {
   width: 100%;
-  min-height: 64px;
+  min-width: 0;
+  min-height: 58px;
+  flex: 0 0 auto;
   justify-content: center;
-  font-size: 1rem;
+  padding: 10px 8px;
+  font-size: 14px;
   font-weight: 800;
-  margin: 0;
-}
-
-body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone {
-  display: block;
-  margin-top: 16px;
-  padding-top: 16px;
-  border-top: 1px solid var(--border, #d8e0e8);
-}
-
-body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone .button {
-  width: 100%;
-  min-height: 68px;
-  justify-content: center;
-  font-size: 1.05rem;
-  font-weight: 900;
-  margin: 0;
-}
-
-/* Os comandos são controles industriais: tamanho consistente, leitura imediata
-   e sem crescer para preencher espaços vazios do painel. */
-body.work-page:has(.work-operation-screen) .work-machine-controls {
-  display: block;
-  flex: 0 0 auto;
-}
-
-body.work-page:has(.work-operation-screen) .work-machine-controls .work-controls {
-  display: block;
-  flex: 0 0 auto;
+  text-align: center;
 }
 
 body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls .button.primary {
@@ -254,205 +468,136 @@ body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-
 }
 
 body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls .button.ghost {
-  background: #edf2f5;
   color: #142332;
   border: 1px solid #d0dce3;
+  background: #edf2f5;
 }
 
 body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls .button.secondary {
-  background: #e6f6fa;
   color: #0d6c91;
   border: 1px solid #b9dce5;
+  background: #e6f6fa;
 }
 
 body.work-page:has(.work-operation-screen) .work-machine-controls .button:disabled,
 body.work-page:has(.work-operation-screen) .work-machine-controls .button[aria-disabled="true"] {
-  background: #eef2f5;
-  border-color: #d9e1e6;
   color: #718091;
+  border-color: #d9e1e6;
+  background: #eef2f5;
   opacity: 1;
 }
 
-body.work-page:has(.work-operation-screen) .work-machine-panel .emergency-compact {
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone {
+  display: grid;
   min-height: 0;
-  padding: 20px;
-  border: 1px solid #a52f39;
-  border-radius: 12px;
-  background: linear-gradient(145deg, #7d1f25 0%, #941f2c 100%);
-  text-align: left;
-  display: block;
+  flex: 0 0 auto;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 12px;
+  border-top: 1px solid #dfe8ec;
 }
 
-body.work-page:has(.work-operation-screen) .emergency-compact h2 {
-  margin: 0;
-  font-size: clamp(24px, 2.5vw, 34px);
-  line-height: 1.08;
-}
-
-body.work-page:has(.work-operation-screen) .emergency-compact .emergency-intro p {
-  margin-top: 8px;
-}
-
-body.work-page:has(.work-operation-screen) .emergency-compact .emergency-lock-status {
-  margin: 16px 0 12px;
-  padding: 12px 14px;
-}
-
-body.work-page:has(.work-operation-screen) .emergency-compact .emergency-actions {
-  grid-template-columns: 1fr;
-}
-
-body.work-page:has(.work-operation-screen) .emergency-compact .emergency-actions .button {
-  min-height: 56px;
-}
-
-body.work-page:has(.work-operation-screen) .emergency-compact .emergency-safety-note {
-  margin-top: 14px;
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone .button {
+  width: 100%;
+  min-height: 64px;
+  justify-content: center;
+  font-size: 1rem;
+  font-weight: 900;
 }
 
 body.work-page:has(.work-operation-screen) .work-machine-panel .work-command-feedback {
-  flex: 0 0 auto;
-  margin-top: 10px;
+  margin: 0;
 }
 
-/* O cartão de itens acompanha o conteúdo; listas longas continuam rolando. */
-body.work-page:has(.work-operation-screen) .work-status-column > .work-items-panel {
-  flex: 0 1 auto;
-  align-self: flex-start;
-  max-height: 100%;
+body.work-page:has(.work-operation-screen) .work-machine-panel .emergency-compact {
+  margin: 0;
+  padding: 16px;
+  border-radius: 12px;
 }
 
-@media (min-width: 901px) and (max-width: 1180px) {
+@media (min-width: 960px) and (min-height: 680px) {
+  body.work-page:has(.work-operation-screen) {
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  body.work-page:has(.work-operation-screen) .main {
+    display: flex;
+    height: 100dvh;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  body.work-page:has(.work-operation-screen) .content {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+    max-width: none;
+    overflow: hidden;
+    padding: 12px clamp(14px, 2vw, 28px);
+  }
+
+  body.work-page:has(.work-operation-screen) #screen-root {
+    display: flex;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-operation-screen {
+    min-height: 0;
+    height: 100%;
+  }
+
   body.work-page:has(.work-operation-screen) .work-operation-layout {
-    grid-template-columns: minmax(0, 1fr) minmax(350px, 0.9fr);
+    min-height: 0;
+    flex: 1 1 auto;
   }
 }
 
-@media (max-width: 900px) {
-  body.work-page:has(.work-operation-screen) .topbar,
-  body.work-page:has(.work-operation-screen) .shell .topbar {
-    min-height: 60px;
-    height: 60px;
-    padding: 6px 10px;
+@media (max-width: 959px), (max-height: 679px) {
+  body.work-page:has(.work-operation-screen) .work-operation-layout {
+    grid-template-columns: minmax(0, 1fr);
   }
 
+  body.work-page:has(.work-operation-screen) .work-status-column {
+    max-height: none;
+    overflow: visible;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-panel {
+    order: 2;
+  }
+}
+
+@media (max-width: 620px) {
   body.work-page:has(.work-operation-screen) .work-screen-header {
     grid-template-columns: auto minmax(0, 1fr);
     align-items: start;
   }
 
+  body.work-page:has(.work-operation-screen) .work-screen-heading {
+    text-align: left;
+  }
+
   body.work-page:has(.work-operation-screen) .work-screen-actions {
     grid-column: 2;
     justify-content: flex-start;
-    flex-wrap: wrap;
   }
 
-  body.work-page:has(.work-operation-screen) .work-device-status .status-compact {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  body.work-page:has(.work-operation-screen) .work-operation-layout {
-    grid-template-columns: minmax(0, 1fr);
-    grid-template-areas: "comandos" "status";
-  }
-
-  body.work-page:has(.work-operation-screen) .work-status-column,
-  body.work-page:has(.work-operation-screen) .work-machine-panel {
-    height: auto;
-    overflow: visible;
-  }
-
-  body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls {
-    flex: 0 0 auto;
-  }
-}
-
-@media (max-width: 520px) {
-  body.work-page:has(.work-operation-screen) .work-screen-heading h2 {
-    font-size: 18px;
-  }
-
-  body.work-page:has(.work-operation-screen) .work-header-count {
-    width: 100%;
-  }
-
-  body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls {
+  body.work-page:has(.work-operation-screen) .work-manual-reading,
+  body.work-page:has(.work-operation-screen) .manual-operation-reading-form {
     grid-template-columns: minmax(0, 1fr);
   }
-}
 
-/* Cabeçalho compacto: progresso à direita e estados dos dispositivos junto à Dala. */
-body.work-page:has(.work-operation-screen) .work-header-device-status {
-  margin-top: 7px;
-}
-
-body.work-page:has(.work-operation-screen) .work-header-device-status .status-compact {
-  grid-template-columns: repeat(5, minmax(52px, 1fr));
-  gap: 5px;
-}
-
-body.work-page:has(.work-operation-screen) .work-header-device-status .status-compact span {
-  min-height: 24px;
-  padding: 3px 6px;
-  font-size: 10px;
-}
-
-body.work-page:has(.work-operation-screen) .work-screen-actions {
-  min-width: 250px;
-  align-items: stretch;
-  flex-direction: column;
-  gap: 5px;
-}
-
-body.work-page:has(.work-operation-screen) .work-header-live-summary {
-  min-width: 250px;
-  margin: 0;
-  padding: 7px 9px;
-  border-left-width: 3px;
-  border-radius: 8px;
-}
-
-body.work-page:has(.work-operation-screen) .work-header-live-summary .work-live-summary-heading {
-  font-size: 11px;
-}
-
-body.work-page:has(.work-operation-screen) .work-header-live-summary .work-live-summary-heading > span,
-body.work-page:has(.work-operation-screen) .work-header-live-summary .work-live-summary-foot {
-  font-size: 10px;
-}
-
-body.work-page:has(.work-operation-screen) .work-header-live-summary .work-live-progress {
-  height: 5px;
-  margin-top: 4px;
-}
-
-body.work-page:has(.work-operation-screen) .work-header-live-summary .work-live-summary-foot {
-  margin-top: 4px;
-}
-
-body.work-page:has(.work-operation-screen) .work-status-column > .work-manual-reading {
-  flex: 0 0 auto;
-  margin: 0;
-  padding: 8px 10px;
-  grid-template-columns: minmax(0, 1fr) minmax(270px, 0.9fr);
-}
-
-@media (max-width: 900px) {
-  body.work-page:has(.work-operation-screen) .work-screen-actions {
-    min-width: 0;
+  body.work-page:has(.work-operation-screen) .manual-operation-reading-form button {
     width: 100%;
   }
+}
 
-  body.work-page:has(.work-operation-screen) .work-header-live-summary {
-    min-width: 0;
-    width: 100%;
-  }
-
-  body.work-page:has(.work-operation-screen) .work-header-device-status .status-compact {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  body.work-page:has(.work-operation-screen) .work-status-column > .work-manual-reading {
+@media (max-width: 460px) {
+  body.work-page:has(.work-operation-screen) .work-device-status-panel .status-compact,
+  body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls {
     grid-template-columns: minmax(0, 1fr);
   }
 }

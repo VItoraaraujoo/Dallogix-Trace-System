@@ -28,7 +28,7 @@ import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
 import { manifests } from "../telas/romaneios/romaneios.js?v=202610010001";
 import { manifestView } from "../telas/romaneio/romaneio.js?v=202610010001";
-import { work } from "../telas/operacao/operacao.js?v=202610010001";
+import { work } from "../telas/operacao/operacao.js?v=202610051630";
 import { dashboard } from "../telas/painel/painel.js?v=202610010001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610010001";
 
@@ -663,7 +663,7 @@ function refreshWorkLiveView() {
     "valid-readings": numero(loaded),
     remaining: numero(remaining),
     "operational-state": rotuloEstado(store.state.operationalState),
-    "progress-percent": `${percent}% da quantidade programada`,
+    "progress-percent": `${percent}%`,
     "progress-count": `${numero(detectedBags)} / ${numero(planned)} sacas`,
   };
   Object.entries(values).forEach(([key, value]) => {
@@ -673,6 +673,20 @@ function refreshWorkLiveView() {
   });
   const progressBar = document.querySelector('[data-live="progress-bar"]');
   if (progressBar) progressBar.style.width = `${percent}%`;
+  const endNotice = document.querySelector('[data-live="end-notice"]');
+  if (endNotice) {
+    const threshold = planned > 0 ? Math.max(1, Math.ceil(planned * 0.1)) : 0;
+    const nearEnd = planned > 0 && detectedBags > 0 && remaining > 0 && remaining <= threshold;
+    const complete = planned > 0 && remaining === 0;
+    endNotice.textContent = complete
+      ? "Quantidade programada atingida. Confira as leituras finais."
+      : nearEnd
+        ? "Atenção: o romaneio está próximo do fim."
+        : "";
+    endNotice.hidden = !complete && !nearEnd;
+    endNotice.classList.toggle("complete", complete);
+    endNotice.classList.toggle("near-end", nearEnd && !complete);
+  }
   const statuses = store.state.monitoring?.dispositivos || [];
   const selectedEquipmentId = Number(store.state.equipmentId) || null;
   const statusByType = Object.fromEntries(
