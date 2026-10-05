@@ -76,14 +76,17 @@ body.work-page:has(.work-operation-screen) .work-back-button {
 
 body.work-page:has(.work-operation-screen) .work-operation-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+  grid-template-columns: minmax(0, 1.45fr) minmax(380px, 0.75fr);
   align-items: start;
   gap: 16px;
+  flex: 0 0 auto;
+  min-height: 0;
 }
 
 body.work-page:has(.work-operation-screen) .work-status-column {
   display: flex;
   min-width: 0;
+  height: auto;
   max-height: calc(100dvh - 150px);
   flex-direction: column;
   gap: 12px;
@@ -255,8 +258,10 @@ body.work-page:has(.work-operation-screen) .work-item-progress-list {
   flex: 0 0 auto;
   gap: 0;
   min-height: 0;
-  max-height: none;
-  overflow: visible;
+  max-height: calc(100dvh - 430px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 body.work-page:has(.work-operation-screen) .work-item-progress-card {
@@ -348,6 +353,7 @@ body.work-page:has(.work-operation-screen) .work-item-progress-foot > span:first
 body.work-page:has(.work-operation-screen) .work-machine-panel {
   display: flex;
   min-width: 0;
+  height: auto;
   align-self: start;
   flex-direction: column;
   gap: 12px;
@@ -384,7 +390,7 @@ body.work-page:has(.work-operation-screen) .work-device-status-heading > span:la
 
 body.work-page:has(.work-operation-screen) .work-device-status-panel .status-compact {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 6px;
   margin: 0;
 }
@@ -551,7 +557,7 @@ body.work-page:has(.work-operation-screen) .work-machine-panel .emergency-compac
 
   body.work-page:has(.work-operation-screen) .work-operation-layout {
     min-height: 0;
-    flex: 1 1 auto;
+    flex: 0 0 auto;
   }
 }
 
