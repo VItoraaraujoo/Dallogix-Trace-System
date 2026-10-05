@@ -48,9 +48,22 @@ if [[ "${WEB_BIND_ADDRESS:-}" == "0.0.0.0" || "${WEB_BIND_ADDRESS:-}" == "::" ]]
   echo "ERRO: WEB_BIND_ADDRESS não pode expor a interface pública em produção." >&2
   failures=$((failures + 1))
 fi
-if [[ "${BIND_ADDRESS:-}" == "0.0.0.0" || "${BIND_ADDRESS:-}" == "::" ]]; then
-  echo "ERRO: BIND_ADDRESS deve ficar restrito ao host local ou rede interna." >&2
+bind_address="${BIND_ADDRESS:-127.0.0.1}"
+if [[ "$bind_address" != "127.0.0.1" && "$bind_address" != "::1" ]]; then
+  echo "ERRO: BIND_ADDRESS deve ser loopback (127.0.0.1 ou ::1) em produção." >&2
   failures=$((failures + 1))
+fi
+if [[ ",${COMPOSE_PROFILES//[[:space:]]/}," == *,industrial,* ]]; then
+  node_red_user="${NODE_RED_ADMIN_USER:-}"
+  node_red_hash="${NODE_RED_ADMIN_PASSWORD_HASH:-}"
+  if [[ ! "$node_red_user" =~ ^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$ ]]; then
+    echo "ERRO: NODE_RED_ADMIN_USER precisa ter de 3 a 64 caracteres seguros." >&2
+    failures=$((failures + 1))
+  fi
+  if [[ ! "$node_red_hash" =~ ^\$2[ab]\$[0-9]{2}\$[./A-Za-z0-9]{53}$ ]]; then
+    echo "ERRO: NODE_RED_ADMIN_PASSWORD_HASH precisa ser um hash bcrypt; não use senha em texto puro." >&2
+    failures=$((failures + 1))
+  fi
 fi
 if [[ -n "${SYNC_REMOTE_URL:-}${SYNC_REMOTE_BATCH_URL:-}" && -z "${SYNC_REMOTE_TOKEN:-}" ]]; then
   echo "ERRO: SYNC_REMOTE_TOKEN é obrigatório quando a sincronização remota está configurada." >&2

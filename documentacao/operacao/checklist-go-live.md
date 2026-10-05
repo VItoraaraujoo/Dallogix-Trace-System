@@ -8,6 +8,7 @@
 - [ ] Confirmar `SESSION_SECURE=true`.
 - [ ] Confirmar `APP_URL` com HTTPS.
 - [ ] Confirmar `WEB_BIND_ADDRESS` e `BIND_ADDRESS` restritos.
+- [ ] No perfil industrial, confirmar usuário técnico e hash bcrypt do Node-RED; nunca manter senha em texto puro.
 
 ## 2. Infraestrutura e rede
 - [ ] Validar acesso local do PC industrial.
@@ -61,6 +62,6 @@
 
 ## 8. Aprovação final
 - [ ] Execução da suíte de validação concluída.
-- [ ] `bash testes/qualidade.sh` OK.
+- [ ] Suíte automatizada aprovada no checkout de origem antes da geração do pacote; testes não acompanham a entrega ao cliente.
 - [ ] Revisão final do responsável técnico.
 - [ ] Autorização para go-live registrada.

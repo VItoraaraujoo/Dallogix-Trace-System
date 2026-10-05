@@ -64,10 +64,26 @@ function trace_cleanup_report_evidence(PDO $pdo, array $loadIds, int $companyId,
     }
 }
 
-$user = require_session_user();
+$apiClient = $GLOBALS["trace_api_v1_client"] ?? null;
+$user = is_array($apiClient)
+    ? ["id" => null, "company_id" => (int) $apiClient["company_id"]]
+    : require_session_user();
+$respondJson = static function (array $payload, int $status = 200) use ($apiClient): never {
+    if (is_array($apiClient)) {
+        $message = (string) ($payload["error"] ?? "Relatório indisponível.");
+        $code = (string) ($payload["error_code"] ?? match ($status) {
+            404 => "not_found",
+            409 => "report_not_ready",
+            422 => "invalid_request",
+            default => "report_unavailable",
+        });
+        api_v1_responder_erro($code, $message, $status);
+    }
+    json_response($payload, $status);
+};
 $romaneioId = filter_var($_GET["romaneio_id"] ?? null, FILTER_VALIDATE_INT);
 if ($user["company_id"] === null || !$romaneioId) {
-    json_response(["error" => "Romaneio obrigatório."], 422);
+    $respondJson(["error" => "Romaneio obrigatório."], 422);
 }
 
 $pdo = db();
@@ -80,10 +96,10 @@ $manifest = $pdo->prepare("SELECT r.id, r.number, r.status, r.scheduled_date, r.
 $manifest->execute(["id" => $romaneioId, "company_id" => $user["company_id"]]);
 $romaneio = $manifest->fetch();
 if (!$romaneio) {
-    json_response(["error" => "Romaneio não encontrado."], 404);
+    $respondJson(["error" => "Romaneio não encontrado."], 404);
 }
 if (!in_array($romaneio["status"], ["FINALIZADO", "CANCELADO"], true)) {
-    json_response(
+    $respondJson(
         [
             "error" =>
                 "O relatório fica disponível após a finalização ou cancelamento do romaneio.",
@@ -105,36 +121,40 @@ if ($loadIds !== []) {
     );
     $pendingCaptures->execute($loadIds);
     if ((int) $pendingCaptures->fetchColumn() > 0) {
-        json_response(["error" => "Aguarde a conclusão das capturas de câmera antes de gerar o PDF."], 409);
+        $respondJson(["error" => "Aguarde a conclusão das capturas de câmera antes de gerar o PDF."], 409);
     }
 }
 $storageRoot = realpath(__DIR__ . "/../../../armazenamento");
 if ($storageRoot === false) {
-    json_response(["error" => "Armazenamento de relatórios indisponível."], 503);
+    $respondJson(["error" => "Armazenamento de relatórios indisponível."], 503);
 }
 $reportRelativeDirectory = "company_" . (int) $user["company_id"] . "/reports";
 $reportDirectory = $storageRoot . "/" . $reportRelativeDirectory;
 if (!is_dir($reportDirectory) && !mkdir($reportDirectory, 0700, true) && !is_dir($reportDirectory)) {
-    json_response(["error" => "Não foi possível preparar a pasta do relatório."], 503);
+    $respondJson(["error" => "Não foi possível preparar a pasta do relatório."], 503);
 }
 $resolvedReportDirectory = realpath($reportDirectory);
 if ($resolvedReportDirectory === false
     || !str_starts_with($resolvedReportDirectory, $storageRoot . DIRECTORY_SEPARATOR)) {
-    json_response(["error" => "Pasta do relatório inválida."], 503);
+    $respondJson(["error" => "Pasta do relatório inválida."], 503);
 }
 $reportRelativePath = $reportRelativeDirectory . "/romaneio-" . (int) $romaneioId . "-auditoria.pdf";
 $reportPath = $resolvedReportDirectory . DIRECTORY_SEPARATOR . basename($reportRelativePath);
 if (is_link($reportPath)) {
-    json_response(["error" => "Destino do relatório inválido."], 503);
+    $respondJson(["error" => "Destino do relatório inválido."], 503);
 }
 $savedReport = trace_image_storage_path($storageRoot, $reportRelativePath);
 if ($savedReport !== null) {
     $savedPdf = file_get_contents($savedReport);
     if (!is_string($savedPdf) || !str_starts_with($savedPdf, "%PDF-")) {
-        json_response(["error" => "O PDF salvo está inválido; as evidências foram preservadas."], 503);
+        $respondJson(["error" => "O PDF salvo está inválido; as evidências foram preservadas."], 503);
     }
     trace_cleanup_report_evidence($pdo, $loadIds, (int) $user["company_id"], $storageRoot);
-    record_operational_event($pdo, $user, "RELATORIO_AUDITORIA_BAIXADO", "romaneio", (int) $romaneioId, []);
+    if (is_array($apiClient)) {
+        api_v1_registrar_download_pdf($pdo, $apiClient, (int) $romaneioId);
+    } else {
+        record_operational_event($pdo, $user, "RELATORIO_AUDITORIA_BAIXADO", "romaneio", (int) $romaneioId, []);
+    }
     header_remove("Content-Type");
     header("Content-Type: application/pdf");
     header(
@@ -337,10 +357,14 @@ if (file_put_contents($temporaryReportPath, $pdfBytes, LOCK_EX) !== strlen($pdfB
     if (is_file($temporaryReportPath)) {
         unlink($temporaryReportPath);
     }
-    json_response(["error" => "Não foi possível salvar o PDF final no servidor; as evidências foram preservadas."], 503);
+    $respondJson(["error" => "Não foi possível salvar o PDF final no servidor; as evidências foram preservadas."], 503);
 }
 trace_cleanup_report_evidence($pdo, $loadIds, (int) $user["company_id"], $storageRoot);
-record_operational_event($pdo, $user, "RELATORIO_AUDITORIA_BAIXADO", "romaneio", (int) $romaneioId, []);
+if (is_array($apiClient)) {
+    api_v1_registrar_download_pdf($pdo, $apiClient, (int) $romaneioId);
+} else {
+    record_operational_event($pdo, $user, "RELATORIO_AUDITORIA_BAIXADO", "romaneio", (int) $romaneioId, []);
+}
 header_remove("Content-Type");
 header("Content-Type: application/pdf");
 header(

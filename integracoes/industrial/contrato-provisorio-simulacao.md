@@ -41,7 +41,7 @@ O arquivo [`clp-provisorio-ss2.il`](./clp-provisorio-ss2.il) contém instruçõe
 | Limite indicado | `M10`, `M13`, `M14` | `M100=0` |
 | Comunicação indicada como perdida | `M10` | `M100=0`, `M104=1` |
 
-Execute também `node --test testes/clp-provisorio-ss2.mjs`: esse teste local interpreta o subconjunto de IL usado no arquivo e verifica as 64 combinações possíveis das seis entradas. **Ele não substitui a compilação e a execução no ISPSoft.** Os bits `M` deste programa não são os endereços do servidor Modbus Docker nem os bits do CLP de produção.
+No checkout do repositório de desenvolvimento, `node --test testes/clp-provisorio-ss2.mjs` interpreta o subconjunto de IL usado no arquivo e verifica as 64 combinações possíveis das seis entradas. Esse teste e a pasta `testes/` não acompanham o pacote de cliente. **O teste não substitui a compilação e a execução no ISPSoft.** Os bits `M` deste programa não são os endereços do servidor Modbus Docker nem os bits do CLP de produção.
 
 ## O que existe hoje
 
@@ -56,7 +56,7 @@ Na simulação local, `127.0.0.1:1502` expõe `sack_sensor` como entrada discret
 
 ## Cenários automatizados agora
 
-Execute `node --test testes/clp-provisorio-simulacao.mjs` na raiz do repositório. O teste lê o motor real do fluxo Node-RED, executa as ações em memória e verifica:
+No checkout do repositório de desenvolvimento, `node --test testes/clp-provisorio-simulacao.mjs` lê o motor real do fluxo Node-RED, executa as ações em memória e verifica. A suíte automatizada não acompanha o pacote de cliente:
 
 1. partida e contagem somente no estado de carregamento;
 2. pausa após produto incorreto ou ausência de leitura;

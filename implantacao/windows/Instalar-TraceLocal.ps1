@@ -44,10 +44,99 @@ function Read-EnvValues([string]$Path) {
             if ($values.ContainsKey($key)) {
                 throw "O arquivo .env contem a variavel $key mais de uma vez. Corrija antes de continuar."
             }
-            $values[$key] = $matches[2]
+            $values[$key] = $matches[2].Trim().Trim('"').Trim("'")
         }
     }
     return $values
+}
+
+function Set-EnvValue([string]$Path, [string]$Key, [string]$Value) {
+    $lines = New-Object 'System.Collections.Generic.List[string]'
+    $found = $false
+    foreach ($line in [System.IO.File]::ReadAllLines($Path)) {
+        if ($line -match "^$([regex]::Escape($Key))=") {
+            if ($found) { throw "O arquivo .env contem a variavel $Key mais de uma vez. Corrija antes de continuar." }
+            $lines.Add("$Key='$Value'")
+            $found = $true
+        } else {
+            $lines.Add([string]$line)
+        }
+    }
+    if (-not $found) { $lines.Add("$Key='$Value'") }
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    [System.IO.File]::WriteAllLines($Path, $lines, $utf8)
+}
+
+function ConvertFrom-SecureStringToPlainText([System.Security.SecureString]$Value) {
+    $pointer = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($Value)
+    try {
+        return [Runtime.InteropServices.Marshal]::PtrToStringBSTR($pointer)
+    } finally {
+        [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($pointer)
+    }
+}
+
+function Ensure-NodeRedAdminAuth([string]$EnvPath, [hashtable]$Values) {
+    $username = [string]$Values['NODE_RED_ADMIN_USER']
+    if ($username -notmatch '^[A-Za-z0-9][A-Za-z0-9._-]{2,63}$') {
+        throw "NODE_RED_ADMIN_USER deve ter de 3 a 64 caracteres seguros."
+    }
+    $hash = [string]$Values['NODE_RED_ADMIN_PASSWORD_HASH']
+    if ($hash -and $hash -notmatch '^\$2[ab]\$\d{2}\$[./A-Za-z0-9]{53}$') {
+        throw "NODE_RED_ADMIN_PASSWORD_HASH inválido. Informe um hash bcrypt, nunca a senha em texto puro."
+    }
+    if ($hash) {
+        Set-EnvValue $EnvPath 'NODE_RED_ADMIN_PASSWORD_HASH' $hash
+        $Values['NODE_RED_ADMIN_PASSWORD_HASH'] = $hash
+        return
+    }
+
+    Write-Host "O perfil industrial exige uma senha administrativa do Node-RED."
+    Write-Host "Use uma senha com pelo menos 15 caracteres e guarde-a no gerenciador de credenciais técnico."
+    $securePassword = Read-Host "Senha do usuário $username" -AsSecureString
+    $secureConfirmation = Read-Host "Confirme a senha do Node-RED" -AsSecureString
+    $plainPassword = $null
+    $confirmation = $null
+    try {
+        if ($securePassword.Length -lt 15) {
+            throw "A senha do Node-RED precisa ter pelo menos 15 caracteres."
+        }
+        $plainPassword = ConvertFrom-SecureStringToPlainText $securePassword
+        $confirmation = ConvertFrom-SecureStringToPlainText $secureConfirmation
+        if (-not [string]::Equals($plainPassword, $confirmation, [StringComparison]::Ordinal)) {
+            throw "As senhas não conferem. Execute o instalador novamente."
+        }
+        if ([System.Text.Encoding]::UTF8.GetByteCount($plainPassword) -gt 72) {
+            throw "A senha do Node-RED deve ter no máximo 72 bytes em UTF-8 para evitar truncamento pelo bcrypt."
+        }
+
+        Write-Host "Preparando o gerador bcrypt local; a senha não será gravada nem exibida."
+        & docker.exe compose --profile industrial build node-red
+        Assert-Success "Preparação do Node-RED para gerar o hash" $LASTEXITCODE
+        $env:NODE_RED_ADMIN_PASSWORD = $plainPassword
+        $hashOutput = & docker.exe compose --profile industrial run --rm --no-deps `
+            -e NODE_RED_ADMIN_PASSWORD --entrypoint node node-red `
+            -e "console.log(require('bcryptjs').hashSync(process.env.NODE_RED_ADMIN_PASSWORD, 12))" 2>&1
+        $hashExitCode = $LASTEXITCODE
+        if ($hashExitCode -ne 0) {
+            $diagnostic = ($hashOutput | Out-String).Trim()
+            throw "Não foi possível gerar o hash bcrypt do Node-RED (código $hashExitCode). $diagnostic"
+        }
+        $hash = [string]($hashOutput | Where-Object { [string]$_ -match '^\$2[ab]\$12\$[./A-Za-z0-9]{53}$' } | Select-Object -Last 1)
+        if (-not $hash) {
+            throw "O gerador do Node-RED não retornou um hash bcrypt válido. Nenhum serviço industrial foi iniciado."
+        }
+    } finally {
+        Remove-Item Env:NODE_RED_ADMIN_PASSWORD -ErrorAction SilentlyContinue
+        $plainPassword = $null
+        $confirmation = $null
+        $securePassword.Dispose()
+        $secureConfirmation.Dispose()
+    }
+
+    Set-EnvValue $EnvPath 'NODE_RED_ADMIN_PASSWORD_HASH' $hash
+    $Values['NODE_RED_ADMIN_PASSWORD_HASH'] = $hash
+    Write-Host "Hash bcrypt salvo no .env; a senha em texto puro foi descartada."
 }
 
 function Ensure-EnvDefaults([string]$Path, [hashtable]$Defaults) {
@@ -259,6 +348,8 @@ try {
         TRACE_MODBUS_UNIT_ID = '1'
         TRACE_MODBUS_HEARTBEAT_FUNCTION = '3'
         TRACE_MODBUS_HEARTBEAT_REGISTER = '2052'
+        NODE_RED_ADMIN_USER = 'trace-admin'
+        NODE_RED_ADMIN_PASSWORD_HASH = ''
     }
     $values = Read-EnvValues $envPath
     foreach ($key in @("MYSQL_PASSWORD", "MYSQL_ROOT_PASSWORD", "TRACE_DEVICE_TOKEN", "CAMERA_DEVICE_TOKEN", "TRACE_CENTRAL_URL")) {
@@ -308,6 +399,9 @@ try {
     }
 
     Set-Location -LiteralPath $PackageRoot
+    if ($values.ContainsKey('COMPOSE_PROFILES') -and $values['COMPOSE_PROFILES'] -match '(^|,)industrial(,|$)') {
+        Ensure-NodeRedAdminAuth $envPath $values
+    }
     & docker.exe compose config --quiet
     Assert-Success "Configuracao do Docker Compose" $LASTEXITCODE
 

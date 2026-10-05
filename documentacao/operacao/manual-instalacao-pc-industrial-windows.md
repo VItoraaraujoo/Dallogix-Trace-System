@@ -38,6 +38,11 @@ para trocar o antigo código de ativação por um token aleatório de sincroniza
 
 Mantenha `WEB_BIND_ADDRESS=127.0.0.1` e `BIND_ADDRESS=127.0.0.1`. Assim a interface, MySQL e serviços técnicos não ficam expostos na rede industrial.
 
+Na primeira instalação com o perfil industrial, o instalador solicita uma senha
+forte para o editor administrativo do Node-RED e guarda somente seu hash bcrypt
+no `.env`. Registre a senha no gerenciador de credenciais da equipe técnica;
+ela não é exibida novamente. O editor continua limitado ao próprio PC.
+
 Defina os perfis conforme o uso:
 
 ```dotenv

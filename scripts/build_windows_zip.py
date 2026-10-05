@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Cria o ZIP de homologacao com o commit necessario para atualizacoes Git."""
+"""Cria o ZIP de homologacao sem fixtures, seeds nem documentacao interna."""
 
 from __future__ import annotations
 
@@ -31,7 +31,27 @@ def main() -> int:
         except subprocess.CalledProcessError as error:
             raise SystemExit(f"O commit {commit[:7]} nao contem {required}.") from error
     output = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else ROOT / f"DallogixTrace-PC-Windows-{commit[:7]}.zip"
-    archive = git("archive", "--format=zip", "--prefix=DallogixTrace/", commit)
+    archive = git(
+        "archive",
+        "--format=zip",
+        "--prefix=DallogixTrace/",
+        commit,
+        "--",
+        ".",
+        ":(exclude)testes/**",
+        ":(exclude)documentacao/testes/**",
+        ":(exclude)documentacao/auditorias/**",
+        ":(exclude)banco-de-dados/seeds/**",
+        ":(exclude)documentacao/operacao/teste-producao-local.md",
+        ":(exclude)documentacao/operacao/simulador-clp.md",
+        ":(exclude)documentacao/operacao/plano-entrega-producao.md",
+        ":(exclude)documentacao/operacao/plano-execucao-consolidado.md",
+        ":(exclude)documentacao/arquitetura/plano-ajuste-geral.md",
+        ":(exclude)documentacao/historico-projeto-dallogix-trace.md",
+        ":(exclude)documentacao/prompt-mestre-dallogix-trace.md",
+        ":(exclude)documentacao/revisao-codigo-desempenho.md",
+        ":(exclude)scripts/simulate_clp.sh",
+    )
     with zipfile.ZipFile(io.BytesIO(archive)) as source, zipfile.ZipFile(output, "w", zipfile.ZIP_DEFLATED) as target:
         for member in source.infolist():
             target.writestr(member, source.read(member))

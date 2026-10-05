@@ -176,9 +176,12 @@ services:
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${NODE_RED_PORT:-1880}:1880"
     environment:
+      APP_ENV: ${APP_ENV:-local}
       TRACE_API_URL: ${TRACE_API_URL:-http://nginx}
       TRACE_DEVICE_TOKEN: ${TRACE_DEVICE_TOKEN:?TRACE_DEVICE_TOKEN é obrigatório}
       TRACE_INSTALLATION_MODE: ${TRACE_INSTALLATION_MODE:-}
+      NODE_RED_ADMIN_USER: ${NODE_RED_ADMIN_USER:-}
+      NODE_RED_ADMIN_PASSWORD_HASH: ${NODE_RED_ADMIN_PASSWORD_HASH:-}
       TRACE_LOCAL_SIMULATION: ${TRACE_LOCAL_SIMULATION:-0}
       TRACE_SIMULATOR_ONLY_COMMANDS: ${TRACE_SIMULATOR_ONLY_COMMANDS:-0}
       TRACE_MODBUS_UNIT_ID: ${TRACE_MODBUS_UNIT_ID:-1}
@@ -188,7 +191,7 @@ services:
       - node_red_data:/data
       - ./integracoes/node-red:/seed:ro
     healthcheck:
-      test: ["CMD", "wget", "--spider", "--quiet", "http://127.0.0.1:1880"]
+      test: ["CMD", "node", "-e", "const net=require('node:net');const socket=net.connect(1880,'127.0.0.1',()=>{socket.end();process.exit(0)});socket.setTimeout(3000,()=>process.exit(1));socket.on('error',()=>process.exit(1));"]
       interval: 10s
       timeout: 5s
       retries: 10

@@ -15,8 +15,9 @@ A reversão e as ações configuráveis por Dala usam uma fila própria para o g
 ## Instalação limpa e ambiente de desenvolvimento
 
 A instalação do PC industrial começa sem empresa, usuário, produto ou Dala de
-demonstração. O seed `banco-de-dados/seeds/001_local_seed.sql` é exclusivo de
-testes isolados. Não o execute no banco de homologação ou produção.
+demonstração. O seed de dados demonstrativos é exclusivo de testes isolados,
+fica no repositório de desenvolvimento e não acompanha o pacote de cliente.
+Não o execute no banco de homologação ou produção.
 Cada PC industrial aceita uma Dala local. Se uma empresa possuir várias Dalas
 no servidor central, a sincronização deste PC fica bloqueada até existir um
 vínculo explícito instalação ↔ Dala; o sistema não escolhe uma automaticamente.
@@ -90,8 +91,8 @@ O serviço `sync-worker` reserva eventos em lotes, envia com timeout e backoff e
 
 O horário da aplicação segue o relógio do PC industrial quando a internet está indisponível. Com conexão, `/api/relogio.php` consulta o servidor central e a interface aplica somente a diferença de horário enquanto a conexão permanecer disponível; ao perder a conexão, volta imediatamente ao relógio do PC. O Trace não altera o relógio do Windows ou do macOS. Para registros persistidos, a instalação local continua usando o horário local offline e o servidor central usa o próprio horário ao receber os eventos.
 
-O relatório da última homologação, com o esperado e o resultado observado em
-cada fluxo, está em [homologação completa de 17/09/2026](documentacao/testes/homologacao-2026-09-17.md).
+Os registros detalhados de homologação ficam no repositório técnico e não são
+incluídos no pacote de cliente.
 
 O [histórico de alterações](CHANGELOG.md) lista mudanças a partir desta
 formalização; as decisões de hardware e hospedagem permanecem pendentes até
@@ -206,8 +207,10 @@ A regra completa está em [documentacao/arquitetura/convensao-nomenclatura.md](d
 
 ## Qualidade e arquitetura
 
-O padrão de camadas e as regras para novas alterações estão em [documentacao/arquitetura/padrao-desenvolvimento.md](documentacao/arquitetura/padrao-desenvolvimento.md). Antes de alterar o sistema, execute:
+O padrão de camadas e as regras para novas alterações estão em [documentacao/arquitetura/padrao-desenvolvimento.md](documentacao/arquitetura/padrao-desenvolvimento.md). No checkout do repositório de desenvolvimento, execute a suíte antes de gerar a entrega:
 
 ```bash
 bash testes/qualidade.sh
 ```
+
+Os testes automatizados não são incluídos nos pacotes destinados ao cliente.

@@ -28,10 +28,11 @@ Confirme em bancada o mapa de I/O, IP, porta TCP, unit ID, estado, emergência, 
 
 ## Operação
 
+Os testes automatizados devem ser executados no checkout de origem antes de
+gerar o pacote de cliente; a pasta `testes/` não acompanha a entrega.
+
 ```bash
 docker compose up -d --build
-bash testes/qualidade.sh
-bash testes/regressao_completa.sh
 python3 scripts/test_modbus_virtual.py
 bash scripts/backup_db.sh armazenamento/backups
 

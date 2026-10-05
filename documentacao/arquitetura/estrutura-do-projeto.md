@@ -12,7 +12,7 @@ O TRACE é organizado para operar no PC industrial, sem internet, com o CLP como
 | `banco-de-dados/`         | Migrations e dados iniciais do MySQL local.                                                              |
 | `integracoes/`            | Contratos, mapa de registradores e fluxo do Node-RED.                                                    |
 | `armazenamento/`          | Imagens e evidências do ambiente industrial; não deve ser versionado.                                    |
-| `testes/`                 | Testes de API, regras de negócio, permissões e qualidade.                                                |
+| `testes/`                 | Testes de API, regras de negócio, permissões e qualidade; permanece apenas no repositório de desenvolvimento. |
 | `documentacao/`           | Arquitetura, decisões, operação, auditorias e pendências.                                                |
 
 ## Limites de responsabilidade

@@ -1,5 +1,29 @@
 # Node-RED local
 
+## Acesso administrativo
+
+O editor e a Admin API exigem autenticação. Configure no `.env` um usuário
+técnico e `NODE_RED_ADMIN_PASSWORD_HASH` com o hash bcrypt da senha, nunca a
+senha em texto puro. No instalador Windows de um PC industrial, o hash é
+provisionado durante a instalação quando ainda estiver vazio. Em outras
+instalações, gere o hash com os comandos abaixo e grave-o entre aspas simples
+no `.env`. Use uma senha com pelo menos 15 caracteres e no máximo 72 bytes em
+UTF-8. Exemplo:
+
+```sh
+docker compose --profile industrial build node-red
+docker compose --profile industrial run --rm --no-deps --entrypoint node-red node-red admin hash-pw
+```
+
+```dotenv
+NODE_RED_ADMIN_USER=trace-admin
+NODE_RED_ADMIN_PASSWORD_HASH='$2b$12$...'
+```
+
+O serviço falha ao iniciar se o usuário ou o hash estiver ausente/inválido.
+Em produção, `BIND_ADDRESS` precisa ser `127.0.0.1` ou `::1`; mantenha o
+editor fora da rede do cliente e use uma conta técnica para manutenção.
+
 ## Fluxo de referência
 
 O arquivo `trace-clp-bridge.flow.json` pode ser importado no Node-RED local. Ele contém somente nós nativos e começa em modo seguro:

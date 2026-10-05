@@ -30,7 +30,7 @@
 - Preparar rollback com backup do banco e imagem/manifesto de atualização.
 
 ## 6. Validação final
-- Rodar `bash testes/qualidade.sh`.
+- Confirmar que `bash testes/qualidade.sh` passou no checkout de origem antes de gerar o pacote de cliente; a pasta de testes não acompanha a entrega.
 - Rodar `bash scripts/check_production_env.sh` com o `.env` de produção final.
 - Confirmar que a API responde corretamente e que o front-end acessa a aplicação esperada.
 

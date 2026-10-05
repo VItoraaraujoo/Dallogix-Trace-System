@@ -17,4 +17,4 @@ if [ -n "${FLOWS:-}" ]; then
     set -- "$FLOWS" "$@"
 fi
 
-exec /usr/local/bin/node ${NODE_OPTIONS:-} node_modules/node-red/red.js --userDir /data "$@"
+exec /usr/local/bin/node ${NODE_OPTIONS:-} node_modules/node-red/red.js --userDir /data --settings /seed/settings.js "$@"

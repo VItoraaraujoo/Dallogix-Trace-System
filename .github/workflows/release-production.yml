@@ -143,7 +143,20 @@ jobs:
           COMMIT: ${{ steps.release.outputs.commit }}
         run: |
           mkdir -p dist/stage
-          git archive --format=tar "$COMMIT" | tar -xf - -C dist/stage
+          git archive --format=tar "$COMMIT" -- . \
+            ':(exclude)testes/**' \
+            ':(exclude)documentacao/testes/**' \
+            ':(exclude)documentacao/auditorias/**' \
+            ':(exclude)banco-de-dados/seeds/**' \
+            ':(exclude)documentacao/operacao/teste-producao-local.md' \
+            ':(exclude)documentacao/operacao/simulador-clp.md' \
+            ':(exclude)documentacao/operacao/plano-entrega-producao.md' \
+            ':(exclude)documentacao/operacao/plano-execucao-consolidado.md' \
+            ':(exclude)documentacao/arquitetura/plano-ajuste-geral.md' \
+            ':(exclude)documentacao/historico-projeto-dallogix-trace.md' \
+            ':(exclude)documentacao/prompt-mestre-dallogix-trace.md' \
+            ':(exclude)documentacao/revisao-codigo-desempenho.md' \
+            ':(exclude)scripts/simulate_clp.sh' | tar -xf - -C dist/stage
           php scripts/version_assets.php "$COMMIT" dist/stage
           cp -a dist/windows-runtime/. dist/stage/
           printf '%s\n' "$VERSION" > dist/stage/trace-build-version.txt

@@ -1,0 +1,173 @@
+openapi: 3.1.0
+info:
+  title: Dallogix Trace API
+  version: 1.0.0
+  description: API externa de consulta do Dallogix Trace. Os dados são limitados à empresa vinculada à chave.
+servers:
+  - url: https://SEU_DOMINIO_CENTRAL/api/v1
+security:
+  - bearerAuth: []
+paths:
+  /empresa:
+    get:
+      operationId: obterEmpresa
+      summary: Consultar a empresa vinculada à chave
+      responses:
+        '200':
+          description: Empresa autorizada
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      id: { type: integer }
+                      name: { type: string }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /romaneios:
+    get:
+      operationId: listarRomaneios
+      summary: Listar romaneios
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+        - name: status
+          in: query
+          schema: { type: string, enum: [IMPORTADO, AGUARDANDO, EM_ANDAMENTO, FINALIZADO, CANCELADO] }
+        - name: date_from
+          in: query
+          schema: { type: string, format: date }
+        - name: date_to
+          in: query
+          schema: { type: string, format: date }
+      responses:
+        '200': { $ref: '#/components/responses/Paginated' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /romaneios/{id}:
+    get:
+      operationId: obterRomaneio
+      summary: Consultar romaneio, itens e caminhões
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200': { $ref: '#/components/responses/Record' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /romaneios/{id}/relatorio.pdf:
+    get:
+      operationId: baixarRelatorioRomaneio
+      summary: Gerar ou baixar o relatório PDF do romaneio
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200':
+          description: Relatório de auditoria em PDF
+          content:
+            application/pdf:
+              schema: { type: string, format: binary }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /carregamentos:
+    get:
+      operationId: listarCarregamentos
+      summary: Listar carregamentos
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+        - name: state
+          in: query
+          schema: { type: string, enum: [AGUARDANDO, PREPARANDO, CARREGANDO, PAUSADO, FINALIZANDO, FINALIZADO, EMERGENCIA] }
+      responses:
+        '200': { $ref: '#/components/responses/Paginated' }
+  /carregamentos/{id}:
+    get:
+      operationId: obterCarregamento
+      summary: Consultar carregamento
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+      responses:
+        '200': { $ref: '#/components/responses/Record' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /carregamentos/{id}/leituras:
+    get:
+      operationId: listarLeituras
+      summary: Listar leituras de um carregamento
+      parameters:
+        - { $ref: '#/components/parameters/Id' }
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200': { $ref: '#/components/responses/Paginated' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /equipamentos:
+    get:
+      operationId: listarEquipamentos
+      summary: Listar equipamentos e estado da comunicação do CLP
+      description: ONLINE indica comunicação recente, não confirma movimento físico.
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200': { $ref: '#/components/responses/Paginated' }
+  /ocorrencias:
+    get:
+      operationId: listarOcorrencias
+      summary: Listar ocorrências
+      parameters:
+        - { $ref: '#/components/parameters/Limit' }
+        - { $ref: '#/components/parameters/Cursor' }
+      responses:
+        '200': { $ref: '#/components/responses/Paginated' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Trace API key
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema: { type: integer, minimum: 1 }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 100, default: 50 }
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: integer, minimum: 0, default: 0 }
+  responses:
+    Paginated:
+      description: Página de registros
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data: { type: array, items: { type: object, additionalProperties: true } }
+              pagination:
+                type: object
+                properties:
+                  limit: { type: integer }
+                  next_cursor: { type: [string, 'null'] }
+                  has_more: { type: boolean }
+    Record:
+      description: Registro encontrado
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              data: { type: object, additionalProperties: true }
+    Unauthorized:
+      description: Chave ausente ou inválida
+    Forbidden:
+      description: Escopo insuficiente
+    NotFound:
+      description: Registro inexistente ou fora da empresa autorizada
+    Conflict:
+      description: Relatório ainda não disponível
