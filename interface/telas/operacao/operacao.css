@@ -240,6 +240,13 @@ body.work-page:has(.work-operation-screen) .work-machine-panel .work-command-fee
   margin-top: 10px;
 }
 
+/* O cartão de itens acompanha o conteúdo; listas longas continuam rolando. */
+body.work-page:has(.work-operation-screen) .work-status-column > .work-items-panel {
+  flex: 0 1 auto;
+  align-self: flex-start;
+  max-height: 100%;
+}
+
 @media (min-width: 901px) and (max-width: 1180px) {
   body.work-page:has(.work-operation-screen) .work-operation-layout {
     grid-template-columns: minmax(0, 1fr) minmax(350px, 0.9fr);
@@ -295,6 +302,82 @@ body.work-page:has(.work-operation-screen) .work-machine-panel .work-command-fee
   }
 
   body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Cabeçalho compacto: progresso à direita e estados dos dispositivos junto à Dala. */
+body.work-page:has(.work-operation-screen) .work-header-device-status {
+  margin-top: 7px;
+}
+
+body.work-page:has(.work-operation-screen) .work-header-device-status .status-compact {
+  grid-template-columns: repeat(5, minmax(52px, 1fr));
+  gap: 5px;
+}
+
+body.work-page:has(.work-operation-screen) .work-header-device-status .status-compact span {
+  min-height: 24px;
+  padding: 3px 6px;
+  font-size: 10px;
+}
+
+body.work-page:has(.work-operation-screen) .work-screen-actions {
+  min-width: 250px;
+  align-items: stretch;
+  flex-direction: column;
+  gap: 5px;
+}
+
+body.work-page:has(.work-operation-screen) .work-header-live-summary {
+  min-width: 250px;
+  margin: 0;
+  padding: 7px 9px;
+  border-left-width: 3px;
+  border-radius: 8px;
+}
+
+body.work-page:has(.work-operation-screen) .work-header-live-summary .work-live-summary-heading {
+  font-size: 11px;
+}
+
+body.work-page:has(.work-operation-screen) .work-header-live-summary .work-live-summary-heading > span,
+body.work-page:has(.work-operation-screen) .work-header-live-summary .work-live-summary-foot {
+  font-size: 10px;
+}
+
+body.work-page:has(.work-operation-screen) .work-header-live-summary .work-live-progress {
+  height: 5px;
+  margin-top: 4px;
+}
+
+body.work-page:has(.work-operation-screen) .work-header-live-summary .work-live-summary-foot {
+  margin-top: 4px;
+}
+
+body.work-page:has(.work-operation-screen) .work-status-column > .work-manual-reading {
+  flex: 0 0 auto;
+  margin: 0;
+  padding: 8px 10px;
+  grid-template-columns: minmax(0, 1fr) minmax(270px, 0.9fr);
+}
+
+@media (max-width: 900px) {
+  body.work-page:has(.work-operation-screen) .work-screen-actions {
+    min-width: 0;
+    width: 100%;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-header-live-summary {
+    min-width: 0;
+    width: 100%;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-header-device-status .status-compact {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  body.work-page:has(.work-operation-screen) .work-status-column > .work-manual-reading {
     grid-template-columns: minmax(0, 1fr);
   }
 }
