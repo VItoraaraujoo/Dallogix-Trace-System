@@ -66,7 +66,13 @@ export function emergencyPanel({
     "aria-disabled": "true",
     title: "Bloqueado enquanto a emergência estiver ativa",
   });
-  return `<section class="emergency${compact ? " emergency-compact" : ""}" aria-live="assertive"><span class="kicker">Solicitação de emergência</span><h2>Operação bloqueada</h2><p>Estado lógico do Trace: <strong>${esc(loading)}</strong></p><p class="emergency-lock-status"><strong>Ligar esteira:</strong> desativado enquanto a emergência estiver ativa.</p>${disabledStart}<div class="work-command-feedback-status"><span>Retorno do gateway</span><span class="badge ${commandTone}">${esc(command)}</span></div>${commandStatus?.response_message ? `<p>${esc(commandStatus.response_message)}</p>` : ""}<p>${acknowledgement}</p>${canUnlock ? button("Liberar emergência", "unlock", "secondary", buttonAttributes) : ""}<small>A emergência permanece travada até uma liberação explícita. Esta solicitação não substitui o botão físico de emergência; confira a condição segura na máquina e no CLP antes de liberar.</small></section>`;
+  return `<section class="emergency${compact ? " emergency-compact" : ""}" aria-live="assertive">
+    <div class="emergency-intro"><span class="kicker">Solicitação de emergência</span><h2>Operação bloqueada</h2><p>Estado lógico do Trace: <strong>${esc(loading)}</strong></p></div>
+    <div class="emergency-lock-status"><strong>Esteira bloqueada</strong><span>Ligar esteira fica indisponível enquanto a emergência estiver ativa.</span></div>
+    <div class="emergency-actions">${disabledStart}${canUnlock ? button("Liberar emergência", "unlock", "secondary", buttonAttributes) : ""}</div>
+    <details class="emergency-technical"><summary>Detalhes do comando</summary><div class="work-command-feedback-status"><span>Retorno do gateway</span><span class="badge ${commandTone}">${esc(command)}</span></div>${commandStatus?.response_message ? `<p>${esc(commandStatus.response_message)}</p>` : ""}<p>${acknowledgement}</p></details>
+    <p class="emergency-safety-note">A emergência permanece travada até uma liberação explícita. A solicitação não substitui o botão físico de emergência; confira a condição segura na máquina e no CLP antes de liberar.</p>
+  </section>`;
 }
 export function progress(store) {
   const loaded = Number(store.state.loaded) || 0;

@@ -1162,17 +1162,43 @@ function bindActions() {
         try {
           const id = Number(node.dataset.id);
           if (!Number.isSafeInteger(id) || id <= 0) throw new Error("Romaneio inválido.");
-          const response = await fetch(`/api/relatorio_auditoria.php?romaneio_id=${id}`);
+          const response = await fetch(`/api/relatorio_auditoria.php?romaneio_id=${id}`, {
+            credentials: "same-origin",
+            headers: { Accept: "application/pdf, application/json" },
+          });
+          if (response.status === 401) {
+            alert("Sua sessão expirou. Entre novamente para baixar o relatório.");
+            window.location.href = pagePath("login");
+            return;
+          }
           if (!response.ok) {
-            const result = await response.json().catch(() => ({}));
+            const raw = await response.text();
+            let result = {};
+            try {
+              result = JSON.parse(raw);
+            } catch {
+              // A API deve responder JSON, mas não transforma uma resposta HTML
+              // de proxy em uma mensagem vazia para quem opera a tela.
+            }
             throw new Error(result.error || "Não foi possível baixar o relatório.");
           }
-          const url = URL.createObjectURL(await response.blob());
+          const contentType = response.headers.get("content-type") || "";
+          if (!contentType.toLowerCase().includes("application/pdf")) {
+            throw new Error("O servidor não retornou um relatório PDF válido.");
+          }
+          const blob = await response.blob();
+          if (!blob.size) throw new Error("O relatório retornou vazio.");
+          const url = URL.createObjectURL(blob);
           const link = document.createElement("a");
           link.href = url;
           link.download = `romaneio-${id}.pdf`;
+          link.hidden = true;
+          document.body.append(link);
           link.click();
-          window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+          window.setTimeout(() => {
+            link.remove();
+            URL.revokeObjectURL(url);
+          }, 60000);
         } catch (error) {
           alert(error.message || "Não foi possível baixar o relatório.");
         }

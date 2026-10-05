@@ -81,6 +81,13 @@ $respondJson = static function (array $payload, int $status = 200) use ($apiClie
     }
     json_response($payload, $status);
 };
+$reportFailure = static function (Throwable $exception) use ($respondJson): never {
+    registrar_log_erro($exception, "relatorio_auditoria");
+    $respondJson(
+        ["error" => "Não foi possível gerar o relatório de auditoria. As evidências foram preservadas."],
+        503,
+    );
+};
 $romaneioId = filter_var($_GET["romaneio_id"] ?? null, FILTER_VALIDATE_INT);
 if ($user["company_id"] === null || !$romaneioId) {
     $respondJson(["error" => "Romaneio obrigatório."], 422);
@@ -149,7 +156,11 @@ if ($savedReport !== null) {
     if (!is_string($savedPdf) || !str_starts_with($savedPdf, "%PDF-")) {
         $respondJson(["error" => "O PDF salvo está inválido; as evidências foram preservadas."], 503);
     }
-    trace_cleanup_report_evidence($pdo, $loadIds, (int) $user["company_id"], $storageRoot);
+    try {
+        trace_cleanup_report_evidence($pdo, $loadIds, (int) $user["company_id"], $storageRoot);
+    } catch (Throwable $exception) {
+        $reportFailure($exception);
+    }
     if (is_array($apiClient)) {
         api_v1_registrar_download_pdf($pdo, $apiClient, (int) $romaneioId);
     } else {
@@ -221,18 +232,18 @@ if ($incidentImages !== []) {
         }
         $absolutePath = trace_image_storage_path($storageRoot, $relativePath);
         if ($absolutePath === null) {
-            throw new RuntimeException("Uma evidência do romaneio não foi encontrada; o PDF não foi finalizado.");
+            $reportFailure(new RuntimeException("Uma evidência do romaneio não foi encontrada."));
         }
         $caption = (string) $image["reason"] . " · " . (string) $image["captured_at"];
         $mime = (new finfo(FILEINFO_MIME_TYPE))->file($absolutePath);
         if ($mime === "application/pdf") {
             $evidencePdf = file_get_contents($absolutePath);
             if (!is_string($evidencePdf) || !str_starts_with($evidencePdf, "%PDF-")) {
-                throw new RuntimeException("Um PDF de evidência está inválido; nenhuma captura foi removida.");
+                $reportFailure(new RuntimeException("Um PDF de evidência está inválido."));
             }
             $sourceImages = RelatorioAuditoriaPdf::extrairImagensOriginaisDoPdf($evidencePdf);
             if ($sourceImages === []) {
-                throw new RuntimeException("Um PDF de evidência não contém uma imagem recuperável.");
+                $reportFailure(new RuntimeException("Um PDF de evidência não contém uma imagem recuperável."));
             }
             foreach ($sourceImages as $sourceImage) {
                 $evidenceImages[] = ["bytes" => $sourceImage["bytes"], "mime" => $sourceImage["mime"], "caption" => $caption];
@@ -240,11 +251,11 @@ if ($incidentImages !== []) {
         } elseif (in_array($mime, ["image/jpeg", "image/png"], true)) {
             $sourceImage = file_get_contents($absolutePath);
             if (!is_string($sourceImage)) {
-                throw new RuntimeException("Não foi possível ler uma evidência do romaneio.");
+                $reportFailure(new RuntimeException("Não foi possível ler uma evidência do romaneio."));
             }
             $evidenceImages[] = ["bytes" => $sourceImage, "mime" => $mime, "caption" => $caption];
         } else {
-            throw new RuntimeException("Formato de evidência não suportado; nenhuma captura foi removida.");
+            $reportFailure(new RuntimeException("Formato de evidência não suportado."));
         }
     }
 }
@@ -346,11 +357,15 @@ if ($evidenceImages !== []) {
     $report->escreverTitulo("Evidências");
     foreach ($evidenceImages as $image) {
         if (!$report->inserirDadosDaImagemDaOcorrencia($image["bytes"], $image["mime"], $image["caption"])) {
-            throw new RuntimeException("Não foi possível incorporar uma evidência ao PDF final.");
+            $reportFailure(new RuntimeException("Não foi possível incorporar uma evidência ao PDF final."));
         }
     }
 }
-$pdfBytes = $report->obterArquivoPdf();
+try {
+    $pdfBytes = $report->obterArquivoPdf();
+} catch (Throwable $exception) {
+    $reportFailure($exception);
+}
 $temporaryReportPath = $reportPath . ".tmp-" . bin2hex(random_bytes(8));
 if (file_put_contents($temporaryReportPath, $pdfBytes, LOCK_EX) !== strlen($pdfBytes)
     || !chmod($temporaryReportPath, 0600) || !rename($temporaryReportPath, $reportPath)) {
@@ -359,7 +374,11 @@ if (file_put_contents($temporaryReportPath, $pdfBytes, LOCK_EX) !== strlen($pdfB
     }
     $respondJson(["error" => "Não foi possível salvar o PDF final no servidor; as evidências foram preservadas."], 503);
 }
-trace_cleanup_report_evidence($pdo, $loadIds, (int) $user["company_id"], $storageRoot);
+try {
+    trace_cleanup_report_evidence($pdo, $loadIds, (int) $user["company_id"], $storageRoot);
+} catch (Throwable $exception) {
+    $reportFailure($exception);
+}
 if (is_array($apiClient)) {
     api_v1_registrar_download_pdf($pdo, $apiClient, (int) $romaneioId);
 } else {

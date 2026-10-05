@@ -207,32 +207,107 @@ body.work-page:has(.work-operation-screen) .work-controls {
 body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls {
   display: grid;
   min-height: 0;
-  flex: 1 1 auto;
+  flex: 0 0 auto;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
+  gap: 12px;
 }
 
 body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls .button {
   width: 100%;
-  min-height: 72px;
+  min-height: 64px;
   justify-content: center;
   font-size: 1rem;
   font-weight: 800;
+  margin: 0;
 }
 
 body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone {
   display: block;
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 16px;
+  padding-top: 16px;
   border-top: 1px solid var(--border, #d8e0e8);
 }
 
 body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone .button {
   width: 100%;
-  min-height: 72px;
+  min-height: 68px;
   justify-content: center;
   font-size: 1.05rem;
   font-weight: 900;
+  margin: 0;
+}
+
+/* Os comandos são controles industriais: tamanho consistente, leitura imediata
+   e sem crescer para preencher espaços vazios do painel. */
+body.work-page:has(.work-operation-screen) .work-machine-controls {
+  display: block;
+  flex: 0 0 auto;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-controls {
+  display: block;
+  flex: 0 0 auto;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls .button.primary {
+  background: #1769ff;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls .button.ghost {
+  background: #edf2f5;
+  color: #142332;
+  border: 1px solid #d0dce3;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls .button.secondary {
+  background: #e6f6fa;
+  color: #0d6c91;
+  border: 1px solid #b9dce5;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .button:disabled,
+body.work-page:has(.work-operation-screen) .work-machine-controls .button[aria-disabled="true"] {
+  background: #eef2f5;
+  border-color: #d9e1e6;
+  color: #718091;
+  opacity: 1;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-panel .emergency-compact {
+  min-height: 0;
+  padding: 20px;
+  border: 1px solid #a52f39;
+  border-radius: 12px;
+  background: linear-gradient(145deg, #7d1f25 0%, #941f2c 100%);
+  text-align: left;
+  display: block;
+}
+
+body.work-page:has(.work-operation-screen) .emergency-compact h2 {
+  margin: 0;
+  font-size: clamp(24px, 2.5vw, 34px);
+  line-height: 1.08;
+}
+
+body.work-page:has(.work-operation-screen) .emergency-compact .emergency-intro p {
+  margin-top: 8px;
+}
+
+body.work-page:has(.work-operation-screen) .emergency-compact .emergency-lock-status {
+  margin: 16px 0 12px;
+  padding: 12px 14px;
+}
+
+body.work-page:has(.work-operation-screen) .emergency-compact .emergency-actions {
+  grid-template-columns: 1fr;
+}
+
+body.work-page:has(.work-operation-screen) .emergency-compact .emergency-actions .button {
+  min-height: 56px;
+}
+
+body.work-page:has(.work-operation-screen) .emergency-compact .emergency-safety-note {
+  margin-top: 14px;
 }
 
 body.work-page:has(.work-operation-screen) .work-machine-panel .work-command-feedback {
