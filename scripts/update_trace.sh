@@ -212,9 +212,7 @@ openssl dgst -sha256 -verify "$public_key" -signature "$work_dir/signature.bin" 
   echo "Assinatura do pacote rejeitada." >&2; exit 11;
 }
 
-mysql_user="${MYSQL_USER:-trace}"
-mysql_password="${MYSQL_PASSWORD:-}"
-if [[ -z "$mysql_password" ]]; then
+if [[ -z "${MYSQL_PASSWORD:-}" ]]; then
   echo "MYSQL_PASSWORD não configurado; atualização cancelada por segurança." >&2
   exit 12
 fi
@@ -233,7 +231,7 @@ if ! (set -o noclobber; : > "$maintenance_file") 2>/dev/null; then
   exit 23
 fi
 maintenance_owned=1
-active="$(compose exec -T mysql mysql -N -B -u"$mysql_user" -p"$mysql_password" "${MYSQL_DATABASE:-trace_local}" -e "SELECT COUNT(*) FROM carregamentos WHERE state IN ('PREPARANDO','CARREGANDO','PAUSADO','FINALIZANDO','EMERGENCIA');" 2>/dev/null | tr -d '[:space:]')" || {
+active="$(compose exec -T mysql sh -lc 'export MYSQL_PWD="$MYSQL_PASSWORD"; mysql -N -B -u"$MYSQL_USER" "$MYSQL_DATABASE" -e "SELECT COUNT(*) FROM carregamentos WHERE state IN ('\''PREPARANDO'\'', '\''CARREGANDO'\'', '\''PAUSADO'\'', '\''FINALIZANDO'\'', '\''EMERGENCIA'\'');"' 2>/dev/null | tr -d '[:space:]')" || {
   echo "Não foi possível verificar o estado do carregamento; atualização cancelada por segurança." >&2
   exit 12
 }

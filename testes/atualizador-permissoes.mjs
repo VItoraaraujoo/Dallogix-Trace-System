@@ -113,3 +113,9 @@ test("o atualizador exige MySQL saudável, com prazo limitado, antes das migrati
     "up", "-d", "--wait", "--wait-timeout", "180", "mysql",
   ]);
 });
+
+test("a consulta de carregamentos não expõe a senha na linha de comando", () => {
+  const source = readFileSync(updater, "utf8");
+  assert.match(source, /export MYSQL_PWD=\"\$MYSQL_PASSWORD\"; mysql -N -B -u\"\$MYSQL_USER\" \"\$MYSQL_DATABASE\"/);
+  assert.doesNotMatch(source, /mysql[^\n]*-p\"\$mysql_password\"/);
+});
