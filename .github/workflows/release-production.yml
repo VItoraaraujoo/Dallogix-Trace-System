@@ -365,6 +365,10 @@ jobs:
               raise SystemExit(f"Central não serve a release solicitada: esperado {expected}, recebido {actual}.")
           print(f"Central confirmado na versão {expected[0]} e no commit {expected[1]}.")
           PY
+          sudo -n bash "$app_root/scripts/install_backup_timer.sh" "$app_root"
+          sudo -n systemctl is-enabled --quiet dallogix-trace-backup.timer
+          sudo -n systemctl is-active --quiet dallogix-trace-backup.timer
+          echo "Timer diário de backup confirmado como habilitado e ativo."
           REMOTE
 
       - name: Publicar a versão liberada pelo Central

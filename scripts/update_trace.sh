@@ -33,6 +33,68 @@ compose() {
     bash "$root_dir/scripts/docker_compose.sh" "${compose_common_args[@]}" "$@"
   fi
 }
+
+# Limita o estado persistente do atualizador. Cada release é uma cópia
+# completa do aplicativo e os backups de pré-atualização podem ser grandes.
+prune_update_state() {
+  local keep_releases="${TRACE_UPDATE_KEEP_RELEASES:-3}"
+  local keep_backups="${TRACE_UPDATE_KEEP_BACKUPS:-3}"
+  local value
+  for value in "$keep_releases" "$keep_backups"; do
+    [[ "$value" =~ ^[1-9][0-9]*$ ]] || {
+      echo "Retenção do atualizador inválida; use inteiros positivos." >&2
+      return 1
+    }
+  done
+
+  local before_bytes after_bytes reclaimed_bytes
+  before_bytes="$(du -sb "$state_dir" 2>/dev/null | awk '{print $1}')"
+  before_bytes="${before_bytes:-0}"
+  local -a release_names=()
+  mapfile -t release_names < <(
+    find "$state_dir/releases" -mindepth 1 -maxdepth 1 -type d -name 'v*' -printf '%f\n' | sort -Vr
+  )
+  declare -A keep_release=()
+  keep_release["$1"]=1
+  local name
+  for name in "${release_names[@]:0:$keep_releases}"; do keep_release["$name"]=1; done
+  local removed_releases=0
+  for name in "${release_names[@]}"; do
+    if [[ -z "${keep_release[$name]:-}" ]]; then
+      rm -rf -- "$state_dir/releases/$name"
+      removed_releases=$((removed_releases + 1))
+    fi
+  done
+
+  local -a backup_names=()
+  mapfile -t backup_names < <(
+    find "$state_dir/backups" -mindepth 1 -maxdepth 1 -type f -name 'pre-*.tar.gz' -printf '%T@ %f\n' |
+      sort -nr | cut -d' ' -f2-
+  )
+  local index=0 removed_backups=0
+  for name in "${backup_names[@]}"; do
+    if (( index >= keep_backups )); then
+      rm -f -- "$state_dir/backups/$name"
+      removed_backups=$((removed_backups + 1))
+    fi
+    index=$((index + 1))
+  done
+
+  # Remove sobras de execuções interrompidas, sem remover o staging desta
+  # execução, que ainda será eliminado pelo trap de saída.
+  local candidate
+  for candidate in "$state_dir"/.rollback-* "$state_dir"/.staging.*; do
+    [[ -e "$candidate" ]] || continue
+    [[ "${work_dir:-}" == "$candidate" ]] && continue
+    rm -rf -- "$candidate"
+  done
+
+  after_bytes="$(du -sb "$state_dir" 2>/dev/null | awk '{print $1}')"
+  after_bytes="${after_bytes:-0}"
+  reclaimed_bytes=$(( before_bytes > after_bytes ? before_bytes - after_bytes : 0 ))
+  printf 'Retenção do atualizador: %d releases, %d backups e sobras temporárias removidos; %d bytes liberados.\n' \
+    "$removed_releases" "$removed_backups" "$reclaimed_bytes"
+}
 curl_download() {
   local timeout_seconds="$1"
   local url="$2"
@@ -369,5 +431,8 @@ if ! printf '%s\n' "$version" > "$current_version_tmp" || ! mv -f -- "$current_v
   mark_failed_update
   if ! rollback; then keep_maintenance=1; fi
   exit 20
+fi
+if ! prune_update_state "$version"; then
+  echo "Aviso: não foi possível aplicar a retenção do estado do atualizador." >&2
 fi
 echo "Trace atualizado com sucesso para $version. Backup: $backup"

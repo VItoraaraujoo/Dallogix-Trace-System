@@ -78,6 +78,7 @@ rmdir "$database_dir"
 
 tar -czf "$staging_dir/storage.tar.gz" \
   --exclude=./backups \
+  --exclude=./updates \
   --exclude=./producao-teste \
   -C "$storage_dir" .
 

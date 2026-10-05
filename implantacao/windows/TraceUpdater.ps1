@@ -122,6 +122,48 @@ function Append-UpdateLog([string]$Path, [string]$Content) {
     }
 }
 
+function Get-UpdateRetentionCount([string]$Name, [int]$Default) {
+    $raw = [Environment]::GetEnvironmentVariable($Name)
+    $parsed = 0
+    if ([int]::TryParse($raw, [ref]$parsed) -and $parsed -ge 1) { return $parsed }
+    return $Default
+}
+
+function Invoke-TraceStoragePruning([string]$CurrentVersion) {
+    $keepReleases = Get-UpdateRetentionCount 'TRACE_UPDATE_KEEP_RELEASES' 3
+    $keepBackups = Get-UpdateRetentionCount 'TRACE_UPDATE_KEEP_BACKUPS' 3
+    $releaseRoot = Join-Path $StateRoot 'releases'
+    $backupRoot = Join-Path $StateRoot 'backups'
+    $releaseDirs = @(Get-ChildItem -LiteralPath $releaseRoot -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -match '^v\d+\.\d+\.\d+$' } |
+        Sort-Object @{ Expression = { [version]($_.Name.Substring(1)) }; Descending = $true })
+    $keep = @{}
+    $keep[$CurrentVersion] = $true
+    foreach ($release in ($releaseDirs | Select-Object -First $keepReleases)) { $keep[$release.Name] = $true }
+    $removedReleases = 0
+    foreach ($release in $releaseDirs) {
+        if (-not $keep.ContainsKey($release.Name)) {
+            Remove-Item -LiteralPath $release.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            if (-not (Test-Path -LiteralPath $release.FullName)) { $removedReleases++ }
+        }
+    }
+    $backupFiles = @(Get-ChildItem -LiteralPath $backupRoot -File -Filter 'pre-*.tar.gz' -ErrorAction SilentlyContinue |
+        Sort-Object LastWriteTime -Descending)
+    $removedBackups = 0
+    foreach ($backup in ($backupFiles | Select-Object -Skip $keepBackups)) {
+        Remove-Item -LiteralPath $backup.FullName -Force -ErrorAction SilentlyContinue
+        if (-not (Test-Path -LiteralPath $backup.FullName)) { $removedBackups++ }
+    }
+    $removedTemporary = 0
+    foreach ($temporary in @(Get-ChildItem -LiteralPath $StateRoot -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like '.rollback-*' -or $_.Name -like '.staging-*' })) {
+        if ($work -and $temporary.FullName -eq $work) { continue }
+        Remove-Item -LiteralPath $temporary.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        if (-not (Test-Path -LiteralPath $temporary.FullName)) { $removedTemporary++ }
+    }
+    Append-UpdateLog $ComposeLogPath ("Retencao do atualizador: $removedReleases releases, $removedBackups backups e $removedTemporary sobras temporarias removidos; preservados $keepReleases releases e $keepBackups backups.")
+}
+
 function Download-UpdateArtifact([string]$Uri, [string]$Path, [hashtable]$Headers) {
     # Invoke-WebRequest tenta ler o buffer do console para a barra de progresso
     # no Windows PowerShell 5.1. Em tarefas agendadas e sessões SSH isso pode
@@ -402,6 +444,7 @@ try {
     Write-AtomicTextFile $current "$($manifest.version)`n"
     Remove-Item -LiteralPath $failedMarker -Force -ErrorAction SilentlyContinue
     $rollbackRequired = $false
+    Invoke-TraceStoragePruning $manifest.version
     Schedule-TraceDesktopRestart
     Write-Output "Trace atualizado com sucesso para $($manifest.version). Backup: $databaseBackup"
 } catch {
