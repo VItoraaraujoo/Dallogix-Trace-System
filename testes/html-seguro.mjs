@@ -48,7 +48,7 @@ test("formulários e painel de emergência preservam tipo e atributos de bloquei
   } });
   assert.match(html, /data-action="unlock" type="button" disabled aria-disabled="true"/);
   assert.match(html, /title="Aguarde &quot;confirmação&quot; do CLP"/);
-  assert.match(html, /Ligar esteira:<\/strong> desativado enquanto a emergência estiver ativa/);
+  assert.match(html, /<strong>Esteira bloqueada<\/strong><span>Ligar esteira fica indisponível enquanto a emergência estiver ativa\.<\/span>/);
   assert.match(html, /data-action="run" type="button" disabled aria-disabled="true"/);
   assert.match(html, /Liberar emergência/);
 });
