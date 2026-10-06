@@ -4,6 +4,7 @@ import {
 import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
 import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610060001";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
+import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610052315-command-queue";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
@@ -40,6 +41,7 @@ configurarSessaoPorAba();
 const store = new ArmazenamentoTrace();
 const api = new ClienteApi();
 const servicoEmergencia = new ServicoEmergencia(store);
+const servicoOperacao = new ServicoOperacao(store);
 let renderRequestId = 0;
 let workViewSignature = "";
 const screens = {
@@ -1547,10 +1549,10 @@ function bindActions() {
         store.state.commandInFlight = true;
         if (currentPage === "work") render();
         try {
-          await store.requestMachineOperation(
-            starting ? "INICIAR_CARREGAMENTO" : "PAUSAR_CARREGAMENTO",
-            node.dataset.loadingId || store.state.loadingId,
-          );
+          const loadingId = node.dataset.loadingId || store.state.loadingId;
+          await (starting
+            ? servicoOperacao.iniciar(loadingId)
+            : servicoOperacao.parar(loadingId));
           // A solicitação já foi registrada no backend e o estado PENDENTE
           // passa a ser a trava de idempotência. Libere a interface antes da
           // leitura de atualização para que o comando oposto (por exemplo,
@@ -1580,10 +1582,7 @@ function bindActions() {
         store.state.commandInFlight = true;
         if (currentPage === "work") render();
         try {
-          await store.requestMachineReverse(
-            node.dataset.loadingId,
-            "REVERSAO_ATIVAR",
-          );
+          await servicoOperacao.reversao(true, node.dataset.loadingId);
           await store.loadActiveLoading(node.dataset.loadingId);
           render();
         } catch (error) {
@@ -1625,10 +1624,7 @@ function bindActions() {
         store.state.commandInFlight = true;
         if (currentPage === "work") render();
         try {
-          await store.requestMachineReverse(
-            store.state.loadingId,
-            activating ? "REVERSAO_ATIVAR" : "REVERSAO_DESATIVAR",
-          );
+          await servicoOperacao.reversao(activating, store.state.loadingId);
           await store.loadActiveLoading();
           render();
         } catch (error) {

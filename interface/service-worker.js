@@ -99,6 +99,7 @@ const SHELL = [
   "/js/api/ClienteApi.js",
   "/js/componentes/notificacoes.js",
   "/js/servicos/ServicoEmergencia.js",
+  "/js/servicos/ServicoOperacao.js",
   "/js/classes/ArmazenamentoTrace.js",
   "/js/classes/OfflineOperationBuffer.js",
   "/js/constantes/acoes.js",
