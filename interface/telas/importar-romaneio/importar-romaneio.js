@@ -16,13 +16,14 @@ export function importScreen(store) {
   return `<div class="title-row has-back"><button class="button secondary page-back" data-action="goto-manifests" type="button">← Voltar</button><div><h2>Novo romaneio</h2></div></div>
 <section class="panel pdf-import-card"><p>Selecione o arquivo PDF do romaneio para preencher os campos automaticamente. Confira os dados e salve.</p>
 <form id="pdf-form"><div class="file-picker"><input id="pdf-file" class="file-input" name="file" type="file" accept=".pdf,application/pdf" required /><label class="button primary file-picker-button" for="pdf-file">Escolher arquivo</label><span class="file-name" data-file-name>Nenhum arquivo escolhido</span></div><div class="actions"><button class="button primary" data-action="import-pdf" type="submit">Importar PDF</button></div><div id="pdf-import-feedback" class="import-feedback" role="status" aria-live="polite"></div></form></section><br>
-<div class="divider"><span>ou cadastre manualmente</span></div>
+<div class="divider import-manual-divider"><span>ou cadastre manualmente</span></div>
 <p>Preencha os dados do romaneio e adicione os itens com produto e quantidade.</p>
 <form id="new-manifest-form">
-<section class="panel"><div class="grid three">
+<section class="panel manifest-data-panel"><div class="manifest-form-grid manifest-form-grid-primary">
 <label>Código<input name="number" required /></label>
 <label>Data do Carregamento<input name="scheduled_date" type="date" min="${today}" value="${today}" required /></label>
 <label>Placa do caminhão<input name="plate" required /></label>
+</div><div class="manifest-form-grid manifest-form-grid-secondary">
 <label>Expedidor<input name="expedidor" /></label>
 <label>Motorista<input name="driver_name" /></label>
 </div></section><br>

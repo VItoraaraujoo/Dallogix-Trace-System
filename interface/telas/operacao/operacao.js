@@ -136,6 +136,7 @@ function workControls(store) {
     buttonAttributes: bloqueioComando(["EMERGENCIA"], "Aguarde a confirmação do CLP antes de solicitar liberação."),
     commandStatus: store.state.plcCommand,
     compact: true,
+    showTechnical: false,
   });
   const itemProgress = `<section class="panel work-items-panel"><div class="panel-heading"><div><h3>Itens do romaneio</h3></div><div class="work-items-summary"><small>${numero(loadingItems.length)} itens · <strong data-live="loaded">${numero(loadedTotal)}</strong> leituras válidas</small></div></div><div class="work-item-progress-list">${loadingItems.length ? loadingItems.map((item) => {
     const loaded = Number(item.loaded_quantity) || 0;

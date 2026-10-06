@@ -9,7 +9,7 @@ const versao = "202610061745";
 test("o shell invalida cache quando a aplicação muda", () => {
   const serviceWorker = readFileSync(join(raiz, "service-worker.js"), "utf8");
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
-  assert.match(serviceWorker, /trace-shell-20261006-15/);
+  assert.match(serviceWorker, /trace-shell-20261006-16/);
   assert.match(aplicacao, new RegExp(`/service-worker\\.js\\?v=${versao}`));
   assert.match(aplicacao, new RegExp(`ArmazenamentoTrace\\.js\\?v=${versao}`));
   assert.match(aplicacao, new RegExp(`operacao\\.js\\?v=${versao}`));
@@ -43,6 +43,7 @@ test("a operação deixa os estados em Configurações e usa leitura automática
   const configuracoes = readFileSync(join(raiz, "telas", "configuracoes", "configuracoes.js"), "utf8");
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
   assert.doesNotMatch(operacao, /work-header-statuses/);
+  assert.match(operacao, /showTechnical: false/);
   assert.doesNotMatch(operacao, /Registrar leitura/);
   assert.match(operacao, /envia Enter automaticamente/);
   assert.match(configuracoes, /settings-device-status-panel/);

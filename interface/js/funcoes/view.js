@@ -50,6 +50,7 @@ export function emergencyPanel({
   buttonAttributes = "",
   commandStatus = null,
   compact = false,
+  showTechnical = true,
 } = {}) {
   const status = String(commandStatus?.status || "").toUpperCase();
   const command = status ? rotuloStatusComando(status) : "Aguardando retorno do gateway";
@@ -66,11 +67,14 @@ export function emergencyPanel({
     "aria-disabled": "true",
     title: "Bloqueado enquanto a emergência estiver ativa",
   });
+  const technicalDetails = showTechnical
+    ? `<details class="emergency-technical"><summary>Detalhes do comando</summary><div class="work-command-feedback-status"><span>Retorno do gateway</span><span class="badge ${commandTone}">${esc(command)}</span></div>${commandStatus?.response_message ? `<p>${esc(commandStatus.response_message)}</p>` : ""}<p>${acknowledgement}</p></details>`
+    : "";
   return `<section class="emergency${compact ? " emergency-compact" : ""}" aria-live="assertive">
     <div class="emergency-intro"><span class="kicker">Solicitação de emergência</span><h2>Operação bloqueada</h2><p>Estado lógico do Trace: <strong>${esc(loading)}</strong></p></div>
     <div class="emergency-lock-status"><strong>Esteira bloqueada</strong><span>Ligar esteira fica indisponível enquanto a emergência estiver ativa.</span></div>
     <div class="emergency-actions">${disabledStart}${canUnlock ? button("Liberar emergência", "unlock", "secondary", buttonAttributes) : ""}</div>
-    <details class="emergency-technical"><summary>Detalhes do comando</summary><div class="work-command-feedback-status"><span>Retorno do gateway</span><span class="badge ${commandTone}">${esc(command)}</span></div>${commandStatus?.response_message ? `<p>${esc(commandStatus.response_message)}</p>` : ""}<p>${acknowledgement}</p></details>
+    ${technicalDetails}
     <p class="emergency-safety-note">A emergência permanece travada até uma liberação explícita. A solicitação não substitui o botão físico de emergência; confira a condição segura na máquina e no CLP antes de liberar.</p>
   </section>`;
 }
