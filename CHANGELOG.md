@@ -1,5 +1,16 @@
 # Histórico de alterações
 
+## v1.0.108 — 06/10/2026
+
+- O atualizador do PC industrial inicia o transcript antes das validações de
+  pré-requisitos, registrando falhas do Docker, OpenSSL, tar ou Git Bash no
+  log de erros persistente.
+- A mensagem de falha do mecanismo Linux do Docker agora inclui o detalhe
+  retornado pelo próprio comando `docker info`.
+- Adicionado teste automatizado para impedir regressão no diagnóstico das
+  tarefas agendadas.
+- Publicação pendente de validação pelo workflow de produção.
+
 ## v1.0.107 — 06/10/2026
 
 - Cache da interface invalidado de forma coordenada no service worker, nas telas

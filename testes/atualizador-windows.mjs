@@ -3,6 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 
 const updaterRegistration = readFileSync(new URL("../implantacao/windows/Register-TraceUpdater.ps1", import.meta.url), "utf8");
+const updaterScript = readFileSync(new URL("../implantacao/windows/TraceUpdater.ps1", import.meta.url), "utf8");
 const machineInstaller = readFileSync(new URL("../implantacao/windows/Install-TraceMachine.ps1", import.meta.url), "utf8");
 
 test("atualizador estável fica agendado diariamente com a conta SYSTEM", () => {
@@ -19,9 +20,16 @@ test("registro valida Docker pela conta da tarefa antes de agendar atualização
   assert.match(updaterRegistration, /A conta SYSTEM nao conseguiu acessar o Docker Linux/);
 });
 
+test("falha de pré-requisito do atualizador deixa diagnóstico persistente", () => {
+  assert.match(updaterScript, /Start-Transcript -Path \(Join-Path \$LogRoot \"update-stable\.log\"\)/);
+  assert.match(updaterScript, /function Fail-Preflight/);
+  assert.match(updaterScript, /Fail-Preflight \"Docker Desktop não está disponível\.\"/);
+  assert.match(updaterScript, /Detalhe: \$dockerDetail/);
+  assert.match(updaterScript, /update-stable-errors\.log/);
+});
+
 test("instalação registra o agente no início do Windows", () => {
   assert.match(machineInstaller, /New-ScheduledTaskTrigger -AtStartup/);
   assert.match(machineInstaller, /Dallogix Trace Agent/);
   assert.match(machineInstaller, /Start-ScheduledTask -TaskName "Dallogix Trace Agent"/);
 });
-

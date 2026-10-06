@@ -16,10 +16,34 @@ $LogRoot = Join-Path $InstallRoot "armazenamento\logs"
 $ErrorLogPath = Join-Path $LogRoot "update-stable-errors.log"
 $ComposeLogPath = Join-Path $LogRoot "update-compose.log"
 $MaintenanceFile = Join-Path $InstallRoot "armazenamento\.maintenance"
+
+# Inicie o diagnóstico antes das validações. Tarefas agendadas que não
+# conseguem acessar o Docker devem deixar a causa registrada no disco.
+New-Item -ItemType Directory -Force -Path $LogRoot | Out-Null
+Start-Transcript -Path (Join-Path $LogRoot "update-stable.log") -Append | Out-Null
+
+function Append-UpdateLog([string]$Path, [string]$Content) {
+    try {
+        [IO.File]::AppendAllText($Path, $Content + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding($false)))
+    } catch {
+        Write-Warning ("Nao foi possivel gravar o log " + $Path + ": " + $_.Exception.Message)
+    }
+}
+
+function Fail-Preflight([string]$Message) {
+    try {
+        Append-UpdateLog $ErrorLogPath ("$(Get-Date -Format o) Preflight: " + $Message)
+        Write-Error $Message
+    } finally {
+        try { Stop-Transcript | Out-Null } catch { }
+    }
+    throw $Message
+}
+
 $createdMaintenance = $false
 $keepMaintenance = $false
 $EnvPath = Join-Path $InstallRoot ".env"
-if (-not (Test-Path -LiteralPath $EnvPath -PathType Leaf)) { throw "Arquivo .env nao encontrado." }
+if (-not (Test-Path -LiteralPath $EnvPath -PathType Leaf)) { Fail-Preflight "Arquivo .env nao encontrado." }
 if (Test-Path $EnvPath) {
     Get-Content $EnvPath | Where-Object { $_ -match '^\s*([A-Za-z_][A-Za-z0-9_]*)=(.*)$' } | ForEach-Object {
         $name = $Matches[1]; $value = $Matches[2].Trim().Trim('"').Trim("'")
@@ -29,26 +53,25 @@ if (Test-Path $EnvPath) {
 $ManifestUrl = $env:UPDATE_MANIFEST_URL
 $PublicKey = $env:UPDATE_PUBLIC_KEY_FILE
 $Channel = if ($env:UPDATE_CHANNEL) { $env:UPDATE_CHANNEL } else { "stable" }
-if (-not $ManifestUrl -or -not $PublicKey) { throw "Defina UPDATE_MANIFEST_URL e UPDATE_PUBLIC_KEY_FILE no .env." }
-if ($ManifestUrl -notmatch '^https://') { throw "O manifesto deve usar HTTPS." }
-if (-not (Test-Path $PublicKey)) { throw "Chave pública não encontrada: $PublicKey" }
+if (-not $ManifestUrl -or -not $PublicKey) { Fail-Preflight "Defina UPDATE_MANIFEST_URL e UPDATE_PUBLIC_KEY_FILE no .env." }
+if ($ManifestUrl -notmatch '^https://') { Fail-Preflight "O manifesto deve usar HTTPS." }
+if (-not (Test-Path $PublicKey)) { Fail-Preflight "Chave pública não encontrada: $PublicKey" }
 $dockerBin = Join-Path $env:ProgramFiles 'Docker\Docker\resources\bin'
 if (Test-Path -LiteralPath (Join-Path $dockerBin 'docker.exe') -PathType Leaf) {
     $env:PATH = "$dockerBin;$env:PATH"
 }
-if (-not (Get-Command docker.exe -ErrorAction SilentlyContinue)) { throw "Docker Desktop não está disponível." }
+if (-not (Get-Command docker.exe -ErrorAction SilentlyContinue)) { Fail-Preflight "Docker Desktop não está disponível." }
 $OpenSsl = Get-Command openssl.exe -ErrorAction SilentlyContinue
 if (-not $OpenSsl) {
     $candidate = Join-Path $env:ProgramFiles "Git\usr\bin\openssl.exe"
     if (Test-Path -LiteralPath $candidate -PathType Leaf) { $OpenSsl = $candidate }
 }
-if (-not $OpenSsl) { throw "OpenSSL do Git for Windows e necessario para validar a assinatura." }
-if (-not (Get-Command tar.exe -ErrorAction SilentlyContinue)) { throw "tar.exe é necessário para extrair o pacote." }
+if (-not $OpenSsl) { Fail-Preflight "OpenSSL do Git for Windows e necessario para validar a assinatura." }
+if (-not (Get-Command tar.exe -ErrorAction SilentlyContinue)) { Fail-Preflight "tar.exe é necessário para extrair o pacote." }
 $GitBash = Join-Path $env:ProgramFiles "Git\bin\bash.exe"
-if (-not (Test-Path -LiteralPath $GitBash -PathType Leaf)) { throw "Git for Windows e necessario para backup e migrations." }
+if (-not (Test-Path -LiteralPath $GitBash -PathType Leaf)) { Fail-Preflight "Git for Windows e necessario para backup e migrations." }
 
-New-Item -ItemType Directory -Force -Path (Join-Path $StateRoot "releases"), $BackupRoot, $LogRoot | Out-Null
-Start-Transcript -Path (Join-Path $LogRoot "update-stable.log") -Append | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $StateRoot "releases"), $BackupRoot | Out-Null
 $Lock = [System.Threading.Mutex]::new($false, 'Global\DallogixTraceStableUpdater')
 $hasLock = $false
 $rollbackRequired = $false
@@ -111,14 +134,6 @@ function Write-AtomicTextFile([string]$Path, [string]$Content) {
         if (Test-Path -LiteralPath $temporaryPath -PathType Leaf) {
             Remove-Item -LiteralPath $temporaryPath -Force -ErrorAction SilentlyContinue
         }
-    }
-}
-
-function Append-UpdateLog([string]$Path, [string]$Content) {
-    try {
-        [IO.File]::AppendAllText($Path, $Content + [Environment]::NewLine, (New-Object System.Text.UTF8Encoding($false)))
-    } catch {
-        Write-Warning ("Nao foi possivel gravar o log " + $Path + ": " + $_.Exception.Message)
     }
 }
 
@@ -293,7 +308,9 @@ try {
     $dockerInfo = Invoke-External 'docker.exe' @('info', '--format', '{{.OSType}}') $null
     $dockerOs = ([string]$dockerInfo.Stdout).Trim()
     if ($dockerInfo.ExitCode -ne 0 -or $dockerOs -ne 'linux') {
-        throw "A tarefa agendada nao consegue acessar o mecanismo Linux do Docker Desktop."
+        $dockerDetail = ((@($dockerInfo.Stdout, $dockerInfo.Stderr) | Where-Object { $_ -and $_.Trim() }) -join ' ').Trim()
+        if (-not $dockerDetail) { $dockerDetail = 'docker info nao retornou detalhes.' }
+        throw "A tarefa agendada nao consegue acessar o mecanismo Linux do Docker Desktop. Detalhe: $dockerDetail"
     }
     $headers = @{}
     if ($env:UPDATE_MANIFEST_TOKEN) { $headers.Authorization = "Bearer $($env:UPDATE_MANIFEST_TOKEN)" }
