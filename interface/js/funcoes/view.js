@@ -35,9 +35,9 @@ export function statuses(store = null) {
     CAMERA: "Câmera",
     SERVER: "Servidor",
   };
-  const status = (type) =>
-    devices.find((item) => item.device_type === type)?.status ||
-    (type === "SERVER" ? "LOCAL" : "NAO_REGISTRADO");
+  const status = (type) => type === "SERVER"
+    ? (store?.state?.serverStatus || "DESCONHECIDO")
+    : (devices.find((item) => item.device_type === type)?.status || "NAO_REGISTRADO");
   return `<div class="status">${known.map((type) => {
     const presentation = deviceStatusSummary(status(type));
     return `<span>${labels[type]} <b class="status-value status-${presentation.tone}" data-live-status="${type}">${esc(presentation.label)}</b></span>`;

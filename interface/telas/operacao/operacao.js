@@ -31,8 +31,9 @@ function compactDeviceStatuses(store) {
     ? `Atualizado ${dataHora(store.state.monitoringUpdatedAt)}`
     : "Sem atualização confirmada";
   return `<div class="status status-compact">${known.map(([type, label]) => {
-    const value = devices.find((item) => item.device_type === type)?.status ||
-      (type === "SERVER" ? "LOCAL" : "OFFLINE");
+    const value = type === "SERVER"
+      ? (store.state.serverStatus || "DESCONHECIDO")
+      : (devices.find((item) => item.device_type === type)?.status || "NAO_REGISTRADO");
     const online = isOnline(value);
     return `<span><strong>${label}</strong><b class="status-value status-${online ? "online" : "offline"}" data-live-status="${type}" data-live-status-mode="binary">${online ? "ON" : "OFF"}</b></span>`;
   }).join("")}</div><small class="work-device-status-updated" data-live="monitoring-updated">${esc(updatedAt)}</small>`;

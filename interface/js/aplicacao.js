@@ -223,7 +223,9 @@ async function refreshLocalIndicator() {
   if (localHealthRequest) return;
   if (!navigator.onLine) {
     usarRelogioDoPc();
+    store.state.serverStatus = "OFFLINE";
     setLocalIndicator("offline");
+    if (currentPage === "work") refreshWorkLiveView();
     return;
   }
   localHealthRequest = true;
@@ -238,10 +240,14 @@ async function refreshLocalIndicator() {
     const result = await response.json().catch(() => ({}));
     currentInstallationMode = result.installation_mode === "central" ? "central" : "local";
     const state = response.ok && result.status === "ok" ? "online" : "degraded";
+    store.state.serverStatus = state === "online" ? "ONLINE" : "ERRO";
     setLocalIndicator(state, result.checked_at || Date.now(), currentInstallationMode);
+    if (currentPage === "work") refreshWorkLiveView();
   } catch (error) {
     logFrontend.aviso("indicador.saude", error);
+    store.state.serverStatus = "OFFLINE";
     setLocalIndicator("offline");
+    if (currentPage === "work") refreshWorkLiveView();
   } finally {
     localHealthRequest = false;
   }
@@ -617,7 +623,9 @@ function refreshWorkLiveView() {
         item.device_type === type &&
         (!selectedEquipmentId || Number(item.equipment_id) === selectedEquipmentId),
       );
-      const value = device?.status || (type === "SERVER" ? "LOCAL" : "NAO_REGISTRADO");
+      const value = type === "SERVER"
+        ? (store.state.serverStatus || "DESCONHECIDO")
+        : (device?.status || "NAO_REGISTRADO");
       return [type, { value, presentation: deviceStatusSummary(value) }];
     }),
   );

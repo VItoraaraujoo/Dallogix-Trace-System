@@ -23,6 +23,9 @@ export class ArmazenamentoTrace {
       equipmentId: null,
       monitoring: null,
       monitoringUpdatedAt: null,
+      // O status do servidor vem do health check HTTP, não de um heartbeat
+      // de dispositivo. Até a primeira resposta, ele permanece desconhecido.
+      serverStatus: "DESCONHECIDO",
       syncStatus: null,
       products: [],
       productsLoaded: false,

@@ -1,5 +1,11 @@
 # Histórico de alterações
 
+## v1.0.106 — 06/10/2026
+
+- O status do servidor na operação agora depende do health check HTTP confirmado.
+- A ausência de resposta não aparece mais como servidor online.
+- Adicionado teste automatizado para os estados desconhecido e online.
+
 As mudanças ainda não publicadas ficam em **Não publicado**. Cada implantação
 expõe o commit efetivo em `/api/health.php` (`TRACE_COMMIT`); esse identificador
 é a referência para comparar o histórico abaixo com o código servido. Ao criar
