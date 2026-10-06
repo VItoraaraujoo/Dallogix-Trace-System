@@ -39,3 +39,38 @@ test("envia pendências para a fila offline sem duplicar regras", async () => {
   assert.deepEqual(result, { sent: 2, pending: 1 });
   assert.deepEqual(received, { "X-CSRF-Token": "token" });
 });
+
+test("processa evento SSE dividido em quadros e no fim do stream", async () => {
+  let entregue;
+  let liberar;
+  const finalizado = new Promise((resolve) => { liberar = resolve; });
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('event: carregamento\ndata: {"id":'));
+      controller.enqueue(new TextEncoder().encode('7}\n'));
+      controller.close();
+    },
+  });
+  const api = { async fetch() { return { ok: true, body: stream }; } };
+  const service = new ServicoSincronizacao({ api, offlineBuffer: { flush: async () => ({}) } });
+  service.assinarEventos({ onData(data) { entregue = data; liberar(); } });
+  await Promise.race([finalizado, new Promise((_, reject) => setTimeout(() => reject(new Error("evento não recebido")), 500))]);
+  assert.deepEqual(entregue, { id: 7 });
+});
+
+test("encerra stream SSE que ultrapassa o limite sem acumular memória", async () => {
+  let recebido;
+  let liberar;
+  const finalizado = new Promise((resolve) => { liberar = resolve; });
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(`event: carregamento\ndata: ${"x".repeat(130 * 1024)}\n`));
+      controller.close();
+    },
+  });
+  const api = { async fetch() { return { ok: true, body: stream }; } };
+  const service = new ServicoSincronizacao({ api, offlineBuffer: { flush: async () => ({}) } });
+  service.assinarEventos({ onError(error) { recebido = error; liberar(); } });
+  await Promise.race([finalizado, new Promise((_, reject) => setTimeout(() => reject(new Error("erro não recebido")), 500))]);
+  assert.match(recebido?.message || "", /limite permitido/);
+});

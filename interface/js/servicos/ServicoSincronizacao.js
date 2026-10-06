@@ -1,6 +1,9 @@
 import { exigirRespostaHttp } from "../api/ClienteApi.js?v=202610060006";
 import { logFrontend } from "../utilitarios/LogFrontend.js?v=202610060006";
 
+const LIMITE_QUADRO_EVENTO = 256 * 1024;
+const LIMITE_DADOS_EVENTO = 128 * 1024;
+
 /**
  * Coordena comunicação contínua, fila offline e estado de sincronização.
  * A classe não conhece a tela: recebe um ClienteApi e callbacks pequenos,
@@ -66,25 +69,57 @@ export class ServicoSincronizacao {
         let pendente = "";
         let nomeEvento = "";
         let dados = [];
+        let tamanhoDados = 0;
+        const despachar = () => {
+          if (nomeEvento === "carregamento" && dados.length) {
+            let payload;
+            try {
+              payload = JSON.parse(dados.join("\n"));
+            } catch (error) {
+              throw new Error("Evento de carregamento inválido.", { cause: error });
+            }
+            onData?.(payload);
+          }
+          nomeEvento = "";
+          dados = [];
+          tamanhoDados = 0;
+        };
+        const processarLinha = (linha) => {
+          if (linha === "") {
+            despachar();
+          } else if (linha.startsWith("event:")) {
+            nomeEvento = linha.slice(6).trim();
+          } else if (linha.startsWith("data:")) {
+            const dado = linha.slice(5).trimStart();
+            tamanhoDados += dado.length;
+            if (tamanhoDados > LIMITE_DADOS_EVENTO) {
+              throw new Error("Evento de sincronização excedeu o limite permitido.");
+            }
+            dados.push(dado);
+          }
+        };
         while (!fechado) {
           const { value, done } = await reader.read();
           if (done) break;
-          pendente += decoder.decode(value, { stream: true });
+          const trecho = decoder.decode(value, { stream: true });
+          if (pendente.length + trecho.length > LIMITE_QUADRO_EVENTO) {
+            throw new Error("Fluxo de eventos excedeu o limite permitido.");
+          }
+          pendente += trecho;
           let quebra;
           while ((quebra = pendente.indexOf("\n")) !== -1) {
             const linha = pendente.slice(0, quebra).replace(/\r$/, "");
             pendente = pendente.slice(quebra + 1);
-            if (linha === "") {
-              if (nomeEvento === "carregamento" && dados.length) onData?.(JSON.parse(dados.join("\n")));
-              nomeEvento = "";
-              dados = [];
-            } else if (linha.startsWith("event:")) {
-              nomeEvento = linha.slice(6).trim();
-            } else if (linha.startsWith("data:")) {
-              dados.push(linha.slice(5).trimStart());
-            }
+            processarLinha(linha);
           }
         }
+        const final = decoder.decode();
+        if (pendente.length + final.length > LIMITE_QUADRO_EVENTO) {
+          throw new Error("Fluxo de eventos excedeu o limite permitido.");
+        }
+        pendente += final;
+        if (pendente) processarLinha(pendente.replace(/\r$/, ""));
+        if (nomeEvento || dados.length) despachar();
       } catch (error) {
         if (!fechado) {
           logFrontend.aviso("sincronizacao.eventos", error);
