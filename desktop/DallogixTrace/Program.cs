@@ -25,14 +25,92 @@ internal sealed class TraceForm : Form
 {
     private const string TraceUrl = "http://127.0.0.1:8080";
     private readonly WebView2 web = new() { Dock = DockStyle.Fill };
+    private readonly Panel loadingPanel = new();
+    private readonly Label loadingStatus = new();
+    private readonly ProgressBar loadingProgress = new();
 
     public TraceForm()
     {
         Text = "Dallogix Trace";
         WindowState = FormWindowState.Maximized;
         FormBorderStyle = FormBorderStyle.None;
+        BackColor = Color.FromArgb(9, 27, 42);
+        BuildLoadingPanel();
+        web.Visible = false;
         Controls.Add(web);
+        Controls.Add(loadingPanel);
         Shown += async (_, _) => await StartAsync();
+    }
+
+    private void BuildLoadingPanel()
+    {
+        loadingPanel.Dock = DockStyle.Fill;
+        loadingPanel.BackColor = Color.FromArgb(9, 27, 42);
+
+        var content = new TableLayoutPanel
+        {
+            Anchor = AnchorStyles.None,
+            AutoSize = true,
+            BackColor = Color.Transparent,
+            ColumnCount = 1,
+            RowCount = 4,
+            Padding = new Padding(28),
+        };
+        content.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 560));
+        content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        content.RowStyles.Add(new RowStyle(SizeType.Absolute, 18));
+        content.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+
+        var brand = new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            Font = new Font("Segoe UI", 27, FontStyle.Bold),
+            ForeColor = Color.White,
+            Text = "TRACE PLATFORM",
+            TextAlign = ContentAlignment.MiddleCenter,
+        };
+        content.Controls.Add(brand, 0, 0);
+
+        var title = new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            Font = new Font("Segoe UI", 18, FontStyle.Regular),
+            ForeColor = Color.FromArgb(189, 218, 232),
+            Text = "Iniciando o Dallogix Trace",
+            TextAlign = ContentAlignment.MiddleCenter,
+            Padding = new Padding(0, 8, 0, 0),
+        };
+        content.Controls.Add(title, 0, 1);
+
+        loadingProgress.Dock = DockStyle.Fill;
+        loadingProgress.Style = ProgressBarStyle.Marquee;
+        loadingProgress.MarqueeAnimationSpeed = 28;
+        loadingProgress.ForeColor = Color.FromArgb(37, 158, 206);
+        content.Controls.Add(loadingProgress, 0, 2);
+
+        loadingStatus.AutoSize = true;
+        loadingStatus.Dock = DockStyle.Fill;
+        loadingStatus.Font = new Font("Segoe UI", 11, FontStyle.Regular);
+        loadingStatus.ForeColor = Color.FromArgb(189, 218, 232);
+        loadingStatus.Text = "Preparando os serviços locais...";
+        loadingStatus.TextAlign = ContentAlignment.MiddleCenter;
+        content.Controls.Add(loadingStatus, 0, 3);
+
+        loadingPanel.Controls.Add(content);
+        loadingPanel.Resize += (_, _) =>
+        {
+            content.Left = Math.Max(0, (loadingPanel.ClientSize.Width - content.Width) / 2);
+            content.Top = Math.Max(0, (loadingPanel.ClientSize.Height - content.Height) / 2);
+        };
+    }
+
+    private void SetLoadingStatus(string status)
+    {
+        loadingStatus.Text = status;
+        loadingStatus.Refresh();
     }
 
     private async Task StartAsync()
@@ -42,14 +120,23 @@ internal sealed class TraceForm : Form
         if (!File.Exists(compose)) { ShowFailure("Instalação incompleta: docker-compose.yml não encontrado."); return; }
         try
         {
+            SetLoadingStatus("Localizando o Docker Desktop...");
             var docker = FindDockerCli();
+            SetLoadingStatus("Iniciando o mecanismo Linux do Docker...");
             await EnsureDockerEngineAsync(docker, root);
-            var composeResult = await RunProcessAsync(docker, "compose --profile industrial up -d", root);
+            SetLoadingStatus("Iniciando os serviços do Trace...");
+            var composeResult = await RunProcessAsync(
+                docker,
+                "compose --profile industrial up -d",
+                root,
+                TimeSpan.FromMinutes(2)
+            );
             if (composeResult.ExitCode != 0)
             {
                 ShowFailure($"Não foi possível iniciar os serviços do Trace. {composeResult.Error.Trim()}");
                 return;
             }
+            SetLoadingStatus("Aguardando a API local e o banco de dados...");
             using var client = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
             var activationError = "nenhuma resposta da API";
             for (var attempt = 0; attempt < 30; attempt++)
@@ -64,6 +151,7 @@ internal sealed class TraceForm : Form
                 await Task.Delay(2000);
                 if (attempt == 29) { ShowFailure($"A API de ativação local não ficou pronta. Confira as migrations e os logs do PHP/MySQL. Último erro: {activationError}"); return; }
             }
+            SetLoadingStatus("Carregando a interface do Trace...");
             var webViewOptions = new CoreWebView2EnvironmentOptions(
                 "--disable-smooth-scrolling --disable-features=ElasticOverscroll"
             );
@@ -77,6 +165,9 @@ internal sealed class TraceForm : Form
             web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             web.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
             web.CoreWebView2.Navigate(TraceUrl);
+            web.Visible = true;
+            loadingPanel.Visible = false;
+            web.BringToFront();
         }
         catch (Exception error) { ShowFailure($"Não foi possível iniciar o Trace. {error.Message}"); }
     }
@@ -98,7 +189,12 @@ internal sealed class TraceForm : Form
 
     private static async Task EnsureDockerEngineAsync(string docker, string workingDirectory)
     {
-        var check = await RunProcessAsync(docker, "info --format \"{{.OSType}}\"", workingDirectory);
+        var check = await RunProcessAsync(
+            docker,
+            "info --format \"{{.OSType}}\"",
+            workingDirectory,
+            TimeSpan.FromSeconds(6)
+        );
         if (check.ExitCode == 0 && check.Output.Trim().Equals("linux", StringComparison.OrdinalIgnoreCase)) return;
 
         var desktopCandidates = new[]
@@ -112,13 +208,23 @@ internal sealed class TraceForm : Form
         for (var attempt = 0; attempt < 60; attempt++)
         {
             await Task.Delay(TimeSpan.FromSeconds(2));
-            check = await RunProcessAsync(docker, "info --format \"{{.OSType}}\"", workingDirectory);
+            check = await RunProcessAsync(
+                docker,
+                "info --format \"{{.OSType}}\"",
+                workingDirectory,
+                TimeSpan.FromSeconds(6)
+            );
             if (check.ExitCode == 0 && check.Output.Trim().Equals("linux", StringComparison.OrdinalIgnoreCase)) return;
         }
         throw new InvalidOperationException("O Docker Desktop não iniciou o mecanismo Linux a tempo.");
     }
 
-    private static async Task<(int ExitCode, string Output, string Error)> RunProcessAsync(string fileName, string arguments, string workingDirectory)
+    private static async Task<(int ExitCode, string Output, string Error)> RunProcessAsync(
+        string fileName,
+        string arguments,
+        string workingDirectory,
+        TimeSpan? timeout = null
+    )
     {
         using var process = new Process
         {
@@ -138,13 +244,67 @@ internal sealed class TraceForm : Form
         process.Start();
         var output = process.StandardOutput.ReadToEndAsync();
         var error = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
+        var waitForExit = process.WaitForExitAsync();
+        if (timeout.HasValue && await Task.WhenAny(waitForExit, Task.Delay(timeout.Value)) != waitForExit)
+        {
+            try { process.Kill(entireProcessTree: true); } catch { }
+            await waitForExit;
+            return (-1, await output, $"Tempo esgotado ao executar {fileName} {arguments}.");
+        }
+        await waitForExit;
         return (process.ExitCode, await output, await error);
     }
 
     private void ShowFailure(string message)
     {
         Controls.Clear();
-        Controls.Add(new Label { Dock = DockStyle.Fill, Text = message, TextAlign = ContentAlignment.MiddleCenter, Font = new Font("Segoe UI", 18), ForeColor = Color.White, BackColor = Color.FromArgb(16, 34, 46) });
+        var panel = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(9, 27, 42), Padding = new Padding(48) };
+        var content = new TableLayoutPanel
+        {
+            Anchor = AnchorStyles.None,
+            AutoSize = true,
+            ColumnCount = 1,
+            RowCount = 3,
+            BackColor = Color.Transparent,
+        };
+        content.ColumnStyles.Add(new ColumnStyle(SizeType.Absolute, 760));
+        var title = new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            Font = new Font("Segoe UI", 24, FontStyle.Bold),
+            ForeColor = Color.White,
+            Text = "Não foi possível iniciar o Trace",
+            TextAlign = ContentAlignment.MiddleCenter,
+        };
+        var detail = new Label
+        {
+            AutoSize = true,
+            Dock = DockStyle.Fill,
+            Font = new Font("Segoe UI", 12),
+            ForeColor = Color.FromArgb(189, 218, 232),
+            Text = message,
+            TextAlign = ContentAlignment.MiddleCenter,
+            Padding = new Padding(0, 18, 0, 18),
+        };
+        var close = new Button
+        {
+            AutoSize = true,
+            Anchor = AnchorStyles.None,
+            Font = new Font("Segoe UI", 11, FontStyle.Bold),
+            Text = "Fechar",
+            Padding = new Padding(18, 8, 18, 8),
+        };
+        close.Click += (_, _) => Close();
+        content.Controls.Add(title, 0, 0);
+        content.Controls.Add(detail, 0, 1);
+        content.Controls.Add(close, 0, 2);
+        panel.Controls.Add(content);
+        panel.Resize += (_, _) =>
+        {
+            content.Left = Math.Max(0, (panel.ClientSize.Width - content.Width) / 2);
+            content.Top = Math.Max(0, (panel.ClientSize.Height - content.Height) / 2);
+        };
+        Controls.Add(panel);
     }
 }

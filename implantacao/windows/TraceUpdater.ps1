@@ -6,6 +6,7 @@ Set-StrictMode -Version Latest
 # Atualizador nativo do PC Windows. Deve rodar por tarefa técnica, nunca pela
 # conta restrita do operador.
 $InstallRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))
+$script:UpdaterScriptPath = Join-Path $PSScriptRoot 'TraceUpdater.ps1'
 $ComposeProfile = @('--profile', 'industrial')
 # O PC industrial tem memória limitada. O Compose padrão constrói várias
 # imagens em paralelo e pode matar o MySQL com código 137 durante a atualização.
@@ -302,9 +303,38 @@ function Start-TraceStack([switch]$Build) {
     if ($startExit -ne 0) { throw "A nova versao nao iniciou (codigo $startExit)." }
 }
 
+function Ensure-TraceUpdaterSchedule {
+    # O instalador registra os dois gatilhos, mas uma atualização substitui os
+    # arquivos sem executar novamente o instalador. Repare a tarefa aqui para
+    # que releases antigas também passem a iniciar após o logon, sem depender
+    # de um caminho em Downloads ou de uma ação manual no PC.
+    $taskName = 'Dallogix Trace Atualizacao Estavel'
+    $existing = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+    $hasDaily = $false
+    $hasLogon = $false
+    if ($existing) {
+        foreach ($trigger in @($existing.Triggers)) {
+            $className = [string]$trigger.CimClass.CimClassName
+            if ($className -eq 'MSFT_TaskDailyTrigger') { $hasDaily = $true }
+            if ($className -eq 'MSFT_TaskLogonTrigger') { $hasLogon = $true }
+        }
+    }
+    if ($hasDaily -and $hasLogon) { return }
+
+    $scriptPath = $script:UpdaterScriptPath
+    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
+    $dailyTrigger = New-ScheduledTaskTrigger -Daily -At '03:30'
+    $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -RandomDelay (New-TimeSpan -Minutes 10)
+    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+    $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($dailyTrigger, $logonTrigger) -Principal $principal -Settings $settings -Description 'Instala somente releases assinadas sem carregamento ativo.' -Force | Out-Null
+    Append-UpdateLog $ComposeLogPath 'Agendamento reparado: atualização estável configurada para 03:30 e após o logon.'
+}
+
 try { $hasLock = $Lock.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $hasLock = $true }
 try {
     if (-not $hasLock) { throw "Já existe uma atualização em execução." }
+    Ensure-TraceUpdaterSchedule
     $dockerInfo = Invoke-External 'docker.exe' @('info', '--format', '{{.OSType}}') $null
     $dockerOs = ([string]$dockerInfo.Stdout).Trim()
     if ($dockerInfo.ExitCode -ne 0 -or $dockerOs -ne 'linux') {

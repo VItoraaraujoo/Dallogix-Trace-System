@@ -32,3 +32,12 @@ if (($remoteSummary["enabled"] ?? false) && !($remoteSummary["synced"] ?? false)
         (string) ($remoteSummary["error"] ?? "erro desconhecido"),
     ));
 }
+if (($remoteSummary["enabled"] ?? false) && ($remoteSummary["synced"] ?? false)) {
+    $updated = (int) ($remoteSummary["updated"] ?? 0);
+    if ($updated > 0) {
+        fwrite(STDOUT, sprintf(
+            "sync-worker: configuração remota aplicada; registros_atualizados=%d\n",
+            $updated,
+        ));
+    }
+}

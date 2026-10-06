@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 const updaterRegistration = readFileSync(new URL("../implantacao/windows/Register-TraceUpdater.ps1", import.meta.url), "utf8");
 const updaterScript = readFileSync(new URL("../implantacao/windows/TraceUpdater.ps1", import.meta.url), "utf8");
 const machineInstaller = readFileSync(new URL("../implantacao/windows/Install-TraceMachine.ps1", import.meta.url), "utf8");
+const dockerStarter = readFileSync(new URL("../implantacao/windows/Start-TraceDocker.ps1", import.meta.url), "utf8");
 
 test("atualizador estável fica agendado diariamente com a conta SYSTEM", () => {
   assert.match(updaterRegistration, /\$taskName = 'Dallogix Trace Atualizacao Estavel'/);
@@ -30,6 +31,14 @@ test("falha de pré-requisito do atualizador deixa diagnóstico persistente", ()
   assert.match(updaterScript, /update-stable-errors\.log/);
 });
 
+test("atualizador repara o gatilho de logon depois de uma atualização", () => {
+  assert.match(updaterScript, /function Ensure-TraceUpdaterSchedule/);
+  assert.match(updaterScript, /MSFT_TaskDailyTrigger/);
+  assert.match(updaterScript, /MSFT_TaskLogonTrigger/);
+  assert.match(updaterScript, /Register-ScheduledTask -TaskName \$taskName -Action \$action -Trigger @\(\$dailyTrigger, \$logonTrigger\)/);
+  assert.match(updaterScript, /Ensure-TraceUpdaterSchedule/);
+});
+
 test("instalação registra o agente no início do Windows", () => {
   assert.match(machineInstaller, /New-ScheduledTaskTrigger -AtStartup/);
   assert.match(machineInstaller, /Dallogix Trace Agent/);
@@ -38,8 +47,18 @@ test("instalação registra o agente no início do Windows", () => {
 
 test("instalação registra o Docker Desktop no logon da conta técnica", () => {
   assert.match(machineInstaller, /Trace-Docker-Start/);
-  assert.match(machineInstaller, /Docker\\Docker\\Docker Desktop\.exe/);
+  assert.match(machineInstaller, /Start-TraceDocker\.ps1/);
   assert.match(machineInstaller, /New-ScheduledTaskTrigger -AtLogOn -User \$interactiveUser/);
   assert.match(machineInstaller, /New-ScheduledTaskPrincipal -UserId \$interactiveUser -LogonType Interactive -RunLevel Limited/);
   assert.match(machineInstaller, /Register-ScheduledTask -TaskName "Trace-Docker-Start"/);
+});
+
+test("inicialização do Docker garante serviço privilegiado e aguarda o motor Linux", () => {
+  assert.match(dockerStarter, /com\.docker\.service/);
+  assert.match(dockerStarter, /Set-Service -Name 'com\.docker\.service' -StartupType Automatic/);
+  assert.match(dockerStarter, /Start-Service -Name 'com\.docker\.service'/);
+  assert.match(dockerStarter, /dockerDesktopLinuxEngine/);
+  assert.match(dockerStarter, /docker\.exe/);
+  assert.match(dockerStarter, /info.*OSType/);
+  assert.match(dockerStarter, /Mecanismo Linux do Docker respondeu ao teste de saúde/);
 });

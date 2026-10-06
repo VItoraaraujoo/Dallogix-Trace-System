@@ -46,9 +46,11 @@ $dockerDesktopCandidates = @(
 )
 $dockerDesktop = $dockerDesktopCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
 if (-not $dockerDesktop) { throw "Docker Desktop não foi encontrado para configurar a inicialização automática." }
+$dockerStartScript = Join-Path $PackageRoot "implantacao\windows\Start-TraceDocker.ps1"
+if (-not (Test-Path -LiteralPath $dockerStartScript -PathType Leaf)) { throw "Script de inicialização do Docker não encontrado." }
 $interactiveUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 $dockerTaskPrincipal = New-ScheduledTaskPrincipal -UserId $interactiveUser -LogonType Interactive -RunLevel Limited
-$dockerTaskAction = New-ScheduledTaskAction -Execute $dockerDesktop -WorkingDirectory (Split-Path -Parent $dockerDesktop)
+$dockerTaskAction = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$dockerStartScript`" -InstallRoot `"$PackageRoot`"" -WorkingDirectory $PackageRoot
 $dockerTaskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $interactiveUser
 $dockerTaskSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2)
 Register-ScheduledTask -TaskName "Trace-Docker-Start" -Action $dockerTaskAction -Trigger $dockerTaskTrigger -Principal $dockerTaskPrincipal -Settings $dockerTaskSettings -Description "Inicia o Docker Desktop do Trace após o login da conta técnica." -Force | Out-Null
