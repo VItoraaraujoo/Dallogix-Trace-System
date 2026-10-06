@@ -1,5 +1,5 @@
 import { OfflineOperationBuffer, secureRandomId } from "./OfflineOperationBuffer.js?v=20260930-security01";
-import { ClienteApi } from "../api/ClienteApi.js?v=202610060001";
+import { ClienteApi, erroRespostaHttp } from "../api/ClienteApi.js?v=202610060001";
 import { ServicoSincronizacao } from "../servicos/ServicoSincronizacao.js?v=202610060003";
 
 export class ArmazenamentoTrace {
@@ -98,6 +98,12 @@ export class ArmazenamentoTrace {
       ...(this.csrfToken ? { "X-CSRF-Token": this.csrfToken } : {}),
     };
   }
+  async jsonResponse(response, fallback) {
+    const result = await response.json().catch(() => ({}));
+    if (response.ok) return result;
+    const error = await erroRespostaHttp(response, result.error || fallback);
+    throw error || new Error(result.error || fallback);
+  }
   canQueueOffline(url, options = {}) {
     const method = String(options.method || "GET").toUpperCase();
     return ["POST", "PUT", "PATCH"].includes(method) &&
@@ -148,16 +154,7 @@ export class ArmazenamentoTrace {
     const response = await this.api.fetch(
       `/api/romaneios.php${query ? `?${query}` : ""}`,
     );
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const message =
-        response.status === 401
-          ? "Sua sessão expirou. Entre novamente no sistema."
-          : [429, 503].includes(response.status)
-            ? "O servidor está ocupado. Aguarde alguns segundos e tente novamente."
-            : result.error || "Não foi possível carregar os romaneios.";
-      throw new Error(message);
-    }
+    const result = await this.jsonResponse(response, "Não foi possível carregar os romaneios.");
     this.manifests = result.data || [];
     this.state.manifestMeta = result.meta || {
       page,
@@ -195,13 +192,11 @@ export class ArmazenamentoTrace {
   }
   async loadDashboard() {
     const response = await this.api.fetch("/api/dashboard.php");
-    if (response.ok) this.state.dashboard = (await response.json()).data;
+    this.state.dashboard = (await this.jsonResponse(response, "Não foi possível carregar o painel.")).data;
   }
   async loadManifest(id) {
     const response = await this.api.fetch(`/api/romaneios.php?id=${id}`);
-    const result = await response.json();
-    if (!response.ok)
-      throw new Error(result.error || "Romaneio não encontrado.");
+    const result = await this.jsonResponse(response, "Romaneio não encontrado.");
     this.state.manifestDetail = result.data;
   }
   async createManifest(payload) {
@@ -210,9 +205,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify(payload),
     });
-    const result = await response.json();
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível salvar o romaneio.");
+    const result = await this.jsonResponse(response, "Não foi possível salvar o romaneio.");
     await this.loadManifests();
     return result.data;
   }
@@ -222,9 +215,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify({ action: "update", ...payload }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível atualizar o romaneio.");
+    const result = await this.jsonResponse(response, "Não foi possível atualizar o romaneio.");
     await this.loadManifests();
     return result.data;
   }
@@ -234,11 +225,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify(payload),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(
-        result.error || "Não foi possível preparar o carregamento.",
-      );
+    const result = await this.jsonResponse(response, "Não foi possível preparar o carregamento.");
     this.state.selectedLoadingId = Number(result.data.id);
     await this.loadActiveLoading(this.state.selectedLoadingId);
     return result.data;
@@ -252,10 +239,7 @@ export class ArmazenamentoTrace {
         equipment_id: Number(equipmentId),
       }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(result.error || "Não foi possível vincular a nova Dala.");
-    }
+    const result = await this.jsonResponse(response, "Não foi possível vincular a nova Dala.");
     await this.loadEquipments({ force: true });
     await this.loadActiveLoading(Number(loadingId));
     return result.data;
@@ -266,15 +250,12 @@ export class ArmazenamentoTrace {
       headers: this.csrfToken ? { "X-CSRF-Token": this.csrfToken } : {},
       body: formData,
     });
-    const result = await response.json();
-    if (!response.ok)
-      throw new Error(result.error || "Falha ao importar o PDF.");
+    const result = await this.jsonResponse(response, "Falha ao importar o PDF.");
     return result.data;
   }
   async loadEquipment(id) {
     const response = await this.api.fetch(`/api/equipamentos.php?id=${id}`);
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error || "Dala não encontrada.");
+    const result = await this.jsonResponse(response, "Dala não encontrada.");
     this.state.equipmentDetail = result.data;
   }
   async checkEquipmentStatus(id) {
@@ -289,9 +270,7 @@ export class ArmazenamentoTrace {
   }
   async loadDalaStatuses() {
     const response = await this.api.fetch("/api/status_dalas.php");
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível carregar o status das Dalas.");
+    const result = await this.jsonResponse(response, "Não foi possível carregar o status das Dalas.");
     this.state.dalaStatuses = Array.isArray(result.data) ? result.data : [];
     return this.state.dalaStatuses;
   }
