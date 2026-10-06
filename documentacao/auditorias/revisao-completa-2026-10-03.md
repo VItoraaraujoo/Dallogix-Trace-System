@@ -9,9 +9,9 @@ GitHub Actions.
 
 ## Atualização de validação — 06/10/2026
 
-- A release `v1.0.97` foi publicada na execução 102 do GitHub Actions a partir
-  do commit `44a4a2a`.
-- O Central respondeu `status=ok`, `version=v1.0.97` e o mesmo commit em
+- A release `v1.0.98` foi publicada na execução 103 do GitHub Actions a partir
+  do commit `1589bf1`.
+- O Central respondeu `status=ok`, `version=v1.0.98` e o mesmo commit em
   `/api/health.php`; `/api/prontidao.php` respondeu `status=ready` com PHP e
   MySQL saudáveis.
 - O layout da operação recebeu uma regra final escopada para impedir que a
@@ -21,6 +21,9 @@ GitHub Actions.
   antes de limpar uma operação após um quadro SSE vazio transitório.
 - O PC industrial de teste estava offline no Tailscale; portanto a versão
   instalada e o reinício do equipamento permanecem sem evidência física.
+- O scanner de segredos passou no código atual e também foi exercitado com uma
+  falha controlada do `git grep`: “nenhuma ocorrência” retorna sucesso, enquanto
+  erro do scanner retorna código 2 e mensagem explícita.
 
 ## Evidências da base antes da alteração
 
@@ -87,9 +90,9 @@ produção.
 
 ## Itens que permanecem bloqueados por evidência
 
-- Escritas físicas no CLP não foram simuladas como se fossem reais. Os comandos
-  de saída continuam bloqueados até homologação do mapa de I/O e dos
-  intertravamentos.
+- O caminho de escrita física FC5 está implementado para M2049, M2050 e M2051,
+  mas não foi declarado aceito: faltam homologação do mapa de I/O, dos
+  intertravamentos e dos sinais de retorno no CLP real.
 - A câmera não foi declarada online sem quadro RTSP real.
 - Não há afirmação de desempenho de produção sem medição no servidor e no PC
   industrial durante carga representativa.
