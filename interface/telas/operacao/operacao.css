@@ -68,6 +68,64 @@ body.work-page:has(.work-operation-screen) .work-screen-actions {
   gap: 8px;
 }
 
+body.work-page:has(.work-operation-screen) .work-header-statuses {
+  display: grid;
+  min-width: min(100%, 430px);
+  gap: 4px;
+  padding: 5px 7px;
+  border: 1px solid #d7e4e9;
+  border-radius: 10px;
+  background: #f7fbfc;
+}
+
+body.work-page:has(.work-operation-screen) .work-header-statuses .work-device-status-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+body.work-page:has(.work-operation-screen) .work-header-statuses .work-device-status-heading > span:last-child {
+  color: var(--muted, #6b7785);
+  font-size: 9px;
+  white-space: nowrap;
+}
+
+body.work-page:has(.work-operation-screen) .work-header-statuses .status-compact {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 4px;
+  margin: 0;
+}
+
+body.work-page:has(.work-operation-screen) .work-header-statuses .status-compact span {
+  display: flex;
+  min-width: 0;
+  min-height: 22px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 4px;
+  padding: 3px 5px;
+  border: 1px solid #dfe8ec;
+  border-radius: 6px;
+  background: #fff;
+  color: var(--muted, #6b7785);
+  font-size: 9px;
+  line-height: 1;
+}
+
+body.work-page:has(.work-operation-screen) .work-header-statuses .status-compact strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body.work-page:has(.work-operation-screen) .work-header-statuses .status-compact b {
+  flex: 0 0 auto;
+  font-size: 9px;
+  letter-spacing: 0.03em;
+}
+
 body.work-page:has(.work-operation-screen) .work-back-button {
   min-height: 36px;
   padding: 8px 12px;
@@ -113,6 +171,12 @@ body.work-page:has(.work-operation-screen) .work-live-summary-foot {
   align-items: baseline;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
+}
+
+body.work-page:has(.work-operation-screen) .work-live-summary-divider {
+  color: #8a9aa7;
+  font-weight: 800;
 }
 
 body.work-page:has(.work-operation-screen) .work-live-summary-heading {
@@ -367,6 +431,15 @@ body.work-page:has(.work-operation-screen) .work-machine-panel {
   box-shadow: 0 8px 22px rgba(16, 43, 59, 0.07);
 }
 
+body.work-page:has(.work-operation-screen) .work-items-panel {
+  height: auto;
+  min-height: 0;
+}
+
+body.work-page:has(.work-operation-screen) .work-item-progress-list {
+  max-height: min(52dvh, 540px);
+}
+
 body.work-page:has(.work-operation-screen) .work-device-status-panel {
   display: grid;
   gap: 8px;
@@ -596,6 +669,18 @@ body.work-page:has(.work-operation-screen) .work-machine-panel .emergency-compac
     grid-template-columns: minmax(0, 1fr);
   }
 
+  body.work-page:has(.work-operation-screen) .work-screen-actions {
+    align-items: stretch;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-header-statuses {
+    min-width: 0;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-header-statuses .status-compact {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
   body.work-page:has(.work-operation-screen) .manual-operation-reading-form button {
     width: 100%;
   }
@@ -609,7 +694,7 @@ body.work-page:has(.work-operation-screen) .work-machine-panel .emergency-compac
 }
 
 @media (min-width: 461px) and (max-width: 1100px) {
-  body.work-page:has(.work-operation-screen) .work-device-status-panel .status-compact {
+  body.work-page:has(.work-operation-screen) .work-header-statuses .status-compact {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
