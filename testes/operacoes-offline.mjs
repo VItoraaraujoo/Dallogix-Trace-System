@@ -9,9 +9,12 @@ const bufferSource = readFileSync(new URL("../interface/js/classes/OfflineOperat
   .replace(/^import .*ClienteApi\.js[^;]*;\n/m, `import { ClienteApi } from ${JSON.stringify(clientModuleUrl)};\n`);
 const bufferModuleUrl = `data:text/javascript;base64,${Buffer.from(bufferSource).toString("base64")}`;
 const { OfflineOperationBuffer, secureRandomId } = await import(bufferModuleUrl);
+const syncSource = readFileSync(new URL("../interface/js/servicos/ServicoSincronizacao.js", import.meta.url), "utf8");
+const syncModuleUrl = `data:text/javascript;base64,${Buffer.from(syncSource).toString("base64")}`;
 const storeSource = readFileSync(new URL("../interface/js/classes/ArmazenamentoTrace.js", import.meta.url), "utf8")
   .replace(/"\.\/OfflineOperationBuffer\.js\?v=[^"]+"/, JSON.stringify(bufferModuleUrl))
-  .replace(/"\.\.\/api\/ClienteApi\.js\?v=[^"]+"/, JSON.stringify(clientModuleUrl));
+  .replace(/"\.\.\/api\/ClienteApi\.js\?v=[^"]+"/, JSON.stringify(clientModuleUrl))
+  .replace(/"\.\.\/servicos\/ServicoSincronizacao\.js\?v=[^"]+"/, JSON.stringify(syncModuleUrl));
 const { ArmazenamentoTrace } = await import(`data:text/javascript;base64,${Buffer.from(storeSource).toString("base64")}`);
 
 test("a fila pertence ao usuário e não descarta falhas HTTP", async () => {

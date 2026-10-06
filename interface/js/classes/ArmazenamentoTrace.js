@@ -1,5 +1,6 @@
 import { OfflineOperationBuffer, secureRandomId } from "./OfflineOperationBuffer.js?v=20260930-security01";
 import { ClienteApi } from "../api/ClienteApi.js?v=202610060001";
+import { ServicoSincronizacao } from "../servicos/ServicoSincronizacao.js?v=202610060003";
 
 export class ArmazenamentoTrace {
   constructor() {
@@ -73,6 +74,7 @@ export class ArmazenamentoTrace {
     this.api = new ClienteApi();
     this.manifests = [];
     this.offlineBuffer = new OfflineOperationBuffer();
+    this.sincronizacao = new ServicoSincronizacao({ api: this.api, offlineBuffer: this.offlineBuffer });
     // Consultas do carregamento e eventos em tempo real podem chegar juntas.
     // A fila garante que uma resposta antiga não sobrescreva a mais recente.
     this.activeLoadingRefresh = Promise.resolve();
@@ -127,57 +129,12 @@ export class ArmazenamentoTrace {
     }
   }
   async flushOfflineOperations() {
-    const result = await this.offlineBuffer.flush(this.jsonHeaders());
+    const result = await this.sincronizacao.enviarPendencias(this.jsonHeaders());
     this.state.offlineQueueSize = result.pending;
     return result;
   }
   subscribeOperationalEvents(onData, onError) {
-    if (typeof ReadableStream === "undefined" || typeof TextDecoder === "undefined") return null;
-    const controller = new AbortController();
-    let closed = false;
-    const listen = async () => {
-      try {
-        const response = await this.api.fetch("/api/eventos_carregamento.php?period_days=30", {
-          headers: { Accept: "text/event-stream" },
-          signal: controller.signal,
-          timeoutMs: 0,
-          retry: 0,
-        });
-        if (!response.ok || !response.body) throw new Error("Conexão de eventos indisponível.");
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let pending = "";
-        let eventName = "";
-        let eventData = [];
-        while (!closed) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          pending += decoder.decode(value, { stream: true });
-          let newline;
-          while ((newline = pending.indexOf("\n")) !== -1) {
-            const line = pending.slice(0, newline).replace(/\r$/, "");
-            pending = pending.slice(newline + 1);
-            if (line === "") {
-              if (eventName === "carregamento" && eventData.length) {
-                onData?.(JSON.parse(eventData.join("\n")));
-              }
-              eventName = "";
-              eventData = [];
-            } else if (line.startsWith("event:")) {
-              eventName = line.slice(6).trim();
-            } else if (line.startsWith("data:")) {
-              eventData.push(line.slice(5).trimStart());
-            }
-          }
-        }
-      } catch (error) {
-        if (!closed) onError?.(error);
-        return;
-      }
-      if (!closed) onError?.(new Error("Conexão de eventos encerrada."));
-    };
-    void listen();
-    return { close() { closed = true; controller.abort(); } };
+    return this.sincronizacao.assinarEventos({ onData, onError });
   }
   async loadManifests() {
     const params = new URLSearchParams();
@@ -790,32 +747,17 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async loadMonitoring() {
-    const response = await this.api.fetch("/api/monitoramento.php");
-    if (response.ok) {
-      this.state.monitoring = (await response.json()).data;
-      this.state.monitoringUpdatedAt = new Date().toISOString();
-    }
+    const result = await this.sincronizacao.monitoramento();
+    this.state.monitoring = result.data;
+    this.state.monitoringUpdatedAt = result.updatedAt;
   }
   async loadSyncStatus() {
-    const response = await this.api.fetch("/api/sync_status.php");
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(
-        result.error || "Não foi possível carregar a fila de sincronização.",
-      );
-    this.state.syncStatus = result.data;
+    this.state.syncStatus = await this.sincronizacao.statusFila();
   }
   async retrySync(id) {
-    const response = await this.api.fetch("/api/sync_queue.php", {
-      method: "POST",
-      headers: this.jsonHeaders(),
-      body: JSON.stringify({ id }),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok && response.status !== 202)
-      throw new Error(result.error || "Não foi possível reprocessar o evento.");
+    const result = await this.sincronizacao.reprocessarEvento(id, this.jsonHeaders());
     await this.loadSyncStatus();
-    return result.data;
+    return result;
   }
   async loadProducts() {
     if (this.productsRequest) return this.productsRequest;

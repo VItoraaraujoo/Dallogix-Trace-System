@@ -1,4 +1,4 @@
-const CACHE_NAME = "trace-shell-20261006-01";
+const CACHE_NAME = "trace-shell-20261006-02";
 const SHELL = [
   "/",
   "/service-worker.js",
@@ -100,6 +100,7 @@ const SHELL = [
   "/js/componentes/notificacoes.js",
   "/js/servicos/ServicoEmergencia.js",
   "/js/servicos/ServicoOperacao.js",
+  "/js/servicos/ServicoSincronizacao.js",
   "/js/classes/ArmazenamentoTrace.js",
   "/js/classes/OfflineOperationBuffer.js",
   "/js/constantes/acoes.js",
