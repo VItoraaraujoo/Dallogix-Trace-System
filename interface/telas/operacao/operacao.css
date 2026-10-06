@@ -254,9 +254,9 @@ body.work-page:has(.work-operation-screen) .work-manual-reading-heading small {
 
 body.work-page:has(.work-operation-screen) .manual-operation-reading-form {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 6px 8px;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 6px;
   min-width: 0;
 }
 
@@ -739,6 +739,42 @@ body.work-page:has(.work-operation-screen) .work-machine-panel .emergency-compac
 @media (max-width: 959px), (max-height: 679px) {
   body.work-page:has(.work-operation-screen) .work-machine-panel > .work-header-statuses .status-compact {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* A operação mostra somente o que é acionável. Os estados dos dispositivos
+   ficam em Configurações; os comandos permanecem grandes e sempre no mesmo
+   bloco visual. */
+body.work-page:has(.work-operation-screen) .topbar .local,
+body.work-page:has(.work-operation-screen) .work-header-statuses,
+body.work-page:has(.work-operation-screen) .work-command-feedback {
+  display: none !important;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls .button,
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone .button {
+  min-height: 92px;
+  padding: 18px 16px;
+  font-size: 18px;
+  border-radius: 12px;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone {
+  gap: 12px;
+  margin-top: 14px;
+  padding-top: 14px;
+}
+
+@media (max-width: 620px) {
+  body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls .button,
+  body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone .button {
+    min-height: 78px;
+    font-size: 16px;
   }
 }
 

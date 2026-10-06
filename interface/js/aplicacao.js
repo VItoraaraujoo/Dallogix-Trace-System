@@ -6,7 +6,7 @@ import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notifica
 import { prepararDialogoAcessivel } from "./funcoes/dialogo.js?v=202610061820";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610061700";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610061745";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610060007";
@@ -14,7 +14,7 @@ import { dataHora, numero, relativo } from "./funcoes/formato.js?v=202609201000"
 import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js?v=202609240001";
-import { deviceStatusSummary } from "./funcoes/view.js?v=202610061700";
+import { deviceStatusSummary } from "./funcoes/view.js?v=202610061745";
 import { settings } from "../telas/configuracoes/configuracoes.js?v=202610010001";
 import { dalas } from "../telas/dalas/dalas.js?v=202610010001";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
@@ -33,7 +33,7 @@ import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
 import { manifests } from "../telas/romaneios/romaneios.js?v=202610010001";
 import { manifestView } from "../telas/romaneio/romaneio.js?v=202610010001";
-import { work } from "../telas/operacao/operacao.js?v=202610061700";
+import { work } from "../telas/operacao/operacao.js?v=202610061745";
 import { dashboard } from "../telas/painel/painel.js?v=202610010001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610010001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
@@ -281,7 +281,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610061700").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610061745").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -1467,7 +1467,11 @@ function bindActions() {
           // parar logo após iniciar) não fique preso a uma consulta lenta.
           store.endCommand(commandToken);
           if (currentPage === "work") render();
-          await store.loadActiveLoading(node.dataset.loadingId || store.state.loadingId);
+          await Promise.allSettled([
+            store.loadActiveLoading(loadingId),
+            store.loadPlcCommandStatus(loadingId),
+            store.loadMonitoring(),
+          ]);
           render();
         } catch (error) {
           notificar(error.message);
@@ -1515,10 +1519,6 @@ function bindActions() {
       if (screens[action]) navigate(action);
       else if (action === "reverse-on" || action === "reverse-off" || action === "reverse-toggle") {
         if (store.state.commandInFlight) return;
-        if (store.state.operationalState !== "PAUSADO") {
-          notificar("Para alterar a reversão, pause a esteira primeiro.");
-          return;
-        }
         const activating = action === "reverse-on" ||
           (action === "reverse-toggle" && store.state.plcCommand?.command !== "REVERSAO_ATIVAR");
         if (
@@ -1535,7 +1535,13 @@ function bindActions() {
         if (currentPage === "work") render();
         try {
           await servicoOperacao.reversao(activating, store.state.loadingId);
-          await store.loadActiveLoading();
+          store.endCommand(commandToken);
+          if (currentPage === "work") render();
+          await Promise.allSettled([
+            store.loadActiveLoading(),
+            store.loadPlcCommandStatus(),
+            store.loadMonitoring(),
+          ]);
           render();
         } catch (error) {
           notificar(error.message);
@@ -1550,7 +1556,13 @@ function bindActions() {
         if (currentPage === "work") render();
         try {
           await servicoEmergencia.solicitar();
-          await store.loadActiveLoading();
+          store.endCommand(commandToken);
+          if (currentPage === "work") render();
+          await Promise.allSettled([
+            store.loadActiveLoading(),
+            store.loadPlcCommandStatus(),
+            store.loadMonitoring(),
+          ]);
           render();
         } catch (error) {
           notificar(error.message);
@@ -2077,6 +2089,12 @@ function bindForms() {
     });
   });
   document.querySelectorAll(".manual-operation-reading-form").forEach((form) => {
+    const barcodeInput = form.querySelector('[name="barcode"]');
+    barcodeInput?.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" || barcodeInput.disabled) return;
+      event.preventDefault();
+      if (typeof form.requestSubmit === "function") form.requestSubmit();
+    });
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (form.dataset.submitting === "1") return;
@@ -2323,7 +2341,7 @@ async function loadPageData(page) {
       store.loadSyncStatus(),
     ],
     emergency: () => [store.loadActiveLoading(), store.loadMonitoring()],
-    settings: () => [store.loadConfiguration(), store.loadEquipments(), store.loadSyncStatus(), store.loadDalaStatuses()],
+    settings: () => [store.loadConfiguration(), store.loadMonitoring(), store.loadEquipments(), store.loadSyncStatus(), store.loadDalaStatuses()],
     dalas: () => [store.loadEquipments()],
     dala: () => [loadDalaView(queryId())],
     "dala-edit": () => [store.loadEquipment(queryId())],

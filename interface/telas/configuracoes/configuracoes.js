@@ -1,5 +1,34 @@
 import { button, esc } from "../../js/funcoes/html.js";
-import { pageHeader } from "../../js/funcoes/view.js?v=202610061700";
+import { dataHora } from "../../js/funcoes/formato.js?v=202609201000";
+import { pageHeader } from "../../js/funcoes/view.js?v=202610061745";
+
+function deviceStatusPanel(store) {
+  const selectedEquipmentId = Number(store.state.equipmentId) || null;
+  const devices = (store.state.monitoring?.dispositivos || []).filter(
+    (item) => !selectedEquipmentId || Number(item.equipment_id) === selectedEquipmentId,
+  );
+  const known = [
+    ["SENSOR", "Sensor"],
+    ["SCANNER", "Scanner"],
+    ["CLP", "CLP"],
+    ["CAMERA", "Câmera"],
+    ["SERVER", "Servidor"],
+  ];
+  const online = (value) => ["ONLINE", "LOCAL", "OK"].includes(
+    String(value || "").trim().toUpperCase(),
+  );
+  const updatedAt = store.state.monitoringUpdatedAt
+    ? `Atualizado ${dataHora(store.state.monitoringUpdatedAt)}`
+    : "Sem atualização confirmada";
+  const cards = known.map(([type, label]) => {
+    const value = type === "SERVER"
+      ? (store.state.serverStatus || "DESCONHECIDO")
+      : (devices.find((item) => item.device_type === type)?.status || "NAO_REGISTRADO");
+    const isOnline = online(value);
+    return `<span class="settings-device-status-card"><strong>${label}</strong><b class="status-value status-${isOnline ? "online" : "offline"}" data-live-status="${type}" data-live-status-mode="binary">${isOnline ? "ON" : "OFF"}</b></span>`;
+  }).join("");
+  return `<section class="panel settings-device-status-panel" aria-label="Status dos dispositivos"><div class="panel-heading"><div><span class="kicker">Status da máquina</span><h3>Dispositivos e serviços</h3></div><small data-live="monitoring-updated">${esc(updatedAt)}</small></div><div class="settings-device-status-grid">${cards}</div><p>Os estados são informativos e vêm do último sinal confirmado pelo PC industrial.</p></section><br>`;
+}
 
 // Conectividade local/remota, Dalas (somente leitura) e importação de PDF.
 export function settings(store) {
@@ -70,6 +99,7 @@ export function settings(store) {
 ${canManageUsers ? `<section class="panel settings-access-panel"><div class="panel-heading"><div><h3>Gerenciar usuários</h3><p>Crie e gerencie os usuários, perfis e acessos da empresa.</p></div>${button("Abrir gerenciamento de usuários", "open-users", "primary")}</div></section><br>` : ""}
 <section class="panel"><h3>Comunicação industrial</h3><p>O PC industrial acessa o CLP pela rede local e inicia a sincronização HTTPS com o servidor central. Não é necessário abrir porta pública ou configurar redirecionamento no roteador.</p></section><br>
 <section class="panel"><h3>Conectividade</h3><div class="sync-status-row"><span class="status-dot ${syncTone}"></span><strong>${syncLabel}</strong></div><br><div class="sync-status-row"><span class="status-dot ${dalaTone}"></span><strong>${dalaLabel}</strong></div></section><br>
+${deviceStatusPanel(store)}
 <section class="panel"><div class="panel-heading"><h3>Dalas</h3><div class="actions">${button("Recarregar", "reload-dalas", "secondary")}${button("Gerenciar Dalas", "goto-dalas")}</div></div>
 <p>Visão consolidada das Dalas cadastradas e do último sinal Modbus recebido do PC industrial. Para cadastrar ou editar, use Gerenciar Dalas.</p>
 <p><strong>Identificador:</strong> código único da Dala. <strong>IP do CLP:</strong> endereço na rede local da fábrica. <strong>Porta do CLP:</strong> porta TCP Modbus informada pelo fabricante.</p>

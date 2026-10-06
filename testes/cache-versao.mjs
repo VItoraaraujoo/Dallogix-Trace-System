@@ -4,12 +4,12 @@ import { join } from "node:path";
 import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
-const versao = "202610061700";
+const versao = "202610061745";
 
 test("o shell invalida cache quando a aplicação muda", () => {
   const serviceWorker = readFileSync(join(raiz, "service-worker.js"), "utf8");
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
-  assert.match(serviceWorker, /trace-shell-20261006-14/);
+  assert.match(serviceWorker, /trace-shell-20261006-15/);
   assert.match(aplicacao, new RegExp(`/service-worker\\.js\\?v=${versao}`));
   assert.match(aplicacao, new RegExp(`ArmazenamentoTrace\\.js\\?v=${versao}`));
   assert.match(aplicacao, new RegExp(`operacao\\.js\\?v=${versao}`));
@@ -36,4 +36,15 @@ test("a navegação não exibe uma tela intermediária de carregamento", () => {
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
   assert.doesNotMatch(aplicacao, /Abrindo tela/);
   assert.doesNotMatch(aplicacao, /root\.innerHTML\s*=\s*[\s\S]{0,180}page-loading/);
+});
+
+test("a operação deixa os estados em Configurações e usa leitura automática", () => {
+  const operacao = readFileSync(join(raiz, "telas", "operacao", "operacao.js"), "utf8");
+  const configuracoes = readFileSync(join(raiz, "telas", "configuracoes", "configuracoes.js"), "utf8");
+  const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
+  assert.doesNotMatch(operacao, /work-header-statuses/);
+  assert.doesNotMatch(operacao, /Registrar leitura/);
+  assert.match(operacao, /envia Enter automaticamente/);
+  assert.match(configuracoes, /settings-device-status-panel/);
+  assert.match(aplicacao, /store\.loadMonitoring\(\).*store\.loadEquipments/);
 });
