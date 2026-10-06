@@ -59,6 +59,6 @@ grep -q 'entrypoint: \["/bin/sh", "/seed/entrypoint.sh"\]' docker-compose.yml
 php_compose_block="$(awk '/^  php:/{in_php=1} in_php{print} in_php && /^  [a-z0-9_-]+:/{if ($0 !~ /^  php:/) exit}' docker-compose.yml)"
 grep -q 'armazenamento-init:' <<<"$php_compose_block"
 grep -q 'condition: service_completed_successfully' <<<"$php_compose_block"
-grep -q 'substituindoInicioPendente' servidor/src/Aplicacao/ServicoComandoClp.php
+grep -q 'paradaAposInicio' servidor/src/Aplicacao/ServicoComandoClp.php
 
 echo 'OK: sintaxe PHP/JavaScript e referências órfãs verificadas.'

@@ -92,6 +92,14 @@ export function paradaPodeSubstituirInicio({ state, pendingStatus, pendingComman
     String(pendingCommand || "").toUpperCase() === "INICIAR_CARREGAMENTO";
 }
 
+export function paradaPodeSerEnfileiradaAposInicio({ state, pendingStatus, pendingCommand }) {
+  return ["PREPARANDO", "CARREGANDO", "PAUSADO"].includes(
+    String(state || "").toUpperCase(),
+  ) && ["PENDENTE", "PROCESSANDO"].includes(
+    String(pendingStatus || "").toUpperCase(),
+  ) && String(pendingCommand || "").toUpperCase() === "INICIAR_CARREGAMENTO";
+}
+
 function workControls(store) {
   const loadingItems = Array.isArray(store.state.loadingItems)
     ? store.state.loadingItems
@@ -117,8 +125,8 @@ function workControls(store) {
   const commandInFlight = store.state.commandInFlight === true;
   const bloqueioComando = (allowedStates, stateMessage, requestedCommand = "") => {
     const samePendingCommand = pendingStatus === "PENDENTE" && pendingCommand === requestedCommand;
-    const canReplacePendingStart = requestedCommand === "PAUSAR_CARREGAMENTO" &&
-      paradaPodeSubstituirInicio({
+    const canQueueStopBehindStart = requestedCommand === "PAUSAR_CARREGAMENTO" &&
+      paradaPodeSerEnfileiradaAposInicio({
         state,
         pendingStatus,
         pendingCommand,
@@ -129,11 +137,11 @@ function workControls(store) {
         ? store.mensagemClpIndisponivel()
         : commandInFlight
           ? "Enviando o comando ao gateway industrial"
-          : commandBeingProcessed
+          : commandBeingProcessed && !canQueueStopBehindStart
             ? "Aguarde o retorno do comando atual"
             : samePendingCommand
               ? "Este comando já está aguardando o gateway industrial"
-            : !allowedStates.includes(state) && !canReplacePendingStart
+            : !allowedStates.includes(state) && !canQueueStopBehindStart
                 ? stateMessage
                 : "";
     return reason ? { disabled: true, "aria-disabled": "true", title: reason } : "";

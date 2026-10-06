@@ -60,15 +60,16 @@ final class ServicoComandoClp
             $allowedStates = $command === "INICIAR_CARREGAMENTO"
                 ? ["PREPARANDO", "PAUSADO"]
                 : ["PREPARANDO", "CARREGANDO"];
-            // Um início ainda PENDENTE pode ser substituído por uma parada
-            // antes de qualquer reserva ou escrita física no CLP. Isso evita
-            // deixar o operador preso na tela depois de clicar em iniciar.
+            // Uma parada pode ser enfileirada atrás de um início PENDENTE ou
+            // já reservado pelo gateway. O início não é apagado depois de
+            // reservado: o gateway conclui a sequência na ordem registrada,
+            // mantendo o comando físico e o retorno auditável.
             $pending = $this->comandoPendente($loadingId);
-            $substituindoInicioPendente = $command === "PAUSAR_CARREGAMENTO"
+            $paradaAposInicio = $command === "PAUSAR_CARREGAMENTO"
                 && $pending
-                && $pending["status"] === "PENDENTE"
+                && in_array($pending["status"], ["PENDENTE", "PROCESSANDO"], true)
                 && $pending["command"] === "INICIAR_CARREGAMENTO";
-            if ($substituindoInicioPendente) {
+            if ($paradaAposInicio) {
                 $allowedStates[] = "PAUSADO";
             }
             if (!in_array($loading["state"], $allowedStates, true)) {
@@ -90,41 +91,45 @@ final class ServicoComandoClp
                         409,
                     );
                 }
-                if (
+                $podeEnfileirarParada = $paradaAposInicio
+                    && $pending["status"] === "PROCESSANDO";
+                if (!$podeEnfileirarParada && (
                     $pending["status"] !== "PENDENTE"
                     || !in_array($pending["command"], $allowed, true)
-                ) {
+                )) {
                     throw new ExcecaoComandoClp(
                         "O comando anterior já foi reservado pelo gateway industrial. Aguarde a confirmação antes de enviar outro.",
                         409,
                     );
                 }
-                $cancel = $this->connection->prepare(
-                    "UPDATE solicitacoes_comandos_clp
-                     SET status = 'REJEITADO', completed_at = NOW(3),
-                         response_message = :message
-                     WHERE id = :id AND status = 'PENDENTE'",
-                );
-                $cancel->execute([
-                    "id" => $pending["id"],
-                    "message" => "Comando substituído por {$command} antes da escrita física.",
-                ]);
-                if ($cancel->rowCount() === 1) {
-                    \record_operational_event(
-                        $this->connection,
-                        $user,
-                        "COMANDO_CLP_CONCLUIDO",
-                        "solicitacao_comando_clp",
-                        (int) $pending["id"],
-                        [
-                            "equipment_id" => (int) $loading["equipment_id"],
-                            "carregamento_id" => $loadingId,
-                            "command" => $pending["command"],
-                            "status" => "REJEITADO",
-                            "message" => "Comando substituído por {$command} antes da escrita física.",
-                            "replaced_by" => $command,
-                        ],
+                if ($pending["status"] === "PENDENTE") {
+                    $cancel = $this->connection->prepare(
+                        "UPDATE solicitacoes_comandos_clp
+                         SET status = 'REJEITADO', completed_at = NOW(3),
+                             response_message = :message
+                         WHERE id = :id AND status = 'PENDENTE'",
                     );
+                    $cancel->execute([
+                        "id" => $pending["id"],
+                        "message" => "Comando substituído por {$command} antes da escrita física.",
+                    ]);
+                    if ($cancel->rowCount() === 1) {
+                        \record_operational_event(
+                            $this->connection,
+                            $user,
+                            "COMANDO_CLP_CONCLUIDO",
+                            "solicitacao_comando_clp",
+                            (int) $pending["id"],
+                            [
+                                "equipment_id" => (int) $loading["equipment_id"],
+                                "carregamento_id" => $loadingId,
+                                "command" => $pending["command"],
+                                "status" => "REJEITADO",
+                                "message" => "Comando substituído por {$command} antes da escrita física.",
+                                "replaced_by" => $command,
+                            ],
+                        );
+                    }
                 }
             }
             $insert = $this->connection->prepare(
