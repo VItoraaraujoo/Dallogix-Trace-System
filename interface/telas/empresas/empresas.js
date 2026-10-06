@@ -1,5 +1,5 @@
 import { button } from "../../js/funcoes/html.js";
-import { pageHeader, companyGrid } from "../../js/funcoes/view.js?v=202610060011";
+import { pageHeader, companyGrid } from "../../js/funcoes/view.js?v=202610061603";
 
 export function companies(store) {
   const rows = store.state.companies || [];
