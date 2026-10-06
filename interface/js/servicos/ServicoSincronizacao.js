@@ -1,3 +1,33 @@
+const mensagensHttp = new Map([
+  [401, "Sua sessão expirou. Entre novamente no sistema."],
+  [403, "Você não tem permissão para esta operação."],
+  [404, "O recurso solicitado não foi encontrado."],
+  [409, "A operação entrou em conflito com o estado atual."],
+  [422, "Os dados enviados não puderam ser validados."],
+  [429, "Muitas tentativas. Aguarde alguns segundos e tente novamente."],
+  [500, "O servidor encontrou um erro interno."],
+  [502, "O servidor está temporariamente indisponível."],
+  [503, "O servidor está temporariamente indisponível."],
+  [504, "O servidor demorou para responder."],
+]);
+
+async function exigirRespostaHttp(response, fallback) {
+  if (response?.ok) return response;
+  let detalhe = null;
+  try {
+    const fonte = typeof response?.clone === "function" ? response.clone() : response;
+    detalhe = await fonte?.json?.();
+  } catch (_) {
+    detalhe = null;
+  }
+  const mensagem = detalhe?.error || detalhe?.message || fallback || mensagensHttp.get(Number(response?.status)) || "Não foi possível concluir a requisição.";
+  const erro = new Error(mensagem);
+  erro.name = "ErroApi";
+  erro.code = `HTTP_${Number(response?.status) || 0}`;
+  erro.status = Number(response?.status) || 0;
+  throw erro;
+}
+
 /**
  * Coordena comunicação contínua, fila offline e estado de sincronização.
  * A classe não conhece a tela: recebe um ClienteApi e callbacks pequenos,
@@ -17,14 +47,14 @@ export class ServicoSincronizacao {
 
   async monitoramento() {
     const response = await this.api.fetch("/api/monitoramento.php");
-    if (!response.ok) throw new Error("Não foi possível carregar o monitoramento.");
+    await exigirRespostaHttp(response, "Não foi possível carregar o monitoramento.");
     return { data: (await response.json().catch(() => ({}))).data, updatedAt: new Date().toISOString() };
   }
 
   async statusFila() {
     const response = await this.api.fetch("/api/sync_status.php");
     const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível carregar a fila de sincronização.");
+    await exigirRespostaHttp(response, result.error || "Não foi possível carregar a fila de sincronização.");
     return result.data;
   }
 
@@ -36,7 +66,7 @@ export class ServicoSincronizacao {
     });
     const result = await response.json().catch(() => ({}));
     if (!response.ok && response.status !== 202) {
-      throw new Error(result.error || "Não foi possível reprocessar o evento.");
+      await exigirRespostaHttp(response, result.error || "Não foi possível reprocessar o evento.");
     }
     return result.data;
   }

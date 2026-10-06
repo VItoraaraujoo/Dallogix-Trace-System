@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ClienteApi, ErroApi } from "../interface/js/api/ClienteApi.js";
+import { ClienteApi, ErroApi, exigirRespostaHttp, mensagemHttp } from "../interface/js/api/ClienteApi.js";
 
 const resposta = (status = 200, body = "{}") => new Response(body, {
   status,
@@ -97,4 +97,18 @@ test("preserva cancelamento explícito do chamador como cancelamento", async () 
   } finally {
     globalThis.fetch = originalFetch;
   }
+});
+
+test("padroniza mensagens e códigos dos erros HTTP", async () => {
+  assert.equal(mensagemHttp(401), "Sua sessão expirou. Entre novamente no sistema.");
+  await assert.rejects(
+    exigirRespostaHttp(resposta(422, JSON.stringify({ error: "Código inválido." }))),
+    (error) => error instanceof ErroApi && error.code === "HTTP_422" && error.status === 422 && error.message === "Código inválido.",
+  );
+});
+
+test("preserva o corpo para a tela depois de classificar um erro HTTP", async () => {
+  const response = resposta(503, JSON.stringify({ error: "Fila indisponível." }));
+  await assert.rejects(exigirRespostaHttp(response), /Fila indisponível/);
+  assert.deepEqual(await response.json(), { error: "Fila indisponível." });
 });
