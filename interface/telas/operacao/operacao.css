@@ -660,3 +660,38 @@ body.work-page:has(.work-operation-screen) .work-machine-panel .emergency-compac
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
+
+/* Regra final da tela de operação.
+   O CSS responsivo geral ainda contém compatibilidade histórica que transforma
+   as duas colunas em áreas de altura total. Aqui a tela operacional mantém o
+   tamanho real dos cartões e limita o rolagem somente à lista de itens. */
+@media (min-width: 960px) and (min-height: 680px) {
+  body.work-page:has(.work-operation-screen) .work-operation-layout {
+    align-items: start;
+    flex: 0 0 auto;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-status-column {
+    height: auto;
+    max-height: calc(100dvh - 150px);
+    overflow: visible;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-status-column > .work-items-panel {
+    height: auto;
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-item-progress-list {
+    flex: 0 1 auto;
+    max-height: min(55dvh, 620px);
+    overflow-y: auto;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-panel {
+    height: auto;
+    align-self: start;
+    overflow: visible;
+  }
+}
