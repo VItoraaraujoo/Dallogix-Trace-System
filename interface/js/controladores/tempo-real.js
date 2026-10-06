@@ -8,7 +8,7 @@ export function createOperationalRealtimeController({ store, getPage, render, re
   let polling = false;
   let reconnectFailures = 0;
   const stop = () => {
-    if (fallbackTimer) window.clearInterval(fallbackTimer);
+    if (fallbackTimer) window.clearTimeout(fallbackTimer);
     if (reconnectTimer) window.clearTimeout(reconnectTimer);
     fallbackTimer = null;
     reconnectTimer = null;
@@ -17,9 +17,14 @@ export function createOperationalRealtimeController({ store, getPage, render, re
   };
   const fallback = () => {
     if (fallbackTimer) return;
-    fallbackTimer = window.setInterval(async () => {
+    const intervalo = globalThis.document?.hidden ? 15000 : 5000;
+    fallbackTimer = window.setTimeout(async () => {
+      fallbackTimer = null;
       if (getPage() !== "work") return stop();
-      if (polling) return;
+      if (polling) {
+        fallback();
+        return;
+      }
       polling = true;
       try {
         await Promise.all([
@@ -34,8 +39,9 @@ export function createOperationalRealtimeController({ store, getPage, render, re
         /* mantém o último estado visível */
       } finally {
         polling = false;
+        if (getPage() === "work") fallback();
       }
-    }, 5000);
+    }, intervalo);
   };
   const start = () => {
     if (eventSource || fallbackTimer || getPage() !== "work") return;
