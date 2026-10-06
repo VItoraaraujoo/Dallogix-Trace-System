@@ -11,6 +11,7 @@ const bufferModuleUrl = `data:text/javascript;base64,${Buffer.from(bufferSource)
 const { OfflineOperationBuffer, secureRandomId } = await import(bufferModuleUrl);
 const loggerSource = readFileSync(new URL("../interface/js/utilitarios/LogFrontend.js", import.meta.url), "utf8");
 const syncSource = readFileSync(new URL("../interface/js/servicos/ServicoSincronizacao.js", import.meta.url), "utf8")
+  .replace(/^import .*ClienteApi\.js[^;]*;\n/m, `import { exigirRespostaHttp } from ${JSON.stringify(clientModuleUrl)};\n`)
   // O serviço é carregado como data: para isolar o armazenamento. Incluir o
   // logger nessa mesma unidade mantém o teste fiel sem depender de uma URL
   // relativa que o Node não consegue resolver a partir de data:.

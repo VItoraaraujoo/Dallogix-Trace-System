@@ -1,34 +1,5 @@
-const mensagensHttp = new Map([
-  [401, "Sua sessão expirou. Entre novamente no sistema."],
-  [403, "Você não tem permissão para esta operação."],
-  [404, "O recurso solicitado não foi encontrado."],
-  [409, "A operação entrou em conflito com o estado atual."],
-  [422, "Os dados enviados não puderam ser validados."],
-  [429, "Muitas tentativas. Aguarde alguns segundos e tente novamente."],
-  [500, "O servidor encontrou um erro interno."],
-  [502, "O servidor está temporariamente indisponível."],
-  [503, "O servidor está temporariamente indisponível."],
-  [504, "O servidor demorou para responder."],
-]);
-
+import { exigirRespostaHttp } from "../api/ClienteApi.js?v=202610060006";
 import { logFrontend } from "../utilitarios/LogFrontend.js?v=202610060006";
-
-async function exigirRespostaHttp(response, fallback) {
-  if (response?.ok) return response;
-  let detalhe = null;
-  try {
-    const fonte = typeof response?.clone === "function" ? response.clone() : response;
-    detalhe = await fonte?.json?.();
-  } catch (_) {
-    detalhe = null;
-  }
-  const mensagem = detalhe?.error || detalhe?.message || fallback || mensagensHttp.get(Number(response?.status)) || "Não foi possível concluir a requisição.";
-  const erro = new Error(mensagem);
-  erro.name = "ErroApi";
-  erro.code = `HTTP_${Number(response?.status) || 0}`;
-  erro.status = Number(response?.status) || 0;
-  throw erro;
-}
 
 /**
  * Coordena comunicação contínua, fila offline e estado de sincronização.
