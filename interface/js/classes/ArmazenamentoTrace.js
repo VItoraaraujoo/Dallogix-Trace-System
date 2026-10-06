@@ -260,12 +260,12 @@ export class ArmazenamentoTrace {
   }
   async checkEquipmentStatus(id) {
     const response = await this.api.fetch(`/api/equipamentos.php?id=${id}&check=status`);
-    const result = await response.json();
     if (!response.ok)
       return {
         status: "DESCONHECIDO",
-        message: result.error || "Falha na verificação.",
+        message: (await response.json().catch(() => ({}))).error || "Falha na verificação.",
       };
+    const result = await response.json();
     return result.data;
   }
   async loadDalaStatuses() {
@@ -276,15 +276,13 @@ export class ArmazenamentoTrace {
   }
   async loadDalaCommandHistory(id) {
     const response = await this.api.fetch(`/api/comandos_industriais.php?equipment_id=${encodeURIComponent(id)}`);
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível carregar o diagnóstico do CLP.");
+    const result = await this.jsonResponse(response, "Não foi possível carregar o diagnóstico do CLP.");
     this.state.dalaCommands = Array.isArray(result.data) ? result.data : [];
     return this.state.dalaCommands;
   }
   async loadDalaActionConfig(id) {
     const response = await this.api.fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(id)}`);
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível carregar as ações da Dala.");
+    const result = await this.jsonResponse(response, "Não foi possível carregar as ações da Dala.");
     this.state.dalaActionConfig = result.data || { acoes: [], gatilhos: [], can_manage: false };
     return this.state.dalaActionConfig;
   }
@@ -295,52 +293,45 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify(payload),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível salvar a ação.");
+    const result = await this.jsonResponse(response, "Não foi possível salvar a ação.");
     return this.loadDalaActionConfig(id);
   }
   async reorderDalaActions(id, ids) {
     const response = await this.api.fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(id)}`, {
       method: "PATCH", headers: this.jsonHeaders(), body: JSON.stringify({ action: "reorder", ids }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível ordenar as ações.");
+    const result = await this.jsonResponse(response, "Não foi possível ordenar as ações.");
     return this.loadDalaActionConfig(id);
   }
   async deleteDalaAction(equipmentId, actionId) {
     const response = await this.api.fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(equipmentId)}&id=${encodeURIComponent(actionId)}`, {
       method: "DELETE", headers: this.jsonHeaders(),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível excluir a ação.");
+    const result = await this.jsonResponse(response, "Não foi possível excluir a ação.");
     return this.loadDalaActionConfig(equipmentId);
   }
   async saveDalaTrigger(equipmentId, payload) {
     const response = await this.api.fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(equipmentId)}`, {
       method: "PATCH", headers: this.jsonHeaders(), body: JSON.stringify({ action: "trigger", ...payload }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível salvar o gatilho.");
+    const result = await this.jsonResponse(response, "Não foi possível salvar o gatilho.");
     return this.loadDalaActionConfig(equipmentId);
   }
   async loadErrorLogs() {
     const response = await this.api.fetch("/api/logs_erros.php");
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível carregar os logs de erro.");
+    const result = await this.jsonResponse(response, "Não foi possível carregar os logs de erro.");
     this.state.errorLogs = result.data || [];
     return this.state.errorLogs;
   }
   async loadTechnicalDiagnostics() {
     const response = await this.api.fetch("/api/diagnostico.php");
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível carregar o diagnóstico técnico.");
+    const result = await this.jsonResponse(response, "Não foi possível carregar o diagnóstico técnico.");
     this.state.technicalDiagnostics = result.data || null;
     return this.state.technicalDiagnostics;
   }
   async loadDeadLetters() {
     const response = await this.api.fetch("/api/sync_dead_letter.php");
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível carregar a fila morta.");
+    const result = await this.jsonResponse(response, "Não foi possível carregar a fila morta.");
     this.state.deadLetters = result.data || [];
     return this.state.deadLetters;
   }
@@ -350,8 +341,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify({ id, action, resolution_note: resolutionNote }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível atualizar a fila morta.");
+    const result = await this.jsonResponse(response, "Não foi possível atualizar a fila morta.");
     await Promise.all([this.loadDeadLetters(), this.loadTechnicalDiagnostics()]);
     return result.data;
   }
@@ -361,9 +351,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify(data),
     });
-    const result = await response.json();
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível salvar a Dala.");
+    const result = await this.jsonResponse(response, "Não foi possível salvar a Dala.");
     await this.loadEquipments({ force: true });
   }
   async deleteEquipment(id) {
@@ -371,9 +359,7 @@ export class ArmazenamentoTrace {
       method: "DELETE",
       headers: this.jsonHeaders(),
     });
-    const result = await response.json();
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível excluir a Dala.");
+    const result = await this.jsonResponse(response, "Não foi possível excluir a Dala.");
     await this.loadEquipments({ force: true });
   }
   updateProduct(data) {
@@ -388,8 +374,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: method === "DELETE" ? undefined : JSON.stringify(body),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Falha na requisição.");
+    const result = await this.jsonResponse(response, "Falha na requisição.");
     await this.loadProducts();
     return result.data;
   }
@@ -402,11 +387,7 @@ export class ArmazenamentoTrace {
   }
   async _loadActiveLoading(selectedId = this.state.selectedLoadingId) {
     const response = await this.api.fetch("/api/carregamentos.php");
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(
-        result.error || "Não foi possível carregar o carregamento ativo.",
-      );
+    const result = await this.jsonResponse(response, "Não foi possível carregar o carregamento ativo.");
     const loadings = Array.isArray(result.data) ? result.data : [];
     this.state.activeLoadings = loadings.filter(
       (item) => item.state !== "FINALIZADO",
@@ -544,9 +525,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify({ carregamento_id: loadingId, command }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível enviar o comando ao gateway industrial.");
+    const result = await this.jsonResponse(response, "Não foi possível enviar o comando ao gateway industrial.");
     this.state.plcCommand = {
       id: result.data.command_request_id,
       command: result.data.command,
@@ -588,11 +567,7 @@ export class ArmazenamentoTrace {
     const response = await this.api.fetch(
       `/api/comandos_industriais.php?carregamento_id=${encodeURIComponent(loadingId)}`,
     );
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(
-        result.error || "Não foi possível consultar o comando industrial.",
-      );
+    const result = await this.jsonResponse(response, "Não foi possível consultar o comando industrial.");
     const nextCommand = result.data || null;
     const currentCommand = this.state.plcCommand;
     const currentId = Number(currentCommand?.id) || 0;
@@ -627,7 +602,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify({ carregamento_id: this.state.loadingId }),
     });
-    const result = await response.json();
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) {
       if (response.status === 409) {
         await this.loadActiveLoading();
@@ -649,11 +624,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify({ carregamento_id: this.state.loadingId, justification }),
     });
-    const result = await response.json();
-    if (!response.ok)
-      throw new Error(
-        result.error || "Não foi possível finalizar o carregamento.",
-      );
+    const result = await this.jsonResponse(response, "Não foi possível finalizar o carregamento.");
     this.state.operationalState = "FINALIZADO";
     this.state.running = false;
     await Promise.all([
@@ -667,8 +638,7 @@ export class ArmazenamentoTrace {
       return [];
     }
     const response = await this.api.fetch(`/api/leituras.php?carregamento_id=${encodeURIComponent(this.state.loadingId)}`);
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível carregar leituras pendentes.");
+    const result = await this.jsonResponse(response, "Não foi possível carregar leituras pendentes.");
     this.state.pendingReadings = result.data || [];
     return this.state.pendingReadings;
   }
@@ -682,16 +652,14 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify({ carregamento_id: loadingId, barcode: code, attempt_number: 1 }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível registrar a leitura manual.");
+    const result = await this.jsonResponse(response, "Não foi possível registrar a leitura manual.");
     await this.loadActiveLoading(loadingId);
     await this.loadPendingReadings();
     return result.data;
   }
   async identifyReading(readingId, barcode) {
     const response = await this.requestWithOfflineQueue("/api/identificar_leitura.php", { method: "POST", headers: this.jsonHeaders(), body: JSON.stringify({ leitura_id: readingId, barcode }) });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível identificar a leitura.");
+    const result = await this.jsonResponse(response, "Não foi possível identificar a leitura.");
     if (result.data?.queued) return result.data;
     await this.loadPendingReadings();
     return result.data;
@@ -707,8 +675,7 @@ export class ArmazenamentoTrace {
         justification: reason,
       }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível cancelar o romaneio.");
+    const result = await this.jsonResponse(response, "Não foi possível cancelar o romaneio.");
     await Promise.all([
       this.loadManifests(),
       this.loadMonitoring(),
@@ -719,8 +686,7 @@ export class ArmazenamentoTrace {
   }
   async registerReturn(readingId, reason) {
     const response = await this.requestWithOfflineQueue("/api/retornos.php", { method: "POST", headers: this.jsonHeaders(), body: JSON.stringify({ carregamento_id: this.state.loadingId, leitura_id: readingId, reason }) });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível registrar o retorno.");
+    const result = await this.jsonResponse(response, "Não foi possível registrar o retorno.");
     if (result.data?.queued) return result.data;
     await this.loadActiveLoading(this.state.loadingId);
     return result.data;
@@ -744,10 +710,7 @@ export class ArmazenamentoTrace {
     const timeout = window.setTimeout(() => controller.abort(), 10000);
     this.productsRequest = this.api.fetch("/api/produtos.php", { signal: controller.signal })
       .then(async (response) => {
-        const result = await response.json().catch(() => ({}));
-        if (!response.ok) {
-          throw new Error(result.error || "Não foi possível carregar os produtos.");
-        }
+        const result = await this.jsonResponse(response, "Não foi possível carregar os produtos.");
         this.state.products = Array.isArray(result.data) ? result.data : [];
         this.state.productsLoaded = true;
         return this.state.products;
@@ -766,7 +729,8 @@ export class ArmazenamentoTrace {
   }
   async loadConfiguration() {
     const response = await this.api.fetch("/api/configuracoes.php");
-    if (response.ok) this.state.configuration = (await response.json()).data;
+    const result = await this.jsonResponse(response, "Não foi possível carregar a configuração.");
+    this.state.configuration = result.data;
   }
   async loadEquipments({ force = false } = {}) {
     if (this.state.equipmentsLoaded && !force) return this.state.equipments;
@@ -775,12 +739,7 @@ export class ArmazenamentoTrace {
     this.state.equipmentsError = "";
     try {
       const response = await this.api.fetch("/api/equipamentos.php");
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok) {
-        this.state.equipmentsError =
-          result.error || "Não foi possível carregar as Dalas.";
-        return this.state.equipments;
-      }
+      const result = await this.jsonResponse(response, "Não foi possível carregar as Dalas.");
       this.state.equipments = Array.isArray(result.data) ? result.data : [];
       return this.state.equipments;
     } catch (error) {
@@ -795,9 +754,7 @@ export class ArmazenamentoTrace {
   async loadCompanies() {
     const query = this.state.userRole === "ADMIN_DALLOGIX" ? "?include_archived=1" : "";
     const response = await this.api.fetch(`/api/empresas.php${query}`);
-    const result = await response.json();
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível carregar as empresas.");
+    const result = await this.jsonResponse(response, "Não foi possível carregar as empresas.");
     this.state.companies = result.data;
   }
   async loadUsers() {
@@ -810,9 +767,7 @@ export class ArmazenamentoTrace {
       this.state.users = [];
       return;
     }
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível carregar os logins.");
+    const result = await this.jsonResponse(response, "Não foi possível carregar os logins.");
     this.state.users = result.data || [];
   }
   async createUser(payload) {
@@ -829,9 +784,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify(requestPayload),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível criar o login.");
+    const result = await this.jsonResponse(response, "Não foi possível criar o login.");
     return result.data;
   }
   async updateUser(payload) {
@@ -840,9 +793,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify(payload),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível atualizar o login.");
+    const result = await this.jsonResponse(response, "Não foi possível atualizar o login.");
     await this.loadUsers();
     return result.data;
   }
@@ -852,9 +803,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify(payload),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível criar a empresa.");
+    const result = await this.jsonResponse(response, "Não foi possível criar a empresa.");
     this.state.companyActivation = result.data;
     return result.data;
   }
@@ -864,8 +813,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify({ action: "generate_activation_code", company_id: Number(companyId) }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível gerar o código da empresa.");
+    const result = await this.jsonResponse(response, "Não foi possível gerar o código da empresa.");
     this.state.companyActivation = result.data;
     return result.data;
   }
@@ -875,8 +823,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify({ id: Number(id), name: String(name || "").trim() }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível renomear a empresa.");
+    const result = await this.jsonResponse(response, "Não foi possível renomear a empresa.");
     await this.loadCompanies();
     return result.data;
   }
@@ -889,17 +836,13 @@ export class ArmazenamentoTrace {
         action: archived ? "archive" : "restore",
       }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      throw new Error(result.error || "Não foi possível atualizar o arquivamento da empresa.");
-    }
+    const result = await this.jsonResponse(response, "Não foi possível atualizar o arquivamento da empresa.");
     await this.loadCompanies();
     return result.data;
   }
   async loadLocalActivation() {
     const response = await this.api.fetch("/api/ativacao_local.php", { cache: "no-store" });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível consultar a ativação local.");
+    const result = await this.jsonResponse(response, "Não foi possível consultar a ativação local.");
     this.state.localActivation = result.data || { active: false };
     return this.state.localActivation;
   }
@@ -909,8 +852,7 @@ export class ArmazenamentoTrace {
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(payload),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "Não foi possível ativar esta instalação.");
+    const result = await this.jsonResponse(response, "Não foi possível ativar esta instalação.");
     this.state.localActivation = result.data || { active: false };
     return this.state.localActivation;
   }
@@ -923,12 +865,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: permanent ? JSON.stringify({ confirmation, password }) : undefined,
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) {
-      const error = new Error(result.error || "Não foi possível remover a empresa.");
-      error.status = response.status;
-      throw error;
-    }
+    const result = await this.jsonResponse(response, "Não foi possível remover a empresa.");
     await this.loadCompanies();
     return result.data;
   }
@@ -938,9 +875,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify(payload),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível atualizar a licença.");
+    const result = await this.jsonResponse(response, "Não foi possível atualizar a licença.");
     await this.loadCompanies();
     this.state.companyActivation = null;
     return result.data;
@@ -954,9 +889,7 @@ export class ArmazenamentoTrace {
     const response = await this.api.fetch(
       `/api/empresas.php?company_id=${this.state.selectedCompanyId}`,
     );
-    const result = await response.json();
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível carregar a empresa.");
+    const result = await this.jsonResponse(response, "Não foi possível carregar a empresa.");
     this.state.companyDetail = result.data;
     await this.loadIndustrialInstallations();
   }
@@ -967,9 +900,7 @@ export class ArmazenamentoTrace {
       `/api/instalacoes_industriais.php?company_id=${this.state.selectedCompanyId}&include_archived=1`,
       { cache: "no-store" },
     );
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível carregar os PCs industriais.");
+    const result = await this.jsonResponse(response, "Não foi possível carregar os PCs industriais.");
     this.state.industrialInstallations = result.data?.installations || [];
     this.state.industrialEquipmentOptions = result.data?.equipment_options || [];
     return result.data;
@@ -984,9 +915,7 @@ export class ArmazenamentoTrace {
         name: String(name || "").trim(),
       }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível cadastrar o PC industrial.");
+    const result = await this.jsonResponse(response, "Não foi possível cadastrar o PC industrial.");
     await this.loadIndustrialInstallations();
     return result.data;
   }
@@ -1000,9 +929,7 @@ export class ArmazenamentoTrace {
         equipment_id: Number(equipmentId),
       }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível vincular a Dala ao PC.");
+    const result = await this.jsonResponse(response, "Não foi possível vincular a Dala ao PC.");
     await this.loadIndustrialInstallations();
     return result.data;
   }
@@ -1015,9 +942,7 @@ export class ArmazenamentoTrace {
         installation_id: Number(installationId),
       }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível revogar o acesso deste PC.");
+    const result = await this.jsonResponse(response, "Não foi possível revogar o acesso deste PC.");
     this.state.industrialInstallationActivation = null;
     await this.loadIndustrialInstallations();
     return result.data;
@@ -1031,9 +956,7 @@ export class ArmazenamentoTrace {
         installation_id: Number(installationId),
       }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível alterar o acesso do PC industrial.");
+    const result = await this.jsonResponse(response, "Não foi possível alterar o acesso do PC industrial.");
     this.state.industrialInstallationActivation = null;
     await this.loadIndustrialInstallations();
     return result.data;
@@ -1047,9 +970,7 @@ export class ArmazenamentoTrace {
         installation_id: Number(installationId),
       }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível arquivar ou restaurar o PC industrial.");
+    const result = await this.jsonResponse(response, "Não foi possível arquivar ou restaurar o PC industrial.");
     this.state.industrialInstallationActivation = null;
     await this.loadIndustrialInstallations();
     return result.data;
@@ -1063,9 +984,7 @@ export class ArmazenamentoTrace {
         installation_id: Number(installationId),
       }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível excluir o PC industrial arquivado.");
+    const result = await this.jsonResponse(response, "Não foi possível excluir o PC industrial arquivado.");
     this.state.industrialInstallationActivation = null;
     await this.loadIndustrialInstallations();
     return result.data;
@@ -1079,9 +998,7 @@ export class ArmazenamentoTrace {
         installation_id: Number(installationId),
       }),
     });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível gerar o código deste PC.");
+    const result = await this.jsonResponse(response, "Não foi possível gerar o código deste PC.");
     this.state.industrialInstallationActivation = result.data;
     await this.loadIndustrialInstallations();
     return result.data;
@@ -1092,11 +1009,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify(data),
     });
-    const result = await response.json();
-    if (!response.ok)
-      throw new Error(
-        result.error || "Não foi possível salvar a configuração.",
-      );
+    const result = await this.jsonResponse(response, "Não foi possível salvar a configuração.");
     await this.loadConfiguration();
   }
   async createEquipment(data) {
@@ -1105,9 +1018,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify(data),
     });
-    const result = await response.json();
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível cadastrar a Dala.");
+    const result = await this.jsonResponse(response, "Não foi possível cadastrar a Dala.");
     await this.loadEquipments({ force: true });
     return result.data;
   }
@@ -1117,9 +1028,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify(data),
     });
-    const result = await response.json();
-    if (!response.ok)
-      throw new Error(result.error || "Não foi possível salvar a ocorrência.");
+    const result = await this.jsonResponse(response, "Não foi possível salvar a ocorrência.");
     await this.loadMonitoring();
   }
   toggleRun() {
