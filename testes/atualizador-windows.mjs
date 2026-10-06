@@ -64,7 +64,8 @@ test("inicialização do Docker garante serviço privilegiado e aguarda o motor 
   assert.match(dockerStarter, /com\.docker\.service/);
   assert.match(dockerStarter, /Set-Service -Name 'com\.docker\.service' -StartupType Automatic/);
   assert.match(dockerStarter, /Start-Service -Name 'com\.docker\.service'/);
-  assert.match(dockerStarter, /dockerDesktopLinuxEngine/);
+  assert.match(dockerStarter, /Get-Process -Name 'Docker Desktop'/);
+  assert.match(dockerStarter, /taskkill\.exe \/PID \$probe\.Id \/T \/F/);
   assert.match(dockerStarter, /docker\.exe/);
   assert.match(dockerStarter, /info.*OSType/);
   assert.match(dockerStarter, /Mecanismo Linux do Docker respondeu ao teste de saúde/);

@@ -35,13 +35,15 @@ try {
     Write-DockerStartLog ("Servico privilegiado nao iniciado: " + $_.Exception.Message)
 }
 
-$existing = @(Get-Process -Name 'Docker Desktop' -ErrorAction SilentlyContinue |
-    Where-Object { $_.SessionId -eq (Get-Process -Id $PID).SessionId })
+# O agendador pode executar este script em uma sessão diferente da sessão
+# gráfica (por exemplo, durante uma manutenção remota). Não abra uma segunda
+# instância só porque o processo existente pertence a outra sessão.
+$existing = @(Get-Process -Name 'Docker Desktop' -ErrorAction SilentlyContinue)
 if ($existing.Count -eq 0) {
     Start-Process -FilePath $desktop -WorkingDirectory (Split-Path -Parent $desktop) | Out-Null
     Write-DockerStartLog 'Docker Desktop iniciado na sessao grafica.'
 } else {
-    Write-DockerStartLog 'Docker Desktop ja estava em execucao na sessao grafica.'
+    Write-DockerStartLog 'Docker Desktop ja estava em execucao em uma sessao grafica.'
 }
 
 $dockerCandidates = @(
@@ -60,16 +62,17 @@ function Test-DockerLinuxEngine {
     Remove-Item $stdoutPath, $stderrPath -Force -ErrorAction SilentlyContinue
     $probe = Start-Process -FilePath $docker -ArgumentList @('info', '--format', '{{.OSType}}') -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdoutPath -RedirectStandardError $stderrPath
     if (-not $probe.WaitForExit(5000)) {
-        Stop-Process -Id $probe.Id -Force -ErrorAction SilentlyContinue
+        & taskkill.exe /PID $probe.Id /T /F 2>$null | Out-Null
         return $false
     }
     if ($probe.ExitCode -ne 0) { return $false }
     return ((Get-Content $stdoutPath -Raw -ErrorAction SilentlyContinue).Trim() -eq 'linux')
 }
 
-$pipe = '\\.\pipe\dockerDesktopLinuxEngine'
 for ($attempt = 0; $attempt -lt 60; $attempt++) {
-    if ((Test-Path -LiteralPath $pipe) -and (Test-DockerLinuxEngine)) {
+    # O teste real do CLI e a evidência de que o motor Linux está utilizável;
+    # a existência do pipe, isoladamente, não confirma que o motor responde.
+    if (Test-DockerLinuxEngine) {
         Write-DockerStartLog 'Mecanismo Linux do Docker respondeu ao teste de saúde.'
         exit 0
     }
