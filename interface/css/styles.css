@@ -453,6 +453,117 @@ li small {
   margin: 13px 0;
 }
 
+.trace-notificacoes {
+  position: fixed;
+  z-index: 1000;
+  inset: 18px 18px auto auto;
+  display: grid;
+  gap: 10px;
+  width: min(390px, calc(100vw - 36px));
+  pointer-events: none;
+}
+
+.trace-notificacao {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px 14px 14px 16px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--blue);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 12px 30px rgba(23, 33, 43, 0.18);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.4;
+  pointer-events: auto;
+  animation: trace-notificacao-entrada 0.18s ease-out;
+}
+
+.trace-notificacao-sucesso { border-left-color: var(--green); }
+.trace-notificacao-aviso { border-left-color: var(--yellow); }
+.trace-notificacao-erro { border-left-color: var(--red); }
+
+.trace-notificacao > span { flex: 1; }
+
+.trace-notificacao-fechar {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 20px;
+  line-height: 1;
+  padding: 0 2px;
+  cursor: pointer;
+}
+
+.trace-notificacao-fechar:focus-visible {
+  outline: 3px solid #42b9dd;
+  outline-offset: 2px;
+}
+
+.trace-modal-overlay {
+  position: fixed;
+  z-index: 1100;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(15, 32, 42, 0.48);
+}
+
+.trace-modal {
+  width: min(480px, 100%);
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 24px 70px rgba(23, 33, 43, 0.3);
+}
+
+.trace-modal h2 {
+  margin: 0 0 10px;
+  font-size: 21px;
+}
+
+.trace-modal p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.trace-modal-acoes {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 22px;
+}
+
+.trace-modal-campo {
+  width: 100%;
+  min-height: 2.8rem;
+  margin-top: 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  color: var(--ink);
+  background: #fff;
+  font: inherit;
+  resize: vertical;
+}
+
+.trace-modal-campo:focus {
+  outline: 3px solid rgba(22, 123, 177, 0.25);
+  border-color: var(--primary);
+}
+
+@keyframes trace-notificacao-entrada {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 @media (max-width: 850px) {
   .sidebar {
     width: 205px;

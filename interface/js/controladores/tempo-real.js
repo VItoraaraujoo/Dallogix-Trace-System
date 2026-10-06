@@ -53,6 +53,10 @@ export function createOperationalRealtimeController({ store, getPage, render, re
           /* Mantém o último retorno visível se uma consulta falhar. */
         }
       }
+      // A navegação pode acontecer enquanto as consultas acima estão em
+      // andamento. Nunca deixe uma resposta atrasada renderizar a tela de
+      // operação por cima da tela que o usuário já abriu.
+      if (getPage() !== "work") return;
       if (workStructureSignature() !== getViewSignature()) render();
       else refreshWorkLiveView();
     };

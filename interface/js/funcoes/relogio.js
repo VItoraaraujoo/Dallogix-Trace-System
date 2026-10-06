@@ -1,9 +1,12 @@
+import { ClienteApi } from "../api/ClienteApi.js?v=202610060001";
+
 const state = {
   offsetMs: 0,
   source: "pc",
   syncedAt: 0,
   centralReachable: false,
 };
+const api = new ClienteApi({ timeoutMs: 10000, retry: 1 });
 
 function localState() {
   state.offsetMs = 0;
@@ -35,7 +38,7 @@ export async function sincronizarRelogio() {
 
   const startedAt = Date.now();
   try {
-    const response = await fetch(`/api/relogio.php?ts=${startedAt}`, {
+    const response = await api.fetch(`/api/relogio.php?ts=${startedAt}`, {
       cache: "no-store",
       headers: { Accept: "application/json" },
     });

@@ -1,4 +1,5 @@
 import { OfflineOperationBuffer, secureRandomId } from "./OfflineOperationBuffer.js?v=20260930-security01";
+import { ClienteApi } from "../api/ClienteApi.js?v=202610060001";
 
 export class ArmazenamentoTrace {
   constructor() {
@@ -68,6 +69,7 @@ export class ArmazenamentoTrace {
       offlineQueueSize: 0,
     };
     this.csrfToken = "";
+    this.api = new ClienteApi();
     this.manifests = [];
     this.offlineBuffer = new OfflineOperationBuffer();
     // Consultas do carregamento e eventos em tempo real podem chegar juntas.
@@ -106,7 +108,7 @@ export class ArmazenamentoTrace {
       ? { ...options, headers: { ...(options.headers || {}), "X-Trace-Offline-Id": eventId } }
       : options;
     try {
-      return await fetch(url, requestOptions);
+      return await this.api.fetch(url, requestOptions);
     } catch (error) {
       if (!queueable) throw error;
       const id = await this.offlineBuffer.enqueue({
@@ -134,9 +136,11 @@ export class ArmazenamentoTrace {
     let closed = false;
     const listen = async () => {
       try {
-        const response = await fetch("/api/eventos_carregamento.php?period_days=30", {
+        const response = await this.api.fetch("/api/eventos_carregamento.php?period_days=30", {
           headers: { Accept: "text/event-stream" },
           signal: controller.signal,
+          timeoutMs: 0,
+          retry: 0,
         });
         if (!response.ok || !response.body) throw new Error("Conexão de eventos indisponível.");
         const reader = response.body.getReader();
@@ -183,7 +187,7 @@ export class ArmazenamentoTrace {
     params.set("page", String(page));
     params.set("per_page", "50");
     const query = params.toString();
-    const response = await fetch(
+    const response = await this.api.fetch(
       `/api/romaneios.php${query ? `?${query}` : ""}`,
     );
     const result = await response.json().catch(() => ({}));
@@ -232,18 +236,18 @@ export class ArmazenamentoTrace {
     await this.loadManifests();
   }
   async loadDashboard() {
-    const response = await fetch("/api/dashboard.php");
+    const response = await this.api.fetch("/api/dashboard.php");
     if (response.ok) this.state.dashboard = (await response.json()).data;
   }
   async loadManifest(id) {
-    const response = await fetch(`/api/romaneios.php?id=${id}`);
+    const response = await this.api.fetch(`/api/romaneios.php?id=${id}`);
     const result = await response.json();
     if (!response.ok)
       throw new Error(result.error || "Romaneio não encontrado.");
     this.state.manifestDetail = result.data;
   }
   async createManifest(payload) {
-    const response = await fetch("/api/romaneios.php", {
+    const response = await this.api.fetch("/api/romaneios.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify(payload),
@@ -255,7 +259,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async updateManifest(payload) {
-    const response = await fetch("/api/romaneios.php", {
+    const response = await this.api.fetch("/api/romaneios.php", {
       method: "PATCH",
       headers: this.jsonHeaders(),
       body: JSON.stringify({ action: "update", ...payload }),
@@ -267,7 +271,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async prepareLoading(payload) {
-    const response = await fetch("/api/carregamentos.php", {
+    const response = await this.api.fetch("/api/carregamentos.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify(payload),
@@ -282,7 +286,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async reassignLoading(loadingId, equipmentId) {
-    const response = await fetch("/api/carregamentos.php", {
+    const response = await this.api.fetch("/api/carregamentos.php", {
       method: "PATCH",
       headers: this.jsonHeaders(),
       body: JSON.stringify({
@@ -299,7 +303,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async importPdf(formData) {
-    const response = await fetch("/api/importar_pdf.php", {
+    const response = await this.api.fetch("/api/importar_pdf.php", {
       method: "POST",
       headers: this.csrfToken ? { "X-CSRF-Token": this.csrfToken } : {},
       body: formData,
@@ -310,13 +314,13 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async loadEquipment(id) {
-    const response = await fetch(`/api/equipamentos.php?id=${id}`);
+    const response = await this.api.fetch(`/api/equipamentos.php?id=${id}`);
     const result = await response.json();
     if (!response.ok) throw new Error(result.error || "Dala não encontrada.");
     this.state.equipmentDetail = result.data;
   }
   async checkEquipmentStatus(id) {
-    const response = await fetch(`/api/equipamentos.php?id=${id}&check=status`);
+    const response = await this.api.fetch(`/api/equipamentos.php?id=${id}&check=status`);
     const result = await response.json();
     if (!response.ok)
       return {
@@ -326,7 +330,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async loadDalaStatuses() {
-    const response = await fetch("/api/status_dalas.php");
+    const response = await this.api.fetch("/api/status_dalas.php");
     const result = await response.json().catch(() => ({}));
     if (!response.ok)
       throw new Error(result.error || "Não foi possível carregar o status das Dalas.");
@@ -334,14 +338,14 @@ export class ArmazenamentoTrace {
     return this.state.dalaStatuses;
   }
   async loadDalaCommandHistory(id) {
-    const response = await fetch(`/api/comandos_industriais.php?equipment_id=${encodeURIComponent(id)}`);
+    const response = await this.api.fetch(`/api/comandos_industriais.php?equipment_id=${encodeURIComponent(id)}`);
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Não foi possível carregar o diagnóstico do CLP.");
     this.state.dalaCommands = Array.isArray(result.data) ? result.data : [];
     return this.state.dalaCommands;
   }
   async loadDalaActionConfig(id) {
-    const response = await fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(id)}`);
+    const response = await this.api.fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(id)}`);
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Não foi possível carregar as ações da Dala.");
     this.state.dalaActionConfig = result.data || { acoes: [], gatilhos: [], can_manage: false };
@@ -349,7 +353,7 @@ export class ArmazenamentoTrace {
   }
   async saveDalaAction(id, payload) {
     const method = payload.id ? "PATCH" : "POST";
-    const response = await fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(id)}`, {
+    const response = await this.api.fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(id)}`, {
       method,
       headers: this.jsonHeaders(),
       body: JSON.stringify(payload),
@@ -359,7 +363,7 @@ export class ArmazenamentoTrace {
     return this.loadDalaActionConfig(id);
   }
   async reorderDalaActions(id, ids) {
-    const response = await fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(id)}`, {
+    const response = await this.api.fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(id)}`, {
       method: "PATCH", headers: this.jsonHeaders(), body: JSON.stringify({ action: "reorder", ids }),
     });
     const result = await response.json().catch(() => ({}));
@@ -367,7 +371,7 @@ export class ArmazenamentoTrace {
     return this.loadDalaActionConfig(id);
   }
   async deleteDalaAction(equipmentId, actionId) {
-    const response = await fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(equipmentId)}&id=${encodeURIComponent(actionId)}`, {
+    const response = await this.api.fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(equipmentId)}&id=${encodeURIComponent(actionId)}`, {
       method: "DELETE", headers: this.jsonHeaders(),
     });
     const result = await response.json().catch(() => ({}));
@@ -375,7 +379,7 @@ export class ArmazenamentoTrace {
     return this.loadDalaActionConfig(equipmentId);
   }
   async saveDalaTrigger(equipmentId, payload) {
-    const response = await fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(equipmentId)}`, {
+    const response = await this.api.fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(equipmentId)}`, {
       method: "PATCH", headers: this.jsonHeaders(), body: JSON.stringify({ action: "trigger", ...payload }),
     });
     const result = await response.json().catch(() => ({}));
@@ -383,28 +387,28 @@ export class ArmazenamentoTrace {
     return this.loadDalaActionConfig(equipmentId);
   }
   async loadErrorLogs() {
-    const response = await fetch("/api/logs_erros.php");
+    const response = await this.api.fetch("/api/logs_erros.php");
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Não foi possível carregar os logs de erro.");
     this.state.errorLogs = result.data || [];
     return this.state.errorLogs;
   }
   async loadTechnicalDiagnostics() {
-    const response = await fetch("/api/diagnostico.php");
+    const response = await this.api.fetch("/api/diagnostico.php");
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Não foi possível carregar o diagnóstico técnico.");
     this.state.technicalDiagnostics = result.data || null;
     return this.state.technicalDiagnostics;
   }
   async loadDeadLetters() {
-    const response = await fetch("/api/sync_dead_letter.php");
+    const response = await this.api.fetch("/api/sync_dead_letter.php");
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Não foi possível carregar a fila morta.");
     this.state.deadLetters = result.data || [];
     return this.state.deadLetters;
   }
   async updateDeadLetter(id, action, resolutionNote) {
-    const response = await fetch(`/api/sync_dead_letter.php?id=${encodeURIComponent(id)}`, {
+    const response = await this.api.fetch(`/api/sync_dead_letter.php?id=${encodeURIComponent(id)}`, {
       method: "PATCH",
       headers: this.jsonHeaders(),
       body: JSON.stringify({ id, action, resolution_note: resolutionNote }),
@@ -415,7 +419,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async updateEquipment(data) {
-    const response = await fetch("/api/equipamentos.php", {
+    const response = await this.api.fetch("/api/equipamentos.php", {
       method: "PUT",
       headers: this.jsonHeaders(),
       body: JSON.stringify(data),
@@ -426,7 +430,7 @@ export class ArmazenamentoTrace {
     await this.loadEquipments({ force: true });
   }
   async deleteEquipment(id) {
-    const response = await fetch(`/api/equipamentos.php?id=${id}`, {
+    const response = await this.api.fetch(`/api/equipamentos.php?id=${id}`, {
       method: "DELETE",
       headers: this.jsonHeaders(),
     });
@@ -442,7 +446,7 @@ export class ArmazenamentoTrace {
     return this.requestJson(`/api/produtos.php?id=${id}`, "DELETE", {});
   }
   async requestJson(url, method, body) {
-    const response = await fetch(url, {
+    const response = await this.api.fetch(url, {
       method,
       headers: this.jsonHeaders(),
       body: method === "DELETE" ? undefined : JSON.stringify(body),
@@ -460,7 +464,7 @@ export class ArmazenamentoTrace {
     return refresh;
   }
   async _loadActiveLoading(selectedId = this.state.selectedLoadingId) {
-    const response = await fetch("/api/carregamentos.php");
+    const response = await this.api.fetch("/api/carregamentos.php");
     const result = await response.json().catch(() => ({}));
     if (!response.ok)
       throw new Error(
@@ -597,7 +601,7 @@ export class ArmazenamentoTrace {
   async requestMachineCommand(loadingId, command) {
     if (!loadingId)
       throw new Error("Nenhum carregamento ativo para esta Dala.");
-    const response = await fetch("/api/comando_maquina.php", {
+    const response = await this.api.fetch("/api/comando_maquina.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify({ carregamento_id: loadingId, command }),
@@ -643,7 +647,7 @@ export class ArmazenamentoTrace {
       this.state.plcCommand = null;
       return null;
     }
-    const response = await fetch(
+    const response = await this.api.fetch(
       `/api/comandos_industriais.php?carregamento_id=${encodeURIComponent(loadingId)}`,
     );
     const result = await response.json().catch(() => ({}));
@@ -680,7 +684,7 @@ export class ArmazenamentoTrace {
   async unlockMachine() {
     if (!this.state.loadingId)
       throw new Error("Nenhum carregamento ativo encontrado.");
-    const response = await fetch("/api/desbloquear_maquina.php", {
+    const response = await this.api.fetch("/api/desbloquear_maquina.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify({ carregamento_id: this.state.loadingId }),
@@ -702,7 +706,7 @@ export class ArmazenamentoTrace {
   async finishLoading(justification = "") {
     if (!this.state.loadingId)
       throw new Error("Nenhum carregamento ativo encontrado.");
-    const response = await fetch("/api/encerrar_carregamento.php", {
+    const response = await this.api.fetch("/api/encerrar_carregamento.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify({ carregamento_id: this.state.loadingId, justification }),
@@ -724,7 +728,7 @@ export class ArmazenamentoTrace {
       this.state.pendingReadings = [];
       return [];
     }
-    const response = await fetch(`/api/leituras.php?carregamento_id=${encodeURIComponent(this.state.loadingId)}`);
+    const response = await this.api.fetch(`/api/leituras.php?carregamento_id=${encodeURIComponent(this.state.loadingId)}`);
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Não foi possível carregar leituras pendentes.");
     this.state.pendingReadings = result.data || [];
@@ -735,7 +739,7 @@ export class ArmazenamentoTrace {
     const code = String(barcode || "").trim();
     if (!loadingId) throw new Error("Nenhum carregamento selecionado.");
     if (!code) throw new Error("Informe o código de barras.");
-    const response = await fetch("/api/leituras.php", {
+    const response = await this.api.fetch("/api/leituras.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify({ carregamento_id: loadingId, barcode: code, attempt_number: 1 }),
@@ -756,7 +760,7 @@ export class ArmazenamentoTrace {
   }
   async cancelManifest(manifestId, justification = "") {
     const reason = String(justification).trim();
-    const response = await fetch("/api/romaneios.php", {
+    const response = await this.api.fetch("/api/romaneios.php", {
       method: "PATCH",
       headers: this.jsonHeaders(),
       body: JSON.stringify({
@@ -784,11 +788,11 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async loadMonitoring() {
-    const response = await fetch("/api/monitoramento.php");
+    const response = await this.api.fetch("/api/monitoramento.php");
     if (response.ok) this.state.monitoring = (await response.json()).data;
   }
   async loadSyncStatus() {
-    const response = await fetch("/api/sync_status.php");
+    const response = await this.api.fetch("/api/sync_status.php");
     const result = await response.json().catch(() => ({}));
     if (!response.ok)
       throw new Error(
@@ -797,7 +801,7 @@ export class ArmazenamentoTrace {
     this.state.syncStatus = result.data;
   }
   async retrySync(id) {
-    const response = await fetch("/api/sync_queue.php", {
+    const response = await this.api.fetch("/api/sync_queue.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify({ id }),
@@ -812,7 +816,7 @@ export class ArmazenamentoTrace {
     if (this.productsRequest) return this.productsRequest;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 10000);
-    this.productsRequest = fetch("/api/produtos.php", { signal: controller.signal })
+    this.productsRequest = this.api.fetch("/api/produtos.php", { signal: controller.signal })
       .then(async (response) => {
         const result = await response.json().catch(() => ({}));
         if (!response.ok) {
@@ -835,7 +839,7 @@ export class ArmazenamentoTrace {
     return this.productsRequest;
   }
   async loadConfiguration() {
-    const response = await fetch("/api/configuracoes.php");
+    const response = await this.api.fetch("/api/configuracoes.php");
     if (response.ok) this.state.configuration = (await response.json()).data;
   }
   async loadEquipments({ force = false } = {}) {
@@ -844,7 +848,7 @@ export class ArmazenamentoTrace {
     this.state.equipmentsLoading = true;
     this.state.equipmentsError = "";
     try {
-      const response = await fetch("/api/equipamentos.php");
+      const response = await this.api.fetch("/api/equipamentos.php");
       const result = await response.json().catch(() => ({}));
       if (!response.ok) {
         this.state.equipmentsError =
@@ -864,7 +868,7 @@ export class ArmazenamentoTrace {
   }
   async loadCompanies() {
     const query = this.state.userRole === "ADMIN_DALLOGIX" ? "?include_archived=1" : "";
-    const response = await fetch(`/api/empresas.php${query}`);
+    const response = await this.api.fetch(`/api/empresas.php${query}`);
     const result = await response.json();
     if (!response.ok)
       throw new Error(result.error || "Não foi possível carregar as empresas.");
@@ -875,7 +879,7 @@ export class ArmazenamentoTrace {
     const query = companyId
       ? `?company_id=${encodeURIComponent(companyId)}`
       : "";
-    const response = await fetch(`/api/usuarios.php${query}`);
+    const response = await this.api.fetch(`/api/usuarios.php${query}`);
     if (response.status === 422 && this.state.userRole === "ADMIN_DALLOGIX") {
       this.state.users = [];
       return;
@@ -894,7 +898,7 @@ export class ArmazenamentoTrace {
     ) {
       requestPayload.company_id = this.state.selectedCompanyId;
     }
-    const response = await fetch("/api/usuarios.php", {
+    const response = await this.api.fetch("/api/usuarios.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify(requestPayload),
@@ -905,7 +909,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async updateUser(payload) {
-    const response = await fetch("/api/usuarios.php", {
+    const response = await this.api.fetch("/api/usuarios.php", {
       method: "PUT",
       headers: this.jsonHeaders(),
       body: JSON.stringify(payload),
@@ -917,7 +921,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async createCompany(payload) {
-    const response = await fetch("/api/empresas.php", {
+    const response = await this.api.fetch("/api/empresas.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify(payload),
@@ -929,7 +933,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async generateCompanyActivation(companyId) {
-    const response = await fetch("/api/empresas.php", {
+    const response = await this.api.fetch("/api/empresas.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify({ action: "generate_activation_code", company_id: Number(companyId) }),
@@ -940,7 +944,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async renameCompany(id, name) {
-    const response = await fetch("/api/empresas.php", {
+    const response = await this.api.fetch("/api/empresas.php", {
       method: "PUT",
       headers: this.jsonHeaders(),
       body: JSON.stringify({ id: Number(id), name: String(name || "").trim() }),
@@ -951,7 +955,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async setCompanyArchiveState(id, archived) {
-    const response = await fetch("/api/empresas.php", {
+    const response = await this.api.fetch("/api/empresas.php", {
       method: "PUT",
       headers: this.jsonHeaders(),
       body: JSON.stringify({
@@ -967,14 +971,14 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async loadLocalActivation() {
-    const response = await fetch("/api/ativacao_local.php", { cache: "no-store" });
+    const response = await this.api.fetch("/api/ativacao_local.php", { cache: "no-store" });
     const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || "Não foi possível consultar a ativação local.");
     this.state.localActivation = result.data || { active: false };
     return this.state.localActivation;
   }
   async activateLocalInstallation(payload) {
-    const response = await fetch("/api/ativar_empresa.php", {
+    const response = await this.api.fetch("/api/ativar_empresa.php", {
       method: "POST",
       headers: { "Content-Type": "application/json", Accept: "application/json" },
       body: JSON.stringify(payload),
@@ -988,7 +992,7 @@ export class ArmazenamentoTrace {
     const query = new URLSearchParams({ id: String(id) });
     if (force) query.set("force", "1");
     if (permanent) query.set("permanent", "1");
-    const response = await fetch(`/api/empresas.php?${query.toString()}`, {
+    const response = await this.api.fetch(`/api/empresas.php?${query.toString()}`, {
       method: "DELETE",
       headers: this.jsonHeaders(),
       body: permanent ? JSON.stringify({ confirmation, password }) : undefined,
@@ -1003,7 +1007,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async updateLicense(payload) {
-    const response = await fetch("/api/licencas.php", {
+    const response = await this.api.fetch("/api/licencas.php", {
       method: "PUT",
       headers: this.jsonHeaders(),
       body: JSON.stringify(payload),
@@ -1021,7 +1025,7 @@ export class ArmazenamentoTrace {
   async loadCompanyDetail() {
     if (!this.state.selectedCompanyId)
       throw new Error("Nenhuma empresa selecionada.");
-    const response = await fetch(
+    const response = await this.api.fetch(
       `/api/empresas.php?company_id=${this.state.selectedCompanyId}`,
     );
     const result = await response.json();
@@ -1033,7 +1037,7 @@ export class ArmazenamentoTrace {
   async loadIndustrialInstallations() {
     if (!this.state.selectedCompanyId)
       throw new Error("Nenhuma empresa selecionada.");
-    const response = await fetch(
+    const response = await this.api.fetch(
       `/api/instalacoes_industriais.php?company_id=${this.state.selectedCompanyId}&include_archived=1`,
       { cache: "no-store" },
     );
@@ -1045,7 +1049,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async createIndustrialInstallation(name) {
-    const response = await fetch("/api/instalacoes_industriais.php", {
+    const response = await this.api.fetch("/api/instalacoes_industriais.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify({
@@ -1061,7 +1065,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async assignIndustrialEquipment(installationId, equipmentId) {
-    const response = await fetch("/api/instalacoes_industriais.php", {
+    const response = await this.api.fetch("/api/instalacoes_industriais.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify({
@@ -1077,7 +1081,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async revokeIndustrialAccess(installationId) {
-    const response = await fetch("/api/instalacoes_industriais.php", {
+    const response = await this.api.fetch("/api/instalacoes_industriais.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify({
@@ -1093,7 +1097,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async setIndustrialAccessBlocked(installationId, blocked) {
-    const response = await fetch("/api/instalacoes_industriais.php", {
+    const response = await this.api.fetch("/api/instalacoes_industriais.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify({
@@ -1109,7 +1113,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async setIndustrialInstallationArchived(installationId, archived) {
-    const response = await fetch("/api/instalacoes_industriais.php", {
+    const response = await this.api.fetch("/api/instalacoes_industriais.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify({
@@ -1125,7 +1129,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async deleteArchivedIndustrialInstallation(installationId) {
-    const response = await fetch("/api/instalacoes_industriais.php", {
+    const response = await this.api.fetch("/api/instalacoes_industriais.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify({
@@ -1141,7 +1145,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async generateIndustrialActivationCode(installationId) {
-    const response = await fetch("/api/instalacoes_industriais.php", {
+    const response = await this.api.fetch("/api/instalacoes_industriais.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify({
@@ -1157,7 +1161,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async saveConfiguration(data) {
-    const response = await fetch("/api/configuracoes.php", {
+    const response = await this.api.fetch("/api/configuracoes.php", {
       method: "PUT",
       headers: this.jsonHeaders(),
       body: JSON.stringify(data),
@@ -1170,7 +1174,7 @@ export class ArmazenamentoTrace {
     await this.loadConfiguration();
   }
   async createEquipment(data) {
-    const response = await fetch("/api/equipamentos.php", {
+    const response = await this.api.fetch("/api/equipamentos.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify(data),
@@ -1182,7 +1186,7 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async createOccurrence(data) {
-    const response = await fetch("/api/ocorrencias.php", {
+    const response = await this.api.fetch("/api/ocorrencias.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify(data),
@@ -1204,7 +1208,7 @@ export class ArmazenamentoTrace {
     this.state.returnMode = !this.state.returnMode;
   }
   async createProduct(data) {
-    const response = await fetch("/api/produtos.php", {
+    const response = await this.api.fetch("/api/produtos.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify(data),

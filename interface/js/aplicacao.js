@@ -1,6 +1,8 @@
 import {
   configurarSessaoPorAba,
 } from "./sessao.js?v=202609222100";
+import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
+import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610060001";
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610052315-command-queue";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
@@ -35,6 +37,7 @@ import { users } from "../telas/usuarios/usuarios.js?v=202610010001";
 configurarSessaoPorAba();
 
 const store = new ArmazenamentoTrace();
+const api = new ClienteApi();
 let renderRequestId = 0;
 let workViewSignature = "";
 const screens = {
@@ -355,7 +358,7 @@ async function refreshLocalIndicator() {
   localHealthRequest = true;
   try {
     const [response] = await Promise.all([
-      fetch(`/api/health.php?ts=${Date.now()}`, {
+      api.fetch(`/api/health.php?ts=${Date.now()}`, {
         cache: "no-store",
         headers: { Accept: "application/json" },
       }),
@@ -522,7 +525,7 @@ function bindLocalActivationForm() {
       const login = document.querySelector('#login-form [name="email"]');
       if (login) login.value = data.email || "";
       form.reset();
-      alert(`Instalação ativada para ${activation.company_name}.`);
+          notificar(`Instalação ativada para ${activation.company_name}.`, "sucesso");
     } catch (error) {
       renderLocalActivation(
         { enabled: true, active: false },
@@ -915,56 +918,56 @@ function bindActions() {
       }
       if (action === "archive-company") {
         const name = node.dataset.name || "esta empresa";
-        if (!confirm(`Arquivar a empresa "${name}"? Os dados serão preservados e os logins deixarão de acessar o sistema.`)) return;
+        if (!await confirmarAcao(`Arquivar a empresa "${name}"? Os dados serão preservados e os logins deixarão de acessar o sistema.`)) return;
         try {
           await store.setCompanyArchiveState(node.dataset.id, true);
-          alert("Empresa arquivada. Os dados foram preservados.");
+          notificar("Empresa arquivada. Os dados foram preservados.");
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
       if (action === "restore-company") {
         const name = node.dataset.name || "esta empresa";
-        if (!confirm(`Restaurar a empresa "${name}" e liberar novamente os acessos?`)) return;
+        if (!await confirmarAcao(`Restaurar a empresa "${name}" e liberar novamente os acessos?`)) return;
         try {
           await store.setCompanyArchiveState(node.dataset.id, false);
-          alert("Empresa restaurada.");
+          notificar("Empresa restaurada.");
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
       if (action === "delete-company-permanently") {
         const name = node.dataset.name || "esta empresa";
-        if (!confirm(`Excluir definitivamente a empresa "${name}"? Os dados não poderão ser recuperados.`)) return;
-        const password = prompt("Digite sua senha atual para confirmar a exclusão definitiva:");
+        if (!await confirmarAcao(`Excluir definitivamente a empresa "${name}"? Os dados não poderão ser recuperados.`)) return;
+        const password = await solicitarTexto("Digite sua senha atual para confirmar a exclusão definitiva:", { tipo: "password", confirmar: "Validar senha" });
         if (password === null) return;
-        const confirmation = prompt(`Digite exatamente o nome da empresa:\n${name}`);
+        const confirmation = await solicitarTexto(`Digite exatamente o nome da empresa:\n${name}`, { confirmar: "Confirmar nome" });
         if (confirmation === null) return;
         const credentials = { password, confirmation };
         try {
           await store.deleteCompany(node.dataset.id, { permanent: true, ...credentials });
-          alert("Empresa excluída definitivamente.");
+          notificar("Empresa excluída definitivamente.");
           render();
         } catch (error) {
           if (error.status === 409) {
-            const purge = confirm(
+            const purge = await confirmarAcao(
               `A empresa "${name}" possui dados vinculados. Deseja apagar também todos os dados arquivados? Esta ação não poderá ser desfeita.`,
             );
             if (!purge) return;
             try {
               await store.deleteCompany(node.dataset.id, { permanent: true, force: true, ...credentials });
-              alert("Empresa e dados vinculados excluídos definitivamente.");
+              notificar("Empresa e dados vinculados excluídos definitivamente.");
               render();
             } catch (purgeError) {
-              alert(purgeError.message);
+              notificar(purgeError.message);
             }
             return;
           }
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
@@ -973,16 +976,16 @@ function bindActions() {
         const installationId = form?.dataset.installationId;
         const equipmentId = form?.elements?.namedItem("equipment_id")?.value;
         if (!installationId || !equipmentId) {
-          alert("Selecione a Dala que pertence a este PC industrial.");
+          notificar("Selecione a Dala que pertence a este PC industrial.");
           return;
         }
         try {
           await store.assignIndustrialEquipment(installationId, equipmentId);
           await store.loadCompanyDetail();
           render();
-          alert("Dala vinculada ao PC industrial.");
+          notificar("Dala vinculada ao PC industrial.");
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
@@ -991,7 +994,7 @@ function bindActions() {
           await store.generateIndustrialActivationCode(node.dataset.id);
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
@@ -1006,27 +1009,27 @@ function bindActions() {
           : activated
             ? "Liberar o acesso remoto do PC industrial \"" + name + "\"? A sincronização será retomada."
             : "Liberar a ativação do PC industrial \"" + name + "\" para permitir a geração de um código?";
-        if (!confirm(confirmation)) return;
+        if (!await confirmarAcao(confirmation)) return;
         try {
           await store.setIndustrialAccessBlocked(node.dataset.id, blocked);
           render();
-          alert(blocked
+          notificar(blocked
             ? (activated ? "Acesso remoto bloqueado. O PC continua funcionando localmente." : "Ativação bloqueada para este PC.")
             : (activated ? "Acesso remoto liberado novamente." : "Ativação liberada. Agora é possível gerar um código."));
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
       if (action === "archive-industrial-pc") {
         const name = node.dataset.name || "este PC industrial";
-        if (!confirm("Arquivar \"" + name + "\"? O acesso e o código serão revogados. A Dala e o histórico serão preservados.")) return;
+        if (!await confirmarAcao("Arquivar \"" + name + "\"? O acesso e o código serão revogados. A Dala e o histórico serão preservados.")) return;
         try {
           await store.setIndustrialInstallationArchived(node.dataset.id, true);
           render();
-          alert("PC industrial arquivado. Para usá-lo novamente, restaure o cadastro e faça uma nova ativação.");
+          notificar("PC industrial arquivado. Para usá-lo novamente, restaure o cadastro e faça uma nova ativação.");
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
@@ -1034,21 +1037,21 @@ function bindActions() {
         try {
           await store.setIndustrialInstallationArchived(node.dataset.id, false);
           render();
-          alert("PC restaurado. Gere um novo código e faça a ativação no PC industrial.");
+          notificar("PC restaurado. Gere um novo código e faça a ativação no PC industrial.");
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
       if (action === "delete-industrial-pc") {
         const name = node.dataset.name || "este PC industrial";
-        if (!confirm("Excluir definitivamente \"" + name + "\"? Esta ação não pode ser desfeita. A Dala e o histórico de operação serão mantidos.")) return;
+        if (!await confirmarAcao("Excluir definitivamente \"" + name + "\"? Esta ação não pode ser desfeita. A Dala e o histórico de operação serão mantidos.")) return;
         try {
           await store.deleteArchivedIndustrialInstallation(node.dataset.id);
           render();
-          alert("Cadastro do PC industrial excluído. A Dala e o histórico foram preservados.");
+          notificar("Cadastro do PC industrial excluído. A Dala e o histórico foram preservados.");
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
@@ -1057,7 +1060,7 @@ function bindActions() {
           await store.generateCompanyActivation(node.dataset.id);
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
@@ -1065,16 +1068,16 @@ function bindActions() {
         const code = node.dataset.code || "";
         try {
           await navigator.clipboard.writeText(code);
-          alert("Código copiado.");
+          notificar("Código copiado.");
         } catch (error) {
-          alert(`Código de ativação: ${code}`);
+          notificar(`Código de ativação: ${code}`);
         }
         return;
       }
       if (action === "toggle-license") {
         const active = node.dataset.status === "ATIVA";
         const reason = active
-          ? prompt("Motivo do bloqueio da licença:", "Bloqueio manual")
+          ? await solicitarTexto("Motivo do bloqueio da licença:", { valorInicial: "Bloqueio manual", confirmar: "Bloquear licença" })
           : "Licença desbloqueada manualmente";
         if (reason === null) return;
         try {
@@ -1085,7 +1088,7 @@ function bindActions() {
           });
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
@@ -1114,7 +1117,7 @@ function bindActions() {
       if (action === "toggle-user") {
         const active = node.dataset.active !== "1";
         if (
-          !confirm(
+          !await confirmarAcao(
             `${active ? "Ativar" : "Desativar"} o login de ${node.dataset.name}?`,
           )
         )
@@ -1132,17 +1135,18 @@ function bindActions() {
           });
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
       if (action === "reset-user-password") {
-        const password = prompt(
+        const password = await solicitarTexto(
           `Nova senha para ${node.dataset.name} (mínimo 6 caracteres):`,
+          { tipo: "password", confirmar: "Atualizar senha" },
         );
         if (password === null) return;
         if (password.length < 6) {
-          alert("A senha deve ter pelo menos 6 caracteres.");
+          notificar("A senha deve ter pelo menos 6 caracteres.");
           return;
         }
         try {
@@ -1157,15 +1161,15 @@ function bindActions() {
               ? { company_id: store.state.selectedCompanyId }
               : {}),
           });
-          alert("Senha atualizada.");
+          notificar("Senha atualizada.");
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
       if (action === "logout") {
-        await fetch("/api/logout.php", {
+        await api.fetch("/api/logout.php", {
           method: "POST",
           headers: store.csrfToken ? { "X-CSRF-Token": store.csrfToken } : {},
         });
@@ -1176,12 +1180,12 @@ function bindActions() {
         try {
           const id = Number(node.dataset.id);
           if (!Number.isSafeInteger(id) || id <= 0) throw new Error("Romaneio inválido.");
-          const response = await fetch(`/api/relatorio_auditoria.php?romaneio_id=${id}`, {
+          const response = await api.fetch(`/api/relatorio_auditoria.php?romaneio_id=${id}`, {
             credentials: "same-origin",
             headers: { Accept: "application/pdf, application/json" },
           });
           if (response.status === 401) {
-            alert("Sua sessão expirou. Entre novamente para baixar o relatório.");
+            notificar("Sua sessão expirou. Entre novamente para baixar o relatório.");
             window.location.href = pagePath("login");
             return;
           }
@@ -1214,20 +1218,20 @@ function bindActions() {
             URL.revokeObjectURL(url);
           }, 60000);
         } catch (error) {
-          alert(error.message || "Não foi possível baixar o relatório.");
+          notificar(error.message || "Não foi possível baixar o relatório.");
         }
         return;
       }
       if (action === "retry-sync") {
         try {
           const result = await store.retrySync(node.dataset.id);
-          alert(
+          notificar(
             result?.reason ||
               (result?.processed ? "Evento enviado." : "Evento reprocessado."),
           );
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
@@ -1241,7 +1245,7 @@ function bindActions() {
           await store.setManifestPage(node.dataset.page);
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
@@ -1262,7 +1266,7 @@ function bindActions() {
           await Promise.all([store.loadCompanies(), store.loadErrorLogs()]);
           render();
         } catch (error) {
-          alert(error.message || "Não foi possível atualizar a visão geral.");
+          notificar(error.message || "Não foi possível atualizar a visão geral.");
         }
         return;
       }
@@ -1284,31 +1288,31 @@ function bindActions() {
         return;
       }
       if (action === "cancel-manifest") {
-        const reason = prompt("Informe o motivo do cancelamento do romaneio:") || "";
+        const reason = await solicitarTexto("Informe o motivo do cancelamento do romaneio:", { obrigatorio: true }) || "";
         if (!reason.trim()) return;
-        if (!confirm("Confirma o cancelamento deste romaneio? Essa ação não poderá ser desfeita.")) return;
-        if (!confirm("SEGUNDA CONFIRMAÇÃO: cancelar este romaneio agora?")) return;
+        if (!await confirmarAcao("Confirma o cancelamento deste romaneio? Essa ação não poderá ser desfeita.")) return;
+        if (!await confirmarAcao("SEGUNDA CONFIRMAÇÃO: cancelar este romaneio agora?")) return;
         try {
           await store.cancelManifest(node.dataset.id || queryId(), reason.trim());
-          alert("Romaneio cancelado.");
+          notificar("Romaneio cancelado.");
           await navigate(isDashboardReturn() ? "dashboard" : "manifests");
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
       if (action === "cancel-manifest-progress") {
-        const reason = prompt("Informe o motivo do cancelamento da operação:") || "";
+        const reason = await solicitarTexto("Informe o motivo do cancelamento da operação:", { obrigatorio: true }) || "";
         if (!reason.trim()) return;
-        if (!confirm("Confirma o cancelamento? A operação precisa estar pausada ou em emergência.")) return;
+        if (!await confirmarAcao("Confirma o cancelamento? A operação precisa estar pausada ou em emergência.")) return;
         try {
           await store.cancelManifest(node.dataset.id || queryId(), reason.trim());
-          alert("Operação cancelada e registrada na auditoria.");
+          notificar("Operação cancelada e registrada na auditoria.");
           await navigate(isDashboardReturn() ? "dashboard" : "manifests");
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
@@ -1327,7 +1331,7 @@ function bindActions() {
           await store.loadMonitoring();
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
@@ -1339,7 +1343,7 @@ function bindActions() {
       }
       if (action === "open-summary") {
         if (!["FINALIZANDO", "FINALIZADO"].includes(store.state.operationalState)) {
-          alert("O resumo final ficará disponível quando a quantidade prevista for atingida.");
+          notificar("O resumo final ficará disponível quando a quantidade prevista for atingida.");
           return;
         }
         await navigate("summary");
@@ -1376,7 +1380,7 @@ function bindActions() {
           await store.loadDalaCommandHistory(node.dataset.id);
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
@@ -1385,15 +1389,15 @@ function bindActions() {
           await Promise.all([store.loadErrorLogs(), store.loadTechnicalDiagnostics(), store.loadDeadLetters()]);
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
       if (action === "requeue-dead-letter" || action === "resolve-dead-letter") {
         const verb = action === "requeue-dead-letter" ? "reenfileirar" : "resolver";
-        const note = prompt(`Informe o motivo para ${verb} este evento:`);
+        const note = await solicitarTexto(`Informe o motivo para ${verb} este evento:`, { obrigatorio: true });
         if (note === null || !note.trim()) return;
-        if (!confirm(`Confirma ${verb} este evento da fila morta?`)) return;
+        if (!await confirmarAcao(`Confirma ${verb} este evento da fila morta?`)) return;
         try {
           await store.updateDeadLetter(
             node.dataset.id,
@@ -1402,7 +1406,7 @@ function bindActions() {
           );
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
@@ -1449,23 +1453,23 @@ function bindActions() {
             ...raw,
             active: nextActive,
           });
-          alert(nextActive ? "Produto ativado." : "Produto desativado.");
+          notificar(nextActive ? "Produto ativado." : "Produto desativado.");
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
       if (action === "delete-product-edit") {
-        if (!confirm(`Excluir o produto "${node.dataset.name}"? Os itens de romaneios vinculados serão removidos.`)) return;
+        if (!await confirmarAcao(`Excluir o produto "${node.dataset.name}"? Os itens de romaneios vinculados serão removidos.`)) return;
         try {
           await store.deleteProduct(node.dataset.id);
-          alert("Produto excluído.");
+          notificar("Produto excluído.");
           store.state.productFormOpen = false;
           store.state.editingProductId = null;
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
@@ -1476,17 +1480,17 @@ function bindActions() {
       }
       if (action === "delete-dala") {
         if (!["ADMIN_DALLOGIX", "ADMIN_EMPRESA"].includes(store.state.userRole)) {
-          alert("Somente administradores podem excluir Dala.");
+          notificar("Somente administradores podem excluir Dala.");
           return;
         }
-        if (!confirm(`Excluir a Dala "${node.dataset.name}"?`)) return;
-        if (!confirm(`SEGUNDA CONFIRMAÇÃO: excluir a Dala "${node.dataset.name}" definitivamente?`)) return;
+        if (!await confirmarAcao(`Excluir a Dala "${node.dataset.name}"?`)) return;
+        if (!await confirmarAcao(`SEGUNDA CONFIRMAÇÃO: excluir a Dala "${node.dataset.name}" definitivamente?`)) return;
         try {
           await store.deleteEquipment(node.dataset.id);
-          alert("Dala excluída.");
+          notificar("Dala excluída.");
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
         return;
       }
@@ -1509,10 +1513,16 @@ function bindActions() {
             starting ? "INICIAR_CARREGAMENTO" : "PAUSAR_CARREGAMENTO",
             node.dataset.loadingId || store.state.loadingId,
           );
+          // A solicitação já foi registrada no backend e o estado PENDENTE
+          // passa a ser a trava de idempotência. Libere a interface antes da
+          // leitura de atualização para que o comando oposto (por exemplo,
+          // parar logo após iniciar) não fique preso a uma consulta lenta.
+          store.state.commandInFlight = false;
+          if (currentPage === "work") render();
           await store.loadActiveLoading(node.dataset.loadingId || store.state.loadingId);
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         } finally {
           store.state.commandInFlight = false;
           if (currentPage === "work") render();
@@ -1539,7 +1549,7 @@ function bindActions() {
           await store.loadActiveLoading(node.dataset.loadingId);
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         } finally {
           store.state.commandInFlight = false;
           if (currentPage === "work") render();
@@ -1560,7 +1570,7 @@ function bindActions() {
       else if (action === "reverse-on" || action === "reverse-off" || action === "reverse-toggle") {
         if (store.state.commandInFlight) return;
         if (store.state.operationalState !== "PAUSADO") {
-          alert("Para alterar a reversão, pause a esteira primeiro.");
+          notificar("Para alterar a reversão, pause a esteira primeiro.");
           return;
         }
         const activating = action === "reverse-on" ||
@@ -1584,7 +1594,7 @@ function bindActions() {
           await store.loadActiveLoading();
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         } finally {
           store.state.commandInFlight = false;
           if (currentPage === "work") render();
@@ -1598,7 +1608,7 @@ function bindActions() {
           await store.loadActiveLoading();
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         } finally {
           store.state.commandInFlight = false;
           if (currentPage === "work") render();
@@ -1609,7 +1619,7 @@ function bindActions() {
           await store.unlockMachine();
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         } finally {
           node.disabled = false;
         }
@@ -1617,14 +1627,14 @@ function bindActions() {
         try {
           const justification =
             store.state.loaded < store.state.planned
-              ? prompt("Justificativa obrigatória para finalizar com divergência:") || ""
+              ? await solicitarTexto("Justificativa obrigatória para finalizar com divergência:", { obrigatorio: true, multilinha: true }) || ""
               : "";
           if (store.state.loaded < store.state.planned && !justification.trim()) return;
           await store.finishLoading(justification.trim());
-          alert("Carregamento finalizado.");
+          notificar("Carregamento finalizado.");
           render();
         } catch (error) {
-          alert(error.message);
+          notificar(error.message);
         }
       } else if (action === "export") {
         downloadCsv(`dallogix-${currentPage}.csv`, [
@@ -1684,7 +1694,7 @@ function bindLoginForm() {
     renderLogin("");
     try {
       const data = Object.fromEntries(new FormData(form));
-      const response = await fetch("/api/login.php", {
+      const response = await api.fetch("/api/login.php", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -1741,7 +1751,7 @@ function bindForms() {
           window.location.replace(pagePath("login"));
           return;
         }
-        alert(error.message);
+        notificar(error.message);
       }
     });
   // Parâmetros de PDF: preserva valores legados não exibidos na interface.
@@ -1763,10 +1773,10 @@ function bindForms() {
           pdf_field_mapping,
           pdf_search_field: raw.pdf_search_field,
         });
-        alert("Parâmetros salvos.");
+        notificar("Parâmetros salvos.");
         render();
       } catch (error) {
-        alert(error.message);
+        notificar(error.message);
       }
     });
   const productForm = document.querySelector("#product-form");
@@ -1783,10 +1793,10 @@ function bindForms() {
       try {
         if (editingId) {
           await store.updateProduct({ id: editingId, ...raw });
-          alert("Produto atualizado.");
+          notificar("Produto atualizado.");
         } else {
           await store.createProduct(raw);
-          alert("Produto cadastrado.");
+          notificar("Produto cadastrado.");
         }
         store.state.productFormOpen = false;
         store.state.editingProductId = null;
@@ -1801,7 +1811,7 @@ function bindForms() {
           window.location.replace(pagePath("login"));
           return;
         }
-        alert(error.message);
+        notificar(error.message);
       } finally {
         productForm.dataset.submitting = "0";
         productForm.querySelectorAll("button").forEach((button) => {
@@ -1822,7 +1832,7 @@ function bindForms() {
           Object.fromEntries(new FormData(dalaCreateForm)),
         );
       } catch (error) {
-        alert(error.message);
+        notificar(error.message);
         dalaCreateForm.dataset.submitting = "0";
         dalaCreateForm.querySelectorAll("button").forEach((button) => { button.disabled = false; });
         return;
@@ -1831,9 +1841,9 @@ function bindForms() {
       render();
       try {
         const connection = await store.checkEquipmentStatus(created.id);
-        alert(`Dala cadastrada. ${connection.message}`);
+        notificar(`Dala cadastrada. ${connection.message}`);
       } catch (error) {
-        alert(`Dala cadastrada, mas a verificação de conexão falhou: ${error.message}`);
+        notificar(`Dala cadastrada, mas a verificação de conexão falhou: ${error.message}`);
       }
     });
   const dalaEditForm = document.querySelector("#dala-edit-form");
@@ -1847,7 +1857,7 @@ function bindForms() {
       try {
         await store.updateEquipment({ id: dalaEditForm.dataset.id, ...raw });
       } catch (error) {
-        alert(error.message);
+        notificar(error.message);
         dalaEditForm.dataset.submitting = "0";
         dalaEditForm.querySelectorAll("button").forEach((button) => { button.disabled = false; });
         return;
@@ -1856,9 +1866,9 @@ function bindForms() {
       await navigate("dala", `?id=${equipmentId}&from=${queryReturnPage()}`);
       try {
         const connection = await store.checkEquipmentStatus(equipmentId);
-        alert(`Dala atualizada. ${connection.message}`);
+        notificar(`Dala atualizada. ${connection.message}`);
       } catch (error) {
-        alert(`Dala atualizada, mas a verificação de conexão falhou: ${error.message}`);
+        notificar(`Dala atualizada, mas a verificação de conexão falhou: ${error.message}`);
       }
     });
   const manifestForm = document.querySelector("#new-manifest-form");
@@ -1870,7 +1880,7 @@ function bindForms() {
       const today = agora();
       const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
       if (!scheduledDate || scheduledDate < todayString) {
-        alert("Informe uma data igual ou posterior ao dia atual do PC industrial.");
+        notificar("Informe uma data igual ou posterior ao dia atual do PC industrial.");
         return;
       }
       const items = [...document.querySelectorAll("#manifest-items tbody tr")]
@@ -1880,11 +1890,11 @@ function bindForms() {
         }))
         .filter((item) => item.product_id && Number(item.quantity) >= 1);
       if (!items.length) {
-        alert("Adicione ao menos um item com produto e quantidade.");
+        notificar("Adicione ao menos um item com produto e quantidade.");
         return;
       }
       if (new Set(items.map((item) => String(item.product_id))).size !== items.length) {
-        alert("Selecione cada produto apenas uma vez no romaneio.");
+        notificar("Selecione cada produto apenas uma vez no romaneio.");
         return;
       }
       if (manifestForm.dataset.submitting === "1") return;
@@ -1901,10 +1911,10 @@ function bindForms() {
           driver_name: raw.driver_name,
           items,
         });
-        alert("Romaneio cadastrado.");
+        notificar("Romaneio cadastrado.");
         navigate("manifests");
       } catch (error) {
-        alert(error.message);
+        notificar(error.message);
       } finally {
         manifestForm.dataset.submitting = "0";
         manifestForm.querySelectorAll("button").forEach((button) => {
@@ -1920,7 +1930,7 @@ function bindForms() {
       const today = agora();
       const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
       if (!raw.scheduled_date || raw.scheduled_date < todayString) {
-        alert("Informe uma data igual ou posterior ao dia atual do PC industrial.");
+        notificar("Informe uma data igual ou posterior ao dia atual do PC industrial.");
         return;
       }
       const items = [...document.querySelectorAll("#manifest-items tbody tr")]
@@ -1930,11 +1940,11 @@ function bindForms() {
         }))
         .filter((item) => item.product_id && Number(item.quantity) >= 1);
       if (!items.length) {
-        alert("Adicione ao menos um item com produto e quantidade.");
+        notificar("Adicione ao menos um item com produto e quantidade.");
         return;
       }
       if (new Set(items.map((item) => String(item.product_id))).size !== items.length) {
-        alert("Selecione cada produto apenas uma vez no romaneio.");
+        notificar("Selecione cada produto apenas uma vez no romaneio.");
         return;
       }
       if (manifestEditForm.dataset.submitting === "1") return;
@@ -1952,10 +1962,10 @@ function bindForms() {
           driver_name: raw.driver_name,
           items,
         });
-        alert("Romaneio atualizado.");
+        notificar("Romaneio atualizado.");
         await navigate("manifest", `?id=${manifestEditForm.dataset.id}`);
       } catch (error) {
-        alert(error.message);
+        notificar(error.message);
       } finally {
         manifestEditForm.dataset.submitting = "0";
         manifestEditForm.querySelectorAll("button").forEach((button) => {
@@ -2037,7 +2047,7 @@ function bindForms() {
       if (submit) submit.disabled = true;
       showCsvFeedback("Validando o CSV…");
       try {
-        const response = await fetch("/api/importar_csv.php", {
+        const response = await api.fetch("/api/importar_csv.php", {
           method: "POST",
           headers: store.csrfToken ? { "X-CSRF-Token": store.csrfToken } : {},
           body: new FormData(csvForm),
@@ -2069,12 +2079,12 @@ function bindForms() {
           truck_id: raw.truck_id,
           equipment_id: raw.equipment_id,
         });
-        alert(
+        notificar(
           `Operação #${result.id} preparada. Confirme as condições físicas antes de iniciar a esteira.`,
         );
         await navigate("work", dashboardReturnQuery());
       } catch (error) {
-        alert(error.message);
+        notificar(error.message);
       } finally {
         if (submit) submit.disabled = false;
       }
@@ -2087,10 +2097,10 @@ function bindForms() {
       try {
         const raw = Object.fromEntries(new FormData(form));
         await store.reassignLoading(form.dataset.loadingId, raw.equipment_id);
-        alert("Nova Dala vinculada. O carregamento está aguardando o início da operação.");
+        notificar("Nova Dala vinculada. O carregamento está aguardando o início da operação.");
         render();
       } catch (error) {
-        alert(error.message);
+        notificar(error.message);
       } finally {
         if (submit) submit.disabled = false;
       }
@@ -2122,7 +2132,7 @@ function bindForms() {
           setFormFeedback(currentForm, message, result.result === "VALIDO" ? "" : "error");
           currentForm.querySelector('[name="barcode"]')?.focus();
         } else {
-          alert(message);
+          notificar(message);
         }
       } catch (error) {
         setFormFeedback(form, error.message || "Não foi possível registrar a leitura manual.", "error");
@@ -2144,10 +2154,10 @@ function bindForms() {
       try {
         const raw = Object.fromEntries(new FormData(form));
         const result = await store.identifyReading(form.dataset.readingId, raw.barcode);
-        alert(`Leitura identificada como ${result.result}.`);
+        notificar(`Leitura identificada como ${result.result}.`);
         render();
       } catch (error) {
-        alert(error.message);
+        notificar(error.message);
       } finally {
         if (form.isConnected) {
           form.dataset.submitting = "";
@@ -2170,10 +2180,10 @@ function bindForms() {
         userForm.reset();
         await store.loadUsers();
         render();
-        alert("Login criado.");
+        notificar("Login criado.");
       } catch (error) {
         setFormFeedback(userForm, error.message, "error");
-        alert(error.message);
+        notificar(error.message);
       } finally {
         userForm.dataset.submitting = "0";
         if (submit) submit.disabled = false;
@@ -2195,10 +2205,10 @@ function bindForms() {
         companyForm.reset();
         await store.loadCompanies();
         render();
-        alert("Empresa criada. Agora crie o login de administrador.");
+        notificar("Empresa criada. Agora crie o login de administrador.");
       } catch (error) {
         setFormFeedback(companyForm, error.message, "error");
-        alert(error.message);
+        notificar(error.message);
       } finally {
         companyForm.dataset.submitting = "0";
         if (submit) submit.disabled = false;
@@ -2218,10 +2228,10 @@ function bindForms() {
         await store.renameCompany(renameCompanyForm.dataset.companyId, name);
         await store.loadCompanyDetail();
         render();
-        alert("Empresa renomeada.");
+        notificar("Empresa renomeada.");
       } catch (error) {
         setFormFeedback(renameCompanyForm, error.message, "error");
-        alert(error.message);
+        notificar(error.message);
       } finally {
         renameCompanyForm.dataset.submitting = "0";
         if (submit) submit.disabled = false;
@@ -2241,10 +2251,10 @@ function bindForms() {
         await store.createIndustrialInstallation(name);
         await store.loadCompanyDetail();
         render();
-        alert("PC industrial cadastrado. Agora gere o código individual para ativá-lo.");
+        notificar("PC industrial cadastrado. Agora gere o código individual para ativá-lo.");
       } catch (error) {
         setFormFeedback(industrialPcCreateForm, error.message, "error");
-        alert(error.message);
+        notificar(error.message);
       } finally {
         industrialPcCreateForm.dataset.submitting = "0";
         if (submit) submit.disabled = false;
@@ -2260,7 +2270,7 @@ function bindForms() {
         );
         render();
       } catch (error) {
-        alert(error.message);
+        notificar(error.message);
       }
     };
     manifestFilters.addEventListener("submit", async (event) => {
@@ -2451,7 +2461,7 @@ async function bootstrap() {
     window.location.replace(pagePath("login"));
     return;
   }
-  const response = await fetch("/api/me.php");
+  const response = await api.fetch("/api/me.php");
   if (!response.ok) {
     const result = await response.json().catch(() => ({}));
     try {

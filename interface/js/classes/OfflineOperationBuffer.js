@@ -1,4 +1,5 @@
 import { agora } from "../funcoes/relogio.js?v=202609170015";
+import { ClienteApi } from "../api/ClienteApi.js?v=202610060001";
 
 export function secureRandomId() {
   const webCrypto = globalThis.crypto;
@@ -29,6 +30,7 @@ export class OfflineOperationBuffer {
     this.instanceId = null;
     this.databasePromise = null;
     this.leaseMs = 60000;
+    this.api = new ClienteApi({ timeoutMs: 15000, retry: 1 });
   }
 
   setOwner(user) {
@@ -257,7 +259,7 @@ export class OfflineOperationBuffer {
         try {
           const headers = { ...operation.headers, ...currentHeaders,
             "X-Trace-Offline-Id": String(operation.eventId || operation.id) };
-          const response = await fetch(operation.url, {
+          const response = await this.api.fetch(operation.url, {
             method: operation.method,
             headers,
             body: operation.body || undefined,

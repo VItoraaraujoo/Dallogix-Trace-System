@@ -72,11 +72,50 @@ final class ServicoComandoClp
                 (int) $user["company_id"],
                 (int) $loading["equipment_id"],
             );
-            if ($this->possuiComandoPendente($loadingId)) {
-                throw new ExcecaoComandoClp(
-                    "Já existe um comando aguardando o gateway industrial.",
-                    409,
+            $pending = $this->comandoPendente($loadingId);
+            if ($pending) {
+                if ($pending["command"] === $command) {
+                    throw new ExcecaoComandoClp(
+                        "Já existe este comando aguardando o gateway industrial.",
+                        409,
+                    );
+                }
+                if (
+                    $pending["status"] !== "PENDENTE"
+                    || !in_array($pending["command"], $allowed, true)
+                ) {
+                    throw new ExcecaoComandoClp(
+                        "O comando anterior já foi reservado pelo gateway industrial. Aguarde a confirmação antes de enviar outro.",
+                        409,
+                    );
+                }
+                $cancel = $this->connection->prepare(
+                    "UPDATE solicitacoes_comandos_clp
+                     SET status = 'REJEITADO', completed_at = NOW(3),
+                         response_message = :message
+                     WHERE id = :id AND status = 'PENDENTE'",
                 );
+                $cancel->execute([
+                    "id" => $pending["id"],
+                    "message" => "Comando substituído por {$command} antes da escrita física.",
+                ]);
+                if ($cancel->rowCount() === 1) {
+                    \record_operational_event(
+                        $this->connection,
+                        $user,
+                        "COMANDO_CLP_CONCLUIDO",
+                        "solicitacao_comando_clp",
+                        (int) $pending["id"],
+                        [
+                            "equipment_id" => (int) $loading["equipment_id"],
+                            "carregamento_id" => $loadingId,
+                            "command" => $pending["command"],
+                            "status" => "REJEITADO",
+                            "message" => "Comando substituído por {$command} antes da escrita física.",
+                            "replaced_by" => $command,
+                        ],
+                    );
+                }
             }
             $insert = $this->connection->prepare(
                 "INSERT INTO solicitacoes_comandos_clp
@@ -366,7 +405,7 @@ final class ServicoComandoClp
             $params["command"] = $command;
         }
         $statement = $this->connection->prepare(
-            "SELECT id, status FROM solicitacoes_comandos_clp
+            "SELECT id, status, command FROM solicitacoes_comandos_clp
              WHERE {$where} ORDER BY id DESC LIMIT 1 FOR UPDATE",
         );
         $statement->execute($params);

@@ -2,12 +2,16 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
+const clientSource = readFileSync(new URL("../interface/js/api/ClienteApi.js", import.meta.url), "utf8");
+const clientModuleUrl = `data:text/javascript;base64,${Buffer.from(clientSource).toString("base64")}`;
 const bufferSource = readFileSync(new URL("../interface/js/classes/OfflineOperationBuffer.js", import.meta.url), "utf8")
-  .replace(/^import .*;\n/, "const agora = () => new Date();\n");
+  .replace(/^import .*relogio\.js[^;]*;\n/, "const agora = () => new Date();\n")
+  .replace(/^import .*ClienteApi\.js[^;]*;\n/m, `import { ClienteApi } from ${JSON.stringify(clientModuleUrl)};\n`);
 const bufferModuleUrl = `data:text/javascript;base64,${Buffer.from(bufferSource).toString("base64")}`;
 const { OfflineOperationBuffer, secureRandomId } = await import(bufferModuleUrl);
 const storeSource = readFileSync(new URL("../interface/js/classes/ArmazenamentoTrace.js", import.meta.url), "utf8")
-  .replace(/"\.\/OfflineOperationBuffer\.js\?v=[^"]+"/, JSON.stringify(bufferModuleUrl));
+  .replace(/"\.\/OfflineOperationBuffer\.js\?v=[^"]+"/, JSON.stringify(bufferModuleUrl))
+  .replace(/"\.\.\/api\/ClienteApi\.js\?v=[^"]+"/, JSON.stringify(clientModuleUrl));
 const { ArmazenamentoTrace } = await import(`data:text/javascript;base64,${Buffer.from(storeSource).toString("base64")}`);
 
 test("a fila pertence ao usuário e não descarta falhas HTTP", async () => {

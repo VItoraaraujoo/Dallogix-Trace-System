@@ -102,29 +102,34 @@ function workControls(store) {
   );
   const clpDisponivel = store.clpDisponivel();
   const state = store.state.operationalState;
-  const pendingCommand = ["PENDENTE", "PROCESSANDO"].includes(
-    String(store.state.plcCommand?.status || "").toUpperCase(),
-  );
+  const pendingStatus = String(store.state.plcCommand?.status || "").toUpperCase();
+  const pendingCommand = store.state.plcCommand?.command || "";
+  const commandBeingProcessed = pendingStatus === "PROCESSANDO";
   const commandInFlight = store.state.commandInFlight === true;
-  const bloqueioComando = (allowedStates, stateMessage) => {
+  const bloqueioComando = (allowedStates, stateMessage, requestedCommand = "") => {
+    const samePendingCommand = pendingStatus === "PENDENTE" && pendingCommand === requestedCommand;
     const reason = !store.state.loadingId
       ? "Nenhum carregamento selecionado"
       : !clpDisponivel
         ? store.mensagemClpIndisponivel()
         : commandInFlight
           ? "Enviando o comando ao gateway industrial"
-          : pendingCommand
-          ? "Aguarde o retorno do comando atual"
-          : !allowedStates.includes(state)
-            ? stateMessage
-            : "";
+          : commandBeingProcessed
+            ? "Aguarde o retorno do comando atual"
+            : samePendingCommand
+              ? "Este comando já está aguardando o gateway industrial"
+              : !allowedStates.includes(state)
+                ? stateMessage
+                : "";
     return reason ? { disabled: true, "aria-disabled": "true", title: reason } : "";
   };
   const bloqueioEmergencia = store.state.loadingId
     ? ""
     : { disabled: true, "aria-disabled": "true", title: "Nenhum carregamento selecionado" };
   const bloqueioReversao = canReverse
-    ? bloqueioComando(["PAUSADO"], "Pause a máquina antes de pedir a reversão.")
+    ? pendingStatus === "PENDENTE"
+      ? { disabled: true, "aria-disabled": "true", title: "Aguarde a conclusão do comando atual antes de alterar a reversão" }
+      : bloqueioComando(["PAUSADO"], "Pause a máquina antes de pedir a reversão.", "REVERSAO_ATIVAR")
     : { disabled: true, "aria-disabled": "true", title: "Seu perfil não pode alterar a reversão" };
   const loadingPicker = `<button class="button secondary small work-back-button" data-action="goto-manifests" type="button">← Romaneios</button>`;
   const pendingReadings = store.state.pendingReadings || [];
@@ -141,7 +146,7 @@ function workControls(store) {
   const finalized = store.state.operationalState === "FINALIZADO";
   const controls = finalized
     ? ""
-    : `<div class="work-controls"><div class="work-routine-controls">${button("Ligar esteira", "run", "primary", bloqueioComando(["PREPARANDO", "PAUSADO"], "Só é possível iniciar em preparação ou com a máquina pausada."))}${button("Desligar esteira", "stop", "ghost", bloqueioComando(["PREPARANDO", "CARREGANDO"], "A máquina não está em um estado que permita solicitar parada."))}${button("Ligar reversão", "reverse-on", "secondary", bloqueioReversao)}${button("Desligar reversão", "reverse-off", "secondary", bloqueioReversao)}</div><div class="work-emergency-zone">${button("EMERGÊNCIA", "emergency", "danger", bloqueioEmergencia)}</div></div>`;
+    : `<div class="work-controls"><div class="work-routine-controls">${button("Ligar esteira", "run", "primary", bloqueioComando(["PREPARANDO", "PAUSADO"], "Só é possível iniciar em preparação ou com a máquina pausada.", "INICIAR_CARREGAMENTO"))}${button("Desligar esteira", "stop", "ghost", bloqueioComando(["PREPARANDO", "CARREGANDO"], "A máquina não está em um estado que permita solicitar parada.", "PAUSAR_CARREGAMENTO"))}${button("Ligar reversão", "reverse-on", "secondary", bloqueioReversao)}${button("Desligar reversão", "reverse-off", "secondary", bloqueioReversao)}</div><div class="work-emergency-zone">${button("EMERGÊNCIA", "emergency", "danger", bloqueioEmergencia)}</div></div>`;
   const summaryReady = ["FINALIZANDO", "FINALIZADO"].includes(
     store.state.operationalState,
   );

@@ -2,8 +2,11 @@ import "../telas/acesso/acesso.js";
 import {
   configurarSessaoPorAba,
 } from "./sessao.js?v=202609222100";
+import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
+import { notificar } from "./componentes/notificacoes.js?v=202610060001";
 
 configurarSessaoPorAba();
+const api = new ClienteApi({ retry: 1 });
 
 const DEFAULT_PAGE_BY_ROLE = Object.freeze({
   ADMIN_DALLOGIX: "/telas/painel-dallogix/painel-dallogix.html",
@@ -57,14 +60,14 @@ function renderLocalActivation(data = { active: false }, message = "") {
 }
 
 async function loadLocalActivation() {
-  const response = await fetch("/api/ativacao_local.php", { cache: "no-store" });
+  const response = await api.fetch("/api/ativacao_local.php", { cache: "no-store" });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || "Não foi possível consultar a ativação local.");
   return result.data || { active: false };
 }
 
 async function activateLocalInstallation(payload) {
-  const response = await fetch("/api/ativar_empresa.php", {
+  const response = await api.fetch("/api/ativar_empresa.php", {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify(payload),
@@ -102,7 +105,7 @@ function bindLocalActivationForm() {
       const login = document.querySelector('#login-form [name="email"]');
       if (login) login.value = data.email || "";
       form.reset();
-      alert(`Instalação ativada para ${activation.company_name}.`);
+      notificar(`Instalação ativada para ${activation.company_name}.`);
     } catch (error) {
       renderLocalActivation(
         { enabled: true, active: false },
@@ -136,7 +139,7 @@ function bindLoginForm() {
     }
     renderLogin("");
     try {
-      const response = await fetch("/api/login.php", {
+      const response = await api.fetch("/api/login.php", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
