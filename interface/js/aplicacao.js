@@ -1412,7 +1412,8 @@ function bindActions() {
           }))
         )
           return;
-        store.state.commandInFlight = true;
+        const commandToken = store.beginCommand();
+        if (!commandToken) return;
         if (currentPage === "work") render();
         try {
           const loadingId = node.dataset.loadingId || store.state.loadingId;
@@ -1423,14 +1424,14 @@ function bindActions() {
           // passa a ser a trava de idempotência. Libere a interface antes da
           // leitura de atualização para que o comando oposto (por exemplo,
           // parar logo após iniciar) não fique preso a uma consulta lenta.
-          store.state.commandInFlight = false;
+          store.endCommand(commandToken);
           if (currentPage === "work") render();
           await store.loadActiveLoading(node.dataset.loadingId || store.state.loadingId);
           render();
         } catch (error) {
           notificar(error.message);
         } finally {
-          store.state.commandInFlight = false;
+          store.endCommand(commandToken);
           if (currentPage === "work") render();
         }
         return;
@@ -1445,7 +1446,8 @@ function bindActions() {
           }))
         )
           return;
-        store.state.commandInFlight = true;
+        const commandToken = store.beginCommand();
+        if (!commandToken) return;
         if (currentPage === "work") render();
         try {
           await servicoOperacao.reversao(true, node.dataset.loadingId);
@@ -1454,7 +1456,7 @@ function bindActions() {
         } catch (error) {
           notificar(error.message);
         } finally {
-          store.state.commandInFlight = false;
+          store.endCommand(commandToken);
           if (currentPage === "work") render();
         }
         return;
@@ -1487,7 +1489,8 @@ function bindActions() {
           }))
         )
           return;
-        store.state.commandInFlight = true;
+        const commandToken = store.beginCommand();
+        if (!commandToken) return;
         if (currentPage === "work") render();
         try {
           await servicoOperacao.reversao(activating, store.state.loadingId);
@@ -1496,12 +1499,13 @@ function bindActions() {
         } catch (error) {
           notificar(error.message);
         } finally {
-          store.state.commandInFlight = false;
+          store.endCommand(commandToken);
           if (currentPage === "work") render();
         }
       } else if (action === "emergency") {
         if (store.state.commandInFlight) return;
-        store.state.commandInFlight = true;
+        const commandToken = store.beginCommand();
+        if (!commandToken) return;
         if (currentPage === "work") render();
         try {
           await servicoEmergencia.solicitar();
@@ -1510,7 +1514,7 @@ function bindActions() {
         } catch (error) {
           notificar(error.message);
         } finally {
-          store.state.commandInFlight = false;
+          store.endCommand(commandToken);
           if (currentPage === "work") render();
         }
       } else if (action === "unlock") {

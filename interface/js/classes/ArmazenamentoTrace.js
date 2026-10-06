@@ -62,6 +62,7 @@ export class ArmazenamentoTrace {
       deadLetters: [],
       plcCommand: null,
       commandInFlight: false,
+      commandInFlightToken: null,
       productFormOpen: false,
       dalaFormOpen: false,
       editingProductId: null,
@@ -145,6 +146,19 @@ export class ArmazenamentoTrace {
   }
   subscribeOperationalEvents(onData, onError) {
     return this.sincronizacao.assinarEventos({ onData, onError });
+  }
+  beginCommand() {
+    if (this.state.commandInFlight) return null;
+    const token = secureRandomId();
+    this.state.commandInFlight = true;
+    this.state.commandInFlightToken = token;
+    return token;
+  }
+  endCommand(token) {
+    if (!token || this.state.commandInFlightToken !== token) return false;
+    this.state.commandInFlight = false;
+    this.state.commandInFlightToken = null;
+    return true;
   }
   async loadManifests() {
     const params = new URLSearchParams();
