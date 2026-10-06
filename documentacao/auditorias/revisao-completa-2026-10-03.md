@@ -9,9 +9,9 @@ GitHub Actions.
 
 ## Atualização de validação — 06/10/2026
 
-- A release `v1.0.99` foi publicada na execução 104 do GitHub Actions a partir
-  do commit `1f755d4`.
-- O Central respondeu `status=ok`, `version=v1.0.99` e o mesmo commit em
+- A release `v1.0.100` foi publicada na execução 105 do GitHub Actions a partir
+  do commit `1fb63d3`.
+- O Central respondeu `status=ok`, `version=v1.0.100` e o mesmo commit em
   `/api/health.php`; `/api/prontidao.php` respondeu `status=ready` com PHP e
   MySQL saudáveis.
 - O layout da operação recebeu uma regra final escopada para impedir que a
@@ -25,8 +25,8 @@ GitHub Actions.
   falha controlada do `git grep`: “nenhuma ocorrência” retorna sucesso, enquanto
   erro do scanner retorna código 2 e mensagem explícita.
 - O commit `f68985c` contém a correção de qualidade e seu teste. A release
-  `v1.0.99` também alinha a autorização de liberação da emergência na tela
-  principal com os perfis já aceitos pelo endpoint do servidor.
+  `v1.0.100` também prepara o diretório de relatórios com validação de caminho
+  e erro controlado quando o armazenamento não tem permissão.
 
 ## Evidências da base antes da alteração
 
@@ -37,7 +37,7 @@ GitHub Actions.
 - A varredura de segredos terminou com sucesso.
 - A validação de módulos do front, sintaxe PHP/JavaScript/Shell/JSON e testes
   isolados terminou com sucesso.
-- PHPUnit local: 32 testes e 185 asserções aprovados.
+- PHPUnit local: 33 testes e 189 asserções aprovados.
 - PHPStan local: nenhum erro.
 - Testes Node industriais e catálogo de romaneio: 38 aprovados.
 - Testes Python Modbus: 5 aprovados.
@@ -102,7 +102,8 @@ produção.
 
 ## Próxima verificação de release
 
-Depois do commit desta revisão, executar os testes locais, o workflow de
-qualidade e a publicação de uma nova tag somente se a `master` continuar limpa.
-O PC industrial só deve receber essa tag após o Central informar a mesma versão
-e o mesmo commit.
+Depois do commit desta revisão, a tag `v1.0.100` foi publicada e o Central
+informou a mesma versão e o commit `1fb63d3`. O PC industrial só deve receber a
+tag depois que voltar à rede e confirmar a instalação local; a versão instalada
+e o reinício continuam sem evidência física enquanto o equipamento estiver
+offline.
