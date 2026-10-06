@@ -50,6 +50,7 @@ node --test testes/cliente-api.mjs testes/operacoes-offline.mjs testes/servico-e
 node --test testes/armazenamento-resposta.mjs
 node --test testes/comandos-concorrencia.mjs
 node --test testes/operacao-comandos-ui.mjs
+node --test testes/dialogo-acessibilidade.mjs
 node --test testes/log-frontend.mjs
 node --test testes/tempo-real.mjs
 node --test testes/security-scan.mjs

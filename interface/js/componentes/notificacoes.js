@@ -1,4 +1,5 @@
 const TIPOS = new Set(["sucesso", "informacao", "aviso", "erro"]);
+import { prepararDialogoAcessivel } from "../funcoes/dialogo.js?v=202610061820";
 
 function obterPilha() {
   let pilha = document.querySelector("#trace-notificacoes");
@@ -65,6 +66,8 @@ export function confirmarAcao(mensagem, { titulo = "Confirmação necessária", 
     modal.setAttribute("aria-labelledby", heading.id);
     heading.textContent = titulo;
     const text = document.createElement("p");
+    text.id = `trace-modal-descricao-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    modal.setAttribute("aria-describedby", text.id);
     text.textContent = String(mensagem || "");
     const actions = document.createElement("div");
     actions.className = "trace-modal-acoes";
@@ -81,21 +84,23 @@ export function confirmarAcao(mensagem, { titulo = "Confirmação necessária", 
     overlay.append(modal);
     document.body.append(overlay);
     let done = false;
+    let controle = null;
     const finish = (value) => {
       if (done) return;
       done = true;
       document.removeEventListener("keydown", onKeyDown);
+      controle?.desligar();
       overlay.remove();
+      controle?.restaurarFoco();
       resolve(value);
     };
     const onKeyDown = (event) => {
-      if (event.key === "Escape") finish(false);
       if (event.key === "Enter") finish(true);
     };
     cancel.addEventListener("click", () => finish(false), { once: true });
     accept.addEventListener("click", () => finish(true), { once: true });
     document.addEventListener("keydown", onKeyDown);
-    accept.focus();
+    controle = prepararDialogoAcessivel(modal, { focoInicial: accept, aoEscape: () => finish(false) });
   });
 }
 
@@ -123,6 +128,8 @@ export function solicitarTexto(
     modal.setAttribute("aria-labelledby", heading.id);
     heading.textContent = titulo;
     const text = document.createElement("p");
+    text.id = `trace-modal-descricao-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    modal.setAttribute("aria-describedby", text.id);
     text.textContent = String(mensagem || "");
     const field = multilinha ? document.createElement("textarea") : document.createElement("input");
     field.className = "trace-modal-campo";
@@ -146,15 +153,17 @@ export function solicitarTexto(
     overlay.append(modal);
     document.body.append(overlay);
     let done = false;
+    let controle = null;
     const finish = (value) => {
       if (done) return;
       done = true;
       document.removeEventListener("keydown", onKeyDown);
+      controle?.desligar();
       overlay.remove();
+      controle?.restaurarFoco();
       resolve(value);
     };
     const onKeyDown = (event) => {
-      if (event.key === "Escape") finish(null);
       if (event.key === "Enter" && (multilinha ? event.ctrlKey : true)) {
         event.preventDefault();
         if (!obrigatorio || field.value.trim()) finish(field.value);
@@ -169,7 +178,7 @@ export function solicitarTexto(
       finish(field.value);
     }, { once: true });
     document.addEventListener("keydown", onKeyDown);
-    field.focus();
+    controle = prepararDialogoAcessivel(modal, { focoInicial: field, aoEscape: () => finish(null) });
     field.select?.();
   });
 }

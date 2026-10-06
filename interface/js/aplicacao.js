@@ -2,7 +2,8 @@ import {
   configurarSessaoPorAba,
 } from "./sessao.js?v=202609222100";
 import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
-import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610060001";
+import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610061820";
+import { prepararDialogoAcessivel } from "./funcoes/dialogo.js?v=202610061820";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610061603";
@@ -709,14 +710,29 @@ function timedCommandConfirmation({
       <div class="command-confirm-actions"><button class="button ghost" data-confirm="no" type="button">Não</button><button class="button primary" data-confirm="yes" type="button">${esc(confirmLabel)}</button></div>
     </section>`;
     document.body.appendChild(overlay);
+    const modal = overlay.querySelector(".command-confirm");
+    const heading = modal?.querySelector("h2");
+    const description = modal?.querySelector("p");
+    const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    if (heading) {
+      heading.id = `command-confirm-title-${suffix}`;
+      modal?.setAttribute("aria-labelledby", heading.id);
+    }
+    if (description) {
+      description.id = `command-confirm-description-${suffix}`;
+      modal?.setAttribute("aria-describedby", description.id);
+    }
     const timer = overlay.querySelector(".command-confirm-timer span");
     let remaining = timeout;
     let settled = false;
+    let controle = null;
     const finish = (confirmed) => {
       if (settled) return;
       settled = true;
       window.clearInterval(interval);
+      controle?.desligar();
       overlay.remove();
+      controle?.restaurarFoco();
       resolve(confirmed);
     };
     const interval = window.setInterval(() => {
@@ -730,6 +746,10 @@ function timedCommandConfirmation({
     overlay
       .querySelector('[data-confirm="no"]')
       .addEventListener("click", () => finish(false));
+    controle = prepararDialogoAcessivel(modal, {
+      focoInicial: overlay.querySelector('[data-confirm="yes"]'),
+      aoEscape: () => finish(false),
+    });
   });
 }
 function bindActions() {

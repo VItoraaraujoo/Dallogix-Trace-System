@@ -3,7 +3,7 @@ import {
   configurarSessaoPorAba,
 } from "./sessao.js?v=202609222100";
 import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
-import { notificar } from "./componentes/notificacoes.js?v=202610060001";
+import { notificar } from "./componentes/notificacoes.js?v=202610061820";
 
 configurarSessaoPorAba();
 const api = new ClienteApi({ retry: 1 });
