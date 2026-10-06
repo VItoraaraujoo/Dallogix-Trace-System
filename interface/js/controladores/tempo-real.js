@@ -7,7 +7,10 @@ export function createOperationalRealtimeController({ store, getPage, render, re
   let reconnectTimer = null;
   let polling = false;
   let reconnectFailures = 0;
+  let generation = 0;
+  const isCurrent = (token) => token === generation && getPage() === "work";
   const stop = () => {
+    generation += 1;
     if (fallbackTimer) window.clearTimeout(fallbackTimer);
     if (reconnectTimer) window.clearTimeout(reconnectTimer);
     fallbackTimer = null;
@@ -17,10 +20,11 @@ export function createOperationalRealtimeController({ store, getPage, render, re
   };
   const fallback = () => {
     if (fallbackTimer) return;
+    const token = generation;
     const intervalo = globalThis.document?.hidden ? 15000 : 5000;
     fallbackTimer = window.setTimeout(async () => {
       fallbackTimer = null;
-      if (getPage() !== "work") return stop();
+      if (!isCurrent(token)) return;
       if (polling) {
         fallback();
         return;
@@ -32,6 +36,7 @@ export function createOperationalRealtimeController({ store, getPage, render, re
           store.loadMonitoring(),
           store.loadPendingReadings(),
         ]);
+        if (!isCurrent(token)) return;
         if (workStructureSignature() !== getViewSignature()) render();
         else refreshWorkLiveView();
       } catch (error) {
@@ -39,22 +44,25 @@ export function createOperationalRealtimeController({ store, getPage, render, re
         /* mantém o último estado visível */
       } finally {
         polling = false;
-        if (getPage() === "work") fallback();
+        if (isCurrent(token)) fallback();
       }
     }, intervalo);
   };
   const start = () => {
     if (eventSource || fallbackTimer || getPage() !== "work") return;
+    const token = ++generation;
     const consume = async (payload) => {
+      if (!isCurrent(token)) return;
       reconnectFailures = 0;
-      if (payload?.monitoring) {
-        store.state.monitoring = payload.monitoring;
-        store.state.monitoringUpdatedAt = new Date().toISOString();
-      }
       await store.applyActiveLoadingSnapshot(
         payload?.active_loadings || [],
         store.state.selectedLoadingId,
       );
+      if (!isCurrent(token)) return;
+      if (payload?.monitoring) {
+        store.state.monitoring = payload.monitoring;
+        store.state.monitoringUpdatedAt = new Date().toISOString();
+      }
       if (store.state.loadingId) {
         try {
           await Promise.all([
@@ -74,7 +82,7 @@ export function createOperationalRealtimeController({ store, getPage, render, re
       else refreshWorkLiveView();
     };
     const reconnect = () => {
-      if (getPage() !== "work" || reconnectTimer) return;
+      if (!isCurrent(token) || reconnectTimer) return;
       eventSource?.close();
       eventSource = null;
       reconnectFailures += 1;
@@ -85,6 +93,7 @@ export function createOperationalRealtimeController({ store, getPage, render, re
       const delay = Math.min(30000, 5000 * (2 ** (reconnectFailures - 1)));
       reconnectTimer = window.setTimeout(() => {
         reconnectTimer = null;
+        if (!isCurrent(token)) return;
         start();
       }, delay);
     };
