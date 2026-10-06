@@ -245,7 +245,7 @@ function Format-ProcessArguments([string[]]$Arguments) {
     }) -join ' '
 }
 
-function Invoke-External([string]$FilePath, [string[]]$Arguments, [string]$InputText) {
+function Invoke-External([string]$FilePath, [string[]]$Arguments, [string]$InputText, [int]$TimeoutMilliseconds = 0) {
     $startInfo = New-Object System.Diagnostics.ProcessStartInfo
     $startInfo.FileName = $FilePath
     $startInfo.Arguments = Format-ProcessArguments $Arguments
@@ -265,6 +265,23 @@ function Invoke-External([string]$FilePath, [string[]]$Arguments, [string]$Input
         if ($null -ne $InputText) {
             $process.StandardInput.Write($InputText)
             $process.StandardInput.Close()
+        }
+        if ($TimeoutMilliseconds -gt 0) {
+            if (-not $process.WaitForExit($TimeoutMilliseconds)) {
+                try { & taskkill.exe /PID $process.Id /T /F 2>$null | Out-Null } catch { }
+                return [pscustomobject]@{
+                    ExitCode = -1
+                    Stdout = ''
+                    Stderr = "Processo excedeu o limite de ${TimeoutMilliseconds}ms."
+                }
+            }
+            $stdout = $process.StandardOutput.ReadToEnd()
+            $stderr = $process.StandardError.ReadToEnd()
+            return [pscustomobject]@{
+                ExitCode = $process.ExitCode
+                Stdout = $stdout
+                Stderr = $stderr
+            }
         }
         $stdout = $process.StandardOutput.ReadToEnd()
         $stderr = $process.StandardError.ReadToEnd()
@@ -335,12 +352,20 @@ try { $hasLock = $Lock.WaitOne(0) } catch [System.Threading.AbandonedMutexExcept
 try {
     if (-not $hasLock) { throw "Já existe uma atualização em execução." }
     Ensure-TraceUpdaterSchedule
-    $dockerInfo = Invoke-External 'docker.exe' @('info', '--format', '{{.OSType}}') $null
-    $dockerOs = ([string]$dockerInfo.Stdout).Trim()
-    if ($dockerInfo.ExitCode -ne 0 -or $dockerOs -ne 'linux') {
-        $dockerDetail = ((@($dockerInfo.Stdout, $dockerInfo.Stderr) | Where-Object { $_ -and $_.Trim() }) -join ' ').Trim()
-        if (-not $dockerDetail) { $dockerDetail = 'docker info nao retornou detalhes.' }
-        throw "A tarefa agendada nao consegue acessar o mecanismo Linux do Docker Desktop. Detalhe: $dockerDetail"
+    $dockerInfo = $null
+    $dockerOs = ''
+    $dockerDetail = ''
+    for ($dockerAttempt = 1; $dockerAttempt -le 12 -and $dockerOs -ne 'linux'; $dockerAttempt++) {
+        $dockerInfo = Invoke-External 'docker.exe' @('info', '--format', '{{.OSType}}') $null 10000
+        $dockerOs = ([string]$dockerInfo.Stdout).Trim()
+        if ($dockerInfo.ExitCode -ne 0 -or $dockerOs -ne 'linux') {
+            $dockerDetail = ((@($dockerInfo.Stdout, $dockerInfo.Stderr) | Where-Object { $_ -and $_.Trim() }) -join ' ').Trim()
+            if (-not $dockerDetail) { $dockerDetail = 'docker info nao retornou detalhes.' }
+            if ($dockerAttempt -lt 12) { Start-Sleep -Seconds 5 }
+        }
+    }
+    if ($dockerOs -ne 'linux') {
+        throw "A tarefa agendada nao consegue acessar o mecanismo Linux do Docker Desktop apos 12 tentativas. Detalhe: $dockerDetail"
     }
     $headers = @{}
     if ($env:UPDATE_MANIFEST_TOKEN) { $headers.Authorization = "Bearer $($env:UPDATE_MANIFEST_TOKEN)" }

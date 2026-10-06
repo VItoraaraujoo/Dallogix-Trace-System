@@ -31,6 +31,13 @@ test("falha de pré-requisito do atualizador deixa diagnóstico persistente", ()
   assert.match(updaterScript, /update-stable-errors\.log/);
 });
 
+test("pré-verificação do Docker não fica presa quando o motor ainda está iniciando", () => {
+  assert.match(updaterScript, /function Invoke-External\(\[string\]\$FilePath, \[string\[\]\]\$Arguments, \[string\]\$InputText, \[int\]\$TimeoutMilliseconds = 0\)/);
+  assert.match(updaterScript, /taskkill\.exe \/PID \$process\.Id \/T \/F/);
+  assert.match(updaterScript, /Invoke-External 'docker\.exe' @\('info', '--format', '\{\{\.OSType\}\}'\) \$null 10000/);
+  assert.match(updaterScript, /\$dockerAttempt -le 12/);
+});
+
 test("atualizador repara o gatilho de logon depois de uma atualização", () => {
   assert.match(updaterScript, /function Ensure-TraceUpdaterSchedule/);
   assert.match(updaterScript, /MSFT_TaskDailyTrigger/);
