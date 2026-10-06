@@ -32,8 +32,8 @@ Este registro centraliza a execução das pendências reunidas nas conversas do 
 - **CLP real:** receber variante exata, mapa oficial de registradores, sinais, intertravamentos e comportamento seguro em perda de comunicação. Até lá, comandos físicos continuam bloqueados.
 - **Câmera real:** receber modelo, endereço, protocolo e credencial técnica; depois validar captura e latência no ponto de instalação.
 - **Portal administrativo:** a aplicação já tem área `ADMIN_DALLOGIX` para empresas, usuários e diagnóstico/logs. A expansão para gestão dos servidores, integrações e atualização remota ainda requer definir hospedagem/domínio, autenticação, ações permitidas e separação de dados.
-- **Release de produção:** o ambiente `production-release` foi usado com sucesso na execução 101. O workflow lê `WEB_PORT` do `.env` do Central por SSH e valida a API de saúde local antes e depois da atualização, incluindo versão e commit esperados.
-- **Agendamento de backup no servidor:** o backup pré-atualização foi comprovado no log da execução 101. A validação periódica de restauração continua sendo a evidência complementar prevista no workflow de backup.
+- **Release de produção:** o ambiente `production-release` foi usado com sucesso na execução 102. O workflow lê `WEB_PORT` do `.env` do Central por SSH e valida a API de saúde local antes e depois da atualização, incluindo versão e commit esperados.
+- **Agendamento de backup no servidor:** o backup pré-atualização foi comprovado no log da execução 102. A validação periódica de restauração continua sendo a evidência complementar prevista no workflow de backup.
 
 ## Limites de coordenação
 
