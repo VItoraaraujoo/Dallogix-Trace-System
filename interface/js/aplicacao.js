@@ -5,7 +5,7 @@ import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
 import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610060001";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610060010-preserve-command-selection";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610060011";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610060007";
@@ -13,7 +13,7 @@ import { dataHora, numero, relativo } from "./funcoes/formato.js?v=202609201000"
 import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js?v=202609240001";
-import { deviceStatusSummary } from "./funcoes/view.js?v=202609280006";
+import { deviceStatusSummary } from "./funcoes/view.js?v=202610060011";
 import { settings } from "../telas/configuracoes/configuracoes.js?v=202610010001";
 import { dalas } from "../telas/dalas/dalas.js?v=202610010001";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
@@ -32,7 +32,7 @@ import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
 import { manifests } from "../telas/romaneios/romaneios.js?v=202610010001";
 import { manifestView } from "../telas/romaneio/romaneio.js?v=202610010001";
-import { work } from "../telas/operacao/operacao.js?v=202610060008-status-panel";
+import { work } from "../telas/operacao/operacao.js?v=202610060011";
 import { dashboard } from "../telas/painel/painel.js?v=202610010001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610010001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
@@ -280,7 +280,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610060008").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610060011").then((registration) => {
     const avisarAtualizacao = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       notificar("Nova versão da interface está disponível.", "informacao", {

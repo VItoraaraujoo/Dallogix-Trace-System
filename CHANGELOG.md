@@ -1,5 +1,12 @@
 # Histórico de alterações
 
+## v1.0.107 — 06/10/2026
+
+- Cache da interface invalidado de forma coordenada no service worker, nas telas
+  e nos módulos alterados, evitando que uma instalação continue usando código
+  anterior após a atualização.
+- Adicionado teste que exige a mesma versão de cache em todas as telas.
+
 ## v1.0.106 — 06/10/2026
 
 - O status do servidor na operação agora depende do health check HTTP confirmado.

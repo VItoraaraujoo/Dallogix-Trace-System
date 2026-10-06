@@ -4,7 +4,7 @@ import { rotuloComando, rotuloEstado, rotuloStatusComando } from "../../js/funco
 import {
   pageHeader,
   emergencyPanel,
-} from "../../js/funcoes/view.js?v=202609280006";
+} from "../../js/funcoes/view.js?v=202610060011";
 
 function equipmentLabel(store) {
   return store.state.equipmentCode && store.state.equipmentCode !== "—"
