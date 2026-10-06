@@ -54,10 +54,30 @@ export function createOperationalRealtimeController({ store, getPage, render, re
     const consume = async (payload) => {
       if (!isCurrent(token)) return;
       reconnectFailures = 0;
-      await store.applyActiveLoadingSnapshot(
-        payload?.active_loadings || [],
-        store.state.selectedLoadingId,
+      // O stream pode capturar a transição entre a gravação do comando e a
+      // atualização da lista de carregamentos. Não descarte a operação local
+      // só porque esse quadro veio vazio: confirme pelo endpoint HTTP antes
+      // de aceitar o vazio como encerramento real.
+      const selectedId = Number(store.state.selectedLoadingId) || null;
+      let activeLoadings = Array.isArray(payload?.active_loadings)
+        ? payload.active_loadings
+        : [];
+      const snapshotHasSelection = selectedId === null || activeLoadings.some(
+        (loading) => Number(loading?.id) === selectedId,
       );
+      if (selectedId && store.state.loadingId && !snapshotHasSelection) {
+        try {
+          await store.loadActiveLoading(selectedId);
+          if (store.state.selectedLoadingId === selectedId) {
+            activeLoadings = store.state.activeLoadings || activeLoadings;
+          }
+        } catch (error) {
+          logFrontend.aviso("tempo-real.carregamento", error);
+          // Mantém o último quadro confirmado até a próxima tentativa.
+          activeLoadings = store.state.activeLoadings || activeLoadings;
+        }
+      }
+      await store.applyActiveLoadingSnapshot(activeLoadings, selectedId);
       if (!isCurrent(token)) return;
       if (payload?.monitoring) {
         store.state.monitoring = payload.monitoring;

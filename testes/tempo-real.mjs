@@ -75,3 +75,90 @@ test("evento que termina depois da navegação não sobrescreve a tela atual", a
     restaurar();
   }
 });
+
+test("quadro vazio do stream confirma a operação antes de limpar a tela", async () => {
+  const restaurar = criarAmbiente();
+  let onData;
+  let snapshotAplicado;
+  const store = {
+    state: {
+      selectedLoadingId: 7,
+      loadingId: 7,
+      activeLoadings: [{ id: 7, equipment_id: 3, state: "CARREGANDO" }],
+    },
+    subscribeOperationalEvents(callback) {
+      onData = callback;
+      return { close() {} };
+    },
+    async loadActiveLoading(id) {
+      assert.equal(id, 7);
+      this.state.activeLoadings = [{ id: 7, equipment_id: 3, state: "CARREGANDO" }];
+    },
+    async applyActiveLoadingSnapshot(loadings) {
+      snapshotAplicado = loadings;
+    },
+    async loadPlcCommandStatus() {},
+    async loadPendingReadings() {},
+  };
+  const controller = createOperationalRealtimeController({
+    store,
+    getPage: () => "work",
+    render() {},
+    refreshWorkLiveView() {},
+    workStructureSignature: () => "estrutura",
+    getViewSignature: () => "estrutura",
+  });
+
+  try {
+    controller.start();
+    await onData({ active_loadings: [] });
+    assert.deepEqual(snapshotAplicado, store.state.activeLoadings);
+  } finally {
+    controller.stop();
+    restaurar();
+  }
+});
+
+test("quadro vazio confirmado permite limpar uma operação encerrada", async () => {
+  const restaurar = criarAmbiente();
+  let onData;
+  let snapshotAplicado;
+  const store = {
+    state: {
+      selectedLoadingId: 7,
+      loadingId: 7,
+      activeLoadings: [{ id: 7, equipment_id: 3, state: "CARREGANDO" }],
+    },
+    subscribeOperationalEvents(callback) {
+      onData = callback;
+      return { close() {} };
+    },
+    async loadActiveLoading() {
+      this.state.selectedLoadingId = null;
+      this.state.loadingId = null;
+      this.state.activeLoadings = [];
+    },
+    async applyActiveLoadingSnapshot(loadings) {
+      snapshotAplicado = loadings;
+    },
+    async loadPlcCommandStatus() {},
+    async loadPendingReadings() {},
+  };
+  const controller = createOperationalRealtimeController({
+    store,
+    getPage: () => "work",
+    render() {},
+    refreshWorkLiveView() {},
+    workStructureSignature: () => "estrutura",
+    getViewSignature: () => "estrutura",
+  });
+
+  try {
+    controller.start();
+    await onData({ active_loadings: [] });
+    assert.deepEqual(snapshotAplicado, []);
+  } finally {
+    controller.stop();
+    restaurar();
+  }
+});
