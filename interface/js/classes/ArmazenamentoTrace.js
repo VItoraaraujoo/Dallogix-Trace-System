@@ -1,6 +1,6 @@
 import { OfflineOperationBuffer, secureRandomId } from "./OfflineOperationBuffer.js?v=20260930-security01";
 import { ClienteApi, erroRespostaHttp } from "../api/ClienteApi.js?v=202610060001";
-import { ServicoSincronizacao } from "../servicos/ServicoSincronizacao.js?v=202610060006";
+import { ServicoSincronizacao } from "../servicos/ServicoSincronizacao.js?v=202610060007";
 
 export class ArmazenamentoTrace {
   constructor() {

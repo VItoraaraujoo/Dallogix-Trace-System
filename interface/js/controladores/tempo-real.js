@@ -1,4 +1,4 @@
-import { logFrontend } from "../utilitarios/LogFrontend.js?v=202610060006";
+import { logFrontend } from "../utilitarios/LogFrontend.js?v=202610060007";
 
 /** Controla a atualização operacional sem acoplar transporte e renderização. */
 export function createOperationalRealtimeController({ store, getPage, render, refreshWorkLiveView, workStructureSignature, getViewSignature }) {
