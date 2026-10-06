@@ -164,10 +164,34 @@ internal sealed class TraceForm : Form
             web.CoreWebView2.Settings.AreDevToolsEnabled = false;
             web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             web.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
+            web.BackColor = Color.FromArgb(9, 27, 42);
+            SetLoadingStatus("Abrindo a interface local...");
+            var navigation = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            EventHandler<CoreWebView2NavigationCompletedEventArgs>? navigationCompleted = null;
+            navigationCompleted = (_, args) => navigation.TrySetResult(args.IsSuccess);
+            web.CoreWebView2.NavigationCompleted += navigationCompleted;
             web.CoreWebView2.Navigate(TraceUrl);
-            web.Visible = true;
-            loadingPanel.Visible = false;
-            web.BringToFront();
+            try
+            {
+                var completed = await Task.WhenAny(navigation.Task, Task.Delay(TimeSpan.FromSeconds(15)));
+                if (completed != navigation.Task)
+                {
+                    ShowFailure("A interface local não respondeu em 15 segundos. Confira o estado do nginx e do PHP.");
+                    return;
+                }
+                if (!await navigation.Task)
+                {
+                    ShowFailure("A interface local não pôde ser carregada pelo WebView2.");
+                    return;
+                }
+                web.Visible = true;
+                loadingPanel.Visible = false;
+                web.BringToFront();
+            }
+            finally
+            {
+                web.CoreWebView2.NavigationCompleted -= navigationCompleted;
+            }
         }
         catch (Exception error) { ShowFailure($"Não foi possível iniciar o Trace. {error.Message}"); }
     }
