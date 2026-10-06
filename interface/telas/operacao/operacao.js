@@ -105,12 +105,15 @@ function workControls(store) {
   const pendingCommand = ["PENDENTE", "PROCESSANDO"].includes(
     String(store.state.plcCommand?.status || "").toUpperCase(),
   );
+  const commandInFlight = store.state.commandInFlight === true;
   const bloqueioComando = (allowedStates, stateMessage) => {
     const reason = !store.state.loadingId
       ? "Nenhum carregamento selecionado"
       : !clpDisponivel
         ? store.mensagemClpIndisponivel()
-        : pendingCommand
+        : commandInFlight
+          ? "Enviando o comando ao gateway industrial"
+          : pendingCommand
           ? "Aguarde o retorno do comando atual"
           : !allowedStates.includes(state)
             ? stateMessage

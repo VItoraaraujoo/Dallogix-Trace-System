@@ -58,6 +58,7 @@ export class ArmazenamentoTrace {
       technicalDiagnostics: null,
       deadLetters: [],
       plcCommand: null,
+      commandInFlight: false,
       productFormOpen: false,
       dalaFormOpen: false,
       editingProductId: null,
@@ -69,6 +70,10 @@ export class ArmazenamentoTrace {
     this.csrfToken = "";
     this.manifests = [];
     this.offlineBuffer = new OfflineOperationBuffer();
+    // Consultas do carregamento e eventos em tempo real podem chegar juntas.
+    // A fila garante que uma resposta antiga não sobrescreva a mais recente.
+    this.activeLoadingRefresh = Promise.resolve();
+    this.commandStatusRefresh = Promise.resolve();
   }
   navigate(page) {
     this.state.page = page;
@@ -448,6 +453,13 @@ export class ArmazenamentoTrace {
     return result.data;
   }
   async loadActiveLoading(selectedId = this.state.selectedLoadingId) {
+    const refresh = this.activeLoadingRefresh
+      .catch(() => {})
+      .then(() => this._loadActiveLoading(selectedId));
+    this.activeLoadingRefresh = refresh.catch(() => {});
+    return refresh;
+  }
+  async _loadActiveLoading(selectedId = this.state.selectedLoadingId) {
     const response = await fetch("/api/carregamentos.php");
     const result = await response.json().catch(() => ({}));
     if (!response.ok)
@@ -503,6 +515,13 @@ export class ArmazenamentoTrace {
     await this.loadPlcCommandStatus(this.state.loadingId);
   }
   applyActiveLoadingSnapshot(loadings, selectedId = this.state.selectedLoadingId) {
+    const refresh = this.activeLoadingRefresh
+      .catch(() => {})
+      .then(() => this._applyActiveLoadingSnapshot(loadings, selectedId));
+    this.activeLoadingRefresh = refresh.catch(() => {});
+    return refresh;
+  }
+  _applyActiveLoadingSnapshot(loadings, selectedId = this.state.selectedLoadingId) {
     const activeLoadings = (Array.isArray(loadings) ? loadings : []).filter(
       (item) => item.state !== "FINALIZADO",
     );
@@ -613,6 +632,13 @@ export class ArmazenamentoTrace {
     return result;
   }
   async loadPlcCommandStatus(loadingId = this.state.loadingId) {
+    const refresh = this.commandStatusRefresh
+      .catch(() => {})
+      .then(() => this._loadPlcCommandStatus(loadingId));
+    this.commandStatusRefresh = refresh.catch(() => {});
+    return refresh;
+  }
+  async _loadPlcCommandStatus(loadingId = this.state.loadingId) {
     if (!loadingId) {
       this.state.plcCommand = null;
       return null;
@@ -625,7 +651,30 @@ export class ArmazenamentoTrace {
       throw new Error(
         result.error || "Não foi possível consultar o comando industrial.",
       );
-    this.state.plcCommand = result.data || null;
+    const nextCommand = result.data || null;
+    const currentCommand = this.state.plcCommand;
+    const currentId = Number(currentCommand?.id) || 0;
+    const nextId = Number(nextCommand?.id) || 0;
+    const terminal = new Set(["APLICADO", "REJEITADO", "ERRO", "EXPIRADO"]);
+    const currentStatus = String(currentCommand?.status || "").toUpperCase();
+    const nextStatus = String(nextCommand?.status || "").toUpperCase();
+    // Uma consulta antiga pode retornar PENDENTE depois de o gateway já ter
+    // confirmado o mesmo comando. Nunca regredir o estado visível nesse caso.
+    if (
+      currentCommand &&
+      nextCommand &&
+      currentId === nextId &&
+      terminal.has(currentStatus) &&
+      !terminal.has(nextStatus)
+    ) {
+      return currentCommand;
+    }
+    // O endpoint retorna o comando mais recente; não permita que uma resposta
+    // de uma consulta anterior substitua um pedido criado depois.
+    if (currentCommand && nextCommand && nextId < currentId) {
+      return currentCommand;
+    }
+    this.state.plcCommand = nextCommand;
     return this.state.plcCommand;
   }
   async unlockMachine() {

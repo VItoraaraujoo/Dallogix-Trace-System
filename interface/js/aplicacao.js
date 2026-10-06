@@ -1,10 +1,10 @@
 import {
   configurarSessaoPorAba,
 } from "./sessao.js?v=202609222100";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=20260930-security01";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610052315-command-queue";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
-import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=20260928-work-manual";
+import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610052315-command-queue";
 import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
@@ -28,7 +28,7 @@ import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
 import { manifests } from "../telas/romaneios/romaneios.js?v=202610010001";
 import { manifestView } from "../telas/romaneio/romaneio.js?v=202610010001";
-import { work } from "../telas/operacao/operacao.js?v=202610051630";
+import { work } from "../telas/operacao/operacao.js?v=202610052315-command-queue";
 import { dashboard } from "../telas/painel/painel.js?v=202610010001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610010001";
 
@@ -1491,6 +1491,7 @@ function bindActions() {
         return;
       }
       if (["start-machine", "stop-machine", "run", "stop"].includes(action)) {
+        if (store.state.commandInFlight) return;
         const starting = action === "start-machine" || action === "run";
         if (
           starting &&
@@ -1501,6 +1502,8 @@ function bindActions() {
           }))
         )
           return;
+        store.state.commandInFlight = true;
+        if (currentPage === "work") render();
         try {
           await store.requestMachineOperation(
             starting ? "INICIAR_CARREGAMENTO" : "PAUSAR_CARREGAMENTO",
@@ -1510,10 +1513,14 @@ function bindActions() {
           render();
         } catch (error) {
           alert(error.message);
+        } finally {
+          store.state.commandInFlight = false;
+          if (currentPage === "work") render();
         }
         return;
       }
       if (action === "reverse-machine") {
+        if (store.state.commandInFlight) return;
         if (
           !(await timedCommandConfirmation({
             title: "Ativar reversão?",
@@ -1522,6 +1529,8 @@ function bindActions() {
           }))
         )
           return;
+        store.state.commandInFlight = true;
+        if (currentPage === "work") render();
         try {
           await store.requestMachineReverse(
             node.dataset.loadingId,
@@ -1531,6 +1540,9 @@ function bindActions() {
           render();
         } catch (error) {
           alert(error.message);
+        } finally {
+          store.state.commandInFlight = false;
+          if (currentPage === "work") render();
         }
         return;
       }
@@ -1546,6 +1558,7 @@ function bindActions() {
       }
       if (screens[action]) navigate(action);
       else if (action === "reverse-on" || action === "reverse-off" || action === "reverse-toggle") {
+        if (store.state.commandInFlight) return;
         if (store.state.operationalState !== "PAUSADO") {
           alert("Para alterar a reversão, pause a esteira primeiro.");
           return;
@@ -1561,6 +1574,8 @@ function bindActions() {
           }))
         )
           return;
+        store.state.commandInFlight = true;
+        if (currentPage === "work") render();
         try {
           await store.requestMachineReverse(
             store.state.loadingId,
@@ -1570,14 +1585,23 @@ function bindActions() {
           render();
         } catch (error) {
           alert(error.message);
+        } finally {
+          store.state.commandInFlight = false;
+          if (currentPage === "work") render();
         }
       } else if (action === "emergency") {
+        if (store.state.commandInFlight) return;
+        store.state.commandInFlight = true;
+        if (currentPage === "work") render();
         try {
           await store.requestMachineEmergency();
           await store.loadActiveLoading();
           render();
         } catch (error) {
           alert(error.message);
+        } finally {
+          store.state.commandInFlight = false;
+          if (currentPage === "work") render();
         }
       } else if (action === "unlock") {
         node.disabled = true;

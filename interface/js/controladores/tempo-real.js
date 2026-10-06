@@ -39,7 +39,10 @@ export function createOperationalRealtimeController({ store, getPage, render, re
     const consume = async (payload) => {
       reconnectFailures = 0;
       store.state.monitoring = payload?.monitoring || store.state.monitoring;
-      store.applyActiveLoadingSnapshot(payload?.active_loadings || [], store.state.selectedLoadingId);
+      await store.applyActiveLoadingSnapshot(
+        payload?.active_loadings || [],
+        store.state.selectedLoadingId,
+      );
       if (store.state.loadingId) {
         try {
           await Promise.all([
