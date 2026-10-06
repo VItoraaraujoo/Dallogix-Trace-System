@@ -103,6 +103,17 @@ export class ClienteApi {
     this.timeoutMs = timeoutMs;
     this.retry = retry;
     this.backoffMs = backoffMs;
+    this.navigationController = null;
+  }
+
+  /**
+   * Invalida consultas GET da tela anterior e devolve o sinal da nova tela.
+   * Escritas continuam usando somente o sinal explícito do chamador.
+   */
+  beginNavigation() {
+    this.navigationController?.abort();
+    this.navigationController = new AbortController();
+    return this.navigationController.signal;
   }
 
   async fetch(url, options = {}) {
@@ -110,18 +121,33 @@ export class ClienteApi {
     const canRetry = METODOS_SEGUROS.has(method);
     const attempts = canRetry ? Math.max(0, Number(options.retry ?? this.retry)) : 0;
     const timeoutMs = Number(options.timeoutMs ?? this.timeoutMs);
+    const navigationSignal = canRetry ? this.navigationController?.signal : undefined;
+    const callerSignal = options.signal || navigationSignal;
     const { timeoutMs: _timeout, retry: _retry, ...requestOptions } = options;
 
     for (let attempt = 0; attempt <= attempts; attempt += 1) {
-      const request = sinalComPrazo(requestOptions.signal, timeoutMs);
+      const request = sinalComPrazo(callerSignal, timeoutMs);
       try {
         const response = await fetch(url, { ...requestOptions, signal: request.signal });
         if (response.ok || !canRetry || !RETRY_STATUS.has(response.status) || attempt >= attempts) {
           return response;
         }
+        if (callerSignal?.aborted) {
+          throw new ErroApi("A requisição foi cancelada.", {
+            code: "API_CANCELLED",
+            url,
+          });
+        }
       } catch (error) {
+        if (callerSignal?.aborted) {
+          throw new ErroApi("A requisição foi cancelada.", {
+            code: "API_CANCELLED",
+            url,
+            cause: error,
+          });
+        }
         if (attempt >= attempts) {
-          const cancelledByCaller = requestOptions.signal?.aborted === true;
+          const cancelledByCaller = callerSignal?.aborted === true;
           throw new ErroApi(
             cancelledByCaller ? "A requisição foi cancelada." : mensagemDeErro(error, url),
             {

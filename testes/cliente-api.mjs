@@ -99,6 +99,32 @@ test("preserva cancelamento explícito do chamador como cancelamento", async () 
   }
 });
 
+test("cancela consultas GET da tela anterior quando começa uma nova navegação", async () => {
+  const originalFetch = globalThis.fetch;
+  const api = new ClienteApi({ retry: 3, backoffMs: 0, timeoutMs: 1000 });
+  let cancelamentos = 0;
+  globalThis.fetch = (_url, { signal }) => new Promise((_resolve, reject) => {
+    signal.addEventListener("abort", () => {
+      cancelamentos += 1;
+      const error = new Error("navegação mudou");
+      error.name = "AbortError";
+      reject(error);
+    }, { once: true });
+  });
+  try {
+    api.beginNavigation();
+    const consulta = api.fetch("/api/dados-da-tela.php");
+    api.beginNavigation();
+    await assert.rejects(
+      consulta,
+      (error) => error instanceof ErroApi && error.code === "API_CANCELLED",
+    );
+    assert.equal(cancelamentos, 1);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("padroniza mensagens e códigos dos erros HTTP", async () => {
   assert.equal(mensagemHttp(401), "Sua sessão expirou. Entre novamente no sistema.");
   await assert.rejects(

@@ -2311,6 +2311,7 @@ async function loadDalaView(id) {
 async function renderPage() {
   const root = el("#screen-root");
   const requestId = ++renderRequestId;
+  api.beginNavigation();
 
   await ensureDalaScreenStyles(currentPage);
   await ensureCompanyScreenStyles(currentPage);

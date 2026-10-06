@@ -56,9 +56,9 @@ Recomendação: substituir por agregações pré-calculadas/CTEs ou consultas ag
 
 Dashboard, romaneios e monitoramento calculam contagens por meio de consultas separadas. Funciona no volume atual, mas precisa de medição e índices antes de escalar para várias empresas e máquinas.
 
-### P-03 — Polling assíncrono sem cancelamento de requisições — Baixa
+### P-03 — Polling assíncrono sem cancelamento de requisições — Resolvido em 2026-10-06
 
-O front usa `Promise.all()` no polling, o que é adequado para paralelismo, porém não há `AbortController` nem controle de geração para cancelar chamadas antigas em todas as telas. Em rede lenta, respostas atrasadas podem consumir recursos e atualizar uma tela já abandonada.
+O front usa `Promise.all()` no polling, o que é adequado para paralelismo. A tela de Trabalho invalida eventos e timers antigos por geração em `tempo-real.js`, e o `ClienteApi` agora associa um `AbortController` às consultas seguras da navegação. Ao abrir outra tela, a consulta GET anterior é cancelada; escritas não são repetidas nem canceladas por esse mecanismo. O teste `testes/cliente-api.mjs` comprova o cancelamento e `testes/tempo-real.mjs` comprova que uma resposta tardia não renderiza sobre a tela nova.
 
 ## Gaps em relação ao escopo
 
