@@ -88,6 +88,15 @@ let currentPage = initialPage;
 let authenticatedUser = null;
 let localHealthTimer = null;
 let localHealthRequest = false;
+
+// A tela de operação comunica o estado diretamente pelos cartões e botões.
+// Notificações flutuantes nessa tela cobrem os comandos e repetem informações
+// que já aparecem no estado atualizado do carregamento.
+function notificarForaDaOperacao(mensagem, tipo = "informacao") {
+  if (currentPage === "work") return;
+  notificar(mensagem, tipo);
+}
+
 const workRealtime = createOperationalRealtimeController({
   store,
   getPage: () => currentPage,
@@ -515,6 +524,9 @@ function hydrateChrome() {
 }
 function renderScreen() {
   hydrateChrome();
+  if (currentPage === "work") {
+    document.querySelector("#trace-notificacoes")?.replaceChildren();
+  }
   el("#screen-root").innerHTML = screens[currentPage](store);
   bindActions();
   bindForms();
@@ -1290,7 +1302,7 @@ function bindActions() {
       }
       if (action === "open-summary") {
         if (!["FINALIZANDO", "FINALIZADO"].includes(store.state.operationalState)) {
-          notificar("O resumo final ficará disponível quando a quantidade prevista for atingida.");
+          notificarForaDaOperacao("O resumo final ficará disponível quando a quantidade prevista for atingida.", "aviso");
           return;
         }
         await navigate("summary");
@@ -1474,7 +1486,7 @@ function bindActions() {
           ]);
           render();
         } catch (error) {
-          notificar(error.message);
+          notificarForaDaOperacao(error.message, "erro");
         } finally {
           store.endCommand(commandToken);
           if (currentPage === "work") render();
@@ -1499,7 +1511,7 @@ function bindActions() {
           await store.loadActiveLoading(node.dataset.loadingId);
           render();
         } catch (error) {
-          notificar(error.message);
+          notificarForaDaOperacao(error.message, "erro");
         } finally {
           store.endCommand(commandToken);
           if (currentPage === "work") render();
@@ -1544,7 +1556,7 @@ function bindActions() {
           ]);
           render();
         } catch (error) {
-          notificar(error.message);
+          notificarForaDaOperacao(error.message, "erro");
         } finally {
           store.endCommand(commandToken);
           if (currentPage === "work") render();
@@ -1565,7 +1577,7 @@ function bindActions() {
           ]);
           render();
         } catch (error) {
-          notificar(error.message);
+          notificarForaDaOperacao(error.message, "erro");
         } finally {
           store.endCommand(commandToken);
           if (currentPage === "work") render();
@@ -1576,7 +1588,7 @@ function bindActions() {
           await servicoEmergencia.liberar();
           render();
         } catch (error) {
-          notificar(error.message);
+          notificarForaDaOperacao(error.message, "erro");
         } finally {
           node.disabled = false;
         }
@@ -1588,10 +1600,9 @@ function bindActions() {
               : "";
           if (store.state.loaded < store.state.planned && !justification.trim()) return;
           await store.finishLoading(justification.trim());
-          notificar("Carregamento finalizado.");
           render();
         } catch (error) {
-          notificar(error.message);
+          notificarForaDaOperacao(error.message, "erro");
         }
       } else if (action === "export") {
         downloadCsv(`dallogix-${currentPage}.csv`, [
@@ -2056,14 +2067,11 @@ function bindForms() {
       if (submit) submit.disabled = true;
       try {
         const raw = Object.fromEntries(new FormData(prepareLoadingForm));
-        const result = await store.prepareLoading({
+        await store.prepareLoading({
           romaneio_id: queryId(),
           truck_id: raw.truck_id,
           equipment_id: raw.equipment_id,
         });
-        notificar(
-          `Operação #${result.id} preparada. Confirme as condições físicas antes de iniciar a esteira.`,
-        );
         await navigate("work", dashboardReturnQuery());
       } catch (error) {
         notificar(error.message);
@@ -2079,10 +2087,9 @@ function bindForms() {
       try {
         const raw = Object.fromEntries(new FormData(form));
         await store.reassignLoading(form.dataset.loadingId, raw.equipment_id);
-        notificar("Nova Dala vinculada. O carregamento está aguardando o início da operação.");
         render();
       } catch (error) {
-        notificar(error.message);
+        notificarForaDaOperacao(error.message, "erro");
       } finally {
         if (submit) submit.disabled = false;
       }
@@ -2119,8 +2126,6 @@ function bindForms() {
         if (currentForm) {
           setFormFeedback(currentForm, message, result.result === "VALIDO" ? "" : "error");
           currentForm.querySelector('[name="barcode"]')?.focus();
-        } else {
-          notificar(message);
         }
       } catch (error) {
         setFormFeedback(form, error.message || "Não foi possível registrar a leitura manual.", "error");
@@ -2141,11 +2146,10 @@ function bindForms() {
       if (submit) submit.disabled = true;
       try {
         const raw = Object.fromEntries(new FormData(form));
-        const result = await store.identifyReading(form.dataset.readingId, raw.barcode);
-        notificar(`Leitura identificada como ${result.result}.`);
+        await store.identifyReading(form.dataset.readingId, raw.barcode);
         render();
       } catch (error) {
-        notificar(error.message);
+        notificarForaDaOperacao(error.message, "erro");
       } finally {
         if (form.isConnected) {
           form.dataset.submitting = "";

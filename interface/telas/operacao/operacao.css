@@ -778,6 +778,69 @@ body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergenc
   }
 }
 
+/* Ajustes finais da composição: título central, retorno discreto e leitura
+   automática sem textos repetidos sobre o mesmo estado. */
+body.work-page:has(.work-operation-screen) .work-screen-header {
+  grid-template-columns: minmax(120px, 1fr) minmax(0, auto) minmax(120px, 1fr);
+  align-items: start;
+  gap: 12px;
+}
+
+body.work-page:has(.work-operation-screen) .work-screen-heading {
+  grid-column: 2;
+  justify-self: center;
+  text-align: center;
+}
+
+body.work-page:has(.work-operation-screen) .work-back-button {
+  grid-column: 1;
+  justify-self: start;
+  align-self: start;
+  transform: translateY(-4px);
+}
+
+body.work-page:has(.work-operation-screen) .work-live-summary {
+  gap: 6px;
+  padding: 12px 14px;
+}
+
+body.work-page:has(.work-operation-screen) .work-live-summary-foot {
+  justify-content: flex-start;
+  gap: 8px;
+  font-size: 11px;
+}
+
+body.work-page:has(.work-operation-screen) .work-manual-reading {
+  gap: 8px 14px;
+  padding-top: 8px;
+}
+
+body.work-page:has(.work-operation-screen) .work-manual-reading-heading p {
+  margin-top: 2px;
+}
+
+/* A operação informa o estado nos próprios cartões; não exibir banners
+   flutuantes por cima dos comandos. */
+body.work-page:has(.work-operation-screen) #trace-notificacoes {
+  display: none !important;
+}
+
+@media (max-width: 620px) {
+  body.work-page:has(.work-operation-screen) .work-screen-header {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  body.work-page:has(.work-operation-screen) .work-screen-heading {
+    grid-column: 2;
+    justify-self: stretch;
+    text-align: left;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-back-button {
+    transform: translateY(-2px);
+  }
+}
+
 /* Regra final da tela de operação.
    O CSS responsivo geral ainda contém compatibilidade histórica que transforma
    as duas colunas em áreas de altura total. Aqui a tela operacional mantém o
