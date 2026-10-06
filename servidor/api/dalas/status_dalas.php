@@ -11,7 +11,15 @@ if ($usuario["company_id"] === null) {
 
 $limiteSemSinal = limite_sinal_clp_segundos();
 $consulta = obter_conexao_banco()->prepare(
-    "SELECT e.id AS equipment_id,
+    "WITH carregamento_recente AS (
+        SELECT c.id, c.equipment_id, c.state, c.romaneio_id,
+               ROW_NUMBER() OVER (PARTITION BY c.equipment_id ORDER BY c.id DESC) AS rn
+        FROM carregamentos c
+        JOIN romaneios r ON r.id = c.romaneio_id
+        WHERE c.state <> 'FINALIZADO'
+          AND r.status NOT IN ('FINALIZADO', 'CANCELADO')
+    )
+     SELECT e.id AS equipment_id,
             CASE
               WHEN d.status = 'ONLINE'
                AND d.last_seen_at >= DATE_SUB(NOW(3), INTERVAL {$limiteSemSinal} SECOND)
@@ -28,16 +36,8 @@ $consulta = obter_conexao_banco()->prepare(
      FROM equipamentos e
      LEFT JOIN status_dispositivos d
        ON d.equipment_id = e.id AND d.device_type = 'CLP'
-     LEFT JOIN carregamentos c
-       ON c.id = (SELECT c2.id FROM carregamentos c2
-                  WHERE c2.equipment_id = e.id
-                    AND c2.state <> 'FINALIZADO'
-                    AND EXISTS (
-                        SELECT 1 FROM romaneios r2
-                        WHERE r2.id = c2.romaneio_id
-                          AND r2.status NOT IN ('FINALIZADO', 'CANCELADO')
-                    )
-                  ORDER BY c2.id DESC LIMIT 1)
+     LEFT JOIN carregamento_recente c
+       ON c.equipment_id = e.id AND c.rn = 1
      WHERE e.company_id = :company_id
      ORDER BY e.id",
 );
