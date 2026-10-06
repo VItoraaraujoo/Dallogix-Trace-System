@@ -21,19 +21,30 @@ function trace_prepare_image_storage_directory(string $storageDirectory, string 
         return null;
     }
 
-    $candidate = $storageRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
-    if (is_link($candidate)) {
-        return null;
-    }
-    if (!is_dir($candidate)) {
-        set_error_handler(static function (): bool {
-            return true;
-        });
-        $created = mkdir($candidate, 0700, true);
-        restore_error_handler();
-        if (!$created && !is_dir($candidate)) {
+    $segments = explode('/', $relative);
+    $candidate = $storageRoot;
+    foreach ($segments as $segment) {
+        $candidate .= DIRECTORY_SEPARATOR . $segment;
+        if (is_link($candidate)) {
             return null;
         }
+        if (!is_dir($candidate)) {
+            set_error_handler(static function (): bool {
+                return true;
+            });
+            $created = mkdir($candidate, 0700);
+            restore_error_handler();
+            if (!$created && !is_dir($candidate)) {
+                return null;
+            }
+        }
+        $resolvedSegment = realpath($candidate);
+        if ($resolvedSegment === false
+            || !str_starts_with($resolvedSegment, $storageRoot . DIRECTORY_SEPARATOR)
+            || !is_dir($resolvedSegment)) {
+            return null;
+        }
+        $candidate = $resolvedSegment;
     }
 
     $resolved = realpath($candidate);

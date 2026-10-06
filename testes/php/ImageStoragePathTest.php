@@ -24,6 +24,23 @@ final class ImageStoragePathTest extends TestCase
         }
     }
 
+    public function testRecusaLinkSimbolicoEmDiretorioPaiSemCriarForaDaRaiz(): void
+    {
+        $storage = sys_get_temp_dir() . '/trace-report-symlink-' . bin2hex(random_bytes(6));
+        $outside = sys_get_temp_dir() . '/trace-report-outside-' . bin2hex(random_bytes(6));
+        mkdir($storage, 0700, true);
+        mkdir($outside, 0700, true);
+        symlink($outside, $storage . '/company_link');
+        try {
+            self::assertNull(trace_prepare_image_storage_directory($storage, 'company_link/reports'));
+            self::assertFalse(is_dir($outside . '/reports'));
+        } finally {
+            unlink($storage . '/company_link');
+            rmdir($outside);
+            rmdir($storage);
+        }
+    }
+
     public function testResolveArquivoRelativoNaPastaDeEvidencias(): void
     {
         $storage = sys_get_temp_dir() . '/trace-image-path-' . bin2hex(random_bytes(6));
