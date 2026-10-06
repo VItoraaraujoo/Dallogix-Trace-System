@@ -160,6 +160,10 @@ export class ArmazenamentoTrace {
     this.state.commandInFlightToken = null;
     return true;
   }
+  comandoOperacionalPendente() {
+    const status = String(this.state.plcCommand?.status || "").toUpperCase();
+    return this.state.commandInFlight || ["PENDENTE", "PROCESSANDO"].includes(status);
+  }
   async loadManifests() {
     const params = new URLSearchParams();
     Object.entries(this.state.manifestFilters || {}).forEach(([key, value]) => {
@@ -407,21 +411,35 @@ export class ArmazenamentoTrace {
     const response = await this.api.fetch("/api/carregamentos.php");
     const result = await this.jsonResponse(response, "Não foi possível carregar o carregamento ativo.");
     const loadings = Array.isArray(result.data) ? result.data : [];
-    this.state.activeLoadings = loadings.filter(
+    const nextActiveLoadings = loadings.filter(
       (item) => item.state !== "FINALIZADO",
     );
     const requestedId = Number(selectedId) || null;
-    const requestedLoading = this.state.activeLoadings.find(
+    const requestedLoading = nextActiveLoadings.find(
       (item) => Number(item.id) === requestedId,
     );
+    const preservePendingSelection = Boolean(
+      requestedId &&
+      Number(this.state.loadingId) === requestedId &&
+      !requestedLoading &&
+      this.comandoOperacionalPendente(),
+    );
+    if (!preservePendingSelection) {
+      this.state.activeLoadings = nextActiveLoadings;
+    }
     const loading = requestedLoading?.equipment_id
       ? requestedLoading
       : (requestedId
         ? null
-        : (this.state.activeLoadings.length === 1 && this.state.activeLoadings[0]?.equipment_id
-          ? this.state.activeLoadings[0]
+        : (nextActiveLoadings.length === 1 && nextActiveLoadings[0]?.equipment_id
+          ? nextActiveLoadings[0]
           : null));
     if (!loading) {
+      if (preservePendingSelection) {
+        return this.state.activeLoadings.find(
+          (item) => Number(item.id) === requestedId,
+        ) || null;
+      }
       this.state.loadingId = null;
       this.state.selectedLoadingId = null;
       this.state.returnMode = false;
@@ -465,9 +483,17 @@ export class ArmazenamentoTrace {
     const activeLoadings = (Array.isArray(loadings) ? loadings : []).filter(
       (item) => item.state !== "FINALIZADO",
     );
-    this.state.activeLoadings = activeLoadings;
     const requestedId = Number(selectedId) || null;
     const requestedLoading = activeLoadings.find((item) => Number(item.id) === requestedId);
+    const preservePendingSelection = Boolean(
+      requestedId &&
+      Number(this.state.loadingId) === requestedId &&
+      !requestedLoading &&
+      this.comandoOperacionalPendente(),
+    );
+    if (!preservePendingSelection) {
+      this.state.activeLoadings = activeLoadings;
+    }
     const loading = requestedLoading?.equipment_id
       ? requestedLoading
       : (requestedId
@@ -476,6 +502,11 @@ export class ArmazenamentoTrace {
           ? activeLoadings[0]
           : null));
     if (!loading) {
+      if (preservePendingSelection) {
+        return this.state.activeLoadings.find(
+          (item) => Number(item.id) === requestedId,
+        ) || null;
+      }
       this.state.loadingId = null;
       this.state.selectedLoadingId = null;
       this.state.returnMode = false;

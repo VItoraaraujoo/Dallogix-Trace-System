@@ -67,3 +67,51 @@ test("consulta transitória sem comando preserva início pendente local", async 
   assert.deepEqual(resultado, pedido);
   assert.deepEqual(armazenamento.state.plcCommand, pedido);
 });
+
+test("quadro vazio não apaga a Dala durante comando operacional pendente", async () => {
+  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const carregamento = {
+    id: 7,
+    state: "PREPARANDO",
+    equipment_id: 3,
+    equipment_code: "EST-001",
+  };
+  armazenamento.state = {
+    loadingId: 7,
+    selectedLoadingId: 7,
+    activeLoadings: [carregamento],
+    loadingItems: [],
+    plcCommand: {
+      id: 42,
+      command: "INICIAR_CARREGAMENTO",
+      status: "PENDENTE",
+    },
+    commandInFlight: false,
+  };
+
+  const resultado = await armazenamento._applyActiveLoadingSnapshot([], 7);
+
+  assert.deepEqual(resultado, carregamento);
+  assert.equal(armazenamento.state.loadingId, 7);
+  assert.equal(armazenamento.state.selectedLoadingId, 7);
+  assert.deepEqual(armazenamento.state.activeLoadings, [carregamento]);
+});
+
+test("quadro vazio remove a seleção quando não há comando pendente", async () => {
+  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  armazenamento.state = {
+    loadingId: 7,
+    selectedLoadingId: 7,
+    activeLoadings: [{ id: 7, state: "CARREGANDO", equipment_id: 3 }],
+    loadingItems: [{ product_id: 1 }],
+    plcCommand: { id: 42, command: "INICIAR_CARREGAMENTO", status: "APLICADO" },
+    commandInFlight: false,
+  };
+
+  const resultado = await armazenamento._applyActiveLoadingSnapshot([], 7);
+
+  assert.equal(resultado, null);
+  assert.equal(armazenamento.state.loadingId, null);
+  assert.equal(armazenamento.state.selectedLoadingId, null);
+  assert.deepEqual(armazenamento.state.activeLoadings, []);
+});
