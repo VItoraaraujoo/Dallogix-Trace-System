@@ -7,6 +7,21 @@ Modbus/Node-RED, sincronização local e central, migrations MySQL, Compose,
 Dockerfiles, aplicativo Windows, instalador, atualizador, testes e workflows do
 GitHub Actions.
 
+## Atualização de validação — 06/10/2026
+
+- A release `v1.0.97` foi publicada na execução 102 do GitHub Actions a partir
+  do commit `44a4a2a`.
+- O Central respondeu `status=ok`, `version=v1.0.97` e o mesmo commit em
+  `/api/health.php`; `/api/prontidao.php` respondeu `status=ready` com PHP e
+  MySQL saudáveis.
+- O layout da operação recebeu uma regra final escopada para impedir que a
+  coluna de itens seja esticada até a altura total da janela. A rolagem fica
+  limitada à lista quando os itens excedem o espaço disponível.
+- A confirmação de carregamento em tempo real agora consulta o endpoint HTTP
+  antes de limpar uma operação após um quadro SSE vazio transitório.
+- O PC industrial de teste estava offline no Tailscale; portanto a versão
+  instalada e o reinício do equipamento permanecem sem evidência física.
+
 ## Evidências da base antes da alteração
 
 - `master` estava limpa e alinhada com `origin/master` em `365012d`.
