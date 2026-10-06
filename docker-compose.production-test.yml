@@ -1,6 +1,22 @@
 # Ambiente de homologação isolado. Não conecta gateways nem equipamentos físicos.
 name: dallogix-production-test
 services:
+  armazenamento-init:
+    build: ./docker/php
+    restart: "no"
+    user: "0:0"
+    network_mode: "none"
+    command:
+      - sh
+      - -c
+      - >-
+        set -eu;
+        mkdir -p /var/www/armazenamento/backups /var/www/armazenamento/logs;
+        chown -R 82:82 /var/www/armazenamento;
+        chmod -R u+rwX /var/www/armazenamento
+    volumes:
+      - ${TRACE_TEST_STORAGE_PATH:-./armazenamento/producao-teste/storage}:/var/www/armazenamento
+
   mysql:
     image: trace-industrial-pc-mysql:8.4.12-minimal
     platform: linux/amd64
@@ -23,6 +39,7 @@ services:
   php:
     build: ./docker/php
     restart: unless-stopped
+    user: "82:82"
     environment:
       APP_ENV: production
       SESSION_SECURE: 'true'
@@ -44,6 +61,8 @@ services:
       LOGIN_EMAIL_DOMAIN: ${LOGIN_EMAIL_DOMAIN:-dallogix.local}
       LOGIN_EMAIL_BASE_DOMAIN: ${LOGIN_EMAIL_BASE_DOMAIN:-dallogix}
     depends_on:
+      armazenamento-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
     volumes:

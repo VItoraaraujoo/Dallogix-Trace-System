@@ -36,6 +36,7 @@ import { work } from "../telas/operacao/operacao.js?v=202610052315-command-queue
 import { dashboard } from "../telas/painel/painel.js?v=202610010001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610010001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
+import { estadoErro } from "./componentes/estados.js?v=202610060002";
 
 configurarSessaoPorAba();
 
@@ -2479,7 +2480,7 @@ async function renderPage() {
     }
     console.error(error);
     if (root)
-      root.innerHTML = `<div class="panel page-error"><h2>Não foi possível atualizar esta tela</h2><p>${esc(error.message || "Verifique a conexão local e tente novamente.")}</p><button class="button primary" data-action="reload-page" type="button">Tentar novamente</button></div>`;
+      root.innerHTML = estadoErro("Não foi possível atualizar esta tela", error.message || "Verifique a conexão local e tente novamente.", { label: "Tentar novamente", acao: "reload-page", tom: "primary" });
     bindActions();
   }
 }

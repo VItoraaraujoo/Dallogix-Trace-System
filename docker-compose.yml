@@ -5,6 +5,23 @@ x-trace-logging: &trace-logging
     max-file: "3"
 
 services:
+  armazenamento-init:
+    build:
+      context: ./docker/php
+    restart: "no"
+    user: "0:0"
+    network_mode: "none"
+    command:
+      - sh
+      - -c
+      - >-
+        set -eu;
+        mkdir -p /var/www/armazenamento/backups /var/www/armazenamento/logs;
+        chown -R 82:82 /var/www/armazenamento;
+        chmod -R u+rwX /var/www/armazenamento
+    volumes:
+      - ./armazenamento:/var/www/armazenamento
+
   nginx:
     image: cgr.dev/chainguard/nginx:latest@sha256:f5bfac85024ea2d7c16a28ac21e985c6d19a20a60ae74838f056297d44467525
     restart: unless-stopped
@@ -267,6 +284,8 @@ services:
     build:
       context: ./docker/php
     depends_on:
+      armazenamento-init:
+        condition: service_completed_successfully
       mysql:
         condition: service_healthy
     read_only: true
