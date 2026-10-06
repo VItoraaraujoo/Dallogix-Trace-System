@@ -16,7 +16,7 @@ Este registro centraliza a execução das pendências reunidas nas conversas do 
 ## Evidência local
 
 - `bash testes/qualidade.sh`: passou.
-- `vendor/bin/phpunit --testdox`: passou localmente com 32 testes e 185 asserções.
+- `vendor/bin/phpunit --testdox`: passou localmente com 33 testes e 189 asserções.
 - `vendor/bin/phpstan analyse --no-progress`: passou sem erros.
 - `node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs testes/estado-fisico.mjs`: 26 testes passaram.
 - `python3 testes/modbus-transporte.py`: 5 testes passaram com Modbus virtual.
