@@ -24,7 +24,7 @@ const products = search
 <label>Código de Barras <b class="required">*</b><input name="barcode" required value="${editing ? esc((editing.barcodes || "").split(",")[0]) : ""}" /><small>Exemplo: 7898250782592.</small></label>
 <label>SKU<input name="code" value="${editing ? esc(editing.code || "") : ""}" /><small>Opcional; gerado automaticamente se ficar vazio.</small></label>
 <label>Categoria<input name="category" value="${editing ? esc(editing.category || "") : ""}" /><small>Opcional.</small></label>
-</div><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p><div class="actions${editing ? " product-edit-actions" : ""}">${button("Salvar", "submit-product", editing ? "secondary" : "primary")}${editing ? button("Excluir produto", "delete-product-edit", "danger", `data-id="${editing.id}" data-name="${esc(editing.name)}"`) : ""}${button("Cancelar", "cancel-product", "ghost")}</div></form></section><br>`
+</div><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p><div class="actions${editing ? " product-edit-actions" : ""}">${button("Salvar", "submit-product", editing ? "secondary" : "primary")}${editing ? button(Number(editing.active) ? "Desativar produto" : "Ativar produto", "toggle-product-active", "secondary", `data-id="${editing.id}" data-active="${Number(editing.active) ? "1" : "0"}"`) : ""}${editing ? button("Excluir produto", "delete-product-edit", "danger", `data-id="${editing.id}" data-name="${esc(editing.name)}"`) : ""}${button("Cancelar", "cancel-product", "ghost")}</div></form></section><br>`
     : "";
   return `<div class="title-row with-actions"><div><h2>Produtos</h2></div>${button(open ? "Fechar formulário" : "+ Novo produto", "toggle-product-form")}</div>
 ${form}
