@@ -9,11 +9,13 @@ GitHub Actions.
 
 ## Atualização de validação — 06/10/2026
 
-- A release `v1.0.100` foi publicada na execução 105 do GitHub Actions a partir
-  do commit `1fb63d3`.
-- O Central respondeu `status=ok`, `version=v1.0.100` e o mesmo commit em
+- A release `v1.0.101` foi publicada na execução 106 do GitHub Actions a partir
+  do commit `e6cf86d`.
+- O Central respondeu `status=ok`, `version=v1.0.101` e o mesmo commit em
   `/api/health.php`; `/api/prontidao.php` respondeu `status=ready` com PHP e
   MySQL saudáveis.
+- A correção de renderização assíncrona do frontend foi validada pelo teste que
+  garante que uma resposta da tela anterior não sobrescreve a tela atual.
 - O layout da operação recebeu uma regra final escopada para impedir que a
   coluna de itens seja esticada até a altura total da janela. A rolagem fica
   limitada à lista quando os itens excedem o espaço disponível.
@@ -102,8 +104,8 @@ produção.
 
 ## Próxima verificação de release
 
-Depois do commit desta revisão, a tag `v1.0.100` foi publicada e o Central
-informou a mesma versão e o commit `1fb63d3`. O PC industrial só deve receber a
+Depois do commit desta revisão, a tag `v1.0.101` foi publicada e o Central
+informou a mesma versão e o commit `e6cf86d`. O PC industrial só deve receber a
 tag depois que voltar à rede e confirmar a instalação local; a versão instalada
 e o reinício continuam sem evidência física enquanto o equipamento estiver
 offline.

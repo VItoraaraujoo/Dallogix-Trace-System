@@ -5,6 +5,14 @@ expõe o commit efetivo em `/api/health.php` (`TRACE_COMMIT`); esse identificado
 é a referência para comparar o histórico abaixo com o código servido. Ao criar
 um release, mova os itens para uma seção com a versão/tag e a data reais.
 
+## v1.0.101 — 06/10/2026
+
+- Impedida a renderização atrasada de uma tela anterior após navegação ou
+  conclusão de formulários e comandos assíncronos.
+- Publicação validada pelo workflow de produção no commit
+  `e6cf86dbf77427d7e940f2420b709ccc7b79358f`; o Central confirmou a mesma
+  versão e respondeu pronto.
+
 ## Não publicado
 
 - Alinhado o perfil padrão do gateway industrial à leitura Modbus comprovada em
