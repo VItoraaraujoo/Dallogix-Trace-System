@@ -36,6 +36,7 @@ import { work } from "../telas/operacao/operacao.js?v=202610052315-command-queue
 import { dashboard } from "../telas/painel/painel.js?v=202610010001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610010001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
+import { logFrontend } from "./utilitarios/LogFrontend.js?v=202610060006";
 import { estadoErro } from "./componentes/estados.js?v=202610060002";
 import {
   LEGACY_PAGE_IDS,
@@ -239,6 +240,7 @@ async function refreshLocalIndicator() {
     const state = response.ok && result.status === "ok" ? "online" : "degraded";
     setLocalIndicator(state, result.checked_at || Date.now(), currentInstallationMode);
   } catch (error) {
+    logFrontend.aviso("indicador.saude", error);
     setLocalIndicator("offline");
   } finally {
     localHealthRequest = false;
@@ -251,7 +253,8 @@ function installLocalIndicator() {
     refreshLocalIndicator();
     store.flushOfflineOperations().then(() => {
       if (currentPage === "work") render();
-    }).catch(() => {
+    }).catch((error) => {
+      logFrontend.aviso("fila.offline", error);
       /* a fila permanece armazenada para a próxima tentativa */
     });
   });
@@ -295,10 +298,12 @@ function installOfflineShell() {
         }
       });
     });
-    registration.update().catch(() => {
+    registration.update().catch((error) => {
+      logFrontend.aviso("service-worker.atualizacao", error);
       // A aplicação continua funcional quando a verificação do cache falhar.
     });
-  }).catch(() => {
+  }).catch((error) => {
+    logFrontend.aviso("service-worker.registro", error);
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }
@@ -1616,6 +1621,7 @@ function bindLoginForm() {
       store.setCsrfToken(result.csrf_token);
       window.location.replace(pagePath(defaultPage()));
     } catch (error) {
+      logFrontend.aviso("login.conexao", error);
       renderLogin(
         "Não foi possível conectar ao servidor local. Verifique se o sistema está em execução.",
       );
@@ -2297,7 +2303,7 @@ async function loadDalaView(id) {
   ]);
   results.forEach((result) => {
     if (result.status === "rejected") {
-      console.warn("Consulta auxiliar da Dala indisponível:", result.reason);
+      logFrontend.aviso("dala.consulta-auxiliar", result.reason);
     }
   });
 }
@@ -2346,7 +2352,7 @@ async function renderPage() {
       );
       return;
     }
-    console.error(error);
+    logFrontend.erro("tela.renderizacao", error);
     if (root)
       root.innerHTML = estadoErro("Não foi possível atualizar esta tela", error.message || "Verifique a conexão local e tente novamente.", { label: "Tentar novamente", acao: "reload-page", tom: "primary" });
     bindActions();
