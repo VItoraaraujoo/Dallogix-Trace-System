@@ -514,7 +514,7 @@ function hydrateChrome() {
   el("#user-name").textContent = authenticatedUser?.name || "";
   el("#user-role").textContent = ROLE_LABELS[userRole] || (authenticatedUser?.role || "");
 }
-function render() {
+function renderScreen() {
   hydrateChrome();
   el("#screen-root").innerHTML = screens[currentPage](store);
   bindActions();
@@ -524,6 +524,11 @@ function render() {
   workViewSignature = currentPage === "work" ? workStructureSignature() : "";
   if (currentPage === "work") startWorkPolling();
   else stopWorkPolling();
+}
+// Mantém uma entrada global para atualizações em tempo real e inicialização.
+// Handlers de uma tela usam a guarda local de bindActions/bindForms abaixo.
+function render() {
+  renderScreen();
 }
 function stopWorkPolling() {
   workRealtime.stop();
@@ -728,6 +733,14 @@ function timedCommandConfirmation({
   });
 }
 function bindActions() {
+  const renderContextId = renderRequestId;
+  // Uma resposta assíncrona pode chegar depois que o operador trocou de tela.
+  // Nesse caso, a resposta pertence à tela anterior e não deve sobrescrever o
+  // conteúdo que já foi aberto. O identificador só muda em renderPage().
+  const render = () => {
+    if (renderContextId !== renderRequestId) return;
+    renderScreen();
+  };
   if (!document.body.dataset.shellInteractionsBound) {
     document.body.dataset.shellInteractionsBound = "1";
       document.addEventListener("keydown", (event) => {
@@ -1645,6 +1658,13 @@ function setFormFeedback(form, message = "", tone = "") {
 }
 
 function bindForms() {
+  const renderContextId = renderRequestId;
+  // Mesma proteção dos cliques: salvar/importar/filtrar não pode redesenhar
+  // uma tela antiga quando o usuário já navegou para outro endereço.
+  const render = () => {
+    if (renderContextId !== renderRequestId) return;
+    renderScreen();
+  };
   const occurrenceForm = document.querySelector("#occurrence-form");
   if (occurrenceForm)
     occurrenceForm.addEventListener("submit", async (event) => {
