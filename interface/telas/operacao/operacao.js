@@ -100,6 +100,12 @@ export function paradaPodeSerEnfileiradaAposInicio({ state, pendingStatus, pendi
   ) && String(pendingCommand || "").toUpperCase() === "INICIAR_CARREGAMENTO";
 }
 
+export function podeLiberarEmergencia({ role, loadingId }) {
+  return Boolean(loadingId) && ["ADMIN_EMPRESA", "SUPERVISOR", "USUARIO"].includes(
+    String(role || "").toUpperCase(),
+  );
+}
+
 function workControls(store) {
   const loadingItems = Array.isArray(store.state.loadingItems)
     ? store.state.loadingItems
@@ -111,9 +117,10 @@ function workControls(store) {
   const totalPercent = plannedTotal > 0
     ? Math.min(100, Math.round((detectedBags / plannedTotal) * 100))
     : 0;
-  const canUnlock = ["ADMIN_EMPRESA", "SUPERVISOR"].includes(
-    store.state.userRole,
-  );
+  const canUnlock = podeLiberarEmergencia({
+    role: store.state.userRole,
+    loadingId: store.state.loadingId,
+  });
   const canReverse = ["ADMIN_EMPRESA", "SUPERVISOR", "USUARIO"].includes(
     store.state.userRole,
   );

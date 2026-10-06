@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   paradaPodeSerEnfileiradaAposInicio,
   paradaPodeSubstituirInicio,
+  podeLiberarEmergencia,
 } from "../interface/telas/operacao/operacao.js";
 import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js";
 
@@ -37,6 +38,17 @@ test("parada fica disponível atrás de início já reservado pelo gateway", () 
     }),
     true,
   );
+});
+
+test("liberação de emergência fica disponível para os perfis operacionais", () => {
+  for (const role of ["ADMIN_EMPRESA", "SUPERVISOR", "USUARIO"]) {
+    assert.equal(podeLiberarEmergencia({ role, loadingId: 42 }), true);
+  }
+});
+
+test("liberação de emergência não aparece sem carregamento selecionado", () => {
+  assert.equal(podeLiberarEmergencia({ role: "USUARIO", loadingId: null }), false);
+  assert.equal(podeLiberarEmergencia({ role: "ADMIN_DALLOGIX", loadingId: 42 }), false);
 });
 
 test("consulta transitória sem comando preserva início pendente local", async () => {
