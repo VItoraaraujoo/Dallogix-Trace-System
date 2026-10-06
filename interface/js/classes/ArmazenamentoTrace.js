@@ -582,7 +582,8 @@ export class ArmazenamentoTrace {
     );
   }
   clpDisponivel() {
-    return this.clpDaDalaAtual()?.status === "ONLINE";
+    const status = String(this.clpDaDalaAtual()?.status || "").toUpperCase();
+    return ["ONLINE", "LOCAL", "OK"].includes(status);
   }
   mensagemClpIndisponivel() {
     const device = this.clpDaDalaAtual();
