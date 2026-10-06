@@ -99,10 +99,14 @@ export class ArmazenamentoTrace {
     };
   }
   async jsonResponse(response, fallback) {
-    const result = await response.json().catch(() => ({}));
-    if (response.ok) return result;
-    const error = await erroRespostaHttp(response, result.error || fallback);
-    throw error || new Error(result.error || fallback);
+    if (!response.ok) {
+      // Classifique o erro antes de consumir o corpo. O helper usa clone()
+      // para preservar a mensagem enviada pelo servidor, inclusive quando a
+      // resposta não contém JSON válido.
+      const error = await erroRespostaHttp(response, fallback);
+      throw error || new Error(fallback);
+    }
+    return response.json().catch(() => ({}));
   }
   canQueueOffline(url, options = {}) {
     const method = String(options.method || "GET").toUpperCase();

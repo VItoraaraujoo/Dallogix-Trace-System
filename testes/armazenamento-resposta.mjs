@@ -21,3 +21,13 @@ test("armazenamento transforma erro HTTP em erro classificado", async () => {
     (error) => error?.name === "ErroApi" && error.code === "HTTP_409" && error.message === "Conflito de operação.",
   );
 });
+
+test("armazenamento preserva mensagem alternativa do servidor sem consumir o erro antes", async () => {
+  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const response = new Response(JSON.stringify({ message: "Sessão inválida." }), { status: 401 });
+
+  await assert.rejects(
+    armazenamento.jsonResponse(response, "Falha genérica."),
+    (error) => error?.name === "ErroApi" && error.code === "HTTP_401" && error.message === "Sessão inválida.",
+  );
+});
