@@ -1,5 +1,15 @@
 # Histórico de alterações
 
+## v1.0.110 — 06/10/2026
+
+- A instalação do PC industrial agora registra a tarefa `Trace-Docker-Start`
+  com o executável real do Docker Desktop e execução no logon da conta técnica.
+- Corrigido o caminho legado em `Downloads`, que podia deixar o Docker sem
+  inicialização após reiniciar o Windows.
+- Adicionada regressão automatizada para preservar essa configuração nas novas
+  instalações.
+- Publicação pendente de validação pelo workflow de produção.
+
 ## v1.0.109 — 06/10/2026
 
 - A auditoria de controle de acesso agora resolve os wrappers da API e analisa

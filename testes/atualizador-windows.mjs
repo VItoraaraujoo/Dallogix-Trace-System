@@ -33,3 +33,11 @@ test("instalação registra o agente no início do Windows", () => {
   assert.match(machineInstaller, /Dallogix Trace Agent/);
   assert.match(machineInstaller, /Start-ScheduledTask -TaskName "Dallogix Trace Agent"/);
 });
+
+test("instalação registra o Docker Desktop no logon da conta técnica", () => {
+  assert.match(machineInstaller, /Trace-Docker-Start/);
+  assert.match(machineInstaller, /Docker\\Docker\\Docker Desktop\.exe/);
+  assert.match(machineInstaller, /New-ScheduledTaskTrigger -AtLogOn -User \$interactiveUser/);
+  assert.match(machineInstaller, /New-ScheduledTaskPrincipal -UserId \$interactiveUser -LogonType Interactive -RunLevel Limited/);
+  assert.match(machineInstaller, /Register-ScheduledTask -TaskName "Trace-Docker-Start"/);
+});

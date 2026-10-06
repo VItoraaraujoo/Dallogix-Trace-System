@@ -35,6 +35,24 @@ if ((Resolve-Path -LiteralPath $MachineConfig).Path -ne (Join-Path $configDir "m
     Copy-Item $MachineConfig (Join-Path $configDir "machine.json") -Force
 }
 Set-Location $PackageRoot
+
+# O Docker Desktop precisa ser iniciado na sessão interativa do operador. A
+# tarefa antiga apontava para um .cmd em Downloads, que pode ser apagado ou
+# mover-se entre instalações. Registre o executável real no logon da conta
+# técnica usada para preparar a máquina.
+$dockerDesktopCandidates = @(
+    (Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"),
+    (Join-Path $env:LOCALAPPDATA "Programs\DockerDesktop\Docker Desktop.exe")
+)
+$dockerDesktop = $dockerDesktopCandidates | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+if (-not $dockerDesktop) { throw "Docker Desktop não foi encontrado para configurar a inicialização automática." }
+$interactiveUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+$dockerTaskPrincipal = New-ScheduledTaskPrincipal -UserId $interactiveUser -LogonType Interactive -RunLevel Limited
+$dockerTaskAction = New-ScheduledTaskAction -Execute $dockerDesktop -WorkingDirectory (Split-Path -Parent $dockerDesktop)
+$dockerTaskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $interactiveUser
+$dockerTaskSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+Register-ScheduledTask -TaskName "Trace-Docker-Start" -Action $dockerTaskAction -Trigger $dockerTaskTrigger -Principal $dockerTaskPrincipal -Settings $dockerTaskSettings -Description "Inicia o Docker Desktop do Trace após o login da conta técnica." -Force | Out-Null
+
 & docker.exe compose --profile industrial up -d
 if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel iniciar os containers do Trace." }
 
