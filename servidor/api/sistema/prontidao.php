@@ -65,6 +65,7 @@ try {
     $storagePath = dirname(__DIR__, 3) . "/armazenamento";
     $diskFree = is_dir($storagePath) ? disk_free_space($storagePath) : false;
     $diskTotal = is_dir($storagePath) ? disk_total_space($storagePath) : false;
+    $storageWritable = is_dir($storagePath) && is_writable($storagePath);
     $diskFreePercent = is_numeric($diskFree) && is_numeric($diskTotal) && (float) $diskTotal > 0
         ? round(((float) $diskFree / (float) $diskTotal) * 100, 2)
         : null;
@@ -95,13 +96,17 @@ try {
             "free_percent" => $diskFreePercent,
             "minimum_free_percent" => $minDiskPercent,
         ],
+        "storage" => [
+            "writable" => $storageWritable,
+            "path" => "armazenamento",
+        ],
         "schema_migrations" => $schemaMigrations,
         "version" => $release["version"],
         "commit" => $release["commit"],
     ];
     $diskCritical = $diskFreePercent !== null && $diskFreePercent < $minDiskPercent;
     $queueStale = $oldestAge !== null && $oldestAge > $maxQueueAgeSeconds;
-    $degraded = $schemaMigrations < 1 || (int) ($queue["errors"] ?? 0) > 0 || $deadLetterPending > 0 || $queueStale || $staleDevices > 0 || $stuckCommands > 0;
+    $degraded = !$storageWritable || $schemaMigrations < 1 || (int) ($queue["errors"] ?? 0) > 0 || $deadLetterPending > 0 || $queueStale || $staleDevices > 0 || $stuckCommands > 0;
     $status = $diskCritical ? "critical" : ($degraded ? "degraded" : "ready");
     $response = [
         "status" => $status,

@@ -137,8 +137,18 @@ if ($storageRoot === false) {
 }
 $reportRelativeDirectory = "company_" . (int) $user["company_id"] . "/reports";
 $reportDirectory = $storageRoot . "/" . $reportRelativeDirectory;
-if (!is_dir($reportDirectory) && !mkdir($reportDirectory, 0700, true) && !is_dir($reportDirectory)) {
-    $respondJson(["error" => "Não foi possível preparar a pasta do relatório."], 503);
+if (!is_dir($reportDirectory)) {
+    $mkdirError = null;
+    set_error_handler(static function (int $severity, string $message) use (&$mkdirError): bool {
+        $mkdirError = $message;
+        return true;
+    });
+    $created = mkdir($reportDirectory, 0700, true);
+    restore_error_handler();
+    if (!$created && !is_dir($reportDirectory)) {
+        error_log("Relatório de auditoria: não foi possível criar {$reportRelativeDirectory}: " . ($mkdirError ?? "erro desconhecido"));
+        $respondJson(["error" => "Armazenamento de relatórios sem permissão de escrita; verifique a prontidão da instalação."], 503);
+    }
 }
 $resolvedReportDirectory = realpath($reportDirectory);
 if ($resolvedReportDirectory === false

@@ -244,6 +244,14 @@ if [[ "$active" != "0" ]]; then
   exit 14
 fi
 
+# Reexecuta a preparação como root antes de parar a aplicação. Além de corrigir
+# a propriedade de instalações antigas, o probe impede publicar uma versão que
+# só descobriria armazenamento sem escrita ao gerar o primeiro relatório.
+if ! compose run --rm armazenamento-init >/dev/null; then
+  echo "O armazenamento não passou no teste de escrita; atualização cancelada." >&2
+  exit 23
+fi
+
 if [[ -f "$state_dir/current_version" && "$(cat "$state_dir/current_version")" == "$version" ]]; then
   if [[ -n "${TRACE_UPDATE_EXPECT_COMMIT:-}" ]]; then
     installed_commit="$(python3 - "$root_dir/servidor/.release.json" <<'PY'

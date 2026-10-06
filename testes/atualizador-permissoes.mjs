@@ -119,3 +119,11 @@ test("a consulta de carregamentos não expõe a senha na linha de comando", () =
   assert.match(source, /export MYSQL_PWD=\"\$MYSQL_PASSWORD\"; mysql -N -B -u\"\$MYSQL_USER\" \"\$MYSQL_DATABASE\"/);
   assert.doesNotMatch(source, /mysql[^\n]*-p\"\$mysql_password\"/);
 });
+
+test("a atualização valida a escrita do armazenamento antes de parar os serviços", () => {
+  const source = readFileSync(updater, "utf8");
+  const marker = source.indexOf("compose run --rm armazenamento-init");
+  const stop = source.indexOf("compose stop >/dev/null", marker);
+  assert.ok(marker >= 0, "A preparação verificável do armazenamento não foi encontrada.");
+  assert.ok(stop > marker, "O armazenamento deve ser validado antes da parada dos serviços.");
+});

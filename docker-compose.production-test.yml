@@ -13,7 +13,10 @@ services:
         set -eu;
         mkdir -p /var/www/armazenamento/backups /var/www/armazenamento/logs;
         chown -R 82:82 /var/www/armazenamento;
-        chmod -R u+rwX /var/www/armazenamento
+        chmod -R u+rwX /var/www/armazenamento;
+        probe=/var/www/armazenamento/.trace-write-probe;
+        : > "$$probe";
+        rm -f "$$probe"
     volumes:
       - ${TRACE_TEST_STORAGE_PATH:-./armazenamento/producao-teste/storage}:/var/www/armazenamento
 
