@@ -7,7 +7,7 @@ import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=2026100523
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610052315-command-queue";
-import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
+import { dataHora, numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js?v=202609240001";
@@ -395,7 +395,40 @@ function installLocalIndicator() {
 
 function installOfflineShell() {
   if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  navigator.serviceWorker.register("/service-worker.js?v=202610020006").catch(() => {
+  let reloadAfterUpdate = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (!reloadAfterUpdate) return;
+    reloadAfterUpdate = false;
+    window.location.reload();
+  });
+  navigator.serviceWorker.register("/service-worker.js?v=202610060002").then((registration) => {
+    const avisarAtualizacao = () => {
+      if (!registration.waiting || !navigator.serviceWorker.controller) return;
+      notificar("Nova versão da interface está disponível.", "informacao", {
+        duracao: 0,
+        acao: {
+          label: "Atualizar",
+          onClick: () => {
+            reloadAfterUpdate = true;
+            registration.waiting.postMessage({ type: "ATIVAR_NOVA_VERSAO" });
+          },
+        },
+      });
+    };
+    if (registration.waiting) avisarAtualizacao();
+    registration.addEventListener("updatefound", () => {
+      const worker = registration.installing;
+      if (!worker) return;
+      worker.addEventListener("statechange", () => {
+        if (worker.state === "installed" && navigator.serviceWorker.controller) {
+          avisarAtualizacao();
+        }
+      });
+    });
+    registration.update().catch(() => {
+      // A aplicação continua funcional quando a verificação do cache falhar.
+    });
+  }).catch(() => {
     // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
   });
 }
@@ -668,6 +701,9 @@ function refreshWorkLiveView() {
     "operational-state": rotuloEstado(store.state.operationalState),
     "progress-percent": `${percent}%`,
     "progress-count": `${numero(detectedBags)} / ${numero(planned)} sacas`,
+    "monitoring-updated": store.state.monitoringUpdatedAt
+      ? `Atualizado ${dataHora(store.state.monitoringUpdatedAt)}`
+      : "Sem atualização confirmada",
   };
   Object.entries(values).forEach(([key, value]) => {
     document.querySelectorAll(`[data-live="${key}"]`).forEach((node) => {

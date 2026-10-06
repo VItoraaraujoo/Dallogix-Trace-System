@@ -38,7 +38,10 @@ export function createOperationalRealtimeController({ store, getPage, render, re
     if (eventSource || fallbackTimer || getPage() !== "work") return;
     const consume = async (payload) => {
       reconnectFailures = 0;
-      store.state.monitoring = payload?.monitoring || store.state.monitoring;
+      if (payload?.monitoring) {
+        store.state.monitoring = payload.monitoring;
+        store.state.monitoringUpdatedAt = new Date().toISOString();
+      }
       await store.applyActiveLoadingSnapshot(
         payload?.active_loadings || [],
         store.state.selectedLoadingId,

@@ -20,7 +20,7 @@ function tipoDaMensagem(tipo, mensagem) {
   return "informacao";
 }
 
-export function notificar(mensagem, tipo = "informacao", { duracao = 6000 } = {}) {
+export function notificar(mensagem, tipo = "informacao", { duracao = 6000, acao = null } = {}) {
   const texto = String(mensagem || "").trim();
   if (!texto) return null;
   const item = document.createElement("div");
@@ -28,13 +28,25 @@ export function notificar(mensagem, tipo = "informacao", { duracao = 6000 } = {}
   item.setAttribute("role", "status");
   const conteudo = document.createElement("span");
   conteudo.textContent = texto;
+  if (acao?.label && typeof acao.onClick === "function") {
+    const executar = document.createElement("button");
+    executar.type = "button";
+    executar.className = "trace-notificacao-acao";
+    executar.textContent = String(acao.label);
+    executar.addEventListener("click", () => {
+      acao.onClick();
+      item.remove();
+    }, { once: true });
+    item.append(conteudo, executar);
+  }
   const fechar = document.createElement("button");
   fechar.type = "button";
   fechar.className = "trace-notificacao-fechar";
   fechar.setAttribute("aria-label", "Fechar notificação");
   fechar.textContent = "×";
   fechar.addEventListener("click", () => item.remove(), { once: true });
-  item.append(conteudo, fechar);
+  if (!acao?.label || typeof acao.onClick !== "function") item.append(conteudo);
+  item.append(fechar);
   obterPilha().append(item);
   if (duracao > 0) window.setTimeout(() => item.remove(), duracao);
   return item;

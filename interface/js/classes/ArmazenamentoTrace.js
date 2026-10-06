@@ -21,6 +21,7 @@ export class ArmazenamentoTrace {
       equipmentCode: "—",
       equipmentId: null,
       monitoring: null,
+      monitoringUpdatedAt: null,
       syncStatus: null,
       products: [],
       productsLoaded: false,
@@ -789,7 +790,10 @@ export class ArmazenamentoTrace {
   }
   async loadMonitoring() {
     const response = await this.api.fetch("/api/monitoramento.php");
-    if (response.ok) this.state.monitoring = (await response.json()).data;
+    if (response.ok) {
+      this.state.monitoring = (await response.json()).data;
+      this.state.monitoringUpdatedAt = new Date().toISOString();
+    }
   }
   async loadSyncStatus() {
     const response = await this.api.fetch("/api/sync_status.php");

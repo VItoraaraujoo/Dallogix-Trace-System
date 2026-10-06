@@ -143,7 +143,6 @@ self.addEventListener("install", (event) => {
           }
         }),
       );
-      await self.skipWaiting();
     }),
   );
 });
@@ -159,6 +158,12 @@ self.addEventListener("activate", (event) => {
       await self.clients.claim();
     }),
   );
+});
+
+self.addEventListener("message", (event) => {
+  if (event.data?.type === "ATIVAR_NOVA_VERSAO") {
+    event.waitUntil(self.skipWaiting());
+  }
 });
 
 self.addEventListener("fetch", (event) => {

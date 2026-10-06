@@ -1,5 +1,5 @@
 import { button, esc } from "../../js/funcoes/html.js";
-import { numero } from "../../js/funcoes/formato.js?v=202609201000";
+import { dataHora, numero } from "../../js/funcoes/formato.js?v=202609201000";
 import { rotuloComando, rotuloEstado, rotuloStatusComando } from "../../js/funcoes/rotulos.js?v=202609240001";
 import {
   pageHeader,
@@ -27,12 +27,15 @@ function compactDeviceStatuses(store) {
   ];
   const isOnline = (value) =>
     ["ONLINE", "LOCAL", "OK"].includes(String(value || "").trim().toUpperCase());
+  const updatedAt = store.state.monitoringUpdatedAt
+    ? `Atualizado ${dataHora(store.state.monitoringUpdatedAt)}`
+    : "Sem atualização confirmada";
   return `<div class="status status-compact">${known.map(([type, label]) => {
     const value = devices.find((item) => item.device_type === type)?.status ||
       (type === "SERVER" ? "LOCAL" : "OFFLINE");
     const online = isOnline(value);
     return `<span><strong>${label}</strong><b class="status-value status-${online ? "online" : "offline"}" data-live-status="${type}" data-live-status-mode="binary">${online ? "ON" : "OFF"}</b></span>`;
-  }).join("")}</div>`;
+  }).join("")}</div><small class="work-device-status-updated" data-live="monitoring-updated">${esc(updatedAt)}</small>`;
 }
 
 function loadingSelection(store) {

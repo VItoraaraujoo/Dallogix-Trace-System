@@ -94,6 +94,14 @@ body.work-page:has(.work-operation-screen) .work-header-statuses .work-device-st
   white-space: nowrap;
 }
 
+body.work-page:has(.work-operation-screen) .work-device-status-updated {
+  display: block;
+  color: var(--muted, #6b7785);
+  font-size: 9px;
+  line-height: 1.2;
+  text-align: right;
+}
+
 body.work-page:has(.work-operation-screen) .work-header-statuses .status-compact {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));

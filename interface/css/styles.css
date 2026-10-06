@@ -486,6 +486,23 @@ li small {
 
 .trace-notificacao > span { flex: 1; }
 
+.trace-notificacao-acao {
+  flex: 0 0 auto;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  padding: 5px 9px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.trace-notificacao-acao:hover,
+.trace-notificacao-acao:focus-visible {
+  background: #ffffff22;
+}
+
 .trace-notificacao-fechar {
   flex: 0 0 auto;
   border: 0;
