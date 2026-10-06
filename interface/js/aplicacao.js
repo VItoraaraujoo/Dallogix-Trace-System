@@ -407,7 +407,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610060002").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610060004").then((registration) => {
     const avisarAtualizacao = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       notificar("Nova versão da interface está disponível.", "informacao", {
