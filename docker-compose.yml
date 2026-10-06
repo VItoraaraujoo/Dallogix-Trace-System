@@ -54,6 +54,11 @@ services:
       context: ./docker/php
     restart: unless-stopped
     user: "82:82"
+    depends_on:
+      armazenamento-init:
+        condition: service_completed_successfully
+      mysql:
+        condition: service_healthy
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
