@@ -53,23 +53,48 @@ if ($status !== "") {
 
 $pdo = db();
 $statement = $pdo->prepare(
-    "SELECT r.id, r.number, r.scheduled_date, r.status, r.expedidor,
+    "WITH quantidades_planejadas AS (
+            SELECT romaneio_id, SUM(planned_quantity) AS planned_quantity
+            FROM romaneio_itens
+            GROUP BY romaneio_id
+        ), leituras_por_resultado AS (
+            SELECT c.romaneio_id,
+                   SUM(l.result = 'VALIDO') AS loaded_quantity,
+                   SUM(l.result = 'SEM_LEITURA') AS no_readings,
+                   SUM(l.result = 'PRODUTO_INCORRETO') AS wrong_products
+            FROM leituras l
+            JOIN carregamentos c ON c.id = l.carregamento_id
+            GROUP BY c.romaneio_id
+        ), ocorrencias_por_romaneio AS (
+            SELECT c.romaneio_id, COUNT(*) AS occurrences
+            FROM ocorrencias o
+            JOIN carregamentos c ON c.id = o.carregamento_id
+            GROUP BY c.romaneio_id
+        ), carregamento_recente AS (
+            SELECT id, romaneio_id, state, started_at, finished_at,
+                   ROW_NUMBER() OVER (PARTITION BY romaneio_id ORDER BY id DESC) AS rn
+            FROM carregamentos
+        )
+     SELECT r.id, r.number, r.scheduled_date, r.status, r.expedidor,
             MAX(rt.plate) AS plate,
-            COALESCE((SELECT SUM(ri2.planned_quantity) FROM romaneio_itens ri2 WHERE ri2.romaneio_id = r.id), 0) AS planned_quantity,
-            COALESCE((SELECT COUNT(*) FROM leituras l JOIN carregamentos cx ON cx.id = l.carregamento_id WHERE cx.romaneio_id = r.id AND l.result = 'VALIDO'), 0) AS loaded_quantity,
-            COALESCE((SELECT COUNT(*) FROM leituras l JOIN carregamentos cx ON cx.id = l.carregamento_id WHERE cx.romaneio_id = r.id AND l.result = 'SEM_LEITURA'), 0) AS no_readings,
-            COALESCE((SELECT COUNT(*) FROM leituras l JOIN carregamentos cx ON cx.id = l.carregamento_id WHERE cx.romaneio_id = r.id AND l.result = 'PRODUTO_INCORRETO'), 0) AS wrong_products,
-            COALESCE((SELECT COUNT(*) FROM ocorrencias o JOIN carregamentos cx ON cx.id = o.carregamento_id WHERE cx.romaneio_id = r.id), 0) AS occurrences,
+            COALESCE(qp.planned_quantity, 0) AS planned_quantity,
+            COALESCE(lpr.loaded_quantity, 0) AS loaded_quantity,
+            COALESCE(lpr.no_readings, 0) AS no_readings,
+            COALESCE(lpr.wrong_products, 0) AS wrong_products,
+            COALESCE(opr.occurrences, 0) AS occurrences,
             c.state AS loading_state, c.started_at, c.finished_at,
             CASE WHEN c.started_at IS NOT NULL AND c.finished_at IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, c.started_at, c.finished_at) ELSE NULL END AS duration_minutes
      FROM romaneios r
      LEFT JOIN romaneio_caminhoes rt ON rt.romaneio_id = r.id
-     LEFT JOIN romaneio_itens ri ON ri.romaneio_id = r.id
-     LEFT JOIN carregamentos c ON c.id = (SELECT c2.id FROM carregamentos c2 WHERE c2.romaneio_id = r.id ORDER BY c2.id DESC LIMIT 1)
+     LEFT JOIN quantidades_planejadas qp ON qp.romaneio_id = r.id
+     LEFT JOIN leituras_por_resultado lpr ON lpr.romaneio_id = r.id
+     LEFT JOIN ocorrencias_por_romaneio opr ON opr.romaneio_id = r.id
+     LEFT JOIN carregamento_recente c ON c.romaneio_id = r.id AND c.rn = 1
      WHERE " .
         implode(" AND ", $conditions) .
         "
-     GROUP BY r.id, c.id
+     GROUP BY r.id, c.id, qp.planned_quantity, lpr.loaded_quantity, lpr.no_readings,
+              lpr.wrong_products, opr.occurrences
      ORDER BY r.scheduled_date DESC, r.id DESC",
 );
 $statement->execute($params);
