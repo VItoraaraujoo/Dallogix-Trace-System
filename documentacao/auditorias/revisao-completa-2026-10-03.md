@@ -9,9 +9,9 @@ GitHub Actions.
 
 ## Atualização de validação — 06/10/2026
 
-- A release `v1.0.98` foi publicada na execução 103 do GitHub Actions a partir
-  do commit `1589bf1`.
-- O Central respondeu `status=ok`, `version=v1.0.98` e o mesmo commit em
+- A release `v1.0.99` foi publicada na execução 104 do GitHub Actions a partir
+  do commit `1f755d4`.
+- O Central respondeu `status=ok`, `version=v1.0.99` e o mesmo commit em
   `/api/health.php`; `/api/prontidao.php` respondeu `status=ready` com PHP e
   MySQL saudáveis.
 - O layout da operação recebeu uma regra final escopada para impedir que a
@@ -24,9 +24,9 @@ GitHub Actions.
 - O scanner de segredos passou no código atual e também foi exercitado com uma
   falha controlada do `git grep`: “nenhuma ocorrência” retorna sucesso, enquanto
   erro do scanner retorna código 2 e mensagem explícita.
-- O commit posterior `f68985c` contém essa correção de qualidade e seu teste;
-  a release instalada no Central permanece v1.0.98, pois o ajuste não altera o
-  pacote do PC industrial.
+- O commit `f68985c` contém a correção de qualidade e seu teste. A release
+  `v1.0.99` também alinha a autorização de liberação da emergência na tela
+  principal com os perfis já aceitos pelo endpoint do servidor.
 
 ## Evidências da base antes da alteração
 
