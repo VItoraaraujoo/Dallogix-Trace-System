@@ -86,6 +86,12 @@ function commandFeedback(command) {
   return `<aside class="work-command-feedback" role="status" aria-live="polite"><div class="work-command-feedback-heading"><div><span class="kicker">Última comunicação</span><strong>${esc(rotuloComando(command.command))}</strong></div><span class="badge ${tone}">${esc(rotuloStatusComando(status))}</span></div><p>${esc(detail)}</p>${status === "APLICADO" ? '<small>O estado real deve ser confirmado pelos sinais de retorno aprovados do CLP; esse mapa ainda não está disponível.</small>' : ""}</aside>`;
 }
 
+export function paradaPodeSubstituirInicio({ state, pendingStatus, pendingCommand }) {
+  return String(state || "").toUpperCase() === "PAUSADO" &&
+    String(pendingStatus || "").toUpperCase() === "PENDENTE" &&
+    String(pendingCommand || "").toUpperCase() === "INICIAR_CARREGAMENTO";
+}
+
 function workControls(store) {
   const loadingItems = Array.isArray(store.state.loadingItems)
     ? store.state.loadingItems
@@ -111,6 +117,12 @@ function workControls(store) {
   const commandInFlight = store.state.commandInFlight === true;
   const bloqueioComando = (allowedStates, stateMessage, requestedCommand = "") => {
     const samePendingCommand = pendingStatus === "PENDENTE" && pendingCommand === requestedCommand;
+    const canReplacePendingStart = requestedCommand === "PAUSAR_CARREGAMENTO" &&
+      paradaPodeSubstituirInicio({
+        state,
+        pendingStatus,
+        pendingCommand,
+      });
     const reason = !store.state.loadingId
       ? "Nenhum carregamento selecionado"
       : !clpDisponivel
@@ -121,7 +133,7 @@ function workControls(store) {
             ? "Aguarde o retorno do comando atual"
             : samePendingCommand
               ? "Este comando já está aguardando o gateway industrial"
-              : !allowedStates.includes(state)
+            : !allowedStates.includes(state) && !canReplacePendingStart
                 ? stateMessage
                 : "";
     return reason ? { disabled: true, "aria-disabled": "true", title: reason } : "";

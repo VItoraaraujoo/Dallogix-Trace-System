@@ -60,6 +60,17 @@ final class ServicoComandoClp
             $allowedStates = $command === "INICIAR_CARREGAMENTO"
                 ? ["PREPARANDO", "PAUSADO"]
                 : ["PREPARANDO", "CARREGANDO"];
+            // Um início ainda PENDENTE pode ser substituído por uma parada
+            // antes de qualquer reserva ou escrita física no CLP. Isso evita
+            // deixar o operador preso na tela depois de clicar em iniciar.
+            $pending = $this->comandoPendente($loadingId);
+            $substituindoInicioPendente = $command === "PAUSAR_CARREGAMENTO"
+                && $pending
+                && $pending["status"] === "PENDENTE"
+                && $pending["command"] === "INICIAR_CARREGAMENTO";
+            if ($substituindoInicioPendente) {
+                $allowedStates[] = "PAUSADO";
+            }
             if (!in_array($loading["state"], $allowedStates, true)) {
                 throw new ExcecaoComandoClp(
                     $command === "INICIAR_CARREGAMENTO"
@@ -72,7 +83,6 @@ final class ServicoComandoClp
                 (int) $user["company_id"],
                 (int) $loading["equipment_id"],
             );
-            $pending = $this->comandoPendente($loadingId);
             if ($pending) {
                 if ($pending["command"] === $command) {
                     throw new ExcecaoComandoClp(

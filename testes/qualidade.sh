@@ -49,6 +49,7 @@ node --test testes/verificacao-producao.mjs testes/html-seguro.mjs
 node --test testes/cliente-api.mjs testes/operacoes-offline.mjs testes/servico-emergencia.mjs testes/servico-operacao.mjs testes/servico-sincronizacao.mjs testes/componentes-estados.mjs testes/validadores.mjs testes/armazenamento-permissoes.mjs
 node --test testes/armazenamento-resposta.mjs
 node --test testes/comandos-concorrencia.mjs
+node --test testes/operacao-comandos-ui.mjs
 node --test testes/log-frontend.mjs
 bash -n scripts/check_production_env.sh
 bash -n scripts/check_physical_deployment.sh scripts/launch_kiosk.sh
@@ -57,5 +58,6 @@ grep -q 'entrypoint: \["/bin/sh", "/seed/entrypoint.sh"\]' docker-compose.yml
 php_compose_block="$(awk '/^  php:/{in_php=1} in_php{print} in_php && /^  [a-z0-9_-]+:/{if ($0 !~ /^  php:/) exit}' docker-compose.yml)"
 grep -q 'armazenamento-init:' <<<"$php_compose_block"
 grep -q 'condition: service_completed_successfully' <<<"$php_compose_block"
+grep -q 'substituindoInicioPendente' servidor/src/Aplicacao/ServicoComandoClp.php
 
 echo 'OK: sintaxe PHP/JavaScript e referências órfãs verificadas.'
