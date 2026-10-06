@@ -7,7 +7,7 @@ import {
   manifestsTable,
   emergencyPanel,
   statuses,
-} from "../../js/funcoes/view.js?v=202610061603";
+} from "../../js/funcoes/view.js?v=202610061700";
 
 import { itemRow, industrialPcDate } from "../../js/funcoes/romaneio.js?v=202610020002";
 export function manifestEdit(store) {

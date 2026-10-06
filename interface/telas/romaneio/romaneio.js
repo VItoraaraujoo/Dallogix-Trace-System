@@ -7,7 +7,7 @@ import {
   manifestsTable,
   emergencyPanel,
   statuses,
-} from "../../js/funcoes/view.js?v=202610061603";
+} from "../../js/funcoes/view.js?v=202610061700";
 
 export function manifestView(store) {
   const manifest = store.state.manifestDetail;

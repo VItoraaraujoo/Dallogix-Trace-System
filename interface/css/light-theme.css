@@ -2252,7 +2252,6 @@ textarea {
   letter-spacing: 0.06em;
 }
 
-.page-loading,
 .page-error {
   border-top: 5px solid var(--cyan);
   box-shadow: var(--shadow-lg);
@@ -2823,7 +2822,6 @@ textarea {
   background: transparent;
 }
 
-.page-loading,
 .page-error {
   max-width: 620px;
   margin: 54px auto;
@@ -2831,10 +2829,6 @@ textarea {
   padding: 32px;
 }
 
-.page-loading {
-  color: var(--muted);
-  font-weight: 750;
-}
 
 .page-error h2 {
   margin-top: 0;
@@ -4913,16 +4907,17 @@ p {
 }
 
 .pdf-import-card form {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 18px;
 }
 
 .file-picker {
-  display: flex;
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
   align-items: center;
   gap: 14px;
-  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -4952,6 +4947,7 @@ p {
 .pdf-import-card .actions {
   margin: 0;
   justify-content: flex-end;
+  align-self: center;
 }
 
 .pdf-import-card .actions .button {
@@ -4972,13 +4968,14 @@ p {
 
 @media (max-width: 760px) {
   .pdf-import-card form {
-    flex-direction: column;
+    grid-template-columns: 1fr;
     align-items: stretch;
     gap: 12px;
   }
 
   .file-picker {
     width: 100%;
+    grid-template-columns: 1fr;
   }
 
   .file-picker-button {

@@ -6,7 +6,7 @@ import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notifica
 import { prepararDialogoAcessivel } from "./funcoes/dialogo.js?v=202610061820";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610061603";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610061700";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610060007";
@@ -14,7 +14,7 @@ import { dataHora, numero, relativo } from "./funcoes/formato.js?v=202609201000"
 import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js?v=202609240001";
-import { deviceStatusSummary } from "./funcoes/view.js?v=202610061603";
+import { deviceStatusSummary } from "./funcoes/view.js?v=202610061700";
 import { settings } from "../telas/configuracoes/configuracoes.js?v=202610010001";
 import { dalas } from "../telas/dalas/dalas.js?v=202610010001";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
@@ -33,7 +33,7 @@ import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
 import { manifests } from "../telas/romaneios/romaneios.js?v=202610010001";
 import { manifestView } from "../telas/romaneio/romaneio.js?v=202610010001";
-import { work } from "../telas/operacao/operacao.js?v=202610061603";
+import { work } from "../telas/operacao/operacao.js?v=202610061700";
 import { dashboard } from "../telas/painel/painel.js?v=202610010001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610010001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
@@ -281,7 +281,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610061603").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610061700").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -2359,13 +2359,11 @@ async function renderPage() {
   await ensureDalaScreenStyles(currentPage);
   await ensureCompanyScreenStyles(currentPage);
 
-  // Mantém o shell responsivo enquanto as consultas terminam, mas usa uma
-  // única renderização completa por navegação. Renderizar a tela antiga e
-  // depois substituí-la novamente fazia o conteúdo saltar no WebView2.
-  if (root) {
-    root.innerHTML =
-      '<div class="panel page-loading" role="status">Abrindo tela…</div>';
-  }
+  // Mantém a tela atual visível enquanto as consultas terminam. Exibir um
+  // painel intermediário de carregamento a cada navegação fazia o operador
+  // perder o contexto e criava uma troca visual desnecessária no WebView2.
+  // A nova tela substitui a anterior apenas quando os dados necessários
+  // estiverem prontos; erros continuam sendo mostrados no mesmo espaço.
   try {
     await loadPageData(currentPage);
     if (requestId !== renderRequestId) return;

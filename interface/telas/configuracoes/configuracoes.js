@@ -1,5 +1,5 @@
 import { button, esc } from "../../js/funcoes/html.js";
-import { pageHeader } from "../../js/funcoes/view.js?v=202610061603";
+import { pageHeader } from "../../js/funcoes/view.js?v=202610061700";
 
 // Conectividade local/remota, Dalas (somente leitura) e importação de PDF.
 export function settings(store) {
