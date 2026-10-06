@@ -9,6 +9,8 @@ const machineInstaller = readFileSync(new URL("../implantacao/windows/Install-Tr
 test("atualizador estável fica agendado diariamente com a conta SYSTEM", () => {
   assert.match(updaterRegistration, /\$taskName = 'Dallogix Trace Atualizacao Estavel'/);
   assert.match(updaterRegistration, /New-ScheduledTaskTrigger -Daily -At '03:30'/);
+  assert.match(updaterRegistration, /New-ScheduledTaskTrigger -AtLogOn -RandomDelay \(New-TimeSpan -Minutes 10\)/);
+  assert.match(updaterRegistration, /\$trigger = @\(\$dailyTrigger, \$logonTrigger\)/);
   assert.match(updaterRegistration, /New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest/);
   assert.match(updaterRegistration, /New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable/);
 });

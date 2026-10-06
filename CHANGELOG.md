@@ -1,5 +1,10 @@
 # Histórico de alterações
 
+## v1.0.111 — 06/10/2026
+
+- O atualizador estável também tenta a atualização dez minutos após o logon,
+  depois que o Docker Desktop tem tempo para iniciar.
+
 ## v1.0.110 — 06/10/2026
 
 - A instalação do PC industrial agora registra a tarefa `Trace-Docker-Start`
