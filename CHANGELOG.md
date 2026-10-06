@@ -5,6 +5,24 @@ expõe o commit efetivo em `/api/health.php` (`TRACE_COMMIT`); esse identificado
 é a referência para comparar o histórico abaixo com o código servido. Ao criar
 um release, mova os itens para uma seção com a versão/tag e a data reais.
 
+## v1.0.103 — 06/10/2026
+
+- Corrigida a corrida entre comandos operacionais e quadros vazios ou atrasados
+  do tempo real: a Dala selecionada permanece disponível até a confirmação
+  terminal, sem deixar o botão de parada bloqueado até recarregar a tela.
+- Publicação validada pelo workflow de produção `#108` no commit
+  `bc7cd745875e6ff40f9721716c1e895647fb421e`; o Central confirmou a mesma
+  versão e respondeu pronto.
+
+## v1.0.102 — 06/10/2026
+
+- Reorganizado o painel operacional da Dala: código de barras no resumo,
+  estados dos dispositivos no módulo lateral e comandos agrupados sem altura
+  vazia nos itens.
+- Publicação validada pelo workflow de produção no commit
+  `7c8c8a41d46310cd8c4cf9bc32d0660214b3ab73`; o Central confirmou a mesma
+  versão e respondeu pronto.
+
 ## v1.0.101 — 06/10/2026
 
 - Impedida a renderização atrasada de uma tela anterior após navegação ou
