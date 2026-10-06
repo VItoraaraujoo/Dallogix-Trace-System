@@ -1,6 +1,6 @@
 # Plano de execução consolidado
 
-Este registro centraliza a execução das pendências reunidas nas conversas do projeto. O estado abaixo corresponde à `master` no commit `1f755d4` e à release `v1.0.99`, publicada no Central após a validação do pacote, das migrações e da saúde dos serviços.
+Este registro centraliza a execução das pendências reunidas nas conversas do projeto. O estado abaixo corresponde à `master` no commit documental `b23dc9c`; a release imutável `v1.0.99` foi gerada a partir do commit de código `1f755d4` e publicada no Central após a validação do pacote, das migrações e da saúde dos serviços.
 
 ## Concluído na master e publicado
 
