@@ -661,6 +661,87 @@ body.work-page:has(.work-operation-screen) .work-machine-panel .emergency-compac
   }
 }
 
+/* Composição final da operação: o módulo de estados fica no canto direito,
+   acima dos comandos, e cada cartão ocupa somente o espaço do seu conteúdo. */
+@media (min-width: 960px) and (min-height: 680px) {
+  body.work-page:has(.work-operation-screen) .work-operation-layout {
+    grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.75fr);
+    align-items: start;
+    gap: 16px;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-status-column {
+    height: auto;
+    max-height: calc(100dvh - 150px);
+    overflow: visible;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-status-column > .work-live-summary,
+  body.work-page:has(.work-operation-screen) .work-status-column > .work-items-panel {
+    flex: 0 0 auto;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-items-panel {
+    height: auto;
+    min-height: 0;
+    overflow: visible;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-item-progress-list {
+    flex: 0 1 auto;
+    max-height: min(55dvh, 620px);
+    overflow-y: auto;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-panel {
+    height: auto;
+    align-self: start;
+    overflow: visible;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-panel > .work-header-statuses {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 7px;
+    margin: 0 0 2px;
+    padding: 9px;
+    border: 1px solid #cfe1e8;
+    border-radius: 11px;
+    background: #f7fbfc;
+    box-shadow: none;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-panel > .work-header-statuses .work-device-status-heading {
+    min-height: 20px;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-panel > .work-header-statuses .status-compact {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 5px;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-panel > .work-header-statuses .status-compact span {
+    min-height: 28px;
+    padding: 4px 5px;
+    border-radius: 7px;
+    font-size: 9px;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-panel > .work-header-statuses .status-compact b {
+    font-size: 9px;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-machine-panel > .work-header-statuses .work-device-status-updated {
+    font-size: 8px;
+  }
+}
+
+@media (max-width: 959px), (max-height: 679px) {
+  body.work-page:has(.work-operation-screen) .work-machine-panel > .work-header-statuses .status-compact {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 /* Regra final da tela de operação.
    O CSS responsivo geral ainda contém compatibilidade histórica que transforma
    as duas colunas em áreas de altura total. Aqui a tela operacional mantém o
