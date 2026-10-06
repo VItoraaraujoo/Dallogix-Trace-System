@@ -35,6 +35,7 @@ import { manifestView } from "../telas/romaneio/romaneio.js?v=202610010001";
 import { work } from "../telas/operacao/operacao.js?v=202610052315-command-queue";
 import { dashboard } from "../telas/painel/painel.js?v=202610010001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610010001";
+import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
 
 configurarSessaoPorAba();
 
@@ -1818,11 +1819,17 @@ function bindForms() {
     productForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (productForm.dataset.submitting === "1") return;
+      const raw = Object.fromEntries(new FormData(productForm));
+      const validationError = validarProduto(raw);
+      if (validationError) {
+        setFormFeedback(productForm, validationError, "error");
+        notificar(validationError);
+        return;
+      }
       productForm.dataset.submitting = "1";
       productForm.querySelectorAll("button").forEach((button) => {
         button.disabled = true;
       });
-      const raw = Object.fromEntries(new FormData(productForm));
       const editingId = productForm.dataset.editing;
       try {
         if (editingId) {
@@ -1858,13 +1865,18 @@ function bindForms() {
     dalaCreateForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (dalaCreateForm.dataset.submitting === "1") return;
+      const raw = Object.fromEntries(new FormData(dalaCreateForm));
+      const validationError = validarDala(raw);
+      if (validationError) {
+        setFormFeedback(dalaCreateForm, validationError, "error");
+        notificar(validationError);
+        return;
+      }
       dalaCreateForm.dataset.submitting = "1";
       dalaCreateForm.querySelectorAll("button").forEach((button) => { button.disabled = true; });
       let created;
       try {
-        created = await store.createEquipment(
-          Object.fromEntries(new FormData(dalaCreateForm)),
-        );
+        created = await store.createEquipment(raw);
       } catch (error) {
         notificar(error.message);
         dalaCreateForm.dataset.submitting = "0";
@@ -1885,9 +1897,15 @@ function bindForms() {
     dalaEditForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (dalaEditForm.dataset.submitting === "1") return;
+      const raw = Object.fromEntries(new FormData(dalaEditForm));
+      const validationError = validarDala(raw);
+      if (validationError) {
+        setFormFeedback(dalaEditForm, validationError, "error");
+        notificar(validationError);
+        return;
+      }
       dalaEditForm.dataset.submitting = "1";
       dalaEditForm.querySelectorAll("button").forEach((button) => { button.disabled = true; });
-      const raw = Object.fromEntries(new FormData(dalaEditForm));
       try {
         await store.updateEquipment({ id: dalaEditForm.dataset.id, ...raw });
       } catch (error) {

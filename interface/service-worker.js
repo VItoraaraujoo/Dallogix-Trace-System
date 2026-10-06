@@ -1,4 +1,4 @@
-const CACHE_NAME = "trace-shell-20261006-02";
+const CACHE_NAME = "trace-shell-20261006-03";
 const SHELL = [
   "/",
   "/service-worker.js",
@@ -95,9 +95,11 @@ const SHELL = [
   "/css/auth.css",
   "/css/responsive.css",
   "/css/dalas-screen.css",
+  "/css/sistema-design.css",
   "/js/aplicacao.js",
   "/js/api/ClienteApi.js",
   "/js/componentes/notificacoes.js",
+  "/js/componentes/estados.js",
   "/js/servicos/ServicoEmergencia.js",
   "/js/servicos/ServicoOperacao.js",
   "/js/servicos/ServicoSincronizacao.js",
@@ -112,6 +114,7 @@ const SHELL = [
   "/js/funcoes/romaneio.js",
   "/js/funcoes/rotulos.js",
   "/js/funcoes/view.js",
+  "/js/utilitarios/Validadores.js",
   "/js/login.js",
   "/js/redirecionar-tela.js",
   "/js/sessao.js",

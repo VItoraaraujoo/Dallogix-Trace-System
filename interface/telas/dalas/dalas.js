@@ -2,6 +2,7 @@ import { dataHora, numero } from "../../js/funcoes/formato.js?v=202609170930";
 import { button, esc } from "../../js/funcoes/html.js";
 import { rotuloComando, rotuloEstado, rotuloEvento, rotuloStatusComando } from "../../js/funcoes/rotulos.js";
 import { pageHeader, physicalStateBadge } from "../../js/funcoes/view.js?v=202609280006";
+import { estadoCarregando, estadoErro } from "../../js/componentes/estados.js?v=202610060002";
 
 function dalaStatusCell(equipment) {
   return `<div class="dala-status" data-equipment-id="${equipment.id}"><span class="status-dot"></span>Verificando…</div>`;
@@ -34,7 +35,7 @@ export function dalas(store) {
 <label>Identificador<input name="equipment_code" autocomplete="off" required pattern="[a-z0-9_]{1,30}" title="Letras minúsculas, números e underscores (máx. 30)" /><small>Use letras minúsculas, números e underscore. Máximo de 30 caracteres.</small></label>
 <label>Endereço do CLP (IP ou nome)<input name="plc_ip" autocomplete="off" required /></label>
 <label>Porta do CLP<input name="plc_port" type="number" min="1" max="65535" required /></label>
-</div><div class="actions">${button("Cadastrar Dala", "submit-dala")}</div></form></section></div>`;
+</div><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p><div class="actions">${button("Cadastrar Dala", "submit-dala")}</div></form></section></div>`;
   }
   const cells = (equipment) => `<div class="dala-grid-row-v2 ${hasIndustrialPc ? "has-industrial-pc" : ""}" role="row">
 <div class="dala-grid-cell-v2" data-label="Nome" role="cell"><strong>${esc(equipment.name)}</strong></div>
@@ -46,9 +47,9 @@ ${hasIndustrialPc ? `<div class="dala-grid-cell-v2" data-label="PC industrial" r
 <div class="dala-grid-cell-v2" data-label="Ações" role="cell">${dalaReferenceActions(equipment, canManage, canDelete)}</div>
 </div>`;
   const content = loading
-    ? '<div class="panel page-loading dala-loading" role="status" aria-live="polite"><span class="loading-spinner" aria-hidden="true"></span><span>Carregando Dalas…</span></div>'
+    ? estadoCarregando("Carregando Dalas…", { className: "dala-loading" })
     : loadError
-    ? `<div class="panel page-error dala-load-error" role="alert"><h3>Não foi possível carregar as Dalas</h3><p>${esc(loadError)}</p><button class="button secondary" data-action="reload-dalas" type="button">Tentar novamente</button></div>`
+    ? estadoErro("Não foi possível carregar as Dalas", loadError, { label: "Tentar novamente", acao: "reload-dalas" }, { className: "dala-load-error" })
     : `<div class="dalas-grid-v2 ${hasIndustrialPc ? "has-industrial-pc" : ""}" role="table"><div class="dala-grid-head-v2 ${hasIndustrialPc ? "has-industrial-pc" : ""}" role="row">${["Nome", "Identificador", ...(hasIndustrialPc ? ["PC industrial"] : []), "IP do CLP", "Porta do CLP", "Status", "Ações"].map((label) => `<div role="columnheader">${label}</div>`).join("")}</div>${rows.length ? rows.map(cells).join("") : '<div class="dala-empty-v2" role="row"><div role="cell">Nenhuma Dala cadastrada.</div></div>'}</div>`;
   return `<section class="dalas-screen-v2" aria-labelledby="dalas-title"><div class="dalas-header-v2"><h2 id="dalas-title">Dalas</h2>${canManage ? button("Nova dala", "toggle-dala-form", "primary") : ""}</div>${content}</section>`;
 }

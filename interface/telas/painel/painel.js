@@ -2,6 +2,7 @@ import { button, esc } from "../../js/funcoes/html.js";
 import { numero, relativo } from "../../js/funcoes/formato.js?v=202609201000";
 import { rotuloEstado } from "../../js/funcoes/rotulos.js";
 import { deviceBadge, pageHeader, physicalStateBadge } from "../../js/funcoes/view.js?v=202609280006";
+import { estadoErro, estadoVazio } from "../../js/componentes/estados.js?v=202610060002";
 
 function dalaAlbumCard(equipment, machines, role) {
   const machine =
@@ -76,12 +77,12 @@ export function dashboard(store) {
   const content = loading
     ? `${dalaSkeletonCard()}${dalaSkeletonCard()}${dalaSkeletonCard()}`
     : store.state.equipmentsError
-      ? `<div class="panel page-error"><p>${esc(store.state.equipmentsError)}</p><button class="button secondary" data-action="reload-page" type="button">Tentar novamente</button></div>`
+      ? estadoErro("Não foi possível carregar o painel", store.state.equipmentsError, { label: "Tentar novamente", acao: "reload-page" })
       : sortedEquipments.length
         ? sortedEquipments
             .map((equipment) => dalaAlbumCard(equipment, machines, store.state.userRole))
             .join("")
-        : '<div class="panel placeholder-panel"><p>Nenhuma Dala cadastrada para esta empresa.</p></div>';
+        : estadoVazio("Nenhuma Dala cadastrada", "Cadastre uma Dala para acompanhar o estado e o progresso da operação.", canManageDalas ? { label: "Gerenciar Dalas", acao: "goto-dalas", tom: "secondary" } : null);
   return `${pageHeader("Esteiras e romaneios", "Operação por Dala", "Estado e progresso de cada operação em andamento.", canManageDalas ? button("Gerenciar Dalas", "goto-dalas", "secondary") : "")}
   <section class="dashboard-dalas">
     <div class="dala-album-grid ${loading ? "is-loading" : ""}">${content}</div>

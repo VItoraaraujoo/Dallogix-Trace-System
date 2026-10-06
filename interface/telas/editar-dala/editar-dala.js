@@ -15,6 +15,6 @@ export function dalaEdit(store) {
 <label>Endereço do CLP (IP ou nome)<input name="plc_ip" required value="${esc(dala.plc_ip || "")}" /></label>
 <label>Porta do CLP<input name="plc_port" type="number" min="1" max="65535" required value="${dala.plc_port || ""}" /></label>
 <input type="hidden" name="external_port" value="${esc(dala.external_port || "")}" />
-</div><div class="actions">${button("Salvar", "save-dala-edit")}</div></section>
+</div><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p><div class="actions">${button("Salvar", "save-dala-edit")}</div></section>
 </form>`;
 }
