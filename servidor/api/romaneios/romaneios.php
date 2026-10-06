@@ -124,16 +124,25 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $totalStatement->execute($params);
     $total = (int) $totalStatement->fetchColumn();
     $statement = $pdo->prepare(
-        "SELECT r.id, r.number, r.scheduled_date, r.status, r.expedidor,
+        "WITH carregamento_ativo AS (
+                SELECT c.id, c.romaneio_id, c.state, e.equipment_code,
+                       ROW_NUMBER() OVER (PARTITION BY c.romaneio_id ORDER BY c.id DESC) AS rn
+                FROM carregamentos c
+                JOIN romaneios r2 ON r2.id = c.romaneio_id
+                LEFT JOIN equipamentos e ON e.id = c.equipment_id
+                WHERE c.state <> 'FINALIZADO'
+                  AND r2.status NOT IN ('FINALIZADO', 'CANCELADO')
+            )
+         SELECT r.id, r.number, r.scheduled_date, r.status, r.expedidor,
                 (SELECT rt.plate FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS plate,
                 (SELECT rt.driver_name FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS driver_name,
                 COUNT(DISTINCT rt.id) AS trucks_count,
                 COALESCE(planned.planned_quantity, 0) AS planned_quantity,
                 COALESCE(loaded.loaded_quantity, 0) AS loaded_quantity,
                 COALESCE(occurrences.ocorrencias_count, 0) AS ocorrencias_count,
-                (SELECT c4.id FROM carregamentos c4 WHERE c4.romaneio_id = r.id AND c4.state <> 'FINALIZADO' AND r.status NOT IN ('FINALIZADO', 'CANCELADO') ORDER BY c4.id DESC LIMIT 1) AS active_loading_id,
-                (SELECT c5.state FROM carregamentos c5 WHERE c5.romaneio_id = r.id AND c5.state <> 'FINALIZADO' AND r.status NOT IN ('FINALIZADO', 'CANCELADO') ORDER BY c5.id DESC LIMIT 1) AS active_state,
-                (SELECT e.equipment_code FROM carregamentos c6 JOIN equipamentos e ON e.id = c6.equipment_id WHERE c6.romaneio_id = r.id AND c6.state <> 'FINALIZADO' AND r.status NOT IN ('FINALIZADO', 'CANCELADO') ORDER BY c6.id DESC LIMIT 1) AS active_equipment
+                ca.id AS active_loading_id,
+                ca.state AS active_state,
+                ca.equipment_code AS active_equipment
          FROM romaneios r
          LEFT JOIN romaneio_caminhoes rt ON rt.romaneio_id = r.id
          LEFT JOIN (
@@ -154,8 +163,10 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
              JOIN carregamentos c3 ON c3.id = o.carregamento_id
              GROUP BY c3.romaneio_id
          ) occurrences ON occurrences.romaneio_id = r.id
+         LEFT JOIN carregamento_ativo ca
+           ON ca.romaneio_id = r.id AND ca.rn = 1
          WHERE {$where}
-         GROUP BY r.id
+         GROUP BY r.id, ca.id, ca.state, ca.equipment_code
          ORDER BY r.scheduled_date DESC, r.id DESC
          LIMIT {$perPage} OFFSET {$offset}",
     );
