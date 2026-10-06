@@ -136,24 +136,10 @@ if ($storageRoot === false) {
     $respondJson(["error" => "Armazenamento de relatórios indisponível."], 503);
 }
 $reportRelativeDirectory = "company_" . (int) $user["company_id"] . "/reports";
-$reportDirectory = $storageRoot . "/" . $reportRelativeDirectory;
-if (!is_dir($reportDirectory)) {
-    $mkdirError = null;
-    set_error_handler(static function (int $severity, string $message) use (&$mkdirError): bool {
-        $mkdirError = $message;
-        return true;
-    });
-    $created = mkdir($reportDirectory, 0700, true);
-    restore_error_handler();
-    if (!$created && !is_dir($reportDirectory)) {
-        error_log("Relatório de auditoria: não foi possível criar {$reportRelativeDirectory}: " . ($mkdirError ?? "erro desconhecido"));
-        $respondJson(["error" => "Armazenamento de relatórios sem permissão de escrita; verifique a prontidão da instalação."], 503);
-    }
-}
-$resolvedReportDirectory = realpath($reportDirectory);
-if ($resolvedReportDirectory === false
-    || !str_starts_with($resolvedReportDirectory, $storageRoot . DIRECTORY_SEPARATOR)) {
-    $respondJson(["error" => "Pasta do relatório inválida."], 503);
+$resolvedReportDirectory = trace_prepare_image_storage_directory($storageRoot, $reportRelativeDirectory);
+if ($resolvedReportDirectory === null) {
+    error_log("Relatório de auditoria: diretório {$reportRelativeDirectory} indisponível ou sem permissão de escrita.");
+    $respondJson(["error" => "Armazenamento de relatórios sem permissão de escrita; verifique a prontidão da instalação."], 503);
 }
 $reportRelativePath = $reportRelativeDirectory . "/romaneio-" . (int) $romaneioId . "-auditoria.pdf";
 $reportPath = $resolvedReportDirectory . DIRECTORY_SEPARATOR . basename($reportRelativePath);

@@ -1,6 +1,51 @@
 <?php
 declare(strict_types=1);
 
+/**
+ * Prepara e resolve um diretório de armazenamento criado pela aplicação.
+ * Retorna null para caminhos inválidos, links simbólicos ou diretórios sem
+ * permissão de escrita, mantendo o erro controlável pelo endpoint chamador.
+ */
+function trace_prepare_image_storage_directory(string $storageDirectory, string $relativeDirectory): ?string
+{
+    $storageRoot = realpath($storageDirectory);
+    if ($storageRoot === false || trim($relativeDirectory) === '') {
+        return null;
+    }
+
+    $relative = ltrim($relativeDirectory, '/');
+    if (str_starts_with($relative, 'armazenamento/')) {
+        $relative = substr($relative, strlen('armazenamento/'));
+    }
+    if (preg_match('/\A(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\z/', $relative) !== 1) {
+        return null;
+    }
+
+    $candidate = $storageRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $relative);
+    if (is_link($candidate)) {
+        return null;
+    }
+    if (!is_dir($candidate)) {
+        set_error_handler(static function (): bool {
+            return true;
+        });
+        $created = mkdir($candidate, 0700, true);
+        restore_error_handler();
+        if (!$created && !is_dir($candidate)) {
+            return null;
+        }
+    }
+
+    $resolved = realpath($candidate);
+    if ($resolved === false
+        || !str_starts_with($resolved, $storageRoot . DIRECTORY_SEPARATOR)
+        || !is_dir($resolved)
+        || !is_writable($resolved)) {
+        return null;
+    }
+    return $resolved;
+}
+
 /** Resolve somente arquivos existentes dentro do armazenamento de evidências. */
 function trace_image_storage_path(string $storageDirectory, string $storedPath): ?string
 {

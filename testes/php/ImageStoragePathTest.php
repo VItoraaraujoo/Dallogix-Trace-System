@@ -7,6 +7,23 @@ require_once __DIR__ . '/../../scripts/image_storage_path.php';
 
 final class ImageStoragePathTest extends TestCase
 {
+    public function testPreparaDiretorioDeRelatorioDentroDaRaiz(): void
+    {
+        $storage = sys_get_temp_dir() . '/trace-report-directory-' . bin2hex(random_bytes(6));
+        mkdir($storage, 0700, true);
+        try {
+            $resolved = trace_prepare_image_storage_directory($storage, 'company_7/reports');
+            self::assertSame(realpath($storage . '/company_7/reports'), $resolved);
+            self::assertTrue(is_writable((string) $resolved));
+            self::assertNull(trace_prepare_image_storage_directory($storage, '../outside'));
+            self::assertNull(trace_prepare_image_storage_directory($storage, 'company_7/../outside'));
+        } finally {
+            rmdir($storage . '/company_7/reports');
+            rmdir($storage . '/company_7');
+            rmdir($storage);
+        }
+    }
+
     public function testResolveArquivoRelativoNaPastaDeEvidencias(): void
     {
         $storage = sys_get_temp_dir() . '/trace-image-path-' . bin2hex(random_bytes(6));
