@@ -1,6 +1,6 @@
 # Plano de execução consolidado
 
-Este registro centraliza a execução das pendências reunidas nas conversas do projeto. O estado abaixo corresponde à `master` no commit de código `bc7cd745`; a release imutável `v1.0.103` foi gerada a partir desse commit e publicada no Central após a validação do pacote, das migrações e da saúde dos serviços.
+Este registro centraliza a execução das pendências reunidas nas conversas do projeto. A release imutável `v1.0.103` foi gerada a partir do commit de código `bc7cd745` e publicada no Central após a validação do pacote, das migrações e da saúde dos serviços; a `master` também contém o registro documental posterior dessa publicação.
 
 ## Concluído na master e publicado
 
