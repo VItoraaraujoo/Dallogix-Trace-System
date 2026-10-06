@@ -14,6 +14,8 @@ Este registro centraliza a execução das pendências reunidas nas conversas do 
 ## Evidência local
 
 - `bash testes/qualidade.sh`: passou.
+- `vendor/bin/phpunit --testdox`: passou localmente com 32 testes e 185 asserções.
+- `vendor/bin/phpstan analyse --no-progress`: passou sem erros.
 - `node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs testes/estado-fisico.mjs`: 26 testes passaram.
 - `python3 testes/modbus-transporte.py`: 5 testes passaram com Modbus virtual.
 - `python3 testes/production_backup.py`: restaurou o backup e comparou o conteúdo das 32 tabelas em banco isolado.
@@ -28,7 +30,6 @@ Este registro centraliza a execução das pendências reunidas nas conversas do 
 ## Aguardando ambiente ou decisão externa
 
 - **PC industrial Windows:** a versão `v1.0.97` está disponível no Central, mas o PC de teste está offline no Tailscale desde `2026-10-06T06:19:40Z`; a tentativa SSH expirou. A instalação e o reinício ainda não podem ser declarados até a máquina voltar à rede.
-- **PHPUnit/PHPStan:** Composer e `vendor/` não estão instalados neste checkout; esses dois jobs ficam para o CI antes de uma release.
 - **CLP real:** receber variante exata, mapa oficial de registradores, sinais, intertravamentos e comportamento seguro em perda de comunicação. Até lá, comandos físicos continuam bloqueados.
 - **Câmera real:** receber modelo, endereço, protocolo e credencial técnica; depois validar captura e latência no ponto de instalação.
 - **Portal administrativo:** a aplicação já tem área `ADMIN_DALLOGIX` para empresas, usuários e diagnóstico/logs. A expansão para gestão dos servidores, integrações e atualização remota ainda requer definir hospedagem/domínio, autenticação, ações permitidas e separação de dados.
