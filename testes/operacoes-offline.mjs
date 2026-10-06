@@ -9,7 +9,12 @@ const bufferSource = readFileSync(new URL("../interface/js/classes/OfflineOperat
   .replace(/^import .*ClienteApi\.js[^;]*;\n/m, `import { ClienteApi } from ${JSON.stringify(clientModuleUrl)};\n`);
 const bufferModuleUrl = `data:text/javascript;base64,${Buffer.from(bufferSource).toString("base64")}`;
 const { OfflineOperationBuffer, secureRandomId } = await import(bufferModuleUrl);
-const syncSource = readFileSync(new URL("../interface/js/servicos/ServicoSincronizacao.js", import.meta.url), "utf8");
+const loggerSource = readFileSync(new URL("../interface/js/utilitarios/LogFrontend.js", import.meta.url), "utf8");
+const syncSource = readFileSync(new URL("../interface/js/servicos/ServicoSincronizacao.js", import.meta.url), "utf8")
+  // O serviço é carregado como data: para isolar o armazenamento. Incluir o
+  // logger nessa mesma unidade mantém o teste fiel sem depender de uma URL
+  // relativa que o Node não consegue resolver a partir de data:.
+  .replace(/^import .*LogFrontend\.js[^;]*;\n/m, `${loggerSource}\n`);
 const syncModuleUrl = `data:text/javascript;base64,${Buffer.from(syncSource).toString("base64")}`;
 const storeSource = readFileSync(new URL("../interface/js/classes/ArmazenamentoTrace.js", import.meta.url), "utf8")
   .replace(/"\.\/OfflineOperationBuffer\.js\?v=[^"]+"/, JSON.stringify(bufferModuleUrl))

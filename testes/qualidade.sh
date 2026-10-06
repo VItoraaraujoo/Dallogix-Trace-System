@@ -49,6 +49,7 @@ node --test testes/verificacao-producao.mjs testes/html-seguro.mjs
 node --test testes/cliente-api.mjs testes/operacoes-offline.mjs testes/servico-emergencia.mjs testes/servico-operacao.mjs testes/servico-sincronizacao.mjs testes/componentes-estados.mjs testes/validadores.mjs testes/armazenamento-permissoes.mjs
 node --test testes/armazenamento-resposta.mjs
 node --test testes/comandos-concorrencia.mjs
+node --test testes/log-frontend.mjs
 bash -n scripts/check_production_env.sh
 bash -n scripts/check_physical_deployment.sh scripts/launch_kiosk.sh
 sh -n integracoes/node-red/entrypoint.sh

@@ -1,3 +1,5 @@
+import { logFrontend } from "../utilitarios/LogFrontend.js?v=202610060006";
+
 /** Controla a atualização operacional sem acoplar transporte e renderização. */
 export function createOperationalRealtimeController({ store, getPage, render, refreshWorkLiveView, workStructureSignature, getViewSignature }) {
   let eventSource = null;
@@ -27,7 +29,8 @@ export function createOperationalRealtimeController({ store, getPage, render, re
         ]);
         if (workStructureSignature() !== getViewSignature()) render();
         else refreshWorkLiveView();
-      } catch (_) {
+      } catch (error) {
+        logFrontend.aviso("tempo-real.consulta", error);
         /* mantém o último estado visível */
       } finally {
         polling = false;
@@ -52,7 +55,8 @@ export function createOperationalRealtimeController({ store, getPage, render, re
             store.loadPlcCommandStatus(store.state.loadingId),
             store.loadPendingReadings(),
           ]);
-        } catch (_) {
+        } catch (error) {
+          logFrontend.aviso("tempo-real.status", error);
           /* Mantém o último retorno visível se uma consulta falhar. */
         }
       }

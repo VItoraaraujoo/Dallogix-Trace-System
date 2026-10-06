@@ -5,10 +5,10 @@ import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
 import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610060001";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610052315-command-queue";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610060006";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
-import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610052315-command-queue";
+import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610060006";
 import { dataHora, numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
@@ -271,7 +271,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610060005").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610060006").then((registration) => {
     const avisarAtualizacao = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       notificar("Nova versão da interface está disponível.", "informacao", {

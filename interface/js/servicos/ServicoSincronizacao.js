@@ -11,6 +11,8 @@ const mensagensHttp = new Map([
   [504, "O servidor demorou para responder."],
 ]);
 
+import { logFrontend } from "../utilitarios/LogFrontend.js?v=202610060006";
+
 async function exigirRespostaHttp(response, fallback) {
   if (response?.ok) return response;
   let detalhe = null;
@@ -113,10 +115,17 @@ export class ServicoSincronizacao {
           }
         }
       } catch (error) {
-        if (!fechado) onError?.(error);
+        if (!fechado) {
+          logFrontend.aviso("sincronizacao.eventos", error);
+          onError?.(error);
+        }
         return;
       }
-      if (!fechado) onError?.(new Error("Conexão de eventos encerrada."));
+      if (!fechado) {
+        const error = new Error("Conexão de eventos encerrada.");
+        logFrontend.aviso("sincronizacao.eventos", error);
+        onError?.(error);
+      }
     };
     void escutar();
     return { close() { fechado = true; controller.abort(); } };
