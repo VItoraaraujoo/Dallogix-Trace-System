@@ -1,6 +1,6 @@
 # Plano de execução consolidado
 
-Este registro centraliza a execução das pendências reunidas nas conversas do projeto. O estado abaixo corresponde à `master` no commit `1589bf1` e à release `v1.0.98`, publicada no Central após a validação do pacote, das migrações e da saúde dos serviços.
+Este registro centraliza a execução das pendências reunidas nas conversas do projeto. O estado abaixo corresponde à `master` no commit `f68985c` e à release `v1.0.98`, publicada no Central após a validação do pacote, das migrações e da saúde dos serviços.
 
 ## Concluído na master e publicado
 
@@ -11,6 +11,7 @@ Este registro centraliza a execução das pendências reunidas nas conversas do 
 5. **Backup:** a homologação compara hashes de cada linha por tabela após restaurar em banco descartável.
 6. **Tempo real operacional:** eventos SSE agora confirmam o carregamento pelo endpoint HTTP antes de limpar uma operação quando um quadro transitório chega vazio. Isso evita que o botão de parada desapareça ou fique bloqueado até recarregar a tela.
 7. **Acessibilidade operacional:** progresso e estado do dispositivo expõem `role`, valores ARIA e regiões vivas para leitores de tela sem alterar o contrato de operação.
+8. **Qualidade do repositório:** o commit `f68985c` diferencia ausência de ocorrências de falha do scanner de segredos e cobre os dois caminhos com teste automatizado. Essa correção é de qualidade do repositório; não altera o pacote v1.0.98 nem exige atualização do PC.
 
 ## Evidência local
 

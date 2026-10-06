@@ -24,6 +24,9 @@ GitHub Actions.
 - O scanner de segredos passou no código atual e também foi exercitado com uma
   falha controlada do `git grep`: “nenhuma ocorrência” retorna sucesso, enquanto
   erro do scanner retorna código 2 e mensagem explícita.
+- O commit posterior `f68985c` contém essa correção de qualidade e seu teste;
+  a release instalada no Central permanece v1.0.98, pois o ajuste não altera o
+  pacote do PC industrial.
 
 ## Evidências da base antes da alteração
 
