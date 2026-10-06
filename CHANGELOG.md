@@ -1,5 +1,16 @@
 # Histórico de alterações
 
+## v1.0.109 — 06/10/2026
+
+- A auditoria de controle de acesso agora resolve os wrappers da API e analisa
+  as dependências PHP locais carregadas por `require __DIR__`, eliminando
+  avisos falsos de bootstrap ausente.
+- Corrigida a mensagem de sucesso da auditoria para usar a grafia completa de
+  autorização.
+- Adicionada regressão automatizada para impedir que esse diagnóstico volte a
+  ignorar endpoints delegados.
+- Publicação pendente de validação pelo workflow de produção.
+
 ## v1.0.108 — 06/10/2026
 
 - O atualizador do PC industrial inicia o transcript antes das validações de

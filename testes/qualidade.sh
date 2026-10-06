@@ -53,6 +53,7 @@ node --test testes/operacao-comandos-ui.mjs
 node --test testes/log-frontend.mjs
 node --test testes/tempo-real.mjs
 node --test testes/security-scan.mjs
+node --test testes/auditoria-controle-acesso.mjs
 bash -n scripts/check_production_env.sh
 bash -n scripts/check_physical_deployment.sh scripts/launch_kiosk.sh
 sh -n integracoes/node-red/entrypoint.sh
