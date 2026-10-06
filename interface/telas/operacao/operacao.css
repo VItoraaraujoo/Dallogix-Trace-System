@@ -29,7 +29,7 @@ body.work-page:has(.work-operation-screen) .work-operation-screen {
 
 body.work-page:has(.work-operation-screen) .work-screen-header {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) minmax(276px, 320px);
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: start;
   gap: 16px;
 }
@@ -61,12 +61,7 @@ body.work-page:has(.work-operation-screen) .work-header-state {
 }
 
 body.work-page:has(.work-operation-screen) .work-screen-actions {
-  display: flex;
-  width: min(100%, 320px);
-  min-width: 0;
-  align-items: stretch;
-  justify-content: flex-end;
-  gap: 8px;
+  display: none;
 }
 
 body.work-page:has(.work-operation-screen) .work-header-statuses {
@@ -432,7 +427,7 @@ body.work-page:has(.work-operation-screen) .work-machine-panel {
   height: auto;
   align-self: start;
   flex-direction: column;
-  gap: 12px;
+  gap: 10px;
   margin: 0;
   padding: 14px;
   overflow: visible;
@@ -440,6 +435,39 @@ body.work-page:has(.work-operation-screen) .work-machine-panel {
   border-radius: 14px;
   background: #fff;
   box-shadow: 0 8px 22px rgba(16, 43, 59, 0.07);
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-panel > .work-header-statuses {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+  margin: 0;
+  padding: 10px;
+  background: #f7fbfc;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-panel > .work-header-statuses .status-compact {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-panel > .work-header-statuses .status-compact span {
+  min-height: 32px;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-panel > .panel-heading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-heading-actions {
+  flex: 0 0 auto;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-heading-actions .button {
+  min-height: 34px;
+  padding: 7px 10px;
+  font-size: 12px;
 }
 
 body.work-page:has(.work-operation-screen) .work-items-panel {
@@ -606,26 +634,12 @@ body.work-page:has(.work-operation-screen) .work-machine-panel .emergency-compac
     text-align: left;
   }
 
-  body.work-page:has(.work-operation-screen) .work-screen-actions {
-    grid-column: 2;
-    width: 100%;
-    justify-content: flex-start;
-  }
-
   body.work-page:has(.work-operation-screen) .work-manual-reading,
   body.work-page:has(.work-operation-screen) .manual-operation-reading-form {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  body.work-page:has(.work-operation-screen) .work-screen-actions {
-    align-items: stretch;
-  }
-
-  body.work-page:has(.work-operation-screen) .work-header-statuses {
-    min-width: 0;
-  }
-
-  body.work-page:has(.work-operation-screen) .work-header-statuses .status-compact {
+  body.work-page:has(.work-operation-screen) .work-machine-panel > .work-header-statuses .status-compact {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
@@ -635,7 +649,7 @@ body.work-page:has(.work-operation-screen) .work-machine-panel .emergency-compac
 }
 
 @media (max-width: 460px) {
-  body.work-page:has(.work-operation-screen) .work-header-statuses .status-compact,
+  body.work-page:has(.work-operation-screen) .work-machine-panel > .work-header-statuses .status-compact,
   body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls {
     grid-template-columns: minmax(0, 1fr);
   }

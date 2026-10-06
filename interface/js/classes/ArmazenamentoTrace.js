@@ -593,6 +593,17 @@ export class ArmazenamentoTrace {
     const terminal = new Set(["APLICADO", "REJEITADO", "ERRO", "EXPIRADO"]);
     const currentStatus = String(currentCommand?.status || "").toUpperCase();
     const nextStatus = String(nextCommand?.status || "").toUpperCase();
+    // Logo após registrar uma escrita, o endpoint de consulta pode responder
+    // sem o último comando enquanto a fila do gateway ainda é atualizada.
+    // Não apague o pedido local nesse intervalo: a tela precisa continuar
+    // permitindo a parada que substitui um início ainda pendente.
+    if (
+      currentCommand &&
+      !nextCommand &&
+      ["PENDENTE", "PROCESSANDO"].includes(currentStatus)
+    ) {
+      return currentCommand;
+    }
     // Uma consulta antiga pode retornar PENDENTE depois de o gateway já ter
     // confirmado o mesmo comando. Nunca regredir o estado visível nesse caso.
     if (
