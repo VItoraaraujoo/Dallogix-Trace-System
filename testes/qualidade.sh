@@ -46,7 +46,7 @@ python3 -m py_compile scripts/test_modbus_virtual.py integracoes/modbus-virtual/
 bash testes/sync-github-fetch.sh
 node --test testes/atualizador-permissoes.mjs
 node --test testes/verificacao-producao.mjs testes/html-seguro.mjs
-node --test testes/cliente-api.mjs testes/operacoes-offline.mjs
+node --test testes/cliente-api.mjs testes/operacoes-offline.mjs testes/servico-emergencia.mjs
 bash -n scripts/check_production_env.sh
 bash -n scripts/check_physical_deployment.sh scripts/launch_kiosk.sh
 sh -n integracoes/node-red/entrypoint.sh

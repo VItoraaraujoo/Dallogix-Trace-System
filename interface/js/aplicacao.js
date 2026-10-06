@@ -3,6 +3,7 @@ import {
 } from "./sessao.js?v=202609222100";
 import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
 import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610060001";
+import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610052315-command-queue";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
@@ -38,6 +39,7 @@ configurarSessaoPorAba();
 
 const store = new ArmazenamentoTrace();
 const api = new ClienteApi();
+const servicoEmergencia = new ServicoEmergencia(store);
 let renderRequestId = 0;
 let workViewSignature = "";
 const screens = {
@@ -1640,7 +1642,7 @@ function bindActions() {
         store.state.commandInFlight = true;
         if (currentPage === "work") render();
         try {
-          await store.requestMachineEmergency();
+          await servicoEmergencia.solicitar();
           await store.loadActiveLoading();
           render();
         } catch (error) {
@@ -1652,7 +1654,7 @@ function bindActions() {
       } else if (action === "unlock") {
         node.disabled = true;
         try {
-          await store.unlockMachine();
+          await servicoEmergencia.liberar();
           render();
         } catch (error) {
           notificar(error.message);
