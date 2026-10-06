@@ -586,7 +586,10 @@ function refreshWorkLiveView() {
     });
   });
   const progressBar = document.querySelector('[data-live="progress-bar"]');
-  if (progressBar) progressBar.style.width = `${percent}%`;
+  if (progressBar) {
+    progressBar.style.width = `${percent}%`;
+    progressBar.parentElement?.setAttribute("aria-valuenow", String(percent));
+  }
   const endNotice = document.querySelector('[data-live="end-notice"]');
   if (endNotice) {
     const threshold = planned > 0 ? Math.max(1, Math.ceil(planned * 0.1)) : 0;
