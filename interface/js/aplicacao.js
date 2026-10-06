@@ -635,10 +635,19 @@ function refreshWorkLiveView() {
     }),
   );
   document.querySelectorAll("[data-live-status]").forEach((node) => {
-    const current = statusByType[node.dataset.liveStatus] || {
-      value: "NAO_REGISTRADO",
-      presentation: deviceStatusSummary("NAO_REGISTRADO"),
-    };
+    const type = node.dataset.liveStatus;
+    const equipmentId = Number(node.dataset.liveStatusEquipment) || null;
+    const device = equipmentId
+      ? statuses.find((item) =>
+          item.device_type === type && Number(item.equipment_id) === equipmentId,
+        )
+      : null;
+    const current = device
+      ? { value: device.status, presentation: deviceStatusSummary(device.status) }
+      : statusByType[type] || {
+          value: "NAO_REGISTRADO",
+          presentation: deviceStatusSummary("NAO_REGISTRADO"),
+        };
     const presentation = current.presentation;
     const binary = node.dataset.liveStatusMode === "binary";
     const online = ["ONLINE", "LOCAL", "OK"].includes(
@@ -819,6 +828,24 @@ function bindActions() {
       }
       if (action === "reload-page") {
         await renderPage();
+        return;
+      }
+      if (action === "reload-monitoring") {
+        if (node.dataset.busy === "1") return;
+        node.dataset.busy = "1";
+        node.disabled = true;
+        try {
+          await Promise.all([
+            store.loadMonitoring(),
+            store.loadSyncStatus(),
+            store.loadDalaStatuses(),
+          ]);
+          render();
+        } catch (error) {
+          notificar(error.message || "Não foi possível atualizar os estados.");
+          node.disabled = false;
+          node.dataset.busy = "0";
+        }
         return;
       }
       if (action === "toggle-menu") {

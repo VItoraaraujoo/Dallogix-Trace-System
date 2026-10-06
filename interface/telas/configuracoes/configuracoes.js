@@ -2,32 +2,71 @@ import { button, esc } from "../../js/funcoes/html.js";
 import { dataHora } from "../../js/funcoes/formato.js?v=202609201000";
 import { pageHeader } from "../../js/funcoes/view.js?v=202610061745";
 
+const DEVICE_TYPES = [
+  ["SENSOR", "Sensor", "Detecção de sacos"],
+  ["SCANNER", "Scanner", "Leitura de código"],
+  ["CLP", "CLP", "Controle da esteira"],
+  ["CAMERA", "Câmera", "Registro visual"],
+  ["SERVER", "Servidor", "Serviço central"],
+];
+
+function deviceStatus(value) {
+  const normalized = String(value || "NAO_REGISTRADO").trim().toUpperCase();
+  const online = ["ONLINE", "LOCAL", "OK"].includes(normalized);
+  const tone = online ? "online" : normalized === "ERRO" ? "error" : "offline";
+  return { online, tone, label: online ? "ON" : "OFF" };
+}
+
 function deviceStatusPanel(store) {
   const selectedEquipmentId = Number(store.state.equipmentId) || null;
   const devices = (store.state.monitoring?.dispositivos || []).filter(
     (item) => !selectedEquipmentId || Number(item.equipment_id) === selectedEquipmentId,
   );
-  const known = [
-    ["SENSOR", "Sensor"],
-    ["SCANNER", "Scanner"],
-    ["CLP", "CLP"],
-    ["CAMERA", "Câmera"],
-    ["SERVER", "Servidor"],
-  ];
-  const online = (value) => ["ONLINE", "LOCAL", "OK"].includes(
-    String(value || "").trim().toUpperCase(),
+  const equipments = new Map(
+    (store.state.equipments || []).map((equipment) => [
+      Number(equipment.id),
+      equipment.equipment_code || equipment.name || `Dala ${equipment.id}`,
+    ]),
   );
   const updatedAt = store.state.monitoringUpdatedAt
     ? `Atualizado ${dataHora(store.state.monitoringUpdatedAt)}`
     : "Sem atualização confirmada";
-  const cards = known.map(([type, label]) => {
-    const value = type === "SERVER"
-      ? (store.state.serverStatus || "DESCONHECIDO")
-      : (devices.find((item) => item.device_type === type)?.status || "NAO_REGISTRADO");
-    const isOnline = online(value);
-    return `<span class="settings-device-status-card"><strong>${label}</strong><b class="status-value status-${isOnline ? "online" : "offline"}" data-live-status="${type}" data-live-status-mode="binary">${isOnline ? "ON" : "OFF"}</b></span>`;
+  const records = DEVICE_TYPES.flatMap(([type, label, description]) => {
+    if (type === "SERVER") {
+      return [{ type, label, description, value: store.state.serverStatus || "DESCONHECIDO", device: null }];
+    }
+    const matches = devices.filter((item) => item.device_type === type);
+    return matches.length
+      ? matches.map((device) => ({ type, label, description, value: device.status, device }))
+      : [{ type, label, description, value: "NAO_REGISTRADO", device: null }];
+  });
+  const onlineCount = records.filter((record) => deviceStatus(record.value).online).length;
+  const attentionCount = records.length - onlineCount;
+  const cards = records.map(({ type, label, description, value, device }) => {
+    const status = deviceStatus(value);
+    const equipmentLabel = device?.equipment_id
+      ? equipments.get(Number(device.equipment_id)) || `Dala ${device.equipment_id}`
+      : "Visão central";
+    const lastSignal = device?.last_seen_at
+      ? `Último sinal ${dataHora(device.last_seen_at)}`
+      : type === "SERVER"
+        ? "Verificado nesta consulta"
+        : "Sem sinal confirmado";
+    const equipmentAttribute = device?.equipment_id
+      ? ` data-live-status-equipment="${Number(device.equipment_id)}"`
+      : "";
+    return `<article class="settings-device-status-card ${status.tone}">
+      <div class="settings-device-status-identity"><span class="settings-device-status-mark" aria-hidden="true">${esc(label.slice(0, 1))}</span><div><strong>${esc(label)}</strong><small>${esc(description)}</small><small>${esc(equipmentLabel)}</small></div></div>
+      <div class="settings-device-status-result"><b class="status-value status-${status.tone === "error" ? "offline" : status.tone}" data-live-status="${type}" data-live-status-mode="binary"${equipmentAttribute}>${status.label}</b><small>${esc(lastSignal)}</small></div>
+    </article>`;
   }).join("");
-  return `<section class="panel settings-device-status-panel" aria-label="Status dos dispositivos"><div class="panel-heading"><div><span class="kicker">Status da máquina</span><h3>Dispositivos e serviços</h3></div><small data-live="monitoring-updated">${esc(updatedAt)}</small></div><div class="settings-device-status-grid">${cards}</div><p>Os estados são informativos e vêm do último sinal confirmado pelo PC industrial.</p></section><br>`;
+  const attentionText = attentionCount ? `${attentionCount} aguardando sinal` : "Todos os pontos respondendo";
+  return `<section class="panel settings-device-status-panel" aria-label="Status dos dispositivos">
+    <div class="settings-device-status-heading"><div><span class="kicker">Status da máquina</span><h3>Dispositivos e serviços</h3><p>Leitura consolidada do PC industrial e da comunicação central.</p></div><div class="settings-device-status-actions"><span class="settings-device-status-updated" data-live="monitoring-updated">${esc(updatedAt)}</span>${button("Atualizar agora", "reload-monitoring", "secondary")}</div></div>
+    <div class="settings-device-status-summary"><strong>${onlineCount}/${records.length}</strong><span>pontos online</span><i aria-hidden="true"></i><span>${esc(attentionText)}</span></div>
+    <div class="settings-device-status-grid">${cards}</div>
+    <p class="settings-device-status-note">O estado é informativo e representa o último sinal confirmado. Um ponto sem sinal não altera os comandos da Dala.</p>
+  </section><br>`;
 }
 
 // Conectividade local/remota, Dalas (somente leitura) e importação de PDF.
