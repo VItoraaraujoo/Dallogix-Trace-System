@@ -29,7 +29,7 @@ O smoke test verifica o certificado TLS, saúde, autenticação, rejeição da s
 padrão, atributos de cookies, proteção CSRF, criação/leitura de produto, logout
 e restrição do operador. Cria um produto identificado como teste por execução.
 O teste de backup valida checksum e restaura em um banco temporário, comparando
-as contagens de todas as tabelas. O banco temporário é removido ao final.
+linha a linha todas as tabelas. O banco temporário é removido ao final.
 A suíte `regressao_completa.sh` usa senhas padrão exclusivamente na fixture local
 descartável e envia tokens CSRF; não deve ser executada contra produção. Antes
 de qualquer chamada à API, ela exige `TRACE_REGRESSION_DISPOSABLE=1` e uma

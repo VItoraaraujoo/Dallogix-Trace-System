@@ -22,7 +22,7 @@ Este registro centraliza a execução das pendências reunidas nas conversas do 
 - `vendor/bin/phpstan analyse --no-progress`: passou sem erros.
 - `node --test testes/gateway-clp.mjs testes/operacoes-offline.mjs testes/camera-upload-http.mjs testes/estado-fisico.mjs`: 26 testes passaram.
 - `python3 testes/modbus-transporte.py`: 5 testes passaram com Modbus virtual.
-- `python3 testes/production_backup.py`: restaurou o backup e comparou o conteúdo das 32 tabelas em banco isolado.
+- `python3 testes/production_backup.py`: em 06/10/2026 restaurou o backup e comparou linha a linha o conteúdo das 34 tabelas em banco isolado.
 - `python3 testes/production_smoke.py`: passou login, TLS local, CSRF, cookies, permissões e leitura/gravação no ambiente descartável.
 - O atualizador validou assinatura, hash, limpeza do bloqueio e seleção de Compose em dry-run com Bash 3.2, nos modos Central e industrial/local.
 - `bash scripts/security_scan.sh` e o teste de falha controlada do `git grep`: passaram; falha do scanner agora interrompe a execução com código distinto de “nenhuma ocorrência”.
