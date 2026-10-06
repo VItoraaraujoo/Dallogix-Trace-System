@@ -5,6 +5,16 @@ expõe o commit efetivo em `/api/health.php` (`TRACE_COMMIT`); esse identificado
 é a referência para comparar o histórico abaixo com o código servido. Ao criar
 um release, mova os itens para uma seção com a versão/tag e a data reais.
 
+## v1.0.105 — 06/10/2026
+
+- A tela de alertas passou a mostrar a idade do evento mais antigo da fila e a
+  quantidade de eventos na fila morta, com destaque quando o limite de idade é
+  ultrapassado.
+- O endpoint de status da sincronização agora entrega essa mesma saúde da fila
+  (`oldest_at`, idade, limite, estado obsoleto e fila morta) para diagnóstico
+  sem depender de logs ou de uma suposição de conectividade.
+- Publicação pendente de validação pelo workflow de produção.
+
 ## v1.0.104 — 06/10/2026
 
 - Impedida a criação de diretórios de relatório através de links simbólicos em

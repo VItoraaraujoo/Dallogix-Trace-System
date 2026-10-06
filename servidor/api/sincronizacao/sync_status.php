@@ -28,6 +28,29 @@ $recent = $pdo->prepare(
     "SELECT q.id, q.aggregate_type, q.aggregate_id, q.status, q.attempts, q.transient_attempts, q.last_error, q.available_at, q.created_at FROM fila_sincronizacao q WHERE {$scope} AND q.status IN ('PENDENTE', 'ERRO') ORDER BY q.id DESC LIMIT 20",
 );
 $recent->execute($params);
+$queueAge = $pdo->prepare(
+    "SELECT MIN(CASE WHEN q.status IN ('PENDENTE', 'PROCESSANDO', 'ERRO') THEN q.created_at END) AS oldest_at
+     FROM fila_sincronizacao q WHERE {$scope}",
+);
+$queueAge->execute($params);
+$queueAgeRow = $queueAge->fetch() ?: [];
+$oldestQueueAt = $queueAgeRow["oldest_at"] ?? null;
+$oldestQueueAgeSeconds = null;
+if ($oldestQueueAt !== null && trim((string) $oldestQueueAt) !== "") {
+    try {
+        $oldestQueueDate = new DateTimeImmutable((string) $oldestQueueAt, new DateTimeZone("UTC"));
+        $oldestQueueAgeSeconds = max(0, time() - $oldestQueueDate->getTimestamp());
+    } catch (Throwable $exception) {
+        $oldestQueueAgeSeconds = null;
+    }
+}
+$maximumQueueAgeSeconds = max(60, (int) (getenv("HEALTH_MAX_QUEUE_AGE_SECONDS") ?: 604800));
+$deadLetter = $pdo->prepare(
+    "SELECT COUNT(*) FROM sync_dead_letter_queue
+     WHERE resolved_at IS NULL AND company_id = :company_id",
+);
+$deadLetter->execute($params);
+$deadLetterPending = (int) $deadLetter->fetchColumn();
 $remoteUrl = trim((string) (getenv("SYNC_REMOTE_BATCH_URL") ?: ""));
 if ($remoteUrl === "") {
     $remoteUrl = trim((string) (getenv("SYNC_REMOTE_URL") ?: ""));
@@ -116,6 +139,13 @@ json_response([
     "data" => [
         "summary" => $summary,
         "recent" => $recent->fetchAll(),
+        "queue_health" => [
+            "oldest_at" => $oldestQueueAt,
+            "oldest_age_seconds" => $oldestQueueAgeSeconds,
+            "maximum_age_seconds" => $maximumQueueAgeSeconds,
+            "stale" => $oldestQueueAgeSeconds !== null && $oldestQueueAgeSeconds > $maximumQueueAgeSeconds,
+            "dead_letter_pending" => $deadLetterPending,
+        ],
         "remote_configured" => $remoteConfigured,
         "central_sync" => $centralSync,
         "checked_at" => date("c"),
