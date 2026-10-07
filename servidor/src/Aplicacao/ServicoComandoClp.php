@@ -446,11 +446,6 @@ final class ServicoComandoClp
         return $statement->fetch();
     }
 
-    private function possuiComandoPendente(int $loadingId): bool
-    {
-        return $this->comandoPendente($loadingId) !== false;
-    }
-
     private function comandoPendente(int $loadingId, ?string $command = null): array|false
     {
         $where = "carregamento_id = :carregamento_id AND status IN ('PENDENTE', 'PROCESSANDO')";
