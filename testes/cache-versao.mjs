@@ -4,7 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
-const versao = "202610061745";
+const versao = "202610062110";
 
 test("o shell invalida cache quando a aplicação muda", () => {
   const serviceWorker = readFileSync(join(raiz, "service-worker.js"), "utf8");

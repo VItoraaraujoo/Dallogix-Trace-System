@@ -217,9 +217,9 @@ final class ServicoComandoClp
                     404,
                 );
             }
-            if ($loading["state"] !== "PAUSADO") {
+            if (in_array($loading["state"], ["FINALIZADO", "EMERGENCIA"], true)) {
                 throw new ExcecaoComandoClp(
-                    "Para alterar a reversão, pare a máquina primeiro.",
+                    "Não é possível alterar a reversão neste estado do carregamento.",
                     409,
                 );
             }
@@ -227,11 +227,50 @@ final class ServicoComandoClp
                 (int) $user["company_id"],
                 (int) $loading["equipment_id"],
             );
-            if ($this->possuiComandoPendente($loadingId)) {
-                throw new ExcecaoComandoClp(
-                    "Já existe um comando de reversão aguardando o gateway industrial.",
-                    409,
+            $pending = $this->comandoPendente($loadingId);
+            if ($pending) {
+                if ($pending["status"] !== "PENDENTE") {
+                    throw new ExcecaoComandoClp(
+                        "O comando já foi reservado pelo gateway industrial. Aguarde a confirmação antes de alterar a reversão.",
+                        409,
+                    );
+                }
+                $substituiveis = [
+                    "INICIAR_CARREGAMENTO",
+                    "PAUSAR_CARREGAMENTO",
+                    ...self::COMANDOS_DE_REVERSAO,
+                ];
+                if (!in_array($pending["command"], $substituiveis, true)) {
+                    throw new ExcecaoComandoClp(
+                        "Existe uma solicitação de segurança aguardando o gateway industrial.",
+                        409,
+                    );
+                }
+                $cancel = $this->connection->prepare(
+                    "UPDATE solicitacoes_comandos_clp
+                     SET status = 'REJEITADO', completed_at = NOW(3),
+                         response_message = :message
+                     WHERE id = :id AND status = 'PENDENTE'",
                 );
+                $message = "Comando substituído por {$command} antes da escrita física.";
+                $cancel->execute(["id" => $pending["id"], "message" => $message]);
+                if ($cancel->rowCount() === 1) {
+                    \record_operational_event(
+                        $this->connection,
+                        $user,
+                        "COMANDO_CLP_CONCLUIDO",
+                        "solicitacao_comando_clp",
+                        (int) $pending["id"],
+                        [
+                            "equipment_id" => (int) $loading["equipment_id"],
+                            "carregamento_id" => $loadingId,
+                            "command" => $pending["command"],
+                            "status" => "REJEITADO",
+                            "message" => $message,
+                            "replaced_by" => $command,
+                        ],
+                    );
+                }
             }
             $insert = $this->connection
                 ->prepare("INSERT INTO solicitacoes_comandos_clp
@@ -283,6 +322,7 @@ final class ServicoComandoClp
             "carregamento_id" => $loadingId,
             "equipment_id" => (int) $loading["equipment_id"],
             "command" => $command,
+            "status" => "PENDENTE",
             "state" => $loading["state"],
             "message" =>
                 ($command === "REVERSAO_ATIVAR"

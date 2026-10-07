@@ -817,9 +817,9 @@ table {
   }
 
   .command-confirm-actions .button {
-    min-height: 58px;
-    padding: 13px 12px;
-    font-size: 16px;
+    min-height: 86px;
+    padding: 16px 14px;
+    font-size: 22px;
   }
 }
 

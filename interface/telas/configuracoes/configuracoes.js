@@ -1,5 +1,4 @@
 import { button, esc } from "../../js/funcoes/html.js";
-import { dataHora } from "../../js/funcoes/formato.js?v=202609201000";
 import { pageHeader } from "../../js/funcoes/view.js?v=202610061745";
 
 const DEVICE_TYPES = [
@@ -13,8 +12,11 @@ const DEVICE_TYPES = [
 function deviceStatus(value) {
   const normalized = String(value || "NAO_REGISTRADO").trim().toUpperCase();
   const online = ["ONLINE", "LOCAL", "OK"].includes(normalized);
-  const tone = online ? "online" : normalized === "ERRO" ? "error" : "offline";
-  return { online, tone, label: online ? "ON" : "OFF" };
+  const error = normalized === "ERRO";
+  const tone = online ? "online" : error ? "error" : "offline";
+  const label = online ? "ON" : error ? "ERRO" : "OFF";
+  const detail = online ? "Sinal recebido" : error ? "Falha de comunicação" : "Sem sinal";
+  return { online, tone, label, detail };
 }
 
 function deviceStatusPanel(store) {
@@ -28,9 +30,6 @@ function deviceStatusPanel(store) {
       equipment.equipment_code || equipment.name || `Dala ${equipment.id}`,
     ]),
   );
-  const updatedAt = store.state.monitoringUpdatedAt
-    ? `Atualizado ${dataHora(store.state.monitoringUpdatedAt)}`
-    : "Sem atualização confirmada";
   const records = DEVICE_TYPES.flatMap(([type, label, description]) => {
     if (type === "SERVER") {
       return [{ type, label, description, value: store.state.serverStatus || "DESCONHECIDO", device: null }];
@@ -47,25 +46,20 @@ function deviceStatusPanel(store) {
     const equipmentLabel = device?.equipment_id
       ? equipments.get(Number(device.equipment_id)) || `Dala ${device.equipment_id}`
       : "Visão central";
-    const lastSignal = device?.last_seen_at
-      ? `Último sinal ${dataHora(device.last_seen_at)}`
-      : type === "SERVER"
-        ? "Verificado nesta consulta"
-        : "Sem sinal confirmado";
     const equipmentAttribute = device?.equipment_id
       ? ` data-live-status-equipment="${Number(device.equipment_id)}"`
       : "";
     return `<article class="settings-device-status-card ${status.tone}">
       <div class="settings-device-status-identity"><span class="settings-device-status-mark" aria-hidden="true">${esc(label.slice(0, 1))}</span><div><strong>${esc(label)}</strong><small>${esc(description)}</small><small>${esc(equipmentLabel)}</small></div></div>
-      <div class="settings-device-status-result"><b class="status-value status-${status.tone === "error" ? "offline" : status.tone}" data-live-status="${type}" data-live-status-mode="binary"${equipmentAttribute}>${status.label}</b><small>${esc(lastSignal)}</small></div>
+      <div class="settings-device-status-result"><b class="status-value status-${status.tone === "error" ? "error" : status.tone}" data-live-status="${type}" data-live-status-mode="binary"${equipmentAttribute}>${status.label}</b><span class="settings-device-status-detail">${esc(status.detail)}</span></div>
     </article>`;
   }).join("");
-  const attentionText = attentionCount ? `${attentionCount} aguardando sinal` : "Todos os pontos respondendo";
+  const attentionText = attentionCount ? `${attentionCount} sem sinal` : "Todos online";
   return `<section class="panel settings-device-status-panel" aria-label="Status dos dispositivos">
-    <div class="settings-device-status-heading"><div><span class="kicker">Status da máquina</span><h3>Dispositivos e serviços</h3><p>Leitura consolidada do PC industrial e da comunicação central.</p></div><div class="settings-device-status-actions"><span class="settings-device-status-updated" data-live="monitoring-updated">${esc(updatedAt)}</span>${button("Atualizar agora", "reload-monitoring", "secondary")}</div></div>
-    <div class="settings-device-status-summary"><strong>${onlineCount}/${records.length}</strong><span>pontos online</span><i aria-hidden="true"></i><span>${esc(attentionText)}</span></div>
+    <div class="settings-device-status-heading"><div><span class="kicker">Status da máquina</span><h3>Dispositivos e serviços</h3><p>Um cartão por dispositivo, com o estado atual e a Dala associada.</p></div><div class="settings-device-status-actions">${button("Recarregar estados", "reload-monitoring", "secondary")}</div></div>
+    <div class="settings-device-status-summary"><div><strong>${onlineCount}/${records.length}</strong><span>online</span></div><i aria-hidden="true"></i><div><strong>${attentionCount}</strong><span>${esc(attentionText)}</span></div></div>
     <div class="settings-device-status-grid">${cards}</div>
-    <p class="settings-device-status-note">O estado é informativo e representa o último sinal confirmado. Um ponto sem sinal não altera os comandos da Dala.</p>
+    <p class="settings-device-status-note">Os estados são informativos e não alteram os comandos da Dala.</p>
   </section><br>`;
 }
 

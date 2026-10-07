@@ -101,10 +101,8 @@ function workControls(store) {
   const bloqueioEmergencia = store.state.loadingId
     ? ""
     : { disabled: true, "aria-disabled": "true", title: "Nenhum carregamento selecionado" };
-  const bloqueioReversao = canReverse
-    ? pendingStatus === "PENDENTE"
-      ? { disabled: true, "aria-disabled": "true", title: "Aguarde a conclusão do comando atual antes de alterar a reversão" }
-      : bloqueioComando(["PAUSADO"], "Pause a máquina antes de pedir a reversão.", "REVERSAO_ATIVAR")
+  const bloqueioReversao = (requestedCommand) => canReverse
+    ? bloqueioComando([], "", requestedCommand)
     : { disabled: true, "aria-disabled": "true", title: "Seu perfil não pode alterar a reversão" };
   const loadingPicker = `<button class="button secondary small work-back-button" data-action="goto-manifests" type="button">← Romaneios</button>`;
   const pendingReadings = store.state.pendingReadings || [];
@@ -125,7 +123,7 @@ function workControls(store) {
   const finalized = store.state.operationalState === "FINALIZADO";
   const controls = finalized
     ? ""
-    : `<div class="work-controls"><div class="work-routine-controls">${button("Ligar esteira", "run", "primary", bloqueioComando(["PREPARANDO", "PAUSADO"], "Só é possível iniciar em preparação ou com a máquina pausada.", "INICIAR_CARREGAMENTO"))}${button("Desligar esteira", "stop", "ghost", bloqueioComando(["PREPARANDO", "CARREGANDO"], "A máquina não está em um estado que permita solicitar parada.", "PAUSAR_CARREGAMENTO"))}${button("Ligar reversão", "reverse-on", "secondary", bloqueioReversao)}${button("Desligar reversão", "reverse-off", "secondary", bloqueioReversao)}</div><div class="work-emergency-zone">${button("EMERGÊNCIA", "emergency", "danger", bloqueioEmergencia)}</div></div>`;
+    : `<div class="work-controls"><div class="work-routine-controls">${button("Ligar esteira", "run", "primary", bloqueioComando([], "", "INICIAR_CARREGAMENTO"))}${button("Desligar esteira", "stop", "ghost", bloqueioComando([], "", "PAUSAR_CARREGAMENTO"))}${button("Ligar reversão", "reverse-on", "secondary", bloqueioReversao("REVERSAO_ATIVAR"))}${button("Desligar reversão", "reverse-off", "secondary", bloqueioReversao("REVERSAO_DESATIVAR"))}</div><div class="work-emergency-zone">${button("EMERGÊNCIA", "emergency", "danger", bloqueioEmergencia)}</div></div>`;
   const summaryReady = ["FINALIZANDO", "FINALIZADO"].includes(
     store.state.operationalState,
   );

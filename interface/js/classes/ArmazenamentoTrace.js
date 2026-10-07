@@ -64,6 +64,8 @@ export class ArmazenamentoTrace {
       technicalDiagnostics: null,
       deadLetters: [],
       plcCommand: null,
+      // Intenção visível enquanto o gateway ainda não confirmou o ACK físico.
+      commandIntent: null,
       commandInFlight: false,
       commandInFlightToken: null,
       productFormOpen: false,
@@ -166,6 +168,19 @@ export class ArmazenamentoTrace {
   comandoOperacionalPendente() {
     const status = String(this.state.plcCommand?.status || "").toUpperCase();
     return this.state.commandInFlight || ["PENDENTE", "PROCESSANDO"].includes(status);
+  }
+  aplicarIntencaoDeComando() {
+    const intent = this.state.commandIntent;
+    const status = String(this.state.plcCommand?.status || intent?.status || "").toUpperCase();
+    if (!intent || !["PENDENTE", "PROCESSANDO"].includes(status)) return;
+    if (Number(intent.loadingId) !== Number(this.state.loadingId)) return;
+    if (intent.command === "INICIAR_CARREGAMENTO") {
+      this.state.operationalState = "CARREGANDO";
+      this.state.running = true;
+    } else if (intent.command === "PAUSAR_CARREGAMENTO") {
+      this.state.operationalState = "PAUSADO";
+      this.state.running = false;
+    }
   }
   async loadManifests() {
     const params = new URLSearchParams();
@@ -473,6 +488,7 @@ export class ArmazenamentoTrace {
     this.state.equipmentCode = loading.equipment_code || "—";
     this.state.equipmentId = Number(loading.equipment_id) || null;
     this.state.loadingItems = Array.isArray(loading.items) ? loading.items : [];
+    this.aplicarIntencaoDeComando();
     await this.loadPlcCommandStatus(this.state.loadingId);
   }
   applyActiveLoadingSnapshot(loadings, selectedId = this.state.selectedLoadingId) {
@@ -540,6 +556,7 @@ export class ArmazenamentoTrace {
     this.state.equipmentCode = loading.equipment_code || "—";
     this.state.equipmentId = Number(loading.equipment_id) || null;
     this.state.loadingItems = Array.isArray(loading.items) ? loading.items : [];
+    this.aplicarIntencaoDeComando();
     return loading;
   }
   clpDaDalaAtual() {
@@ -584,6 +601,14 @@ export class ArmazenamentoTrace {
       status: result.data.status || "PENDENTE",
       response_message: result.data.message || null,
     };
+    this.state.commandIntent = {
+      id: Number(result.data.command_request_id) || null,
+      loadingId: Number(loadingId),
+      command,
+      status: this.state.plcCommand.status,
+      previousState: this.state.operationalState,
+    };
+    this.aplicarIntencaoDeComando();
     return result.data;
   }
   async requestMachineOperation(command, loadingId = this.state.loadingId) {
@@ -614,6 +639,7 @@ export class ArmazenamentoTrace {
   async _loadPlcCommandStatus(loadingId = this.state.loadingId) {
     if (!loadingId) {
       this.state.plcCommand = null;
+      this.state.commandIntent = null;
       return null;
     }
     const response = await this.api.fetch(
@@ -655,6 +681,17 @@ export class ArmazenamentoTrace {
       return currentCommand;
     }
     this.state.plcCommand = nextCommand;
+    if (nextCommand && terminal.has(nextStatus)) {
+      const intent = this.state.commandIntent;
+      if (intent && Number(intent.id) === nextId) {
+        if (nextStatus !== "APLICADO" && ["INICIAR_CARREGAMENTO", "PAUSAR_CARREGAMENTO"].includes(intent.command)) {
+          this.state.operationalState = intent.previousState || this.state.operationalState;
+          this.state.running = ["CARREGANDO", "FINALIZANDO"].includes(this.state.operationalState);
+        }
+        this.state.commandIntent = null;
+      }
+    }
+    this.aplicarIntencaoDeComando();
     return this.state.plcCommand;
   }
   async unlockMachine() {

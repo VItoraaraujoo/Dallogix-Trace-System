@@ -3,97 +3,114 @@
 
 .settings-device-status-panel {
   overflow: hidden;
+  padding: clamp(20px, 3vw, 32px);
 }
 
 .settings-device-status-heading {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  gap: 24px;
+  gap: 20px;
 }
 
 .settings-device-status-heading h3 {
-  margin: 7px 0 4px;
+  margin: 7px 0 6px;
+  color: var(--ink, #17212b);
+  font-size: clamp(22px, 2vw, 30px);
+  line-height: 1.1;
 }
 
 .settings-device-status-heading p {
   margin: 0;
   color: var(--muted, #6b7785);
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.45;
 }
 
 .settings-device-status-actions {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-  gap: 12px;
+  gap: 10px;
   flex-wrap: wrap;
 }
 
-.settings-device-status-updated {
-  color: var(--muted, #6b7785);
-  font-size: 12px;
+.settings-device-status-actions .button {
+  min-height: 42px;
+  padding-inline: 16px;
   white-space: nowrap;
 }
 
 .settings-device-status-summary {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: 18px;
-  padding: 12px 14px;
+  gap: 16px;
+  margin-top: 22px;
+  padding: 14px 16px;
   border: 1px solid #d8e8ee;
-  border-radius: 10px;
-  background: linear-gradient(90deg, #f2f9fb, #fbfdfe);
+  border-radius: 14px;
+  background: #f7fbfd;
   color: var(--muted, #6b7785);
-  font-size: 13px;
+  font-size: 12px;
+}
+
+.settings-device-status-summary > div {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 7px;
 }
 
 .settings-device-status-summary strong {
   color: var(--ink, #17212b);
-  font-size: 18px;
+  font-size: 21px;
   letter-spacing: -.02em;
+}
+
+.settings-device-status-summary span {
+  white-space: nowrap;
 }
 
 .settings-device-status-summary i {
   width: 4px;
   height: 4px;
-  margin: 0 4px;
+  margin: 0 2px;
   border-radius: 50%;
   background: #9aabb7;
 }
 
 .settings-device-status-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 12px;
-  margin-top: 14px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+  margin-top: 16px;
 }
 
 .settings-device-status-card {
   display: flex;
-  min-height: 94px;
-  align-items: stretch;
+  min-width: 0;
+  min-height: 112px;
+  align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 14px;
+  gap: 18px;
+  padding: 16px 18px;
   border: 1px solid #d7e4e9;
-  border-left: 4px solid #b8c8d2;
-  border-radius: 12px;
-  background: #fbfdfe;
+  border-top: 4px solid #b8c8d2;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 6px 18px rgba(37, 71, 88, .06);
 }
 
 .settings-device-status-card.online {
-  border-left-color: var(--green, #23834f);
+  border-top-color: var(--green, #23834f);
 }
 
 .settings-device-status-card.error {
-  border-left-color: var(--red, #b83242);
+  border-top-color: var(--red, #b83242);
   background: #fff9f9;
 }
 
 .settings-device-status-card.offline {
-  border-left-color: #c58b19;
+  border-top-color: #d29724;
   background: #fffdf8;
 }
 
@@ -106,6 +123,7 @@
 .settings-device-status-identity {
   align-items: flex-start;
   gap: 10px;
+  overflow: hidden;
 }
 
 .settings-device-status-identity > div,
@@ -115,20 +133,21 @@
 
 .settings-device-status-mark {
   display: grid;
-  width: 30px;
-  height: 30px;
-  flex: 0 0 30px;
+  width: 36px;
+  height: 36px;
+  flex: 0 0 36px;
   place-items: center;
-  border-radius: 9px;
+  border-radius: 11px;
   background: #e3f1f6;
   color: var(--blue, #176fa5);
-  font-size: 13px;
+  font-size: 15px;
   font-weight: 850;
 }
 
 .settings-device-status-identity strong {
   color: var(--ink, #17212b);
-  font-size: 14px;
+  font-size: 16px;
+  line-height: 1.15;
 }
 
 .settings-device-status-identity small,
@@ -141,14 +160,27 @@
 
 .settings-device-status-result {
   align-items: flex-end;
-  justify-content: space-between;
-  gap: 5px;
+  justify-content: center;
+  flex: 0 0 auto;
+  gap: 6px;
   text-align: right;
 }
 
 .settings-device-status-result .status-value {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   letter-spacing: .08em;
-  font-size: 13px;
+  font-size: 14px;
+  font-weight: 850;
+}
+
+.settings-device-status-result .status-value::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  content: "";
 }
 
 .settings-device-status-result .status-value.status-online {
@@ -159,8 +191,15 @@
   color: #a56b00;
 }
 
+.settings-device-status-result .status-value.status-error,
 .settings-device-status-card.error .settings-device-status-result .status-value {
   color: var(--red, #b83242);
+}
+
+.settings-device-status-detail {
+  color: var(--muted, #6b7785);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .settings-device-status-note {
@@ -191,6 +230,6 @@
   }
 
   .settings-device-status-card {
-    min-height: 84px;
+    min-height: 96px;
   }
 }

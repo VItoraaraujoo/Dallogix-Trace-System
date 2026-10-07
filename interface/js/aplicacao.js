@@ -6,7 +6,7 @@ import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notifica
 import { prepararDialogoAcessivel } from "./funcoes/dialogo.js?v=202610061820";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610061745";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610062110";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610060007";
@@ -33,7 +33,7 @@ import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
 import { manifests } from "../telas/romaneios/romaneios.js?v=202610010001";
 import { manifestView } from "../telas/romaneio/romaneio.js?v=202610010001";
-import { work } from "../telas/operacao/operacao.js?v=202610061745";
+import { work } from "../telas/operacao/operacao.js?v=202610062110";
 import { dashboard } from "../telas/painel/painel.js?v=202610010001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610010001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
@@ -290,7 +290,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610061745").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610062110").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -573,6 +573,9 @@ function workStructureSignature() {
     command?.command || null,
     command?.status || null,
     command?.response_message || null,
+    store.state.commandIntent?.id || null,
+    store.state.commandIntent?.command || null,
+    store.state.commandIntent?.status || null,
     store.clpDisponivel(),
     loadingItems,
   ]);

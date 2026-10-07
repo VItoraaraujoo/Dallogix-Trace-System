@@ -68,6 +68,71 @@ test("consulta transitória sem comando preserva início pendente local", async 
   assert.deepEqual(armazenamento.state.plcCommand, pedido);
 });
 
+test("comando de início atualiza o estado visível antes do ACK físico", async () => {
+  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  armazenamento.state = {
+    loadingId: 7,
+    operationalState: "PAUSADO",
+    running: false,
+    plcCommand: null,
+    commandIntent: null,
+  };
+  armazenamento.api = {
+    fetch: async () => ({ ok: true }),
+  };
+  armazenamento.jsonHeaders = () => ({ });
+  armazenamento.jsonResponse = async () => ({
+    data: {
+      command_request_id: 42,
+      command: "INICIAR_CARREGAMENTO",
+      status: "PENDENTE",
+      message: "Comando registrado",
+    },
+  });
+
+  await armazenamento.requestMachineOperation("INICIAR_CARREGAMENTO", 7);
+
+  assert.equal(armazenamento.state.operationalState, "CARREGANDO");
+  assert.equal(armazenamento.state.running, true);
+  assert.equal(armazenamento.state.commandIntent.id, 42);
+});
+
+test("comando rejeitado devolve o estado anterior", async () => {
+  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  armazenamento.state = {
+    loadingId: 7,
+    operationalState: "CARREGANDO",
+    running: true,
+    plcCommand: {
+      id: 42,
+      command: "PAUSAR_CARREGAMENTO",
+      status: "PENDENTE",
+    },
+    commandIntent: {
+      id: 42,
+      loadingId: 7,
+      command: "PAUSAR_CARREGAMENTO",
+      status: "PENDENTE",
+      previousState: "CARREGANDO",
+    },
+  };
+  armazenamento.api = { fetch: async () => ({ ok: true }) };
+  armazenamento.jsonResponse = async () => ({
+    data: {
+      id: 42,
+      command: "PAUSAR_CARREGAMENTO",
+      status: "REJEITADO",
+      response_message: "Intertravamento ativo",
+    },
+  });
+  armazenamento.commandStatusRefresh = Promise.resolve();
+
+  await armazenamento._loadPlcCommandStatus(7);
+
+  assert.equal(armazenamento.state.operationalState, "CARREGANDO");
+  assert.equal(armazenamento.state.commandIntent, null);
+});
+
 test("quadro vazio não apaga a Dala durante comando operacional pendente", async () => {
   const armazenamento = Object.create(ArmazenamentoTrace.prototype);
   const carregamento = {
