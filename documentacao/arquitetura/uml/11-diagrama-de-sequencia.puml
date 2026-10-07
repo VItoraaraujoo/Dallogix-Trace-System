@@ -1,0 +1,33 @@
+@startuml trace-11-sequence
+title 11. Sequência — captura da câmera e PDF de evidência
+autonumber
+
+actor "Fluxo industrial" as Flow
+participant "API PHP" as API
+database "MySQL local" as DB
+participant "camera-worker" as Worker
+participant "Câmera RTSP" as Camera
+participant "Serviço de relatório PDF" as PDF
+collections "Armazenamento local" as Storage
+
+Flow -> API : solicitar captura de ocorrência
+API -> DB : criar solicitação PENDENTE
+Worker -> API : consultar fila / CLAIM
+API -> DB : reservar solicitação
+API --> Worker : solicitação reservada
+Worker -> Camera : ler quadro recente via RTSP/TCP
+Camera --> Worker : quadro JPEG
+Worker -> API : enviar JPEG autenticado
+API -> PDF : converter/incorporar evidência
+PDF -> Storage : gravar PDF de evidência
+PDF --> API : caminho persistido
+API -> DB : salvar evidence_pdf_path
+Worker -> API : COMPLETE com confirmação
+API -> DB : concluir solicitação
+API --> Worker : captura concluída
+
+note over API,Storage
+Se a conversão ou gravação falhar, a evidência de origem
+deve ser preservada para recuperação.
+end note
+@enduml

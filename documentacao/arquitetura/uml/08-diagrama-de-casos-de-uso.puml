@@ -1,0 +1,41 @@
+@startuml trace-08-usecases
+title 8. Casos de uso — atores e funcionalidades
+left to right direction
+
+actor Operador
+actor "Administrador Central" as Admin
+actor "Técnico industrial" as Tech
+actor "Central Trace" as Central
+actor "Cliente API\n(v1 em preparação)" as ApiClient
+
+rectangle "Dallogix Trace" {
+  usecase "Autenticar e\nselecionar empresa" as UC1
+  usecase "Iniciar, pausar e\nencerrar carregamento" as UC2
+  usecase "Registrar leitura e\nocorrência" as UC3
+  usecase "Consultar estado\ndo equipamento" as UC4
+  usecase "Gerar/baixar relatório\nde auditoria PDF" as UC5
+  usecase "Sincronizar eventos\npendentes" as UC6
+  usecase "Configurar integração\nindustrial" as UC7
+  usecase "Consultar recursos\npermitidos por escopo" as UC8
+}
+
+Operador --> UC1
+Operador --> UC2
+Operador --> UC3
+Operador --> UC4
+Operador --> UC5
+Admin --> UC1
+Admin --> UC7
+Tech --> UC7
+Central --> UC6
+ApiClient --> UC8
+
+note bottom of UC2
+Comandos físicos passam pelo gateway autenticado;
+o CLP mantém intertravamentos e emergência.
+end note
+note bottom of UC8
+Ator e caso de uso representam a API em preparação local,
+não uma disponibilidade pública confirmada.
+end note
+@enduml

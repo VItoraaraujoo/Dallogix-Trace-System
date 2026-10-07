@@ -80,6 +80,18 @@ final class ServicoComandoClp
                     409,
                 );
             }
+            if ($command === "INICIAR_CARREGAMENTO") {
+                $reversalCommand = $this->ultimaReversaoConfirmada(
+                    (int) $loading["equipment_id"],
+                    (int) $user["company_id"],
+                );
+                if ($reversalCommand !== "REVERSAO_DESATIVAR") {
+                    throw new ExcecaoComandoClp(
+                        "Para ligar a esteira para frente, confirme primeiro que a reversão está desligada.",
+                        409,
+                    );
+                }
+            }
             $this->disponibilidadeClp->validarComando(
                 (int) $user["company_id"],
                 (int) $loading["equipment_id"],
@@ -217,11 +229,23 @@ final class ServicoComandoClp
                     404,
                 );
             }
-            if (in_array($loading["state"], ["FINALIZADO", "EMERGENCIA"], true)) {
+            if (!in_array($loading["state"], ["PREPARANDO", "PAUSADO"], true)) {
                 throw new ExcecaoComandoClp(
-                    "Não é possível alterar a reversão neste estado do carregamento.",
+                    "Só é possível ligar ou desligar a reversão com a esteira parada.",
                     409,
                 );
+            }
+            if ($command === "REVERSAO_ATIVAR") {
+                $reversalCommand = $this->ultimaReversaoConfirmada(
+                    (int) $loading["equipment_id"],
+                    (int) $user["company_id"],
+                );
+                if ($reversalCommand === "REVERSAO_ATIVAR") {
+                    throw new ExcecaoComandoClp(
+                        "A reversão já está confirmada como ligada.",
+                        409,
+                    );
+                }
             }
             $this->disponibilidadeClp->validarComando(
                 (int) $user["company_id"],
@@ -460,6 +484,23 @@ final class ServicoComandoClp
         );
         $statement->execute($params);
         return $statement->fetch();
+    }
+
+    private function ultimaReversaoConfirmada(int $equipmentId, int $companyId): ?string
+    {
+        $statement = $this->connection->prepare(
+            "SELECT command FROM solicitacoes_comandos_clp
+             WHERE equipment_id = :equipment_id AND company_id = :company_id
+               AND command IN ('REVERSAO_ATIVAR', 'REVERSAO_DESATIVAR')
+               AND status = 'APLICADO'
+             ORDER BY id DESC LIMIT 1",
+        );
+        $statement->execute([
+            "equipment_id" => $equipmentId,
+            "company_id" => $companyId,
+        ]);
+        $command = $statement->fetchColumn();
+        return $command === false ? null : (string) $command;
     }
 
     /** @param array{id:int|string, company_id:int|string|null} $user */

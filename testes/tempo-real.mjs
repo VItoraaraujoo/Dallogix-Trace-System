@@ -162,3 +162,45 @@ test("quadro vazio confirmado permite limpar uma operação encerrada", async ()
     restaurar();
   }
 });
+
+test("mantém polling quando o stream SSE conecta", async () => {
+  const restaurar = criarAmbiente();
+  const originalSetTimeout = window.setTimeout;
+  const originalClearTimeout = window.clearTimeout;
+  let agendado = null;
+  let consultas = 0;
+  window.setTimeout = (callback) => {
+    agendado = callback;
+    return 1;
+  };
+  window.clearTimeout = () => {};
+  const store = {
+    state: { selectedLoadingId: 7, loadingId: 7 },
+    subscribeOperationalEvents() {
+      return { close() {} };
+    },
+    async loadActiveLoading() { consultas += 1; },
+    async loadMonitoring() {},
+    async loadPendingReadings() {},
+  };
+  const controller = createOperationalRealtimeController({
+    store,
+    getPage: () => "work",
+    render() {},
+    refreshWorkLiveView() {},
+    workStructureSignature: () => "estrutura",
+    getViewSignature: () => "estrutura",
+  });
+
+  try {
+    controller.start();
+    assert.equal(typeof agendado, "function");
+    await agendado();
+    assert.equal(consultas, 1);
+  } finally {
+    controller.stop();
+    window.setTimeout = originalSetTimeout;
+    window.clearTimeout = originalClearTimeout;
+    restaurar();
+  }
+});

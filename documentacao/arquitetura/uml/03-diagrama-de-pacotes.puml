@@ -1,0 +1,34 @@
+@startuml trace-03-packages
+title 3. Pacotes — organização do código
+skinparam packageStyle rectangle
+
+package "interface" {
+  package "telas"
+  package "js"
+  package "css"
+}
+package "servidor" {
+  package "api"
+  package "src/Aplicacao"
+  package "configuracao"
+}
+package "banco-de-dados" {
+  package "migrations"
+  package "seeds"
+}
+package "integracoes" {
+  package "node-red"
+  package "camera-worker"
+}
+package "scripts"
+package "armazenamento"
+package "Central Trace" <<externo>>
+
+"interface" ..> "servidor" : HTTP local
+"servidor" ..> "banco-de-dados" : persistência
+"servidor" ..> "armazenamento" : PDFs e arquivos
+"integracoes" ..> "servidor" : API local autenticada
+"integracoes" ..> "Central Trace" : sincronização HTTPS de saída
+"scripts" ..> "servidor" : operações e workers
+"scripts" ..> "banco-de-dados" : manutenção e migrations
+@enduml

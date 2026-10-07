@@ -1,0 +1,28 @@
+@startuml trace-13-timing
+title 13. Tempo — parâmetros configurados no worker da câmera
+robust "Fila de captura" as Queue
+concise "camera-worker" as Worker
+robust "Quadro RTSP" as Frame
+concise "Heartbeat" as Heartbeat
+
+@0
+Queue is aguardando
+Worker is conectado
+Frame is recente
+Heartbeat is publicado
+
+@200
+Worker is consulta fila (padrão 200 ms)
+
+@750
+Frame is limite de recência (750 ms)
+
+@5000
+Heartbeat is intervalo padrão (5 s)
+
+note bottom
+Marcas mostram parâmetros default/configurados no código:
+poll 200 ms, quadro recente até 750 ms, heartbeat 5 s.
+Não representam latência medida do CLP até o PDF nem SLA.
+end note
+@enduml

@@ -1,0 +1,36 @@
+@startuml trace-04-composite
+title 4. Estrutura composta — partes e conectores do PC industrial
+left to right direction
+skinparam componentStyle rectangle
+
+frame "Classificador estruturado: PC industrial Trace" {
+  component "Interface do operador" as UI
+  component "Nginx" as WEB
+  component "API PHP\n+ regras de aplicação" as API
+  database "MySQL local" as DB
+  component "Node-RED\nGateway industrial" as NR
+  component "Worker da câmera" as CAM
+  component "Worker de sincronização" as SYNC
+  folder "Armazenamento local\nPDFs e evidências" as STORAGE
+}
+
+UI --> WEB : porta HTTP local
+WEB --> API : requisição HTTP
+API --> DB : consultas e transações
+API --> STORAGE : leitura e gravação
+NR --> API : gateway autenticado
+NR <--> CLP : Modbus TCP
+CAM --> API : health, captura e evidência
+CAM --> CAMERA : RTSP/TCP
+SYNC --> API : fila local
+SYNC --> CENTRAL : HTTPS de saída
+
+component "CLP / Dala" as CLP
+component "Câmera" as CAMERA
+cloud "Central Trace" as CENTRAL
+
+note bottom
+Visão interna dos elementos cooperantes no PC industrial.
+CLP e câmera são nós externos conectados ao PC.
+end note
+@enduml

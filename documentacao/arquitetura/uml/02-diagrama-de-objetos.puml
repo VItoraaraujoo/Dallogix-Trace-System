@@ -1,0 +1,38 @@
+@startuml trace-02-objects
+title 2. Objetos — fotografia ilustrativa de uma operação
+
+object "empresaDemo : Empresa" as empresa {
+  id = exemplo
+}
+object "dallaDemo : Equipamento" as equipamento {
+  equipment_code = exemplo
+}
+object "romaneioDemo : Romaneio" as romaneio {
+  status = EM_ANDAMENTO
+}
+object "carregamentoDemo : Carregamento" as carga {
+  state = CARREGANDO
+}
+object "leituraDemo : Leitura" as leitura {
+  result = VALID
+}
+object "eventoDemo : EventoAuditoria" as evento {
+  entrega = pendente
+}
+object "filaDemo : FilaSincronizacao" as fila {
+  status = PENDENTE
+}
+
+empresa -- equipamento
+empresa -- romaneio
+equipamento -- carga
+romaneio -- carga
+carga -- leitura
+carga -- evento
+evento -- fila
+
+note bottom
+Snapshot fictício para explicar vínculos em tempo de execução.
+Os nomes e valores não correspondem a registros de cliente.
+end note
+@enduml

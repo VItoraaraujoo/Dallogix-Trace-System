@@ -1,0 +1,72 @@
+@startuml trace-01-classes
+title 1. Classes — domínio operacional do Trace
+skinparam classAttributeIconSize 0
+
+class Empresa {
+  id
+  nome
+}
+class Usuario {
+  id
+  perfil
+}
+class Equipamento {
+  id
+  equipment_code
+  name
+}
+class Carregamento {
+  id
+  state
+  started_at
+  finished_at
+}
+class Leitura {
+  id
+  result
+  read_at
+}
+class EventoSensor {
+  id
+  detected_at
+}
+class SolicitacaoCapturaCamera {
+  id
+  status
+  evidence_pdf_path
+}
+class EvidenciaPDF {
+  caminho
+}
+class Romaneio {
+  id
+  status
+}
+class EventoAuditoria {
+  id
+  event_uuid
+  delivered_at
+}
+class FilaSincronizacao {
+  id
+  status
+  available_at
+}
+
+Empresa "1" -- "0..*" Usuario : controla acesso
+Empresa "1" -- "0..*" Equipamento : possui
+Empresa "1" -- "0..*" Romaneio : organiza
+Equipamento "1" -- "0..*" Carregamento : opera
+Romaneio "1" -- "0..*" Carregamento : agrupa
+Carregamento "1" -- "0..*" Leitura : registra
+Leitura "0..*" --> "0..1" EventoSensor : pode referenciar
+Carregamento "1" -- "0..*" SolicitacaoCapturaCamera : solicita
+SolicitacaoCapturaCamera "1" --> "0..1" EvidenciaPDF : caminho persistido
+Carregamento "1" -- "0..*" EventoAuditoria : audita
+EventoAuditoria "1" --> "0..*" FilaSincronizacao : publica evento
+
+note bottom
+Visão conceitual das entidades e relações principais.
+Não substitui o modelo relacional completo nem suas chaves estrangeiras.
+end note
+@enduml

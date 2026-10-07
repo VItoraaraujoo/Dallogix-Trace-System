@@ -1,5 +1,5 @@
 /* Tela de operação: acompanhamento do romaneio e comandos da Dala. */
-@import url("/css/responsive.css");
+@import url("/css/responsive.css?v=202610070203");
 
 /* A tela trabalha com três blocos claros: cabeçalho, acompanhamento e controle.
    Todas as regras ficam escopadas para não alterar as demais telas. */
@@ -609,6 +609,62 @@ body.work-page:has(.work-operation-screen) .work-machine-panel .emergency-compac
   }
 }
 
+/* Em monitores baixos, preserva a composição em duas colunas, mas deixa a
+   página rolar para o título e os comandos não disputarem a altura da tela. */
+@media (min-width: 960px) and (min-height: 680px) and (max-height: 820px) {
+  body.work-page:has(.work-operation-screen) {
+    height: auto;
+    min-height: 100dvh;
+    overflow: auto;
+  }
+
+  body.work-page:has(.work-operation-screen) .main {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  body.work-page:has(.work-operation-screen) .content {
+    display: block;
+    min-height: 0;
+    flex: 0 0 auto;
+    overflow: visible;
+  }
+
+  body.work-page:has(.work-operation-screen) #screen-root {
+    display: block;
+    min-height: 0;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-operation-screen {
+    height: auto;
+    min-height: 0;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-status-column {
+    max-height: none;
+    overflow: visible;
+  }
+}
+
+/* Comandos conforme o painel aprovado: um abaixo do outro, grandes e
+   sempre fáceis de acionar no posto industrial. */
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls .button {
+  min-height: 96px;
+  padding: 16px 14px;
+  font-size: clamp(16px, 1.2vw, 20px);
+}
+
+body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergency-zone .button {
+  min-height: 104px;
+  font-size: clamp(17px, 1.25vw, 21px);
+}
+
 @media (max-width: 959px), (max-height: 679px) {
   body.work-page:has(.work-operation-screen) .work-operation-layout {
     grid-template-columns: minmax(0, 1fr);
@@ -745,7 +801,6 @@ body.work-page:has(.work-operation-screen) .work-machine-panel .emergency-compac
 /* A operação mostra somente o que é acionável. Os estados dos dispositivos
    ficam em Configurações; os comandos permanecem grandes e sempre no mesmo
    bloco visual. */
-body.work-page:has(.work-operation-screen) .topbar .local,
 body.work-page:has(.work-operation-screen) .work-header-statuses,
 body.work-page:has(.work-operation-screen) .work-command-feedback {
   display: none !important;
@@ -827,16 +882,21 @@ body.work-page:has(.work-operation-screen) #trace-notificacoes {
 
 @media (max-width: 620px) {
   body.work-page:has(.work-operation-screen) .work-screen-header {
-    grid-template-columns: auto minmax(0, 1fr);
+    position: relative;
+    grid-template-columns: minmax(0, 1fr);
+    padding-top: 40px;
   }
 
   body.work-page:has(.work-operation-screen) .work-screen-heading {
-    grid-column: 2;
+    grid-column: 1;
     justify-self: stretch;
-    text-align: left;
+    text-align: center;
   }
 
   body.work-page:has(.work-operation-screen) .work-back-button {
+    position: absolute;
+    top: 0;
+    left: 0;
     transform: translateY(-2px);
   }
 }

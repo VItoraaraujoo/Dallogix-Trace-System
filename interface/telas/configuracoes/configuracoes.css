@@ -1,9 +1,13 @@
 /* Estilos da tela configuracoes; a base responsiva é compartilhada. */
-@import url("/css/responsive.css");
+@import url("/css/responsive.css?v=202610070203");
 
 .settings-device-status-panel {
   overflow: hidden;
   padding: clamp(20px, 3vw, 32px);
+}
+
+.settings-device-status-panel + br {
+  display: none;
 }
 
 .settings-device-status-heading {
@@ -36,8 +40,9 @@
 }
 
 .settings-device-status-actions .button {
-  min-height: 42px;
-  padding-inline: 16px;
+  min-height: 48px;
+  padding-inline: 20px;
+  font-size: 14px;
   white-space: nowrap;
 }
 
@@ -80,7 +85,7 @@
 
 .settings-device-status-grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
   gap: 14px;
   margin-top: 16px;
 }
@@ -114,6 +119,11 @@
   background: #fffdf8;
 }
 
+.settings-device-status-card.unknown {
+  border-top-color: #8999a6;
+  background: #f9fbfc;
+}
+
 .settings-device-status-identity,
 .settings-device-status-result {
   display: flex;
@@ -123,12 +133,18 @@
 .settings-device-status-identity {
   align-items: flex-start;
   gap: 10px;
-  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
 .settings-device-status-identity > div,
 .settings-device-status-result {
   flex-direction: column;
+}
+
+.settings-device-status-identity > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
 }
 
 .settings-device-status-mark {
@@ -170,7 +186,10 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  letter-spacing: .08em;
+  padding: 6px 9px;
+  border: 1px solid currentColor;
+  border-radius: 999px;
+  letter-spacing: .06em;
   font-size: 14px;
   font-weight: 850;
 }
@@ -191,6 +210,10 @@
   color: #a56b00;
 }
 
+.settings-device-status-result .status-value.status-unknown {
+  color: #667887;
+}
+
 .settings-device-status-result .status-value.status-error,
 .settings-device-status-card.error .settings-device-status-result .status-value {
   color: var(--red, #b83242);
@@ -199,7 +222,8 @@
 .settings-device-status-detail {
   color: var(--muted, #6b7785);
   font-size: 11px;
-  white-space: nowrap;
+  max-width: 160px;
+  white-space: normal;
 }
 
 .settings-device-status-note {
@@ -209,9 +233,7 @@
 }
 
 @media (max-width: 900px) {
-  .settings-device-status-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+  .settings-device-status-grid { grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr)); }
 }
 
 @media (max-width: 560px) {
@@ -231,5 +253,23 @@
 
   .settings-device-status-card {
     min-height: 96px;
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .settings-device-status-summary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+    gap: 8px 12px;
+    margin-top: 16px;
+  }
+
+  .settings-device-status-result {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  .settings-device-status-detail {
+    max-width: 120px;
   }
 }

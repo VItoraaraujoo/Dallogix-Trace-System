@@ -1,20 +1,73 @@
-node_modules/
-dist/
-.DS_Store
+# Configuração local e segredos de instalação
 .env
 .env.*
 !.env.example
+!.env.production.example
 implantacao/windows/machine-config.json
-implantacao/windows/Dependencies/MicrosoftEdgeWebView2Setup.exe
-*.har
-armazenamento/backups/
-armazenamento/updates/
-armazenamento/logs/
-tmp/
-/vendor/
+**/credentials.local.*
+**/secrets.local.*
+**/secrets/
+credentials.json
+
+# Chaves privadas e keystores
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.pem
+!servidor/configuracao/trace-update-public.pem
+id_rsa
+id_ed25519
+
+# Dados persistentes e artefatos de cliente
+/armazenamento/backups/
+/armazenamento/updates/
+/armazenamento/logs/
+/armazenamento/producao-teste/
+/armazenamento/company_*/
+/tmp/
 /var/
 /servidor/.release.json
-.codegraph/
 
-armazenamento/producao-teste/
-armazenamento/company_*/
+# Banco local, dumps e cópias
+*.db
+*.sqlite*
+*.sql.gz
+*.dump
+*.bak
+# Migrations e seeds .sql são código e permanecem versionados.
+
+# Dependências, builds e caches gerados
+node_modules/
+/dist/
+/vendor/
+coverage/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.phpunit.cache/
+.phpunit.result.cache
+.phpstan/cache/
+.coverage
+.coverage.*
+
+# Logs, capturas e arquivos temporários
+*.log
+*.pid
+*.sock
+*.har
+*.swp
+*~
+tmp/
+
+# Instaladores baixados para a máquina do cliente
+implantacao/windows/Dependencies/MicrosoftEdgeWebView2Setup.exe
+
+# Arquivos do sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Ferramentas e metadados locais
+.codegraph/

@@ -130,3 +130,10 @@ O painel cria uma solicitação local; o gateway é o único componente que escr
 5. retornar `{"action":"COMPLETE","request_id":N,"status":"APLICADO"}` ou `REJEITADO`/`ERRO`, com uma mensagem curta. Somente o mesmo dispositivo que reservou o comando pode concluí-lo.
 
 O mapa físico usado pelo gateway é: `2049` motor, `2050` reversão, `2051` emergência, `17` retorno físico da emergência e `2052` sensor de contagem. Cada escrita usa função 5, unidade Modbus configurada na instalação e confirmação por eco; a confirmação de liberação usa função 1 na bobina 17. Se o eco ou o retorno forem inválidos ou não chegarem, o pedido termina como `ERRO`; o Trace nunca apresenta `APLICADO` apenas porque abriu uma conexão TCP.
+
+### Intertravamentos de direção
+
+- `Ligar esteira` (frente) só é aceito em `PREPARANDO` ou `PAUSADO`, depois de o gateway confirmar `REVERSAO_DESATIVAR`. Sem confirmação anterior da reversão desligada, o comando é recusado; o operador deve desligar a reversão e aguardar o retorno.
+- `Ligar reversão` e `Desligar reversão` só são aceitos com o carregamento parado (`PREPARANDO` ou `PAUSADO`). A API e o gateway verificam a condição antes de enfileirar e antes da escrita.
+- `Desligar esteira` permanece disponível como parada normal. `EMERGÊNCIA` tem prioridade na fila, coloca o carregamento em `EMERGENCIA` e solicita M2051=1; início e mudança de direção ficam bloqueados até o procedimento autorizado de liberação.
+- O ACK de escrita confirma o eco Modbus da bobina, não a velocidade/direção real do motor. A parada de emergência física e os intertravamentos finais precisam continuar no Ladder/circuito aprovado e ser validados em bancada.

@@ -21,6 +21,8 @@ export class ArmazenamentoTrace {
       romaneio: "—",
       equipmentCode: "—",
       equipmentId: null,
+      // null indica que a Dala ainda não tem reversão confirmada pelo gateway.
+      reversalCommand: null,
       monitoring: null,
       monitoringUpdatedAt: null,
       // O status do servidor vem do health check HTTP, não de um heartbeat
@@ -172,7 +174,7 @@ export class ArmazenamentoTrace {
   aplicarIntencaoDeComando() {
     const intent = this.state.commandIntent;
     const status = String(this.state.plcCommand?.status || intent?.status || "").toUpperCase();
-    if (!intent || !["PENDENTE", "PROCESSANDO"].includes(status)) return;
+    if (!intent || !["PENDENTE", "PROCESSANDO", "APLICADO"].includes(status)) return;
     if (Number(intent.loadingId) !== Number(this.state.loadingId)) return;
     if (intent.command === "INICIAR_CARREGAMENTO") {
       this.state.operationalState = "CARREGANDO";
@@ -180,6 +182,10 @@ export class ArmazenamentoTrace {
     } else if (intent.command === "PAUSAR_CARREGAMENTO") {
       this.state.operationalState = "PAUSADO";
       this.state.running = false;
+    } else if (intent.command === "REVERSAO_ATIVAR") {
+      this.state.returnMode = true;
+    } else if (intent.command === "REVERSAO_DESATIVAR") {
+      this.state.returnMode = false;
     }
   }
   async loadManifests() {
@@ -471,6 +477,7 @@ export class ArmazenamentoTrace {
       this.state.romaneio = "—";
       this.state.equipmentCode = "—";
       this.state.equipmentId = null;
+      this.state.reversalCommand = null;
       this.state.plcCommand = null;
       this.state.loadingItems = [];
       return;
@@ -539,6 +546,7 @@ export class ArmazenamentoTrace {
       this.state.romaneio = "—";
       this.state.equipmentCode = "—";
       this.state.equipmentId = null;
+      this.state.reversalCommand = null;
       this.state.plcCommand = null;
       this.state.loadingItems = [];
       return null;
@@ -607,6 +615,7 @@ export class ArmazenamentoTrace {
       command,
       status: this.state.plcCommand.status,
       previousState: this.state.operationalState,
+      previousReturnMode: this.state.returnMode,
     };
     this.aplicarIntencaoDeComando();
     return result.data;
@@ -626,7 +635,6 @@ export class ArmazenamentoTrace {
     this.state.operationalState = "EMERGENCIA";
     this.state.emergency = true;
     this.state.running = false;
-    this.state.returnMode = false;
     return result;
   }
   async loadPlcCommandStatus(loadingId = this.state.loadingId) {
@@ -646,6 +654,13 @@ export class ArmazenamentoTrace {
       `/api/comandos_industriais.php?carregamento_id=${encodeURIComponent(loadingId)}`,
     );
     const result = await this.jsonResponse(response, "Não foi possível consultar o comando industrial.");
+    if (Object.hasOwn(result, "reversal_command")) {
+      const confirmedCommand = ["REVERSAO_ATIVAR", "REVERSAO_DESATIVAR"].includes(
+        result.reversal_command,
+      ) ? result.reversal_command : null;
+      this.state.reversalCommand = confirmedCommand;
+      this.state.returnMode = confirmedCommand === "REVERSAO_ATIVAR";
+    }
     const nextCommand = result.data || null;
     const currentCommand = this.state.plcCommand;
     const currentId = Number(currentCommand?.id) || 0;
@@ -687,6 +702,9 @@ export class ArmazenamentoTrace {
         if (nextStatus !== "APLICADO" && ["INICIAR_CARREGAMENTO", "PAUSAR_CARREGAMENTO"].includes(intent.command)) {
           this.state.operationalState = intent.previousState || this.state.operationalState;
           this.state.running = ["CARREGANDO", "FINALIZANDO"].includes(this.state.operationalState);
+        }
+        if (nextStatus !== "APLICADO" && ["REVERSAO_ATIVAR", "REVERSAO_DESATIVAR"].includes(intent.command)) {
+          this.state.returnMode = Boolean(intent.previousReturnMode);
         }
         this.state.commandIntent = null;
       }
@@ -1164,6 +1182,5 @@ export class ArmazenamentoTrace {
     this.state.emergency = true;
     this.state.operationalState = "EMERGENCIA";
     this.state.running = false;
-    this.state.returnMode = false;
   }
 }

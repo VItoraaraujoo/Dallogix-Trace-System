@@ -1,0 +1,33 @@
+@startuml trace-12-communication
+title 12. Comunicação — mensagens entre participantes da captura
+left to right direction
+skinparam linetype ortho
+
+object Operador
+object Gateway
+object "API PHP" as API
+object "MySQL" as DB
+object "camera-worker" as Worker
+object "Câmera RTSP" as Camera
+object "Serviço PDF" as PDF
+object "Armazenamento" as Storage
+
+Operador --> Gateway : 1: evento de ocorrência
+Gateway --> API : 2: solicitar captura autenticada
+API --> DB : 3: gravar solicitação
+Worker --> API : 4: CLAIM da fila
+API --> DB : 5: reservar solicitação
+Worker --> Camera : 6: obter quadro recente
+Camera --> Worker : 7: devolver JPEG
+Worker --> API : 8: upload da evidência
+API --> PDF : 9: converter e compor PDF
+PDF --> Storage : 10: persistir arquivo
+PDF --> API : 11: devolver caminho
+API --> DB : 12: salvar caminho e concluir
+API --> Worker : 13: confirmar COMPLETE
+
+note bottom
+As mensagens numeradas mostram a ordem do cenário.
+Esta vista enfatiza as ligações entre objetos, sem lifelines.
+end note
+@enduml

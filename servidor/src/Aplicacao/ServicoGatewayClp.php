@@ -76,6 +76,12 @@ final class ServicoGatewayClp
             $statement = $this->connection->prepare(
                 "SELECT r.id, r.company_id, r.equipment_id, r.carregamento_id, r.command, r.requested_at,
                         r.remote_command_id, c.remote_carregamento_id, c.state AS loading_state,
+                        (SELECT direction.command FROM solicitacoes_comandos_clp direction
+                         WHERE direction.equipment_id = r.equipment_id
+                           AND direction.company_id = r.company_id
+                           AND direction.command IN ('REVERSAO_ATIVAR', 'REVERSAO_DESATIVAR')
+                           AND direction.status = 'APLICADO'
+                         ORDER BY direction.id DESC LIMIT 1) AS reversal_command,
                         e.remote_equipment_id, e.equipment_code
                  FROM solicitacoes_comandos_clp r
                  JOIN carregamentos c ON c.id = r.carregamento_id

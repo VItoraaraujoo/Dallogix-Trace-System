@@ -3,19 +3,19 @@ import {
 } from "./sessao.js?v=202609222100";
 import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
 import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610061820";
-import { prepararDialogoAcessivel } from "./funcoes/dialogo.js?v=202610061820";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610062110";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610070203";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
-import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610060007";
-import { dataHora, numero, relativo } from "./funcoes/formato.js?v=202609201000";
+import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610070203";
+import { createSettingsStatusController } from "./controladores/status-configuracoes.js?v=202610070203";
+import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
+import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js?v=202609240001";
-import { deviceStatusSummary } from "./funcoes/view.js?v=202610061745";
-import { settings } from "../telas/configuracoes/configuracoes.js?v=202610010001";
+import { apresentacaoStatusDispositivo, settings } from "../telas/configuracoes/configuracoes.js?v=202610070203";
 import { dalas } from "../telas/dalas/dalas.js?v=202610010001";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
 import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610010001";
@@ -33,7 +33,7 @@ import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
 import { manifests } from "../telas/romaneios/romaneios.js?v=202610010001";
 import { manifestView } from "../telas/romaneio/romaneio.js?v=202610010001";
-import { work } from "../telas/operacao/operacao.js?v=202610062110";
+import { work } from "../telas/operacao/operacao.js?v=202610070203";
 import { dashboard } from "../telas/painel/painel.js?v=202610010001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610010001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
@@ -97,6 +97,52 @@ function notificarForaDaOperacao(mensagem, tipo = "informacao") {
   notificar(mensagem, tipo);
 }
 
+const machineCommandQueue = createMachineCommandQueue({
+  onDrained: (loadingId) => {
+    // Faz uma única leitura autoritativa depois que os cliques enfileirados
+    // forem enviados; leituras intermediárias poderiam devolver estado antigo.
+    if (currentPage === "work") {
+      Promise.allSettled([
+        store.loadActiveLoading(loadingId),
+        store.loadMonitoring(),
+      ]).then(() => {
+        if (currentPage === "work") render();
+      });
+    }
+  },
+});
+
+async function executarComandoDeOperacao(node, action) {
+  const loadingId = Number(node.dataset.loadingId || store.state.loadingId) || null;
+  const commands = {
+    "start-machine": "INICIAR_CARREGAMENTO",
+    run: "INICIAR_CARREGAMENTO",
+    "stop-machine": "PAUSAR_CARREGAMENTO",
+    stop: "PAUSAR_CARREGAMENTO",
+    "reverse-machine": "REVERSAO_ATIVAR",
+    "reverse-on": "REVERSAO_ATIVAR",
+    "reverse-off": "REVERSAO_DESATIVAR",
+    emergency: "EMERGENCIA",
+  };
+  const command = action === "reverse-toggle"
+    ? (store.state.returnMode ? "REVERSAO_DESATIVAR" : "REVERSAO_ATIVAR")
+    : commands[action];
+  try {
+    await machineCommandQueue.enqueue(loadingId, command, async () => {
+      if (command === "INICIAR_CARREGAMENTO") return servicoOperacao.iniciar(loadingId);
+      if (command === "PAUSAR_CARREGAMENTO") return servicoOperacao.parar(loadingId);
+      if (command === "REVERSAO_ATIVAR") return servicoOperacao.reversao(true, loadingId);
+      if (command === "REVERSAO_DESATIVAR") return servicoOperacao.reversao(false, loadingId);
+      if (command === "EMERGENCIA") return store.requestMachineEmergency(loadingId);
+      throw new Error("Comando operacional inválido.");
+    });
+    if (currentPage === "work") render();
+  } catch (error) {
+    notificarForaDaOperacao(error.message, "erro");
+    if (currentPage === "work") render();
+  }
+}
+
 const workRealtime = createOperationalRealtimeController({
   store,
   getPage: () => currentPage,
@@ -104,6 +150,11 @@ const workRealtime = createOperationalRealtimeController({
   refreshWorkLiveView: () => refreshWorkLiveView(),
   workStructureSignature: () => workStructureSignature(),
   getViewSignature: () => workViewSignature,
+});
+const settingsRealtime = createSettingsStatusController({
+  store,
+  getPage: () => currentPage,
+  refreshView: () => refreshSettingsStatusView(),
 });
 
 function sidebarCollapsed() {
@@ -236,6 +287,7 @@ async function refreshLocalIndicator() {
     store.state.serverStatus = "OFFLINE";
     setLocalIndicator("offline");
     if (currentPage === "work") refreshWorkLiveView();
+    if (currentPage === "settings") refreshSettingsStatusView();
     return;
   }
   localHealthRequest = true;
@@ -253,11 +305,13 @@ async function refreshLocalIndicator() {
     store.state.serverStatus = state === "online" ? "ONLINE" : "ERRO";
     setLocalIndicator(state, result.checked_at || Date.now(), currentInstallationMode);
     if (currentPage === "work") refreshWorkLiveView();
+    if (currentPage === "settings") refreshSettingsStatusView();
   } catch (error) {
     logFrontend.aviso("indicador.saude", error);
     store.state.serverStatus = "OFFLINE";
     setLocalIndicator("offline");
     if (currentPage === "work") refreshWorkLiveView();
+    if (currentPage === "settings") refreshSettingsStatusView();
   } finally {
     localHealthRequest = false;
   }
@@ -290,7 +344,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610062110").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610070203").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -330,42 +384,27 @@ function waitForDocumentStyles() {
   );
 }
 
-// A aplicação navega entre telas usando History API. Nessa navegação o HTML
-// inicial não é recarregado, então os estilos exclusivos de Dalas precisam ser
-// adicionados quando a rota muda a partir de outra tela.
-const DALA_PAGES = new Set(["dalas", "dala", "dala-edit"]);
-const DALA_SCREEN_STYLES = "/telas/dalas/dalas.css?v=202610010001";
-const COMPANY_SCREEN_STYLES = "/telas/empresa/empresa.css?v=202610020006";
-async function ensureDalaScreenStyles(page) {
-  if (!DALA_PAGES.has(page)) return;
-  const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
-    (link) => new URL(link.href, window.location.href).pathname === "/telas/dalas/dalas.css",
-  );
-  if (existing) {
-    if (existing.sheet) return;
-    await new Promise((resolve) => {
-      existing.addEventListener("load", resolve, { once: true });
-      existing.addEventListener("error", resolve, { once: true });
-    });
-    return;
-  }
-  const link = document.createElement("link");
-  link.rel = "stylesheet";
-  link.href = DALA_SCREEN_STYLES;
-  document.head.append(link);
-  await new Promise((resolve) => {
-    link.addEventListener("load", resolve, { once: true });
-    link.addEventListener("error", resolve, { once: true });
-  });
-}
+// A aplicação troca telas com History API sem recarregar o documento. Cada
+// tela que tem CSS próprio precisa garantir seu arquivo e sua versão antes do
+// primeiro render, inclusive quando a rota inicial veio de outra página.
+const SCREEN_STYLES = {
+  work: "/telas/operacao/operacao.css?v=202610070203",
+  import: "/telas/importar-romaneio/importar-romaneio.css?v=202610070203",
+  settings: "/telas/configuracoes/configuracoes.css?v=202610070203",
+  dalas: "/telas/dalas/dalas.css?v=202610070203",
+  dala: "/telas/dalas/dalas.css?v=202610070203",
+  "dala-edit": "/telas/dalas/dalas.css?v=202610070203",
+  company: "/telas/empresa/empresa.css?v=202610020006",
+};
 
-async function ensureCompanyScreenStyles(page) {
-  if (page !== "company") return;
-  const currentUrl = new URL(COMPANY_SCREEN_STYLES, window.location.href);
+async function ensureScreenStyles(page) {
+  const href = SCREEN_STYLES[page];
+  if (!href) return;
+  const expectedUrl = new URL(href, window.location.href);
   const existing = [...document.querySelectorAll('link[rel="stylesheet"]')].find(
-    (link) => new URL(link.href, window.location.href).pathname === currentUrl.pathname,
+    (link) => new URL(link.href, window.location.href).pathname === expectedUrl.pathname,
   );
-  if (existing && existing.href === currentUrl.href) {
+  if (existing?.href === expectedUrl.href) {
     if (existing.sheet) return;
     await new Promise((resolve) => {
       existing.addEventListener("load", resolve, { once: true });
@@ -376,12 +415,13 @@ async function ensureCompanyScreenStyles(page) {
   existing?.remove();
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = currentUrl.href;
+  link.href = expectedUrl.href;
   document.head.append(link);
   await new Promise((resolve) => {
     link.addEventListener("load", resolve, { once: true });
     link.addEventListener("error", resolve, { once: true });
   });
+  if (!link.sheet) logFrontend.aviso("tela.css", new Error(`Não foi possível carregar ${expectedUrl.pathname}.`));
 }
 
 function renderLogin(message = "") {
@@ -535,6 +575,8 @@ function renderScreen() {
   workViewSignature = currentPage === "work" ? workStructureSignature() : "";
   if (currentPage === "work") startWorkPolling();
   else stopWorkPolling();
+  if (currentPage === "settings") settingsRealtime.start();
+  else settingsRealtime.stop();
 }
 // Mantém uma entrada global para atualizações em tempo real e inicialização.
 // Handlers de uma tela usam a guarda local de bindActions/bindForms abaixo.
@@ -581,7 +623,6 @@ function workStructureSignature() {
   ]);
 }
 function refreshWorkLiveView() {
-  const loaded = Number(store.state.loaded) || 0;
   const detectedBags = Number(store.state.detectedBags) || 0;
   const planned = Number(store.state.planned) || 0;
   const remaining = Math.max(0, planned - detectedBags);
@@ -589,15 +630,12 @@ function refreshWorkLiveView() {
   const values = {
     planned: numero(planned),
     detected: numero(detectedBags),
-    loaded: numero(loaded),
-    "valid-readings": numero(loaded),
     remaining: numero(remaining),
-    "operational-state": rotuloEstado(store.state.operationalState),
+    "remaining-label": remaining === 0
+      ? "Nenhuma leitura pendente"
+      : `Falta${remaining === 1 ? "" : "m"} ${numero(remaining)} leitura${remaining === 1 ? "" : "s"} válida${remaining === 1 ? "" : "s"}`,
     "progress-percent": `${percent}%`,
     "progress-count": `${numero(detectedBags)} / ${numero(planned)} sacas`,
-    "monitoring-updated": store.state.monitoringUpdatedAt
-      ? `Atualizado ${dataHora(store.state.monitoringUpdatedAt)}`
-      : "Sem atualização confirmada",
   };
   Object.entries(values).forEach(([key, value]) => {
     document.querySelectorAll(`[data-live="${key}"]`).forEach((node) => {
@@ -623,41 +661,93 @@ function refreshWorkLiveView() {
     endNotice.classList.toggle("complete", complete);
     endNotice.classList.toggle("near-end", nearEnd && !complete);
   }
-  const statuses = store.state.monitoring?.dispositivos || [];
-  const selectedEquipmentId = Number(store.state.equipmentId) || null;
-  const statusByType = Object.fromEntries(
-    ["SENSOR", "SCANNER", "CLP", "CAMERA", "SERVER"].map((type) => {
-      const device = statuses.find((item) =>
-        item.device_type === type &&
-        (!selectedEquipmentId || Number(item.equipment_id) === selectedEquipmentId),
-      );
-      const value = type === "SERVER"
-        ? (store.state.serverStatus || "DESCONHECIDO")
-        : (device?.status || "NAO_REGISTRADO");
-      return [type, { value, presentation: deviceStatusSummary(value) }];
-    }),
-  );
-  document.querySelectorAll("[data-live-status]").forEach((node) => {
-    const type = node.dataset.liveStatus;
-    const equipmentId = Number(node.dataset.liveStatusEquipment) || null;
-    const device = equipmentId
-      ? statuses.find((item) =>
-          item.device_type === type && Number(item.equipment_id) === equipmentId,
-        )
-      : null;
-    const current = device
-      ? { value: device.status, presentation: deviceStatusSummary(device.status) }
-      : statusByType[type] || {
-          value: "NAO_REGISTRADO",
-          presentation: deviceStatusSummary("NAO_REGISTRADO"),
-        };
-    const presentation = current.presentation;
-    const binary = node.dataset.liveStatusMode === "binary";
-    const online = ["ONLINE", "LOCAL", "OK"].includes(
-      String(current.value || "").trim().toUpperCase(),
-    );
-    node.textContent = binary ? (online ? "ON" : "OFF") : presentation.label;
-    node.className = `status-value status-${binary ? (online ? "online" : "offline") : presentation.tone}`;
+}
+
+function refreshSettingsStatusView() {
+  const devices = store.state.monitoring?.dispositivos || [];
+  const presentations = [];
+  document.querySelectorAll("[data-device-status-card]").forEach((card) => {
+    const type = card.dataset.deviceStatusCard;
+    const equipmentId = Number(card.dataset.liveStatusEquipment) || null;
+    const device = type === "SERVER"
+      ? null
+      : devices.find((item) => item.device_type === type &&
+          (!equipmentId || Number(item.equipment_id) === equipmentId));
+    const value = type === "SERVER"
+      ? (store.state.serverStatus || "DESCONHECIDO")
+      : (device?.status || "NAO_REGISTRADO");
+    const presentation = apresentacaoStatusDispositivo(value);
+    presentations.push(presentation);
+    card.className = `settings-device-status-card ${presentation.tone}`;
+    const status = card.querySelector("[data-live-status]");
+    if (status) {
+      status.textContent = presentation.label;
+      status.className = `status-value status-${presentation.tone}`;
+    }
+    const detail = card.querySelector("[data-live-status-detail]");
+    if (detail) detail.textContent = presentation.detail;
+  });
+
+  const onlineCount = presentations.filter((status) => status.online).length;
+  const attentionCount = Math.max(0, presentations.length - onlineCount);
+  const onlineSummary = document.querySelector('[data-device-summary="online-count"]');
+  const attentionSummary = document.querySelector('[data-device-summary="attention-count"]');
+  const attentionLabel = document.querySelector('[data-device-summary="attention-label"]');
+  if (onlineSummary) onlineSummary.textContent = `${onlineCount}/${presentations.length}`;
+  if (attentionSummary) attentionSummary.textContent = String(attentionCount);
+  if (attentionLabel) attentionLabel.textContent = "sem sinal";
+
+  const centralSync = store.state.syncStatus?.central_sync || {};
+  const pcStatus = String(centralSync.pc_status || (centralSync.pc_online ? "ONLINE" : "DESCONHECIDO")).toUpperCase();
+  const pcLabel = !store.state.syncStatus
+    ? "Status da sincronização indisponível"
+    : !centralSync.configured
+      ? "Sincronização central não configurada"
+      : !centralSync.installation_registered
+        ? "Instalação ainda não registrada"
+        : ({
+            ONLINE: "PC industrial online",
+            OFFLINE: "PC industrial sem comunicação",
+            ERRO: "PC industrial com erro",
+            DESCONHECIDO: "PC industrial sem sinal",
+          }[pcStatus] || "Status do PC industrial desconhecido");
+  const pcTone = pcStatus === "ONLINE" ? "online" : ["OFFLINE", "ERRO"].includes(pcStatus) ? "offline" : "unknown";
+  const updateConnectivity = (key, tone, label) => {
+    const row = document.querySelector(`[data-settings-connectivity="${key}"]`);
+    const dot = row?.querySelector("[data-settings-connectivity-dot]");
+    const text = row?.querySelector("[data-settings-connectivity-label]");
+    if (dot) dot.className = `status-dot ${tone}`;
+    if (text) text.textContent = label;
+  };
+  updateConnectivity("pc", pcTone, pcLabel);
+
+  const configuredDalas = store.state.configuration?.dalas || [];
+  const dalaStatuses = store.state.dalaStatuses || [];
+  const onlineDalas = dalaStatuses.filter((dala) => String(dala.status).toUpperCase() === "ONLINE").length;
+  const offlineDalas = dalaStatuses.filter((dala) => ["OFFLINE", "ERRO"].includes(String(dala.status).toUpperCase())).length;
+  const unknownDalas = Math.max(0, configuredDalas.length - onlineDalas - offlineDalas);
+  const dalaLabel = configuredDalas.length === 0
+    ? "Dalas não cadastradas"
+    : onlineDalas === configuredDalas.length
+      ? "Dalas online"
+      : offlineDalas === configuredDalas.length
+        ? "Dalas sem comunicação"
+        : onlineDalas > 0
+          ? "Dalas parcialmente online"
+          : "Dalas sem status";
+  const dalaTone = configuredDalas.length === 0 || unknownDalas > 0 || (onlineDalas > 0 && offlineDalas > 0)
+    ? "unknown"
+    : offlineDalas > 0
+      ? "offline"
+      : "online";
+  updateConnectivity("dalas", dalaTone, dalaLabel);
+
+  const statusByEquipment = new Map(dalaStatuses.map((status) => [String(status.equipment_id), status]));
+  document.querySelectorAll(".dala-status[data-equipment-id]").forEach((cell) => {
+    const status = statusByEquipment.get(String(cell.dataset.equipmentId));
+    const raw = String(status?.status || "DESCONHECIDO").toUpperCase();
+    const tone = raw === "ONLINE" ? "online" : ["OFFLINE", "ERRO"].includes(raw) ? "offline" : "unknown";
+    cell.innerHTML = `<span class="status-dot ${tone}"></span>${esc(status?.message || (raw === "ONLINE" ? "Online" : raw === "OFFLINE" ? "Sem comunicação" : "Status indisponível."))}`;
   });
 }
 let relativeTimeTimer = null;
@@ -716,65 +806,6 @@ function downloadCsv(filename, rows) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(link.href);
-}
-function timedCommandConfirmation({
-  title,
-  message,
-  confirmLabel = "Sim",
-  timeout = 8,
-}) {
-  return new Promise((resolve) => {
-    const overlay = document.createElement("div");
-    overlay.className = "command-confirm-overlay";
-    overlay.innerHTML = `<section class="command-confirm" role="dialog" aria-modal="true" aria-labelledby="command-confirm-title">
-      <span class="kicker">Confirmação obrigatória</span>
-      <h2 id="command-confirm-title">${esc(title)}</h2>
-      <p>${esc(message)}</p>
-      <strong class="command-confirm-timer">Confirme em <span>${timeout}</span> s</strong>
-      <div class="command-confirm-actions"><button class="button ghost" data-confirm="no" type="button">Não</button><button class="button primary" data-confirm="yes" type="button">${esc(confirmLabel)}</button></div>
-    </section>`;
-    document.body.appendChild(overlay);
-    const modal = overlay.querySelector(".command-confirm");
-    const heading = modal?.querySelector("h2");
-    const description = modal?.querySelector("p");
-    const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-    if (heading) {
-      heading.id = `command-confirm-title-${suffix}`;
-      modal?.setAttribute("aria-labelledby", heading.id);
-    }
-    if (description) {
-      description.id = `command-confirm-description-${suffix}`;
-      modal?.setAttribute("aria-describedby", description.id);
-    }
-    const timer = overlay.querySelector(".command-confirm-timer span");
-    let remaining = timeout;
-    let settled = false;
-    let controle = null;
-    const finish = (confirmed) => {
-      if (settled) return;
-      settled = true;
-      window.clearInterval(interval);
-      controle?.desligar();
-      overlay.remove();
-      controle?.restaurarFoco();
-      resolve(confirmed);
-    };
-    const interval = window.setInterval(() => {
-      remaining -= 1;
-      if (timer) timer.textContent = String(Math.max(remaining, 0));
-      if (remaining <= 0) finish(false);
-    }, 1000);
-    overlay
-      .querySelector('[data-confirm="yes"]')
-      .addEventListener("click", () => finish(true));
-    overlay
-      .querySelector('[data-confirm="no"]')
-      .addEventListener("click", () => finish(false));
-    controle = prepararDialogoAcessivel(modal, {
-      focoInicial: overlay.querySelector('[data-confirm="yes"]'),
-      aoEscape: () => finish(false),
-    });
-  });
 }
 function bindActions() {
   const renderContextId = renderRequestId;
@@ -843,9 +874,10 @@ function bindActions() {
             store.loadSyncStatus(),
             store.loadDalaStatuses(),
           ]);
-          render();
+          refreshSettingsStatusView();
         } catch (error) {
           notificar(error.message || "Não foi possível atualizar os estados.");
+        } finally {
           node.disabled = false;
           node.dataset.busy = "0";
         }
@@ -1483,69 +1515,8 @@ function bindActions() {
         }
         return;
       }
-      if (["start-machine", "stop-machine", "run", "stop"].includes(action)) {
-        if (store.state.commandInFlight) return;
-        const starting = action === "start-machine" || action === "run";
-        if (
-          starting &&
-          !(await timedCommandConfirmation({
-            title: "Iniciar carregamento?",
-            message:
-              "Confirme que a esteira está livre e pronta para carregar no sentido normal.",
-          }))
-        )
-          return;
-        const commandToken = store.beginCommand();
-        if (!commandToken) return;
-        if (currentPage === "work") render();
-        try {
-          const loadingId = node.dataset.loadingId || store.state.loadingId;
-          await (starting
-            ? servicoOperacao.iniciar(loadingId)
-            : servicoOperacao.parar(loadingId));
-          // A solicitação já foi registrada no backend e o estado PENDENTE
-          // passa a ser a trava de idempotência. Libere a interface antes da
-          // leitura de atualização para que o comando oposto (por exemplo,
-          // parar logo após iniciar) não fique preso a uma consulta lenta.
-          store.endCommand(commandToken);
-          if (currentPage === "work") render();
-          await Promise.allSettled([
-            store.loadActiveLoading(loadingId),
-            store.loadPlcCommandStatus(loadingId),
-            store.loadMonitoring(),
-          ]);
-          render();
-        } catch (error) {
-          notificarForaDaOperacao(error.message, "erro");
-        } finally {
-          store.endCommand(commandToken);
-          if (currentPage === "work") render();
-        }
-        return;
-      }
-      if (action === "reverse-machine") {
-        if (store.state.commandInFlight) return;
-        if (
-          !(await timedCommandConfirmation({
-            title: "Ativar reversão?",
-            message:
-              "A esteira precisa estar parada. O gateway só enviará o comando após validar os intertravamentos do CLP.",
-          }))
-        )
-          return;
-        const commandToken = store.beginCommand();
-        if (!commandToken) return;
-        if (currentPage === "work") render();
-        try {
-          await servicoOperacao.reversao(true, node.dataset.loadingId);
-          await store.loadActiveLoading(node.dataset.loadingId);
-          render();
-        } catch (error) {
-          notificarForaDaOperacao(error.message, "erro");
-        } finally {
-          store.endCommand(commandToken);
-          if (currentPage === "work") render();
-        }
+      if (["start-machine", "stop-machine", "run", "stop", "reverse-machine", "reverse-on", "reverse-off", "reverse-toggle", "emergency"].includes(action)) {
+        await executarComandoDeOperacao(node, action);
         return;
       }
       if (action === "add-item") {
@@ -1559,60 +1530,7 @@ function bindActions() {
         return;
       }
       if (screens[action]) navigate(action);
-      else if (action === "reverse-on" || action === "reverse-off" || action === "reverse-toggle") {
-        if (store.state.commandInFlight) return;
-        const activating = action === "reverse-on" ||
-          (action === "reverse-toggle" && store.state.plcCommand?.command !== "REVERSAO_ATIVAR");
-        if (
-          !(await timedCommandConfirmation({
-            title: activating ? "Ativar reversão?" : "Desativar reversão?",
-            message:
-              "O gateway só enviará o comando após validar os intertravamentos do CLP.",
-            confirmLabel: activating ? "Ativar" : "Desativar",
-          }))
-        )
-          return;
-        const commandToken = store.beginCommand();
-        if (!commandToken) return;
-        if (currentPage === "work") render();
-        try {
-          await servicoOperacao.reversao(activating, store.state.loadingId);
-          store.endCommand(commandToken);
-          if (currentPage === "work") render();
-          await Promise.allSettled([
-            store.loadActiveLoading(),
-            store.loadPlcCommandStatus(),
-            store.loadMonitoring(),
-          ]);
-          render();
-        } catch (error) {
-          notificarForaDaOperacao(error.message, "erro");
-        } finally {
-          store.endCommand(commandToken);
-          if (currentPage === "work") render();
-        }
-      } else if (action === "emergency") {
-        if (store.state.commandInFlight) return;
-        const commandToken = store.beginCommand();
-        if (!commandToken) return;
-        if (currentPage === "work") render();
-        try {
-          await servicoEmergencia.solicitar();
-          store.endCommand(commandToken);
-          if (currentPage === "work") render();
-          await Promise.allSettled([
-            store.loadActiveLoading(),
-            store.loadPlcCommandStatus(),
-            store.loadMonitoring(),
-          ]);
-          render();
-        } catch (error) {
-          notificarForaDaOperacao(error.message, "erro");
-        } finally {
-          store.endCommand(commandToken);
-          if (currentPage === "work") render();
-        }
-      } else if (action === "unlock") {
+      else if (action === "unlock") {
         node.disabled = true;
         try {
           await servicoEmergencia.liberar();
@@ -2340,7 +2258,15 @@ async function loadPageData(page) {
         new URLSearchParams(window.location.search).get("company_id") || null;
       if (store.state.selectedCompanyId) await store.loadUsers();
     }
-    if (page === "settings") await store.loadConfiguration();
+    if (page === "settings") {
+      await Promise.all([
+        store.loadConfiguration(),
+        store.loadMonitoring(),
+        store.loadEquipments(),
+        store.loadSyncStatus(),
+        store.loadDalaStatuses(),
+      ]);
+    }
     return;
   }
   const tasks = {
@@ -2408,8 +2334,7 @@ async function renderPage() {
   const requestId = ++renderRequestId;
   api.beginNavigation();
 
-  await ensureDalaScreenStyles(currentPage);
-  await ensureCompanyScreenStyles(currentPage);
+  await ensureScreenStyles(currentPage);
 
   // Mantém a tela atual visível enquanto as consultas terminam. Exibir um
   // painel intermediário de carregamento a cada navegação fazia o operador

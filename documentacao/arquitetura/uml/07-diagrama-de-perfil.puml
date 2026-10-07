@@ -1,0 +1,48 @@
+@startuml trace-07-profile
+title 7. Perfil Trace — estereótipos e restrições do domínio
+skinparam classAttributeIconSize 0
+
+class TraceIndustrialProfile <<profile>>
+class LocalFirstNode <<stereotype>>
+class OutboundSync <<stereotype>>
+class IndustrialGateway <<stereotype>>
+class PhysicalController <<stereotype>>
+class EvidenceArtifact <<stereotype>>
+class TenantScopedData <<stereotype>>
+
+LocalFirstNode ..> TraceIndustrialProfile : definido em
+OutboundSync ..> TraceIndustrialProfile : definido em
+IndustrialGateway ..> TraceIndustrialProfile : definido em
+PhysicalController ..> TraceIndustrialProfile : definido em
+EvidenceArtifact ..> TraceIndustrialProfile : definido em
+TenantScopedData ..> TraceIndustrialProfile : definido em
+
+note right of LocalFirstNode
+tag: operation=offline-capable
+tag: host=industrial-pc
+end note
+note right of OutboundSync
+tag: transport=HTTPS
+constraint: conexão iniciada pelo PC
+end note
+note right of IndustrialGateway
+tag: protocol=Modbus TCP
+constraint: autentica e valida comandos
+end note
+note right of PhysicalController
+constraint: emergência e intertravamentos no CLP
+end note
+note right of EvidenceArtifact
+tag: media=PDF
+tag: storage=filesystem
+end note
+note right of TenantScopedData
+tag: key=company_id
+constraint: consultas respeitam a empresa autorizada
+end note
+
+note bottom
+Modelo de perfil do Trace para padronizar estereótipos e tags.
+Representado com classes UML para compatibilidade com PlantUML.
+end note
+@enduml

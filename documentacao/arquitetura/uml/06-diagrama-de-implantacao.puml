@@ -1,0 +1,42 @@
+@startuml trace-06-deployment
+title 6. Implantação — PC industrial, equipamentos e Central
+left to right direction
+
+node "PC industrial" as PC {
+  node "Docker Compose" as DOCKER {
+    node "Nginx" as NGINX
+    node "PHP / API" as PHP
+    database "MySQL local" as MYSQL
+    node "Node-RED" as NR
+    node "camera-worker" as CAM
+    node "sync-worker" as SYNC
+    node "image-retention" as RET
+  }
+  artifact "Interface web" as UI
+  folder "armazenamento local\nPDFs e evidências" as FILES
+}
+
+node "Rede industrial" as INDUSTRIAL {
+  node "CLP / Dala" as PLC
+  node "Câmera IP" as CAMERA
+}
+cloud "Servidor Central" as CENTRAL
+node "Navegador do operador" as BROWSER
+
+BROWSER --> UI : rede local
+UI --> NGINX : HTTP local
+NGINX --> PHP : encaminhamento
+PHP --> MYSQL : rede Docker
+PHP --> FILES : arquivos locais
+NR <--> PLC : Modbus TCP
+CAMERA --> CAM : RTSP/TCP
+CAM --> PHP : API local
+SYNC --> CENTRAL : HTTPS de saída
+RET --> MYSQL : limpeza programada
+RET --> FILES : retenção de imagens
+
+note bottom of CENTRAL
+Central não inicia conexão TCP para dentro da fábrica
+nem comanda diretamente o CLP.
+end note
+@enduml

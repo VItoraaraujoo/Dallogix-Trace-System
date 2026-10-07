@@ -34,7 +34,7 @@ function commandResponse(command, loadingState = "AGUARDANDO") {
   return {
     statusCode: 200,
     traceToken: "test-device-token",
-    payload: { data: { id: 91, carregamento_id: 17, command, loading_state: loadingState } },
+    payload: { data: { id: 91, carregamento_id: 17, command, loading_state: loadingState, reversal_command: "REVERSAO_DESATIVAR" } },
   };
 }
 
@@ -144,6 +144,32 @@ test("reversão escreve M2050 e emergência escreve M2051", () => {
   assert.equal(reverseOff.payload.readUInt16BE(8), 2050);
   assert.equal(reverseOff.payload.readUInt16BE(10), 0x0000);
   const emergency = physicalFrame(call, "EMERGENCIA", "CARREGANDO").written;
+  assert.equal(emergency.payload.readUInt16BE(8), 2051);
+  assert.equal(emergency.payload.readUInt16BE(10), 0xff00);
+});
+
+test("início para frente exige reversão confirmada desligada", () => {
+  for (const reversalCommand of ["REVERSAO_ATIVAR", null]) {
+    const input = physicalCommand("INICIAR_CARREGAMENTO", "PAUSADO");
+    input.payload.data.reversal_command = reversalCommand;
+    const result = runtime()("command-safe-gate", input);
+    assert.equal(result[0], null);
+    assert.equal(result[1].payload.status, "REJEITADO");
+    assert.match(result[1].payload.message, /reversão desligada/i);
+  }
+});
+
+test("reversão só pode ser alterada com a esteira parada", () => {
+  for (const command of ["REVERSAO_ATIVAR", "REVERSAO_DESATIVAR"]) {
+    const result = runtime()("command-safe-gate", physicalCommand(command, "CARREGANDO"));
+    assert.equal(result[0], null);
+    assert.equal(result[1].payload.status, "REJEITADO");
+    assert.match(result[1].payload.message, /esteira em movimento/i);
+  }
+});
+
+test("emergência continua prioritária e aceita operação em movimento", () => {
+  const emergency = physicalFrame(runtime(), "EMERGENCIA", "CARREGANDO").written;
   assert.equal(emergency.payload.readUInt16BE(8), 2051);
   assert.equal(emergency.payload.readUInt16BE(10), 0xff00);
 });

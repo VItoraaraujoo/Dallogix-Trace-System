@@ -21,7 +21,7 @@ export function createOperationalRealtimeController({ store, getPage, render, re
   const fallback = () => {
     if (fallbackTimer) return;
     const token = generation;
-    const intervalo = globalThis.document?.hidden ? 15000 : 5000;
+    const intervalo = globalThis.document?.hidden ? 10000 : 2000;
     fallbackTimer = window.setTimeout(async () => {
       fallbackTimer = null;
       if (!isCurrent(token)) return;
@@ -49,7 +49,7 @@ export function createOperationalRealtimeController({ store, getPage, render, re
     }, intervalo);
   };
   const start = () => {
-    if (eventSource || fallbackTimer || getPage() !== "work") return;
+    if (eventSource || getPage() !== "work") return;
     const token = ++generation;
     const consume = async (payload) => {
       if (!isCurrent(token)) return;
@@ -118,7 +118,10 @@ export function createOperationalRealtimeController({ store, getPage, render, re
       }, delay);
     };
     eventSource = store.subscribeOperationalEvents(consume, reconnect);
-    if (!eventSource) fallback();
+    // O SSE entrega snapshots curtos e pode encerrar logo após o quadro.
+    // A consulta periódica permanece ativa mesmo quando o stream conecta,
+    // garantindo que comandos e leituras apareçam sem recarregar a tela.
+    fallback();
   };
   return { start, stop };
 }

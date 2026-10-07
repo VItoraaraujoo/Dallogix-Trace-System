@@ -9,21 +9,19 @@ const DEVICE_TYPES = [
   ["SERVER", "Servidor", "Serviço central"],
 ];
 
-function deviceStatus(value) {
+export function apresentacaoStatusDispositivo(value) {
   const normalized = String(value || "NAO_REGISTRADO").trim().toUpperCase();
   const online = ["ONLINE", "LOCAL", "OK"].includes(normalized);
   const error = normalized === "ERRO";
-  const tone = online ? "online" : error ? "error" : "offline";
-  const label = online ? "ON" : error ? "ERRO" : "OFF";
-  const detail = online ? "Sinal recebido" : error ? "Falha de comunicação" : "Sem sinal";
+  const unknown = ["", "DESCONHECIDO", "NAO_REGISTRADO", "NÃO REGISTRADO"].includes(normalized);
+  const tone = online ? "online" : error ? "error" : unknown ? "unknown" : "offline";
+  const label = online ? "ON" : error ? "ERRO" : unknown ? "SEM SINAL" : "OFF";
+  const detail = online ? "Sinal recebido" : error ? "Falha de comunicação" : unknown ? "Aguardando sinal" : "Sem sinal";
   return { online, tone, label, detail };
 }
 
 function deviceStatusPanel(store) {
-  const selectedEquipmentId = Number(store.state.equipmentId) || null;
-  const devices = (store.state.monitoring?.dispositivos || []).filter(
-    (item) => !selectedEquipmentId || Number(item.equipment_id) === selectedEquipmentId,
-  );
+  const devices = store.state.monitoring?.dispositivos || [];
   const equipments = new Map(
     (store.state.equipments || []).map((equipment) => [
       Number(equipment.id),
@@ -39,25 +37,25 @@ function deviceStatusPanel(store) {
       ? matches.map((device) => ({ type, label, description, value: device.status, device }))
       : [{ type, label, description, value: "NAO_REGISTRADO", device: null }];
   });
-  const onlineCount = records.filter((record) => deviceStatus(record.value).online).length;
+  const onlineCount = records.filter((record) => apresentacaoStatusDispositivo(record.value).online).length;
   const attentionCount = records.length - onlineCount;
   const cards = records.map(({ type, label, description, value, device }) => {
-    const status = deviceStatus(value);
+    const status = apresentacaoStatusDispositivo(value);
     const equipmentLabel = device?.equipment_id
       ? equipments.get(Number(device.equipment_id)) || `Dala ${device.equipment_id}`
       : "Visão central";
     const equipmentAttribute = device?.equipment_id
       ? ` data-live-status-equipment="${Number(device.equipment_id)}"`
       : "";
-    return `<article class="settings-device-status-card ${status.tone}">
+    return `<article class="settings-device-status-card ${status.tone}" data-device-status-card="${type}"${equipmentAttribute}>
       <div class="settings-device-status-identity"><span class="settings-device-status-mark" aria-hidden="true">${esc(label.slice(0, 1))}</span><div><strong>${esc(label)}</strong><small>${esc(description)}</small><small>${esc(equipmentLabel)}</small></div></div>
-      <div class="settings-device-status-result"><b class="status-value status-${status.tone === "error" ? "error" : status.tone}" data-live-status="${type}" data-live-status-mode="binary"${equipmentAttribute}>${status.label}</b><span class="settings-device-status-detail">${esc(status.detail)}</span></div>
+      <div class="settings-device-status-result"><b class="status-value status-${status.tone}" data-live-status="${type}" data-live-status-mode="binary">${status.label}</b><span class="settings-device-status-detail" data-live-status-detail="${type}">${esc(status.detail)}</span></div>
     </article>`;
   }).join("");
-  const attentionText = attentionCount ? `${attentionCount} sem sinal` : "Todos online";
+  const attentionText = "sem sinal";
   return `<section class="panel settings-device-status-panel" aria-label="Status dos dispositivos">
     <div class="settings-device-status-heading"><div><span class="kicker">Status da máquina</span><h3>Dispositivos e serviços</h3><p>Um cartão por dispositivo, com o estado atual e a Dala associada.</p></div><div class="settings-device-status-actions">${button("Recarregar estados", "reload-monitoring", "secondary")}</div></div>
-    <div class="settings-device-status-summary"><div><strong>${onlineCount}/${records.length}</strong><span>online</span></div><i aria-hidden="true"></i><div><strong>${attentionCount}</strong><span>${esc(attentionText)}</span></div></div>
+    <div class="settings-device-status-summary"><div><strong data-device-summary="online-count">${onlineCount}/${records.length}</strong><span>online</span></div><i aria-hidden="true"></i><div><strong data-device-summary="attention-count">${attentionCount}</strong><span data-device-summary="attention-label">${esc(attentionText)}</span></div></div>
     <div class="settings-device-status-grid">${cards}</div>
     <p class="settings-device-status-note">Os estados são informativos e não alteram os comandos da Dala.</p>
   </section><br>`;
@@ -119,10 +117,25 @@ export function settings(store) {
   ];
   const dalaRows = config.dalas.length
     ? config.dalas
-        .map(
-          (dala) =>
-            `<tr><td>${esc(dala.name)}</td><td><code>${esc(dala.equipment_code)}</code></td><td>${esc(dala.plc_ip || "—")}</td><td>${dala.plc_port || "—"}</td><td class="dala-status" data-equipment-id="${dala.id}"><span class="status-dot"></span>Verificando…</td></tr>`,
-        )
+        .map((dala) => {
+          const status = dalaStatuses.find((entry) => Number(entry.equipment_id) === Number(dala.id));
+          const rawStatus = String(status?.status || "").toUpperCase();
+          const tone = rawStatus === "ONLINE"
+            ? "online"
+            : ["OFFLINE", "ERRO"].includes(rawStatus)
+              ? "offline"
+              : "unknown";
+          const statusLabel = status?.message || (
+            rawStatus === "ONLINE"
+              ? "Online"
+              : rawStatus === "OFFLINE"
+                ? "Sem comunicação"
+                : rawStatus === "ERRO"
+                  ? "Falha de comunicação"
+                  : "Aguardando sinal"
+          );
+          return `<tr><td>${esc(dala.name)}</td><td><code>${esc(dala.equipment_code)}</code></td><td>${esc(dala.plc_ip || "—")}</td><td>${dala.plc_port || "—"}</td><td class="dala-status" data-equipment-id="${dala.id}"><span class="status-dot ${tone}"></span>${esc(statusLabel)}</td></tr>`;
+        })
         .join("")
     : '<tr><td colspan="5" class="empty-cell">Nenhuma Dala cadastrada.</td></tr>';
   const canManageUsers = ["ADMIN_DALLOGIX", "ADMIN_EMPRESA"].includes(
@@ -131,7 +144,7 @@ export function settings(store) {
   return `<div class="title-row"><div><h2>Configurações</h2></div></div>
 ${canManageUsers ? `<section class="panel settings-access-panel"><div class="panel-heading"><div><h3>Gerenciar usuários</h3><p>Crie e gerencie os usuários, perfis e acessos da empresa.</p></div>${button("Abrir gerenciamento de usuários", "open-users", "primary")}</div></section><br>` : ""}
 <section class="panel"><h3>Comunicação industrial</h3><p>O PC industrial acessa o CLP pela rede local e inicia a sincronização HTTPS com o servidor central. Não é necessário abrir porta pública ou configurar redirecionamento no roteador.</p></section><br>
-<section class="panel"><h3>Conectividade</h3><div class="sync-status-row"><span class="status-dot ${syncTone}"></span><strong>${syncLabel}</strong></div><br><div class="sync-status-row"><span class="status-dot ${dalaTone}"></span><strong>${dalaLabel}</strong></div></section><br>
+<section class="panel"><h3>Conectividade</h3><div class="sync-status-row" data-settings-connectivity="pc"><span class="status-dot ${syncTone}" data-settings-connectivity-dot></span><strong data-settings-connectivity-label>${syncLabel}</strong></div><br><div class="sync-status-row" data-settings-connectivity="dalas"><span class="status-dot ${dalaTone}" data-settings-connectivity-dot></span><strong data-settings-connectivity-label>${dalaLabel}</strong></div></section><br>
 ${deviceStatusPanel(store)}
 <section class="panel"><div class="panel-heading"><h3>Dalas</h3><div class="actions">${button("Recarregar", "reload-dalas", "secondary")}${button("Gerenciar Dalas", "goto-dalas")}</div></div>
 <p>Visão consolidada das Dalas cadastradas e do último sinal Modbus recebido do PC industrial. Para cadastrar ou editar, use Gerenciar Dalas.</p>

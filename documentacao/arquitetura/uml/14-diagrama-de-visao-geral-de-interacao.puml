@@ -1,0 +1,33 @@
+@startuml trace-14-interaction-overview
+title 14. Visão geral de interação — operação local e sincronização
+
+start
+:Operador solicita operação;
+if (CLP/gateway disponível?) then (sim)
+  :ref: atualizar estado via gateway;
+  :ref: registrar leitura e auditoria;
+  if (Há ocorrência com captura?) then (sim)
+    :ref: sequência de captura da câmera;
+    if (Evidência PDF concluída?) then (sim)
+      :Disponibilizar relatório de auditoria;
+    else (não)
+      :Preservar evidência e sinalizar falha;
+    endif
+  else (não)
+    :Continuar fluxo operacional;
+  endif
+  if (Central disponível?) then (sim)
+    :ref: consumir fila e sincronizar;
+  else (não)
+    :Manter dados e fila local;
+  endif
+else (não)
+  :Bloquear comando físico e informar indisponibilidade;
+endif
+stop
+
+note bottom
+Representação de visão geral com atividades e referências textuais.
+Os detalhes de mensagens estão nos diagramas de sequência 11 e 12.
+end note
+@enduml

@@ -1,0 +1,26 @@
+@startuml trace-09-activity
+title 9. Atividades — processamento de leitura industrial
+
+start
+:Gateway recebe evento do CLP;
+:API identifica empresa,\nequipamento e carregamento;
+if (Carregamento aceita leitura?) then (sim)
+  :Persistir evento do sensor;
+  :Associar código de barras\nmais recente, se disponível;
+  if (Código disponível?) then (sim)
+    :Registrar leitura vinculada;
+  else (não)
+    :Registrar ocorrência SEM_LEITURA;
+  endif
+  :Registrar auditoria e evento de sincronização;
+  if (Central alcançável?) then (sim)
+    :sync-worker envia lote;
+    :Marcar entrega confirmada;
+  else (não)
+    :Manter evento na fila local;
+  endif
+else (não)
+  :Rejeitar/registrar evento conforme regra;
+endif
+stop
+@enduml

@@ -1,0 +1,28 @@
+@startuml trace-10-states
+title 10. Máquina de estados — carregamento
+
+[*] --> AGUARDANDO
+AGUARDANDO --> PREPARANDO : preparar
+AGUARDANDO --> EMERGENCIA : emergência
+PREPARANDO --> CARREGANDO : gateway disponível / iniciar
+PREPARANDO --> PAUSADO : pausar
+PREPARANDO --> EMERGENCIA : emergência
+CARREGANDO --> PAUSADO : pausar / regra operacional
+CARREGANDO --> FINALIZANDO : solicitar encerramento
+CARREGANDO --> EMERGENCIA : emergência
+PAUSADO --> CARREGANDO : retomar / gateway disponível
+PAUSADO --> EMERGENCIA : emergência
+FINALIZANDO --> FINALIZADO : validações do encerramento aprovadas
+FINALIZANDO --> EMERGENCIA : emergência
+EMERGENCIA --> PAUSADO : ACK do gateway industrial
+FINALIZADO --> [*]
+
+note right of EMERGENCIA
+Saída depende de confirmação do gateway.
+Emergência física e intertravamentos
+continuam sob responsabilidade do CLP.
+end note
+note bottom
+Transições extraídas do serviço de estado e dos fluxos de encerramento.
+end note
+@enduml

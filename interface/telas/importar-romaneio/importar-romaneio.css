@@ -1,5 +1,5 @@
 /* Estilos da tela importar-romaneio; a base responsiva é compartilhada. */
-@import url("/css/responsive.css");
+@import url("/css/responsive.css?v=202610070203");
 
 /* Mantém o formulário equilibrado: três campos principais e dois campos
    complementares que ocupam a largura disponível sem deixar uma coluna vazia. */
@@ -42,11 +42,26 @@
 }
 
 .pdf-import-card form {
+  display: grid;
+  width: 100%;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
+  grid-template-areas:
+    "picker action"
+    "feedback feedback";
+  column-gap: 20px;
+  row-gap: 8px;
 }
 
 .pdf-import-card .file-picker {
+  display: grid;
+  grid-area: picker;
+  width: 100%;
+  min-width: 0;
   min-height: 50px;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 14px;
+  align-items: center;
 }
 
 .pdf-import-card .file-name {
@@ -54,7 +69,15 @@
 }
 
 .pdf-import-card .actions {
+  grid-area: action;
   align-self: center;
+  justify-content: flex-end;
+}
+
+.pdf-import-card #pdf-import-feedback {
+  grid-area: feedback;
+  min-height: 0;
+  margin: 0;
 }
 
 .manifest-data-panel + br + .panel {
@@ -80,5 +103,31 @@
 
   .manifest-form-grid-secondary {
     margin-top: 14px;
+  }
+
+  .pdf-import-card form {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      "picker"
+      "action"
+      "feedback";
+  }
+
+  .pdf-import-card .file-picker {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .pdf-import-card .file-picker-button,
+  .pdf-import-card .actions .button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .pdf-import-card .file-name {
+    text-align: center;
+  }
+
+  .pdf-import-card .actions {
+    justify-content: stretch;
   }
 }
