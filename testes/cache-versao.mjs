@@ -6,7 +6,7 @@ import test from "node:test";
 const raiz = join(process.cwd(), "interface");
 const versaoAplicacao = "202610071720";
 const versaoTela = "202610071720";
-const versaoEstilo = "202610070203";
+const versaoEstilo = "202610071845";
 
 test("o shell invalida cache quando a aplicação muda", () => {
   const serviceWorker = readFileSync(join(raiz, "service-worker.js"), "utf8");
