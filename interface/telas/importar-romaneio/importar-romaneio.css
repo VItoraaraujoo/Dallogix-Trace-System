@@ -68,6 +68,15 @@
   line-height: 1.3;
 }
 
+.pdf-import-card .file-picker-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  align-self: center;
+  box-sizing: border-box;
+  margin: 0;
+}
+
 .pdf-import-card .actions {
   grid-area: action;
   align-self: center;
