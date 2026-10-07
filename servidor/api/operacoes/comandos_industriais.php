@@ -36,15 +36,16 @@ $reversalStatement = db()->prepare(
     "SELECT direction.command
      FROM solicitacoes_comandos_clp direction
      JOIN carregamentos c ON c.equipment_id = direction.equipment_id
-     WHERE c.id = :carregamento_id AND c.company_id = :company_id
-       AND direction.company_id = :company_id
+     WHERE c.id = :carregamento_id AND c.company_id = :loading_company_id
+       AND direction.company_id = :command_company_id
        AND direction.command IN ('REVERSAO_ATIVAR', 'REVERSAO_DESATIVAR')
        AND direction.status = 'APLICADO'
      ORDER BY direction.id DESC LIMIT 1",
 );
 $reversalStatement->execute([
     "carregamento_id" => $loadingId,
-    "company_id" => $user["company_id"],
+    "loading_company_id" => $user["company_id"],
+    "command_company_id" => $user["company_id"],
 ]);
 json_response([
     "data" => $command ?: null,
