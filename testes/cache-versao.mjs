@@ -1,19 +1,21 @@
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
-const versaoAplicacao = "202610070024";
-const versaoTela = "202610070203";
+const versaoAplicacao = "202610071720";
+const versaoTela = "202610071720";
+const versaoEstilo = "202610070203";
 
 test("o shell invalida cache quando a aplicação muda", () => {
   const serviceWorker = readFileSync(join(raiz, "service-worker.js"), "utf8");
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
-  assert.match(serviceWorker, /trace-shell-20261007-03/);
+  assert.match(serviceWorker, /trace-shell-20261007-04/);
   assert.match(aplicacao, new RegExp(`/service-worker\\.js\\?v=${versaoAplicacao}`));
   assert.match(aplicacao, new RegExp(`ArmazenamentoTrace\\.js\\?v=${versaoTela}`));
   assert.match(aplicacao, new RegExp(`operacao\\.js\\?v=${versaoTela}`));
+  assert.match(aplicacao, new RegExp(`importar-romaneio\\.js\\?v=${versaoTela}`));
 });
 
 test("todas as telas carregam a aplicação com a versão atual", () => {
@@ -42,9 +44,9 @@ test("a navegação não exibe uma tela intermediária de carregamento", () => {
 test("a navegação interna carrega os estilos exclusivos das telas alteradas", () => {
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
   for (const path of [
-    "/telas/operacao/operacao.css?v=202610070203",
-    "/telas/importar-romaneio/importar-romaneio.css?v=202610070203",
-    "/telas/configuracoes/configuracoes.css?v=202610070203",
+    `/telas/operacao/operacao.css?v=${versaoEstilo}`,
+    `/telas/importar-romaneio/importar-romaneio.css?v=${versaoEstilo}`,
+    `/telas/configuracoes/configuracoes.css?v=${versaoEstilo}`,
   ]) assert.ok(aplicacao.includes(path), `estilo não registrado no roteador: ${path}`);
   assert.match(aplicacao, /await ensureScreenStyles\(currentPage\)/);
 });
@@ -52,7 +54,7 @@ test("a navegação interna carrega os estilos exclusivos das telas alteradas", 
 test("Novo romaneio referencia o CSS alinhado com cache versionado", () => {
   const tela = readFileSync(join(raiz, "telas", "importar-romaneio", "importar-romaneio.html"), "utf8");
   const estilos = readFileSync(join(raiz, "telas", "importar-romaneio", "importar-romaneio.css"), "utf8");
-  assert.match(tela, new RegExp(`/telas/importar-romaneio/importar-romaneio\\.css\\?v=${versaoTela}`));
+  assert.match(tela, new RegExp(`/telas/importar-romaneio/importar-romaneio\\.css\\?v=${versaoEstilo}`));
   assert.match(estilos, /\.pdf-import-card form\s*\{[^}]*display:\s*grid/);
   assert.match(estilos, /\.pdf-import-card \.file-picker\s*\{[^}]*grid-template-columns:/);
 });
@@ -74,6 +76,12 @@ test("a operação deixa os estados em Configurações e usa leitura automática
   assert.match(aplicacao, /store\.loadMonitoring\(\).*store\.loadEquipments/);
   assert.match(aplicacao, /settingsRealtime\.start\(\)/);
   assert.match(aplicacao, /settingsRealtime\.stop\(\)/);
+});
+
+test("modelo CSV usa caminho absoluto e nome de arquivo estável", () => {
+  const tela = readFileSync(join(raiz, "telas", "importar-romaneio", "importar-romaneio.js"), "utf8");
+  assert.match(tela, /href="\/assets\/modelo-romaneio\.csv" download="modelo-romaneio\.csv"/);
+  assert.equal(existsSync(join(raiz, "assets", "modelo-romaneio.csv")), true);
 });
 
 test("notificações flutuantes estão desativadas globalmente", () => {

@@ -83,6 +83,18 @@ final class ContratosEndpointsTest extends TestCase
         self::assertStringContainsString('"delivered_queue_id"', $service);
     }
 
+    public function testSnapshotCentralEntregaCancelamentosEEventosAtrasadosNaoReabremRomaneios(): void
+    {
+        $snapshot = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao/sincronizacao_instalacao.php");
+        $events = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao/sincronizacao_eventos.php");
+
+        self::assertIsString($snapshot);
+        self::assertIsString($events);
+        self::assertStringContainsString('"romaneios_cancelados" => $cancelledManifests', $snapshot);
+        self::assertStringContainsString('in_array($currentStatus, ["FINALIZADO", "CANCELADO"], true)', $events);
+        self::assertStringContainsString("AND status NOT IN ('FINALIZADO', 'CANCELADO')", $events);
+    }
+
     public function testCatalogoDeProdutosDoServidorEReplicadoIntegralmenteNoPcIndustrial(): void
     {
         $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao/sincronizacao_instalacao.php");

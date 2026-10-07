@@ -1,6 +1,6 @@
 import { button, esc } from "../../js/funcoes/html.js";
 import { numero } from "../../js/funcoes/formato.js?v=202609201000";
-import { rotuloEstado } from "../../js/funcoes/rotulos.js?v=202609240001";
+import { rotuloComando, rotuloEstado } from "../../js/funcoes/rotulos.js?v=202609240001";
 import { pageHeader } from "../../js/funcoes/view.js?v=202610061745";
 
 function equipmentLabel(store) {
@@ -57,6 +57,81 @@ export function podeLiberarEmergencia({ role, loadingId }) {
   );
 }
 
+export function workControlLocks(state) {
+  const operationalState = String(state.operationalState || "").toUpperCase();
+  const commandStatus = String(
+    state.plcCommand?.status || state.commandIntent?.status || "",
+  ).toUpperCase();
+  const pendingCommand = String(
+    state.commandIntent?.command || state.plcCommand?.command || "",
+  ).toUpperCase();
+  const commandPending = state.commandInFlight === true ||
+    ["PENDENTE", "PROCESSANDO"].includes(commandStatus);
+  const stopped = ["PREPARANDO", "PAUSADO"].includes(operationalState);
+  const running = commandPending && pendingCommand === "INICIAR_CARREGAMENTO" ||
+    (!stopped && (state.running === true || ["CARREGANDO", "FINALIZANDO"].includes(operationalState)));
+  const reversalOn = state.reversalCommand === "REVERSAO_ATIVAR" ||
+    (commandPending && pendingCommand === "REVERSAO_ATIVAR");
+  const emergency = operationalState === "EMERGENCIA";
+  const hasLoading = Boolean(state.loadingId);
+  const canReverse = ["ADMIN_EMPRESA", "SUPERVISOR", "USUARIO"].includes(
+    String(state.userRole || "").toUpperCase(),
+  );
+  const locks = { run: "", stop: "", "reverse-on": "", "reverse-off": "" };
+
+  if (!hasLoading) {
+    for (const action of Object.keys(locks)) locks[action] = "Nenhum carregamento selecionado.";
+    return locks;
+  }
+
+  if (commandPending) {
+    const waiting = commandStatus === "PROCESSANDO"
+      ? "Aguarde o gateway confirmar o comando."
+      : "Aguarde o envio do comando atual.";
+    for (const action of Object.keys(locks)) locks[action] = waiting;
+    if (pendingCommand === "INICIAR_CARREGAMENTO") {
+      locks.stop = "";
+    } else if (pendingCommand === "REVERSAO_ATIVAR" && commandStatus === "PENDENTE") {
+      locks["reverse-off"] = "";
+    }
+    if (!canReverse) {
+      locks["reverse-on"] = "Seu perfil não pode alterar a reversão.";
+      locks["reverse-off"] = "Seu perfil não pode alterar a reversão.";
+    }
+    return locks;
+  }
+
+  locks.run = emergency
+    ? "A emergência precisa ser liberada antes de iniciar."
+    : !stopped
+      ? "Pare a esteira antes de iniciar para frente."
+      : state.reversalCommand !== "REVERSAO_DESATIVAR"
+        ? "Confirme a reversão desligada antes de ligar a esteira para frente."
+        : "";
+  locks.stop = emergency
+    ? "A emergência já mantém a operação parada."
+    : running
+      ? ""
+      : "A esteira já está parada.";
+  locks["reverse-on"] = !canReverse
+    ? "Seu perfil não pode alterar a reversão."
+    : emergency
+      ? "A emergência precisa ser liberada antes de alterar a direção."
+      : !stopped
+        ? "Pare a esteira antes de mudar a direção."
+        : reversalOn
+          ? "A reversão já está ligada."
+          : "";
+  locks["reverse-off"] = !canReverse
+    ? "Seu perfil não pode alterar a reversão."
+    : !stopped && !emergency
+      ? "Pare a esteira antes de mudar a direção."
+      : !reversalOn
+        ? "A reversão já está desligada."
+        : "";
+  return locks;
+}
+
 function workControls(store) {
   const loadingItems = Array.isArray(store.state.loadingItems)
     ? store.state.loadingItems
@@ -67,45 +142,10 @@ function workControls(store) {
   const totalPercent = plannedTotal > 0
     ? Math.min(100, Math.round((detectedBags / plannedTotal) * 100))
     : 0;
-  const canReverse = ["ADMIN_EMPRESA", "SUPERVISOR", "USUARIO"].includes(
-    String(store.state.userRole || "").toUpperCase(),
-  );
-  const currentCommandStatus = String(store.state.plcCommand?.status || "").toUpperCase();
-  const commandPending = store.state.commandInFlight === true ||
-    ["PENDENTE", "PROCESSANDO"].includes(currentCommandStatus);
-  const stopped = ["PREPARANDO", "PAUSADO"].includes(
-    String(store.state.operationalState || "").toUpperCase(),
-  );
-  const emergency = store.state.operationalState === "EMERGENCIA";
-  const finalized = store.state.operationalState === "FINALIZADO";
+  const commandLocks = workControlLocks(store.state);
   const bloqueio = (reason) => reason
     ? { disabled: true, "aria-disabled": "true", title: reason }
     : "";
-  const semCarregamento = store.state.loadingId
-    ? ""
-    : "Nenhum carregamento selecionado";
-  const bloqueioInicio = semCarregamento ||
-    (emergency || finalized ? "A operação precisa estar liberada." : "") ||
-    (!stopped ? "Pare a esteira antes de iniciar para frente." : "") ||
-    (commandPending ? "Aguarde a confirmação do comando atual." : "") ||
-    (store.state.reversalCommand !== "REVERSAO_DESATIVAR"
-      ? "Confirme a reversão desligada antes de ligar a esteira para frente."
-      : "");
-  const bloqueioReversaoAtivar = !canReverse
-    ? "Seu perfil não pode alterar a reversão"
-    : semCarregamento ||
-      (emergency || finalized ? "A operação precisa estar liberada." : "") ||
-      (!stopped ? "Pare a esteira antes de mudar a direção." : "") ||
-      (commandPending ? "Aguarde a confirmação do comando atual." : "") ||
-      (store.state.reversalCommand === "REVERSAO_ATIVAR"
-        ? "A reversão já está confirmada como ligada."
-        : "");
-  const bloqueioReversaoDesativar = !canReverse
-    ? "Seu perfil não pode alterar a reversão"
-    : semCarregamento ||
-      (emergency || finalized ? "A operação precisa estar liberada." : "") ||
-      (!stopped ? "Pare a esteira antes de mudar a direção." : "") ||
-      (commandPending ? "Aguarde a confirmação do comando atual." : "");
   // Parada e emergência seguem disponíveis como ações de segurança.
   const bloqueioEmergencia = store.state.loadingId
     ? ""
@@ -126,21 +166,18 @@ function workControls(store) {
   const manualIdentification = pendingReadings.length
     ? `<section class="work-scanner-corrections" aria-labelledby="work-scanner-corrections-title"><div class="work-scanner-corrections-heading"><div><span class="kicker">Conferência pendente</span><h3 id="work-scanner-corrections-title">Leituras sem código</h3></div><p>Passe o leitor de código de barras ou digite o código conferido.</p></div><div class="work-scanner-corrections-list">${pendingReadings.map((reading, index) => `<form class="manual-reading-form" data-reading-id="${reading.id}"><label>Leitura #${reading.id}<input name="barcode" type="text" required maxlength="128" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="none" placeholder="Leia o código do produto" aria-label="Código de barras da leitura ${reading.id}"${index === 0 ? " autofocus" : ""} /></label>${button("Confirmar código", "identify-reading", "secondary")}</form>`).join("")}</div></section>`
     : "";
-  // O operador precisa encontrar as mesmas ações em qualquer estado do
-  // romaneio. O gateway/CLP decide se o comando é seguro e devolve o
-  // resultado; a tela não remove nem troca os botões por causa do status.
-  const bloqueioParada = semCarregamento ||
-    (emergency ? "A emergência já mantém a operação parada." : "") ||
-    (finalized ? "O carregamento já foi finalizado." : "");
-  const controls = `<div class="work-controls"><div class="work-routine-controls">${button("Ligar esteira", "run", "primary", bloqueio(bloqueioInicio))}${button("Desligar esteira", "stop", "ghost", bloqueio(bloqueioParada))}${button("Ligar reversão", "reverse-on", "secondary", bloqueio(bloqueioReversaoAtivar))}${button("Desligar reversão", "reverse-off", "secondary", bloqueio(bloqueioReversaoDesativar))}</div><div class="work-emergency-zone">${button("EMERGÊNCIA", "emergency", "danger", bloqueioEmergencia)}</div></div>`;
+  const controls = `<div class="work-controls"><div class="work-routine-controls">${button("Ligar esteira", "run", "primary", bloqueio(commandLocks.run))}${button("Desligar esteira", "stop", "ghost", bloqueio(commandLocks.stop))}${button("Ligar reversão", "reverse-on", "secondary", bloqueio(commandLocks["reverse-on"]))}${button("Desligar reversão", "reverse-off", "secondary", bloqueio(commandLocks["reverse-off"]))}</div><div class="work-emergency-zone">${button("EMERGÊNCIA", "emergency", "danger", bloqueioEmergencia)}</div></div>`;
   const summaryReady = ["FINALIZANDO", "FINALIZADO"].includes(
     store.state.operationalState,
   );
   const summaryAction = summaryReady
     ? `${button("Abrir resumo final", "open-summary", "secondary")}`
     : "";
-  const badge =
-    store.state.operationalState === "EMERGENCIA"
+  const pendingStatus = String(store.state.plcCommand?.status || store.state.commandIntent?.status || "").toUpperCase();
+  const pendingCommand = store.state.commandIntent?.command || store.state.plcCommand?.command;
+  const badge = ["PENDENTE", "PROCESSANDO"].includes(pendingStatus) && pendingCommand
+      ? `<span class="badge blue">${esc(rotuloComando(pendingCommand))} · aguardando CLP</span>`
+      : store.state.operationalState === "EMERGENCIA"
       ? '<span class="badge red">Emergência solicitada · operação bloqueada</span>'
       : `<span class="badge yellow">${esc(rotuloEstado(store.state.operationalState))}</span>`;
   const itemCountLabel = `${numero(loadingItems.length)} ${loadingItems.length === 1 ? "item" : "itens"}`;

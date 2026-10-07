@@ -196,6 +196,9 @@ final class ServicoSincronizacaoRemota
                 throw new RuntimeException("Resposta do servidor central está incompleta ({$field}).");
             }
         }
+        if (array_key_exists("romaneios_cancelados", $snapshot) && !is_array($snapshot["romaneios_cancelados"])) {
+            throw new RuntimeException("Resposta do servidor central contém uma lista de romaneios cancelados inválida.");
+        }
 
         if (count($snapshot["equipamentos"]) !== 1) {
             throw new RuntimeException(
@@ -223,6 +226,16 @@ final class ServicoSincronizacaoRemota
                 || !is_array($product["barcodes"] ?? null)
             ) {
                 throw new RuntimeException("Resposta do servidor central contém um produto inválido.");
+            }
+        }
+
+        foreach (($snapshot["romaneios_cancelados"] ?? []) as $manifest) {
+            if (!is_array($manifest)
+                || (int) ($manifest["id"] ?? 0) < 1
+                || trim((string) ($manifest["number"] ?? "")) === ""
+                || strtoupper(trim((string) ($manifest["status"] ?? ""))) !== "CANCELADO"
+            ) {
+                throw new RuntimeException("Resposta do servidor central contém um cancelamento de romaneio inválido.");
             }
         }
 
@@ -300,6 +313,11 @@ final class ServicoSincronizacaoRemota
                 $updated++;
             }
             $updated += $this->removerEquipamentosRemotosObsoletos($companyId, array_keys($equipmentIds));
+
+            $updated += $this->sincronizarRomaneiosCancelados(
+                $companyId,
+                $snapshot["romaneios_cancelados"] ?? [],
+            );
 
             $loadingIds = [];
             foreach (($snapshot["carregamentos_ativos"] ?? []) as $remoteLoading) {
@@ -646,6 +664,58 @@ final class ServicoSincronizacaoRemota
             "status" => $status,
         ]);
         return (int) $this->connection->lastInsertId();
+    }
+
+    /** @param list<array<string,mixed>> $cancelledManifests */
+    private function sincronizarRomaneiosCancelados(int $companyId, array $cancelledManifests): int
+    {
+        $updated = 0;
+        $findByRemoteId = $this->connection->prepare(
+            "SELECT id FROM romaneios
+             WHERE company_id = :company_id AND remote_romaneio_id = :remote_id LIMIT 1",
+        );
+        $findUnmappedByNumber = $this->connection->prepare(
+            "SELECT id FROM romaneios
+             WHERE company_id = :company_id AND number = :number
+               AND remote_romaneio_id IS NULL ORDER BY id LIMIT 2",
+        );
+        $cancel = $this->connection->prepare(
+            "UPDATE romaneios SET remote_romaneio_id = :remote_id, status = 'CANCELADO'
+             WHERE id = :id AND company_id = :company_id",
+        );
+
+        foreach ($cancelledManifests as $manifest) {
+            $remoteId = (int) ($manifest["id"] ?? 0);
+            $number = trim((string) ($manifest["number"] ?? ""));
+            if ($remoteId < 1 || $number === "") {
+                throw new RuntimeException("Cancelamento remoto de romaneio sem identificador válido.");
+            }
+
+            $findByRemoteId->execute(["company_id" => $companyId, "remote_id" => $remoteId]);
+            $localId = (int) ($findByRemoteId->fetchColumn() ?: 0);
+            if ($localId < 1) {
+                $findUnmappedByNumber->execute(["company_id" => $companyId, "number" => $number]);
+                $matches = $findUnmappedByNumber->fetchAll(PDO::FETCH_COLUMN);
+                // A numeração só pode vincular registros quando é única no PC.
+                if (count($matches) === 1) {
+                    $localId = (int) $matches[0];
+                }
+            }
+            if ($localId < 1) {
+                continue;
+            }
+
+            // O cancelamento remoto é terminal e deve prevalecer sobre uma
+            // atualização local antiga ainda pendente na fila de sincronização.
+            $cancel->execute([
+                "remote_id" => $remoteId,
+                "id" => $localId,
+                "company_id" => $companyId,
+            ]);
+            $updated += $cancel->rowCount();
+        }
+
+        return $updated;
     }
 
     /** @param array<string,mixed> $remote */

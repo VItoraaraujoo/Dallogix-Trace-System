@@ -427,6 +427,18 @@ $upsertManifest = static function (PDO $connection, int $companyId, int $sourceM
         ]);
         $manifestId = (int) ($find->fetchColumn() ?: 0);
     }
+    if ($manifestId > 0) {
+        $currentStatusStatement = $connection->prepare(
+            "SELECT status FROM romaneios
+             WHERE id = :id AND company_id = :company_id LIMIT 1",
+        );
+        $currentStatusStatement->execute(["id" => $manifestId, "company_id" => $companyId]);
+        $currentStatus = strtoupper(trim((string) ($currentStatusStatement->fetchColumn() ?: "")));
+        // Eventos locais atrasados não podem reabrir um romaneio encerrado no Central.
+        if (in_array($currentStatus, ["FINALIZADO", "CANCELADO"], true) && $status !== $currentStatus) {
+            $status = $currentStatus;
+        }
+    }
     $values = [
         "remote_id" => $sourceId,
         "number" => $number,
@@ -606,7 +618,8 @@ $syncManifestStatus = static function (PDO $connection, int $companyId, int $loa
     };
     $connection->prepare(
         "UPDATE romaneios SET status = :status
-         WHERE id = :id AND company_id = :company_id",
+         WHERE id = :id AND company_id = :company_id
+           AND status NOT IN ('FINALIZADO', 'CANCELADO')",
     )->execute([
         "status" => $status,
         "id" => $manifestId,

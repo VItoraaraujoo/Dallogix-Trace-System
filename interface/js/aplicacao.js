@@ -5,7 +5,7 @@ import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
 import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610070024";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610070203";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610071720";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610070203";
@@ -29,11 +29,11 @@ import { occurrences } from "../telas/ocorrencias/ocorrencias.js?v=202610010001"
 import { products } from "../telas/produtos/produtos.js?v=202610010001";
 import { summary } from "../telas/resumo-final/resumo-final.js?v=202610010001";
 import { division } from "../telas/divisao-carga/divisao-carga.js?v=202610010001";
-import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=202610010001";
+import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=202610071720";
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
 import { manifests } from "../telas/romaneios/romaneios.js?v=202610010001";
 import { manifestView } from "../telas/romaneio/romaneio.js?v=202610010001";
-import { work } from "../telas/operacao/operacao.js?v=202610070203";
+import { work } from "../telas/operacao/operacao.js?v=202610071720";
 import { dashboard } from "../telas/painel/painel.js?v=202610010001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610010001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
@@ -343,7 +343,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610070024").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610071720").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;

@@ -15,7 +15,37 @@ final class SincronizacaoSnapshotPendenteTest extends TestCase
         $pdo->exec('CREATE TABLE produtos (id INTEGER PRIMARY KEY, company_id INTEGER, remote_product_id INTEGER,
             code TEXT, name TEXT, category TEXT, active INTEGER)');
         $pdo->exec('CREATE TABLE codigos_produtos (id INTEGER PRIMARY KEY, company_id INTEGER, product_id INTEGER, barcode TEXT)');
+        $pdo->exec('CREATE TABLE romaneios (id INTEGER PRIMARY KEY, company_id INTEGER, remote_romaneio_id INTEGER,
+            number TEXT, status TEXT)');
         return $pdo;
+    }
+
+    public function testCancelamentoCentralAtualizaRomaneioLocalMesmoComEventoAntigoPendente(): void
+    {
+        $pdo = $this->database();
+        $pdo->exec("INSERT INTO romaneios VALUES (7, 1, NULL, 'ROM-700', 'EM_ANDAMENTO')");
+        $pdo->exec("INSERT INTO fila_sincronizacao VALUES (1, 'romaneio', 7, 'PENDENTE')");
+        $method = new ReflectionMethod(ServicoSincronizacaoRemota::class, 'sincronizarRomaneiosCancelados');
+        $service = new ServicoSincronizacaoRemota($pdo);
+
+        $method->invoke($service, 1, [['id' => 70, 'number' => 'ROM-700', 'status' => 'CANCELADO']]);
+
+        $row = $pdo->query('SELECT remote_romaneio_id, status FROM romaneios WHERE id = 7')->fetch();
+        self::assertSame(70, (int) $row['remote_romaneio_id']);
+        self::assertSame('CANCELADO', $row['status']);
+    }
+
+    public function testCancelamentoCentralNaoVinculaRomaneioLocalComNumeroAmbiguo(): void
+    {
+        $pdo = $this->database();
+        $pdo->exec("INSERT INTO romaneios VALUES (7, 1, NULL, 'ROM-700', 'EM_ANDAMENTO')");
+        $pdo->exec("INSERT INTO romaneios VALUES (8, 1, NULL, 'ROM-700', 'EM_ANDAMENTO')");
+        $method = new ReflectionMethod(ServicoSincronizacaoRemota::class, 'sincronizarRomaneiosCancelados');
+        $service = new ServicoSincronizacaoRemota($pdo);
+
+        $method->invoke($service, 1, [['id' => 70, 'number' => 'ROM-700', 'status' => 'CANCELADO']]);
+
+        self::assertSame(0, (int) $pdo->query("SELECT COUNT(*) FROM romaneios WHERE status = 'CANCELADO'")->fetchColumn());
     }
 
     public function testSnapshotPreservaEnderecoDaDalaEnquantoAlteracaoLocalNaoFoiEntregue(): void

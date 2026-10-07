@@ -184,8 +184,10 @@ export class ArmazenamentoTrace {
       this.state.running = false;
     } else if (intent.command === "REVERSAO_ATIVAR") {
       this.state.returnMode = true;
+      this.state.reversalCommand = "REVERSAO_ATIVAR";
     } else if (intent.command === "REVERSAO_DESATIVAR") {
       this.state.returnMode = false;
+      this.state.reversalCommand = "REVERSAO_DESATIVAR";
     }
   }
   async loadManifests() {
@@ -616,6 +618,7 @@ export class ArmazenamentoTrace {
       status: this.state.plcCommand.status,
       previousState: this.state.operationalState,
       previousReturnMode: this.state.returnMode,
+      previousReversalCommand: this.state.reversalCommand,
     };
     this.aplicarIntencaoDeComando();
     return result.data;
@@ -677,6 +680,7 @@ export class ArmazenamentoTrace {
       !nextCommand &&
       ["PENDENTE", "PROCESSANDO"].includes(currentStatus)
     ) {
+      this.aplicarIntencaoDeComando();
       return currentCommand;
     }
     // Uma consulta antiga pode retornar PENDENTE depois de o gateway já ter
@@ -688,11 +692,13 @@ export class ArmazenamentoTrace {
       terminal.has(currentStatus) &&
       !terminal.has(nextStatus)
     ) {
+      this.aplicarIntencaoDeComando();
       return currentCommand;
     }
     // O endpoint retorna o comando mais recente; não permita que uma resposta
     // de uma consulta anterior substitua um pedido criado depois.
     if (currentCommand && nextCommand && nextId < currentId) {
+      this.aplicarIntencaoDeComando();
       return currentCommand;
     }
     this.state.plcCommand = nextCommand;
@@ -705,6 +711,7 @@ export class ArmazenamentoTrace {
         }
         if (nextStatus !== "APLICADO" && ["REVERSAO_ATIVAR", "REVERSAO_DESATIVAR"].includes(intent.command)) {
           this.state.returnMode = Boolean(intent.previousReturnMode);
+          this.state.reversalCommand = intent.previousReversalCommand ?? null;
         }
         this.state.commandIntent = null;
       }

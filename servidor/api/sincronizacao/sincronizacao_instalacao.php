@@ -217,6 +217,14 @@ $loadingStatement = $pdo->prepare(
 );
 $loadingStatement->execute(["company_id" => $companyId, "equipment_id" => $equipmentId]);
 $carregamentos = $loadingStatement->fetchAll();
+$cancelledManifestsStatement = $pdo->prepare(
+    "SELECT id, number, scheduled_date, status, expedidor
+     FROM romaneios
+     WHERE company_id = :company_id AND status = 'CANCELADO'
+     ORDER BY id",
+);
+$cancelledManifestsStatement->execute(["company_id" => $companyId]);
+$cancelledManifests = $cancelledManifestsStatement->fetchAll();
 $loadingIds = array_map(static fn (array $row): int => (int) $row["id"], $carregamentos);
 foreach ($carregamentos as &$loading) {
     $loading["id"] = (int) $loading["id"];
@@ -312,6 +320,7 @@ responder_json([
         ],
         "equipamentos" => $equipamentos,
         "produtos" => $produtos,
+        "romaneios_cancelados" => $cancelledManifests,
         "carregamentos_ativos" => $carregamentos,
         "comandos" => $commandStatement->fetchAll(),
         "sync_cursor" => $syncCursorValue,

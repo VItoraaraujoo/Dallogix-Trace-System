@@ -4,6 +4,7 @@ import {
   paradaPodeSerEnfileiradaAposInicio,
   paradaPodeSubstituirInicio,
   podeLiberarEmergencia,
+  workControlLocks,
   work,
 } from "../interface/telas/operacao/operacao.js";
 import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js";
@@ -84,7 +85,7 @@ test("comandos permanecem visíveis e direção fica bloqueada em emergência ou
   }
 });
 
-test("parada e emergência continuam disponíveis enquanto uma chamada aguarda", () => {
+test("início pendente deixa a parada e a emergência disponíveis", () => {
   const markup = work({
     state: {
       selectedLoadingId: 7,
@@ -100,6 +101,8 @@ test("parada e emergência continuam disponíveis enquanto uma chamada aguarda",
       loaded: 0,
       userRole: "USUARIO",
       commandInFlight: true,
+      plcCommand: { command: "INICIAR_CARREGAMENTO", status: "PENDENTE" },
+      commandIntent: { command: "INICIAR_CARREGAMENTO", status: "PENDENTE" },
       emergency: false,
       pendingReadings: [],
     },
@@ -111,6 +114,74 @@ test("parada e emergência continuam disponíveis enquanto uma chamada aguarda",
   assert.match(markup, /data-action="emergency"(?![^>]*disabled)/);
   assert.match(markup, /data-action="run"[^>]*disabled/);
   assert.match(markup, /data-action="reverse-on"[^>]*disabled/);
+  assert.match(markup, /Iniciar carregamento · aguardando CLP/);
+});
+
+test("esteira parada libera iniciar e ligar reversão, mas não oferece parada redundante", () => {
+  const locks = workControlLocks({
+    loadingId: 7,
+    operationalState: "PAUSADO",
+    reversalCommand: "REVERSAO_DESATIVAR",
+    userRole: "USUARIO",
+  });
+  assert.equal(locks.run, "");
+  assert.equal(locks.stop, "A esteira já está parada.");
+  assert.equal(locks["reverse-on"], "");
+  assert.equal(locks["reverse-off"], "A reversão já está desligada.");
+});
+
+test("esteira em movimento deixa disponível somente parar entre os comandos normais", () => {
+  const locks = workControlLocks({
+    loadingId: 7,
+    operationalState: "CARREGANDO",
+    running: true,
+    reversalCommand: "REVERSAO_DESATIVAR",
+    userRole: "USUARIO",
+  });
+  assert.notEqual(locks.run, "");
+  assert.equal(locks.stop, "");
+  assert.notEqual(locks["reverse-on"], "");
+  assert.notEqual(locks["reverse-off"], "");
+});
+
+test("parada pendente aguarda o CLP antes de liberar nova direção", () => {
+  const locks = workControlLocks({
+    loadingId: 7,
+    operationalState: "PAUSADO",
+    plcCommand: { command: "PAUSAR_CARREGAMENTO", status: "PENDENTE" },
+    commandIntent: { command: "PAUSAR_CARREGAMENTO", status: "PENDENTE" },
+    reversalCommand: "REVERSAO_DESATIVAR",
+    userRole: "USUARIO",
+  });
+  assert.notEqual(locks.run, "");
+  assert.notEqual(locks.stop, "");
+  assert.notEqual(locks["reverse-on"], "");
+  assert.notEqual(locks["reverse-off"], "");
+});
+
+test("quando a reversão está ativa, só ficam disponíveis desligar reversão e emergência", () => {
+  const locks = workControlLocks({
+    loadingId: 7,
+    operationalState: "PAUSADO",
+    reversalCommand: "REVERSAO_ATIVAR",
+    userRole: "USUARIO",
+  });
+  assert.notEqual(locks.run, "");
+  assert.notEqual(locks.stop, "");
+  assert.notEqual(locks["reverse-on"], "");
+  assert.equal(locks["reverse-off"], "");
+});
+
+test("romaneio finalizado não bloqueia comandos por seu status, somente o estado da máquina", () => {
+  const locks = workControlLocks({
+    loadingId: 7,
+    operationalState: "PAUSADO",
+    manifestStatus: "FINALIZADO",
+    reversalCommand: "REVERSAO_DESATIVAR",
+    userRole: "USUARIO",
+  });
+  assert.equal(locks.run, "");
+  assert.equal(locks["reverse-on"], "");
 });
 
 test("início para frente exige reversão confirmada desligada e esteira parada", () => {
@@ -224,8 +295,8 @@ test("comando de reversão atualiza imediatamente a intenção visível", async 
   const armazenamento = Object.create(ArmazenamentoTrace.prototype);
   armazenamento.state = {
     loadingId: 7,
-    operationalState: "CARREGANDO",
-    running: true,
+    operationalState: "PAUSADO",
+    running: false,
     returnMode: false,
     plcCommand: null,
     commandIntent: null,
@@ -244,6 +315,7 @@ test("comando de reversão atualiza imediatamente a intenção visível", async 
   await armazenamento.requestMachineReverse(7, "REVERSAO_ATIVAR");
 
   assert.equal(armazenamento.state.returnMode, true);
+  assert.equal(armazenamento.state.reversalCommand, "REVERSAO_ATIVAR");
   assert.equal(armazenamento.state.commandIntent.command, "REVERSAO_ATIVAR");
 });
 
