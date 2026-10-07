@@ -1,56 +1,8 @@
-const TIPOS = new Set(["sucesso", "informacao", "aviso", "erro"]);
 import { prepararDialogoAcessivel } from "../funcoes/dialogo.js?v=202610061820";
 
-function obterPilha() {
-  let pilha = document.querySelector("#trace-notificacoes");
-  if (pilha) return pilha;
-  pilha = document.createElement("div");
-  pilha.id = "trace-notificacoes";
-  pilha.className = "trace-notificacoes";
-  pilha.setAttribute("aria-live", "polite");
-  pilha.setAttribute("aria-atomic", "false");
-  document.body.append(pilha);
-  return pilha;
-}
-
-function tipoDaMensagem(tipo, mensagem) {
-  if (TIPOS.has(tipo)) return tipo;
-  const texto = String(mensagem || "").toLowerCase();
-  if (/erro|falha|não foi|nao foi|indisponível|indisponivel|expirou/.test(texto)) return "erro";
-  if (/cuidado|aguarde|ocupado|bloquead/.test(texto)) return "aviso";
-  return "informacao";
-}
-
-export function notificar(mensagem, tipo = "informacao", { duracao = 6000, acao = null } = {}) {
-  const texto = String(mensagem || "").trim();
-  if (!texto) return null;
-  const item = document.createElement("div");
-  item.className = `trace-notificacao trace-notificacao-${tipoDaMensagem(tipo, texto)}`;
-  item.setAttribute("role", "status");
-  const conteudo = document.createElement("span");
-  conteudo.textContent = texto;
-  if (acao?.label && typeof acao.onClick === "function") {
-    const executar = document.createElement("button");
-    executar.type = "button";
-    executar.className = "trace-notificacao-acao";
-    executar.textContent = String(acao.label);
-    executar.addEventListener("click", () => {
-      acao.onClick();
-      item.remove();
-    }, { once: true });
-    item.append(conteudo, executar);
-  }
-  const fechar = document.createElement("button");
-  fechar.type = "button";
-  fechar.className = "trace-notificacao-fechar";
-  fechar.setAttribute("aria-label", "Fechar notificação");
-  fechar.textContent = "×";
-  fechar.addEventListener("click", () => item.remove(), { once: true });
-  if (!acao?.label || typeof acao.onClick !== "function") item.append(conteudo);
-  item.append(fechar);
-  obterPilha().append(item);
-  if (duracao > 0) window.setTimeout(() => item.remove(), duracao);
-  return item;
+// Mantém a API para as telas legadas sem exibir avisos flutuantes.
+export function notificar() {
+  return null;
 }
 
 export function confirmarAcao(mensagem, { titulo = "Confirmação necessária", confirmar = "Confirmar", cancelar = "Cancelar" } = {}) {

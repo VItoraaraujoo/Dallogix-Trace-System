@@ -874,12 +874,6 @@ body.work-page:has(.work-operation-screen) .work-manual-reading-heading p {
   margin-top: 2px;
 }
 
-/* A operação informa o estado nos próprios cartões; não exibir banners
-   flutuantes por cima dos comandos. */
-body.work-page:has(.work-operation-screen) #trace-notificacoes {
-  display: none !important;
-}
-
 @media (max-width: 620px) {
   body.work-page:has(.work-operation-screen) .work-screen-header {
     position: relative;

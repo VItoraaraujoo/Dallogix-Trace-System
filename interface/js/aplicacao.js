@@ -2,7 +2,7 @@ import {
   configurarSessaoPorAba,
 } from "./sessao.js?v=202609222100";
 import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
-import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610061820";
+import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610070024";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610070203";
@@ -89,9 +89,8 @@ let authenticatedUser = null;
 let localHealthTimer = null;
 let localHealthRequest = false;
 
-// A tela de operação comunica o estado diretamente pelos cartões e botões.
-// Notificações flutuantes nessa tela cobrem os comandos e repetem informações
-// que já aparecem no estado atualizado do carregamento.
+// Notificações flutuantes foram desativadas globalmente; mensagens operacionais
+// permanecem disponíveis nos estados próprios das telas.
 function notificarForaDaOperacao(mensagem, tipo = "informacao") {
   if (currentPage === "work") return;
   notificar(mensagem, tipo);
@@ -344,7 +343,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610070203").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610070024").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -564,9 +563,6 @@ function hydrateChrome() {
 }
 function renderScreen() {
   hydrateChrome();
-  if (currentPage === "work") {
-    document.querySelector("#trace-notificacoes")?.replaceChildren();
-  }
   el("#screen-root").innerHTML = screens[currentPage](store);
   bindActions();
   bindForms();
