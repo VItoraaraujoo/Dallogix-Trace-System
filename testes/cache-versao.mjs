@@ -5,8 +5,10 @@ import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
 const versaoAplicacao = "202610071720";
+const versaoAplicacaoImportacao = "202610071845";
 const versaoTela = "202610071720";
-const versaoEstilo = "202610071845";
+const versaoEstilo = "202610070203";
+const versaoEstiloImportacao = "202610071845";
 
 test("o shell invalida cache quando a aplicação muda", () => {
   const serviceWorker = readFileSync(join(raiz, "service-worker.js"), "utf8");
@@ -31,7 +33,10 @@ test("todas as telas carregam a aplicação com a versão atual", () => {
   const telasComAplicacao = htmls.filter((path) => readFileSync(path, "utf8").includes("/js/aplicacao.js?v="));
   assert.ok(telasComAplicacao.length > 0);
   for (const path of telasComAplicacao) {
-    assert.match(readFileSync(path, "utf8"), new RegExp(`/js/aplicacao\\.js\\?v=${versaoAplicacao}`), path);
+    const versaoEsperada = path.endsWith(join("importar-romaneio", "importar-romaneio.html"))
+      ? versaoAplicacaoImportacao
+      : versaoAplicacao;
+    assert.match(readFileSync(path, "utf8"), new RegExp(`/js/aplicacao\\.js\\?v=${versaoEsperada}`), path);
   }
 });
 
@@ -45,7 +50,7 @@ test("a navegação interna carrega os estilos exclusivos das telas alteradas", 
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
   for (const path of [
     `/telas/operacao/operacao.css?v=${versaoEstilo}`,
-    `/telas/importar-romaneio/importar-romaneio.css?v=${versaoEstilo}`,
+    `/telas/importar-romaneio/importar-romaneio.css?v=${versaoEstiloImportacao}`,
     `/telas/configuracoes/configuracoes.css?v=${versaoEstilo}`,
   ]) assert.ok(aplicacao.includes(path), `estilo não registrado no roteador: ${path}`);
   assert.match(aplicacao, /await ensureScreenStyles\(currentPage\)/);
@@ -54,7 +59,7 @@ test("a navegação interna carrega os estilos exclusivos das telas alteradas", 
 test("Novo romaneio referencia o CSS alinhado com cache versionado", () => {
   const tela = readFileSync(join(raiz, "telas", "importar-romaneio", "importar-romaneio.html"), "utf8");
   const estilos = readFileSync(join(raiz, "telas", "importar-romaneio", "importar-romaneio.css"), "utf8");
-  assert.match(tela, new RegExp(`/telas/importar-romaneio/importar-romaneio\\.css\\?v=${versaoEstilo}`));
+  assert.match(tela, new RegExp(`/telas/importar-romaneio/importar-romaneio\\.css\\?v=${versaoEstiloImportacao}`));
   assert.match(estilos, /\.pdf-import-card form\s*\{[^}]*display:\s*grid/);
   assert.match(estilos, /\.pdf-import-card \.file-picker\s*\{[^}]*grid-template-columns:/);
 });
