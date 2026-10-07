@@ -4,15 +4,16 @@ import { join } from "node:path";
 import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
-const versao = "202610070203";
+const versaoAplicacao = "202610070024";
+const versaoTela = "202610070203";
 
 test("o shell invalida cache quando a aplicação muda", () => {
   const serviceWorker = readFileSync(join(raiz, "service-worker.js"), "utf8");
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
-  assert.match(serviceWorker, /trace-shell-20261007-02/);
-  assert.match(aplicacao, new RegExp(`/service-worker\\.js\\?v=${versao}`));
-  assert.match(aplicacao, new RegExp(`ArmazenamentoTrace\\.js\\?v=${versao}`));
-  assert.match(aplicacao, new RegExp(`operacao\\.js\\?v=${versao}`));
+  assert.match(serviceWorker, /trace-shell-20261007-03/);
+  assert.match(aplicacao, new RegExp(`/service-worker\\.js\\?v=${versaoAplicacao}`));
+  assert.match(aplicacao, new RegExp(`ArmazenamentoTrace\\.js\\?v=${versaoTela}`));
+  assert.match(aplicacao, new RegExp(`operacao\\.js\\?v=${versaoTela}`));
 });
 
 test("todas as telas carregam a aplicação com a versão atual", () => {
@@ -28,7 +29,7 @@ test("todas as telas carregam a aplicação com a versão atual", () => {
   const telasComAplicacao = htmls.filter((path) => readFileSync(path, "utf8").includes("/js/aplicacao.js?v="));
   assert.ok(telasComAplicacao.length > 0);
   for (const path of telasComAplicacao) {
-    assert.match(readFileSync(path, "utf8"), new RegExp(`/js/aplicacao\\.js\\?v=${versao}`), path);
+    assert.match(readFileSync(path, "utf8"), new RegExp(`/js/aplicacao\\.js\\?v=${versaoAplicacao}`), path);
   }
 });
 
@@ -51,7 +52,7 @@ test("a navegação interna carrega os estilos exclusivos das telas alteradas", 
 test("Novo romaneio referencia o CSS alinhado com cache versionado", () => {
   const tela = readFileSync(join(raiz, "telas", "importar-romaneio", "importar-romaneio.html"), "utf8");
   const estilos = readFileSync(join(raiz, "telas", "importar-romaneio", "importar-romaneio.css"), "utf8");
-  assert.match(tela, new RegExp(`/telas/importar-romaneio/importar-romaneio\\.css\\?v=${versao}`));
+  assert.match(tela, new RegExp(`/telas/importar-romaneio/importar-romaneio\\.css\\?v=${versaoTela}`));
   assert.match(estilos, /\.pdf-import-card form\s*\{[^}]*display:\s*grid/);
   assert.match(estilos, /\.pdf-import-card \.file-picker\s*\{[^}]*grid-template-columns:/);
 });
@@ -75,10 +76,12 @@ test("a operação deixa os estados em Configurações e usa leitura automática
   assert.match(aplicacao, /settingsRealtime\.stop\(\)/);
 });
 
-test("comandos da Operação não abrem notificações ou confirmação modal", () => {
+test("notificações flutuantes estão desativadas globalmente", () => {
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
   const operacaoCss = readFileSync(join(raiz, "telas", "operacao", "operacao.css"), "utf8");
+  const notificacoes = readFileSync(join(raiz, "js", "componentes", "notificacoes.js"), "utf8");
   assert.match(aplicacao, /if \(currentPage === "work"\) return;/);
   assert.doesNotMatch(aplicacao, /timedCommandConfirmation|command-confirm-overlay/);
-  assert.match(operacaoCss, /#trace-notificacoes[\s\S]*?display:\s*none\s*!important/);
+  assert.match(notificacoes, /export function notificar\(\)\s*\{\s*return null;\s*\}/);
+  assert.doesNotMatch(operacaoCss, /#trace-notificacoes/);
 });
