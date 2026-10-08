@@ -1,6 +1,6 @@
 import { esc } from "../../js/funcoes/html.js";
 import { dataHora, numero } from "../../js/funcoes/formato.js?v=202609170930";
-import { companyGrid, pageHeader } from "../../js/funcoes/view.js?v=202610061745";
+import { companyGrid, pageHeader } from "../../js/funcoes/view.js?v=202610080002";
 
 export function masterHome(store) {
   const companies = Array.isArray(store.state.companies) ? store.state.companies : [];
@@ -32,6 +32,7 @@ export function masterHome(store) {
     "Central Master",
     "Acompanhe as empresas e priorize pendências sem acessar a operação local.",
   )}
+  <p class="form-feedback" data-company-status-feedback role="status" aria-live="polite"${store.state.companyStatusStale ? "" : " hidden"}>${store.state.companyStatusStale ? "Não foi possível atualizar a conectividade. Os indicadores mostram a última consulta confirmada." : ""}</p>
   <section class="grid five dashboard-metrics master-metrics" aria-label="Resumo das empresas">
     <div class="panel metric"><small>Empresas ativas</small><strong>${numero(activeCompanies.length)}</strong></div>
     <div class="panel metric"><small>PCs industriais online</small><strong class="metric-green">${numero(onlineIndustrialPcs)} / ${numero(activeCompanies.length)}</strong></div>

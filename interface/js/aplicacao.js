@@ -10,9 +10,11 @@ import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610072220";
 import { createSettingsStatusController } from "./controladores/status-configuracoes.js?v=202610070203";
+import { createCompanyStatusController } from "./controladores/status-empresas.js?v=202610080002";
 import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
 import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
+import { refreshCompanyStatusCards } from "./funcoes/view.js?v=202610080002";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js?v=202609240001";
 import { apresentacaoStatusDispositivo, settings } from "../telas/configuracoes/configuracoes.js?v=202610070203";
@@ -20,9 +22,9 @@ import { dalas } from "../telas/dalas/dalas.js?v=202610010001";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
 import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610010001";
 import { company } from "../telas/empresa/empresa.js?v=202610020006";
-import { companies } from "../telas/empresas/empresas.js?v=202610010001";
+import { companies } from "../telas/empresas/empresas.js?v=202610080002";
 import { errorLogs } from "../telas/logs-erros/logs-erros.js?v=202610010001";
-import { masterHome } from "../telas/painel-dallogix/painel-dallogix.js?v=202610010001";
+import { masterHome } from "../telas/painel-dallogix/painel-dallogix.js?v=202610080002";
 import { alerts } from "../telas/alertas/alertas.js?v=202610010001";
 import { emergency } from "../telas/emergencia/emergencia.js?v=202610010001";
 import { occurrences } from "../telas/ocorrencias/ocorrencias.js?v=202610010001";
@@ -57,6 +59,7 @@ const servicoEmergencia = new ServicoEmergencia(store);
 const servicoOperacao = new ServicoOperacao(store);
 let renderRequestId = 0;
 let workViewSignature = "";
+let companyViewSignature = "";
 const screens = {
   dashboard,
   manifests,
@@ -158,6 +161,30 @@ const settingsRealtime = createSettingsStatusController({
   store,
   getPage: () => currentPage,
   refreshView: () => refreshSettingsStatusView(),
+});
+const companiesRealtime = createCompanyStatusController({
+  store,
+  getPage: () => currentPage,
+  refreshView: ({ stale = false } = {}) => {
+    store.state.companyStatusStale = stale;
+    if (currentPage === "companies") {
+      refreshCompanyStatusCards(store.state.companies, document.querySelector("#screen-root"), { stale });
+      refreshRelativeTimes();
+      return;
+    }
+    if (currentPage === "master-home") {
+      if (companyStatusViewSignature() === companyViewSignature) {
+        if (!stale) refreshCompanyStatusCards(store.state.companies, document.querySelector("#screen-root"));
+        return;
+      }
+      const scrollTop = window.scrollY;
+      renderScreen();
+      if (stale) {
+        refreshCompanyStatusCards(store.state.companies, document.querySelector("#screen-root"), { stale: true });
+      }
+      window.scrollTo(0, scrollTop);
+    }
+  },
 });
 
 function sidebarCollapsed() {
@@ -347,7 +374,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610080001").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610080002").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -577,6 +604,25 @@ function renderScreen() {
   else stopWorkPolling();
   if (currentPage === "settings") settingsRealtime.start();
   else settingsRealtime.stop();
+  if (["companies", "master-home"].includes(currentPage)) companiesRealtime.start();
+  else companiesRealtime.stop();
+  if (currentPage === "master-home") companyViewSignature = companyStatusViewSignature();
+}
+function companyStatusViewSignature() {
+  const companies = Array.isArray(store.state.companies) ? store.state.companies : [];
+  return JSON.stringify([
+    Boolean(store.state.companyStatusStale),
+    companies.map((company) => [
+      company.id,
+      company.archived,
+      company.total_machines,
+      company.machines_online,
+      company.industrial_pc_status,
+      company.total_users,
+      company.active_users,
+      company.license_status,
+    ]),
+  ]);
 }
 // Mantém uma entrada global para atualizações em tempo real e inicialização.
 // Handlers de uma tela usam a guarda local de bindActions/bindForms abaixo.

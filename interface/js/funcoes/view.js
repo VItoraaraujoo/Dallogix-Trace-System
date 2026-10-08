@@ -238,42 +238,103 @@ export function machineGrid(
   return `<div class="card-grid machine-grid">${list.length ? list.map(machineCard).join("") : `<p class="empty-cell">${emptyMessage}</p>`}</div>`;
 }
 
-export function companyCard(company, { compact = false } = {}) {
+function industrialPcStatusPresentation(company) {
+  const status = String(company.industrial_pc_status || "DESCONHECIDO").toUpperCase();
+  const labels = {
+    ONLINE: ["PC industrial online", "green", "Online", "metric-green"],
+    OFFLINE: ["PC industrial sem comunicação", "red", "Offline", "metric-red"],
+    ERRO: ["PC industrial com erro", "red", "Erro", "metric-red"],
+    DESCONHECIDO: ["PC industrial sem sinal", "yellow", "Sem sinal", ""],
+  };
+  const [label, tone, metric, metricTone] = labels[status] || labels.DESCONHECIDO;
+  return { label, tone, metric, metricTone };
+}
+
+function companyConnectionPresentation(company) {
   const total = Number(company.total_machines || 0);
   const online = Number(company.machines_online || 0);
   const industrialPcStatus = String(company.industrial_pc_status || "DESCONHECIDO").toUpperCase();
-  const industrialPcLabels = {
-    ONLINE: ["PC industrial online", "green"],
-    OFFLINE: ["PC industrial sem comunicação", "red"],
-    ERRO: ["PC industrial com erro", "red"],
-    DESCONHECIDO: ["PC industrial sem sinal", "yellow"],
-  };
-  const [industrialPcLabel, industrialPcTone] = industrialPcLabels[industrialPcStatus] || industrialPcLabels.DESCONHECIDO;
-  const industrialPcBadge = `<span class="badge ${industrialPcTone}">${industrialPcLabel}</span>`;
-  const industrialPcMetricValue = industrialPcStatus === "ONLINE"
-    ? "Online"
-    : industrialPcStatus === "OFFLINE"
-      ? "Offline"
-      : industrialPcStatus === "ERRO"
-        ? "Erro"
-        : "Sem sinal";
-  const industrialPcMetricClass = industrialPcStatus === "ONLINE"
-    ? "metric-green"
-    : ["OFFLINE", "ERRO"].includes(industrialPcStatus)
-      ? "metric-red"
+  if (company.archived) return { label: "Arquivada", tone: "yellow" };
+  if (total === 0) return { label: "Sem Dalas", tone: "yellow" };
+  if (online > 0) return { label: `${online}/${total} Dalas online`, tone: "green" };
+  if (["OFFLINE", "ERRO"].includes(industrialPcStatus)) {
+    return { label: "PC industrial sem comunicação", tone: "red" };
+  }
+  return { label: "Dalas sem sinal", tone: "yellow" };
+}
+
+function updateCompanyBadge(node, presentation) {
+  if (!node) return;
+  node.className = `badge ${presentation.tone}`;
+  node.textContent = presentation.label;
+}
+
+/** Atualiza apenas conectividade em cards já renderizados, preservando formulários e foco. */
+export function refreshCompanyStatusCards(companies, root = globalThis.document, { stale = false } = {}) {
+  if (!root?.querySelectorAll) return;
+  const list = Array.isArray(companies) ? companies : [];
+  const byId = new Map(list.map((company) => [String(company.id), company]));
+  root.querySelectorAll("[data-company-card-id]").forEach((card) => {
+    const company = byId.get(String(card.dataset.companyCardId || ""));
+    if (!company) return;
+
+    const pcStatus = industrialPcStatusPresentation(company);
+    const connection = companyConnectionPresentation(company);
+    updateCompanyBadge(
+      card.querySelector("[data-company-industrial-status-badge]"),
+      stale ? { label: "Status desatualizado", tone: "yellow" } : pcStatus,
+    );
+    updateCompanyBadge(
+      card.querySelector("[data-company-connection-badge]"),
+      stale ? { label: "Status desatualizado", tone: "yellow" } : connection,
+    );
+
+    const onlineMetric = card.querySelector('[data-company-metric="dalas-online"]');
+    if (onlineMetric) {
+      onlineMetric.textContent = String(Number(company.machines_online || 0));
+      onlineMetric.className = !stale && Number(company.machines_online || 0) > 0 ? "metric-green" : "";
+    }
+    const pcMetric = card.querySelector('[data-company-metric="industrial-pc"]');
+    if (pcMetric) {
+      pcMetric.textContent = stale ? "Desatualizado" : pcStatus.metric;
+      pcMetric.className = stale ? "" : pcStatus.metricTone;
+    }
+    const lastDalaSignal = card.querySelector('[data-company-last-signal="dalas"]');
+    if (lastDalaSignal) lastDalaSignal.textContent = company.last_signal_at || "—";
+    const lastPcSignal = card.querySelector('[data-company-last-signal="pc"]');
+    if (lastPcSignal) lastPcSignal.textContent = company.industrial_pc_last_seen_at || "—";
+  });
+
+  const active = list.filter((company) => !company.archived);
+  const total = active.reduce((sum, company) => sum + Number(company.total_machines || 0), 0);
+  const online = active.reduce((sum, company) => sum + Number(company.machines_online || 0), 0);
+  const onlineSummary = root.querySelector('[data-company-summary="machines-online"]');
+  if (onlineSummary) {
+    onlineSummary.textContent = `${online} / ${total}`;
+    onlineSummary.className = stale ? "" : online > 0 ? "metric-green" : total > 0 ? "metric-red" : "";
+  }
+  const offlineSummary = root.querySelector('[data-company-summary="machines-offline"]');
+  if (offlineSummary) {
+    offlineSummary.textContent = String(Math.max(0, total - online));
+    offlineSummary.className = stale ? "" : total - online > 0 ? "metric-red" : "metric-green";
+  }
+  const feedback = root.querySelector("[data-company-status-feedback]");
+  if (feedback) {
+    feedback.textContent = stale
+      ? "Não foi possível atualizar a conectividade. Os indicadores mostram a última consulta confirmada."
       : "";
+    feedback.hidden = !stale;
+  }
+}
+
+export function companyCard(company, { compact = false } = {}) {
+  const total = Number(company.total_machines || 0);
+  const online = Number(company.machines_online || 0);
+  const industrialPc = industrialPcStatusPresentation(company);
   const users = Number(company.total_users || 0);
   const activeUsers = Number(company.active_users || 0);
   const archived = Boolean(company.archived);
-  const connection = archived
-    ? '<span class="badge yellow">Arquivada</span>'
-    : total === 0
-      ? '<span class="badge yellow">Sem Dalas</span>'
-      : online > 0
-        ? `<span class="badge green">${online}/${total} Dalas online</span>`
-        : industrialPcStatus === "OFFLINE" || industrialPcStatus === "ERRO"
-          ? '<span class="badge red">PC industrial sem comunicação</span>'
-          : '<span class="badge yellow">Dalas sem sinal</span>';
+  const connection = companyConnectionPresentation(company);
   const licenseStatus = String(company.license_status || "SEM_LICENCA");
   const licenseLabel = {
     ATIVA: "Licença ativa",
@@ -286,12 +347,12 @@ export function companyCard(company, { compact = false } = {}) {
   const managementActions = archived
     ? `<button class="button primary small" data-action="restore-company" data-id="${company.id}" data-name="${esc(company.name)}" type="button">Restaurar</button><button class="button ghost danger-link small" data-action="delete-company-permanently" data-id="${company.id}" data-name="${esc(company.name)}" type="button">Excluir definitivamente</button>`
     : `<button class="button ${licenseStatus === "ATIVA" ? "danger" : "primary"} small" data-action="toggle-license" data-id="${company.id}" data-status="${esc(licenseStatus)}" type="button">${licenseAction}</button><button class="button ghost danger-link small" data-action="archive-company" data-id="${company.id}" data-name="${esc(company.name)}" type="button">Arquivar</button>`;
-  return `<article class="company-card">
-    <header><div class="company-card-identity"><strong>${esc(company.name)}</strong><small>${total} máquina(s) • último sinal das Dalas ${company.last_signal_at ? esc(company.last_signal_at) : "—"}</small><small>Último sinal do PC industrial: ${company.industrial_pc_last_seen_at ? esc(company.industrial_pc_last_seen_at) : "—"}</small><code>Login: @${esc(company.login_domain || "—")}</code></div><div class="company-card-statuses">${industrialPcBadge}${connection}${licenseBadge}</div></header>
+  return `<article class="company-card" data-company-card-id="${esc(company.id)}">
+    <header><div class="company-card-identity"><strong>${esc(company.name)}</strong><small>${total} máquina(s) • último sinal das Dalas <span data-company-last-signal="dalas">${company.last_signal_at ? esc(company.last_signal_at) : "—"}</span></small><small>Último sinal do PC industrial: <span data-company-last-signal="pc">${company.industrial_pc_last_seen_at ? esc(company.industrial_pc_last_seen_at) : "—"}</span></small><code>Login: @${esc(company.login_domain || "—")}</code></div><div class="company-card-statuses"><span class="badge ${industrialPc.tone}" data-company-industrial-status-badge>${industrialPc.label}</span><span class="badge ${connection.tone}" data-company-connection-badge>${connection.label}</span>${licenseBadge}</div></header>
     <div class="company-card-metrics">
       <div><b>${total}</b><small>Máquinas</small></div>
-      <div><b class="metric-green">${online}</b><small>Dalas online</small></div>
-      <div><b class="${industrialPcMetricClass}">${industrialPcMetricValue}</b><small>PC industrial</small></div>
+      <div><b class="${online > 0 ? "metric-green" : ""}" data-company-metric="dalas-online">${online}</b><small>Dalas online</small></div>
+      <div><b class="${industrialPc.metricTone}" data-company-metric="industrial-pc">${industrialPc.metric}</b><small>PC industrial</small></div>
       <div><b>${activeUsers}/${users}</b><small>Acessos ativos</small></div>
     </div>
     <footer><div class="actions"><button class="button secondary" data-action="open-company" data-id="${company.id}" type="button">Gerenciar</button>${compact ? "" : managementActions}</div></footer>
