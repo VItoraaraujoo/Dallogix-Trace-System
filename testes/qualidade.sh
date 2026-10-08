@@ -15,6 +15,7 @@ while IFS= read -r js_file; do
 done < <(find interface/js -type f -name '*.js' | sort)
 
 node scripts/check_frontend_modules.mjs
+node --test testes/ambiente-descartavel.mjs
 
 while IFS= read -r shell_file; do
   bash -n "$shell_file"

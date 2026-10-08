@@ -2,9 +2,11 @@
 set -u
 source "$(cd "$(dirname "$0")" && pwd)/lib/csrf.sh"
 
-base_url="${TRACE_BASE_URL:-http://localhost:8080}"
-cookie_file="/tmp/dallogix-trace-etapa34-cookie.txt"
-temporary_csv="/tmp/dallogix-trace-etapa34-$(date +%s).csv"
+source "$(cd "$(dirname "$0")" && pwd)/lib/ambiente_descartavel.sh"
+trace_preparar_ambiente_descartavel
+base_url="$TRACE_BASE_URL"
+cookie_file="$trace_test_tmp_dir/dallogix-trace-etapa34-cookie.txt"
+temporary_csv="$trace_test_tmp_dir/dallogix-trace-etapa34-$(date +%s).csv"
 number="CSV-$(date +%s)"
 fail() { echo "FAIL: $1"; exit 1; }
 

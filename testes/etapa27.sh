@@ -1,17 +1,22 @@
 #!/usr/bin/env bash
 set -u
 
-base_url="${TRACE_BASE_URL:-http://localhost:8080}"
+source "$(cd "$(dirname "$0")" && pwd)/lib/ambiente_descartavel.sh"
+trace_preparar_ambiente_descartavel
+base_url="$TRACE_BASE_URL"
+root="$(cd "$(dirname "$0")/.." && pwd)"
 fail() { echo "FAIL: $1"; exit 1; }
 
-emergency_html="$(curl -sS "$base_url/emergency.html")"
-printf '%s' "$emergency_html" | grep -q 'data-page="emergency"' || fail "emergency.html sem data-page"
+trace_test_fetch_page emergency.html emergency "$trace_test_tmp_dir/dx-etapa27-emergency.html" || fail "emergency.html não entrega a tela de emergência"
 app_js="$(curl -sS "$base_url/js/aplicacao.js")"
-printf '%s' "$app_js" | grep -q 'emergency: () => \[store.loadActiveLoading()' || fail "emergency sem carregamento ativo"
-printf '%s' "$app_js" | grep -q 'Emergência liberada' || fail "fluxo de desbloqueio sem confirmação"
+grep -q 'emergency: () => \[store.loadActiveLoading()' <<< "$app_js" || fail "emergency sem carregamento ativo"
 view_js="$(curl -sS "$base_url/js/funcoes/view.js")"
-printf '%s' "$view_js" | grep -q 'Liberar emergência' || fail "tela de emergência sem botão de liberação"
+grep -q 'Liberar emergência' <<< "$view_js" || fail "tela de emergência sem botão de liberação"
+grep -q 'não confirma o estado físico da esteira' <<< "$view_js" || fail "retorno aplicado não distingue confirmação física"
 store_js="$(curl -sS "$base_url/js/classes/ArmazenamentoTrace.js")"
-printf '%s' "$store_js" | grep -q 'await this.loadActiveLoading();' || fail "estado não é recarregado após desbloqueio"
+grep -q '/api/desbloquear_maquina.php' <<< "$store_js" || fail "liberação não chama a API de desbloqueio"
+grep -q 'await this.loadActiveLoading();' <<< "$store_js" || fail "estado não é recarregado após desbloqueio"
+unlock_api="$root/servidor/api/operacoes/desbloquear_maquina.php"
+grep -q 'a máquina só será liberada após confirmação do gateway industrial' "$unlock_api" || fail "API não mantém o intertravamento até a confirmação do gateway"
 
 echo "OK: tela de emergência agora exibe a liberação e atualiza o estado do carregamento."

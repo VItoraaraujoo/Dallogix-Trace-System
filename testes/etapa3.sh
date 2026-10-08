@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -u
 
-base_url="${TRACE_BASE_URL:-http://localhost:8080}"
-cookie_file="/tmp/dallogix-trace-etapa3-cookie.txt"
+source "$(cd "$(dirname "$0")" && pwd)/lib/ambiente_descartavel.sh"
+trace_preparar_ambiente_descartavel
+base_url="$TRACE_BASE_URL"
+cookie_file="$trace_test_tmp_dir/dallogix-trace-etapa3-cookie.txt"
 
 status() {
   curl -sS -o /dev/null -w '%{http_code}' "$@"

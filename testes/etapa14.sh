@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -u
 
-base_url="${TRACE_BASE_URL:-http://localhost:8080}"
+source "$(cd "$(dirname "$0")" && pwd)/lib/ambiente_descartavel.sh"
+trace_preparar_ambiente_descartavel
+base_url="$TRACE_BASE_URL"
 gateway_token="${TRACE_DEVICE_TOKEN:-}"
-cookie_file="/tmp/dallogix-trace-etapa14-cookie.txt"
+cookie_file="$trace_test_tmp_dir/dallogix-trace-etapa14-cookie.txt"
 
 if [[ -z "$gateway_token" ]]; then
   echo "FAIL: defina TRACE_DEVICE_TOKEN com o token provisionado para a Dala"

@@ -2,9 +2,11 @@
 set -u
 source "$(cd "$(dirname "$0")" && pwd)/lib/csrf.sh"
 
-base_url="${TRACE_BASE_URL:-http://localhost:8080}"
-master_cookie="/tmp/dallogix-trace-etapa39-master-cookie.txt"
-user_cookie="/tmp/dallogix-trace-etapa39-user-cookie.txt"
+source "$(cd "$(dirname "$0")" && pwd)/lib/ambiente_descartavel.sh"
+trace_preparar_ambiente_descartavel
+base_url="$TRACE_BASE_URL"
+master_cookie="$trace_test_tmp_dir/dallogix-trace-etapa39-master-cookie.txt"
+user_cookie="$trace_test_tmp_dir/dallogix-trace-etapa39-user-cookie.txt"
 fail() { echo "FAIL: $1"; exit 1; }
 
 login="$(curl -sS -c "$master_cookie" -H 'Content-Type: application/json' -d '{"email":"admin@dallogix.local","password":"password"}' "$base_url/api/login.php")"
@@ -28,7 +30,7 @@ printf '%s' "$user_login" | grep -q '"authenticated":true' || fail "login do usu
 updated="$(curl -sS -b "$master_cookie" -X PUT -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"id\":${user_id},\"company_id\":${company_id},\"name\":\"Teste revogação atualizado\",\"role\":\"SUPERVISOR\",\"active\":true,\"password\":\"senha-nova-39\"}" "$base_url/api/usuarios.php")"
 printf '%s' "$updated" | grep -q '"updated":true' || fail "alteração de senha não foi aceita: $updated"
 
-me_status="$(curl -sS -o /tmp/dallogix-trace-etapa39-me.json -w '%{http_code}' -b "$user_cookie" "$base_url/api/me.php")"
+me_status="$(curl -sS -o $trace_test_tmp_dir/dallogix-trace-etapa39-me.json -w '%{http_code}' -b "$user_cookie" "$base_url/api/me.php")"
 [ "$me_status" = "401" ] || fail "sessão antiga continuou válida após alteração de senha (HTTP $me_status)"
 
 echo "OK: alteração de credencial invalidou a sessão anterior imediatamente."

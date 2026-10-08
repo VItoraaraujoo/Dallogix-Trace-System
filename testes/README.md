@@ -19,7 +19,13 @@ partir das telas HTML; não classifica dependências PHP ou carregamento dinâmi
 Essa bateria cria romaneio/carregamento e pode alterar a licença da fixture;
 para evitar escrita acidental na instalação operacional, exige `TRACE_BASE_URL`
 loopback explícita e `TRACE_REGRESSION_DISPOSABLE=1`. Use somente uma fixture
-descartável; a URL padrão `localhost:8080` não é mais assumida.
+descartável; a URL padrão `localhost:8080` não é mais assumida. As etapas que
+consultam o banco também exigem `COMPOSE_FILE=docker-compose.production-test.yml`
+e um `COMPOSE_PROJECT_NAME` isolado, para não ler o banco de desenvolvimento.
+As etapas HTTP `etapa<N>.sh` aplicam a mesma proteção quando executadas
+individualmente: exigem `TRACE_BASE_URL` loopback e
+`TRACE_REGRESSION_DISPOSABLE=1`. Seus cookies e arquivos temporários ficam em
+uma pasta privada exclusiva da execução e são removidos ao sair.
 
 As regressões isoladas `gateway-clp.mjs`, `operacoes-offline.mjs`,
 `camera-upload-http.mjs` e `modbus-transporte.py` não precisam do banco da

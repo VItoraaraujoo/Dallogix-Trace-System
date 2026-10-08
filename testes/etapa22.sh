@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 set -u
 
-base_url="${TRACE_BASE_URL:-http://localhost:8080}"
-admin_cookie="/tmp/dx-etapa22-admin.txt"
-empresa_cookie="/tmp/dx-etapa22-empresa.txt"
+source "$(cd "$(dirname "$0")" && pwd)/lib/ambiente_descartavel.sh"
+trace_preparar_ambiente_descartavel
+base_url="$TRACE_BASE_URL"
+admin_cookie="$trace_test_tmp_dir/dx-etapa22-admin.txt"
+empresa_cookie="$trace_test_tmp_dir/dx-etapa22-empresa.txt"
 
 fail() { echo "FAIL: $1"; exit 1; }
 

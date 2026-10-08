@@ -98,7 +98,7 @@ if [[ "${TRACE_ENV_CHECK_SKIP_DATABASE:-0}" != "1" ]]; then
     if ! count="$(bash "$root_dir/scripts/docker_compose.sh" \
       --project-directory "$root_dir" --env-file "$env_file" \
       -f "$root_dir/docker-compose.yml" -f "$root_dir/docker-compose.production.yml" \
-      exec -T mysql sh -lc 'mysql --batch --skip-column-names -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "$1"' \
+      exec -T mysql sh -lc 'MYSQL_PWD="$MYSQL_PASSWORD" mysql --batch --skip-column-names -u"$MYSQL_USER" "$MYSQL_DATABASE" -e "$1"' \
       trace-env-check "SELECT COUNT(*) FROM usuarios WHERE password_hash = '$hash'")"; then
       echo "ERRO: não foi possível consultar as senhas de demonstração no banco; a produção não foi validada." >&2
       failures=$((failures + 1))

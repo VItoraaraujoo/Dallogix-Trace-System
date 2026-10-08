@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -u
 
-base_url="${TRACE_BASE_URL:-http://localhost:8080}"
-cookie_file="/tmp/dallogix-trace-etapa10-cookie.txt"
+source "$(cd "$(dirname "$0")" && pwd)/lib/ambiente_descartavel.sh"
+trace_preparar_ambiente_descartavel
+base_url="$TRACE_BASE_URL"
+cookie_file="$trace_test_tmp_dir/dallogix-trace-etapa10-cookie.txt"
 
 unauth="$(curl -sS -o /dev/null -w '%{http_code}' "$base_url/api/produtos.php")"
 if [[ "$unauth" != "401" ]]; then

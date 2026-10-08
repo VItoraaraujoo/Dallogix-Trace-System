@@ -335,7 +335,7 @@ rollback() {
   fi
   mysql_ready=0
   for _ in $(seq 1 "${MYSQL_ROLLBACK_ATTEMPTS:-30}"); do
-    if compose exec -T mysql sh -lc 'mysqladmin ping -uroot -p"$MYSQL_ROOT_PASSWORD" --silent' >/dev/null 2>&1; then
+    if compose exec -T mysql sh -lc 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysqladmin ping -uroot --silent' >/dev/null 2>&1; then
       mysql_ready=1
       break
     fi
@@ -349,7 +349,7 @@ rollback() {
     echo "O backup do banco não passou na verificação durante o rollback." >&2
     return 1
   fi
-  if ! compose exec -T mysql sh -lc 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE"' < "$db_backup"; then
+  if ! compose exec -T mysql sh -lc 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot "$MYSQL_DATABASE"' < "$db_backup"; then
     echo "Não foi possível restaurar o banco da versão anterior." >&2
     return 1
   fi

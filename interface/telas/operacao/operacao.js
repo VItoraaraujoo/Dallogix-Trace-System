@@ -57,7 +57,10 @@ export function podeLiberarEmergencia({ role, loadingId }) {
   );
 }
 
-export function workControlLocks(state) {
+export function workControlLocks(state, {
+  clpAvailable = true,
+  clpUnavailableMessage = "Comunicação com o CLP indisponível. Novos comandos estão bloqueados.",
+} = {}) {
   const operationalState = String(state.operationalState || "").toUpperCase();
   const commandStatus = String(
     state.plcCommand?.status || state.commandIntent?.status || "",
@@ -81,6 +84,11 @@ export function workControlLocks(state) {
 
   if (!hasLoading) {
     for (const action of Object.keys(locks)) locks[action] = "Nenhum carregamento selecionado.";
+    return locks;
+  }
+
+  if (!clpAvailable) {
+    for (const action of Object.keys(locks)) locks[action] = clpUnavailableMessage;
     return locks;
   }
 
@@ -142,11 +150,21 @@ function workControls(store) {
   const totalPercent = plannedTotal > 0
     ? Math.min(100, Math.round((detectedBags / plannedTotal) * 100))
     : 0;
-  const commandLocks = workControlLocks(store.state);
+  const clpAvailable = typeof store.clpDisponivel === "function"
+    ? store.clpDisponivel()
+    : true;
+  const clpUnavailableMessage = typeof store.mensagemClpIndisponivel === "function"
+      ? store.mensagemClpIndisponivel()
+      : "Comunicação com o CLP indisponível. Novos comandos estão bloqueados.";
+  const commandLocks = workControlLocks(store.state, {
+    clpAvailable,
+    clpUnavailableMessage,
+  });
   const bloqueio = (reason) => reason
     ? { disabled: true, "aria-disabled": "true", title: reason }
     : "";
-  // Parada e emergência seguem disponíveis como ações de segurança.
+  // A emergência continua disponível para registrar a intenção; comandos
+  // normais ficam bloqueados porque o servidor não os encaminha sem heartbeat.
   const bloqueioEmergencia = store.state.loadingId
     ? ""
     : { disabled: true, "aria-disabled": "true", title: "Nenhum carregamento selecionado" };
@@ -181,7 +199,9 @@ function workControls(store) {
       : "");
   const commandFailureNotice = failedCommandMessage
     ? `<p class="work-command-error" role="alert">${esc(failedCommandMessage)}</p>`
-    : "";
+    : !clpAvailable
+      ? `<p class="work-command-error" role="status" aria-live="polite">${esc(clpUnavailableMessage)}</p>`
+      : "";
   const badge = ["PENDENTE", "PROCESSANDO"].includes(pendingStatus) && pendingCommand
       ? `<span class="badge blue">${esc(rotuloComando(pendingCommand))} · aguardando CLP</span>`
       : store.state.operationalState === "EMERGENCIA"

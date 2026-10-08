@@ -2,10 +2,13 @@
 set -u
 source "$(cd "$(dirname "$0")" && pwd)/lib/csrf.sh"
 
-base_url="${TRACE_BASE_URL:-http://localhost:8080}"
-equipment_id="${TRACE_TEST_EQUIPMENT_ID:-$(docker compose exec -T mysql mysql -N -utrace -p"${MYSQL_PASSWORD:-}" "${MYSQL_DATABASE:-trace_local}" -e "SELECT e.id FROM equipamentos e WHERE NOT EXISTS (SELECT 1 FROM carregamentos c WHERE c.equipment_id = e.id AND c.state <> 'FINALIZADO') ORDER BY e.id LIMIT 1" 2>/dev/null | tr -d '\r' | head -n 1)}"
+source "$(cd "$(dirname "$0")" && pwd)/lib/ambiente_descartavel.sh"
+trace_preparar_ambiente_descartavel
+trace_exigir_compose_producao_teste
+base_url="$TRACE_BASE_URL"
+equipment_id="${TRACE_TEST_EQUIPMENT_ID:-$(trace_test_mysql_query app "SELECT e.id FROM equipamentos e WHERE NOT EXISTS (SELECT 1 FROM carregamentos c WHERE c.equipment_id = e.id AND c.state <> 'FINALIZADO') ORDER BY e.id LIMIT 1" 2>/dev/null | tr -d '\r' | head -n 1)}"
 gateway_token="${TRACE_DEVICE_TOKEN:-}"
-cookie_file="/tmp/dallogix-trace-etapa31-cookie.txt"
+cookie_file="$trace_test_tmp_dir/dallogix-trace-etapa31-cookie.txt"
 number="READ-$(date +%s)"
 plate="RDR$(date +%s | tail -c 7)"
 fail() { echo "FAIL: $1"; exit 1; }
@@ -20,7 +23,7 @@ prepared="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: appli
 loading_id="$(printf '%s' "$prepared" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
 [ -n "$loading_id" ] || fail "não foi possível preparar carregamento: $prepared"
 
-blocked="$(curl -sS -o /tmp/dallogix-trace-etapa31-blocked.json -w '%{http_code}' -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"barcode\":\"7898250782592\"}" "$base_url/api/leituras.php")"
+blocked="$(curl -sS -o $trace_test_tmp_dir/dallogix-trace-etapa31-blocked.json -w '%{http_code}' -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"barcode\":\"7898250782592\"}" "$base_url/api/leituras.php")"
 [ "$blocked" = "409" ] || fail "leitura foi aceita fora de CARREGANDO"
 
 heartbeat="$(curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" -d "{\"equipment_id\":$equipment_id,\"device_type\":\"CLP\",\"status\":\"ONLINE\"}" "$base_url/api/device_heartbeat.php")"

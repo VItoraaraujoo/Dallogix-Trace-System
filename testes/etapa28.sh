@@ -4,7 +4,7 @@ set -u
 root="$(cd "$(dirname "$0")/.." && pwd)"
 fail() { echo "FAIL: $1"; exit 1; }
 
-dashboard="$root/interface/js/telas/painel.js"
+dashboard="$root/interface/telas/painel/painel.js"
 app="$root/interface/js/aplicacao.js"
 css="$root/interface/css/light-theme.css"
 monitoring="$root/servidor/src/Aplicacao/ServicoMonitoramento.php"

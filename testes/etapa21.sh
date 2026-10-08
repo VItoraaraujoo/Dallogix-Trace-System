@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 set -u
 
-base_url="${TRACE_BASE_URL:-http://localhost:8080}"
-cookie_file="/tmp/dallogix-trace-etapa21-cookie.txt"
+source "$(cd "$(dirname "$0")" && pwd)/lib/ambiente_descartavel.sh"
+trace_preparar_ambiente_descartavel
+base_url="$TRACE_BASE_URL"
+cookie_file="$trace_test_tmp_dir/dallogix-trace-etapa21-cookie.txt"
 
 login="$(curl -sS -c "$cookie_file" -H 'Content-Type: application/json' -d '{"email":"admin@dallogix.local","password":"password"}' "$base_url/api/login.php")"
 if ! printf '%s' "$login" | grep -q '"authenticated":true'; then echo "FAIL: login falhou"; exit 1; fi

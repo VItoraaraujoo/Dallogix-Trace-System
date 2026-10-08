@@ -2,9 +2,11 @@
 set -u
 source "$(cd "$(dirname "$0")" && pwd)/lib/csrf.sh"
 
-base_url="${TRACE_BASE_URL:-http://localhost:8080}"
+source "$(cd "$(dirname "$0")" && pwd)/lib/ambiente_descartavel.sh"
+trace_preparar_ambiente_descartavel
+base_url="$TRACE_BASE_URL"
 gateway_token="${TRACE_DEVICE_TOKEN:-}"
-cookie_file="/tmp/dallogix-trace-etapa20-cookie.txt"
+cookie_file="$trace_test_tmp_dir/dallogix-trace-etapa20-cookie.txt"
 
 login="$(curl -sS -c "$cookie_file" -H 'Content-Type: application/json' -d '{"email":"admin@dallogix.local","password":"password"}' "$base_url/api/login.php")"
 if ! printf '%s' "$login" | grep -q '"authenticated":true'; then
@@ -55,8 +57,7 @@ printf '%s' "$completed_unlock" | grep -q '"status":"APLICADO"' || { echo "FAIL:
 
 # Processa as evidências da própria fixture no worker simulado e encerra a
 # operação, liberando a Dala para as etapas de preparação seguintes.
-camera_fixture="$(mktemp)"
-trap 'rm -f "$camera_fixture"' EXIT
+camera_fixture="$(mktemp "$trace_test_tmp_dir/camera.XXXXXX")"
 php -r 'file_put_contents($argv[1], base64_decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/NssAAAAASUVORK5CYII=", true));' "$camera_fixture"
 for attempt in 1 2 3 4 5 6 7 8 9 10; do
   claim="$(curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: ${CAMERA_DEVICE_TOKEN:-}" -d '{"action":"CLAIM"}' "$base_url/api/camera_worker.php" || true)"

@@ -2,9 +2,11 @@
 set -u
 source "$(cd "$(dirname "$0")" && pwd)/lib/csrf.sh"
 
-base_url="${TRACE_BASE_URL:-http://localhost:8080}"
+source "$(cd "$(dirname "$0")" && pwd)/lib/ambiente_descartavel.sh"
+trace_preparar_ambiente_descartavel
+base_url="$TRACE_BASE_URL"
 gateway_token="${TRACE_DEVICE_TOKEN:-}"
-cookie_file="/tmp/dallogix-trace-etapa5-cookie.txt"
+cookie_file="$trace_test_tmp_dir/dallogix-trace-etapa5-cookie.txt"
 source "$(cd "$(dirname "$0")" && pwd)/lib/ensure_loading.sh"
 event_uuid="22222222-2222-4222-8222-$(printf '%012d' "$(date +%s)")"
 

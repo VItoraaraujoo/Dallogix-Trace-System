@@ -185,6 +185,45 @@ test("esteira parada libera iniciar e ligar reversão, mas não oferece parada r
   assert.equal(locks["reverse-off"], "A reversão já está desligada.");
 });
 
+test("CLP indisponível bloqueia comandos normais e mantém o pedido de emergência disponível", () => {
+  const message = "CLP sem comunicação há 5 segundos. Novos comandos estão bloqueados.";
+  const state = {
+    selectedLoadingId: 7,
+    loadingId: 7,
+    activeLoadings: [{ id: 7, state: "PAUSADO", equipment_id: 3 }],
+    loadingItems: [],
+    equipmentCode: "EST-001",
+    romaneio: "7",
+    truck: "ABC1234",
+    operationalState: "PAUSADO",
+    detectedBags: 0,
+    planned: 1,
+    loaded: 0,
+    userRole: "USUARIO",
+    commandInFlight: false,
+    pendingReadings: [],
+  };
+  const locks = workControlLocks(state, {
+    clpAvailable: false,
+    clpUnavailableMessage: message,
+  });
+  for (const action of ["run", "stop", "reverse-on", "reverse-off"]) {
+    assert.equal(locks[action], message);
+  }
+
+  const markup = work({
+    state,
+    clpDisponivel: () => false,
+    mensagemClpIndisponivel: () => message,
+  });
+  for (const action of ["run", "stop", "reverse-on", "reverse-off"]) {
+    assert.match(markup, new RegExp(`data-action="${action}"[^>]*disabled`));
+  }
+  assert.match(markup, /data-action="emergency"(?![^>]*disabled)/);
+  assert.match(markup, /class="work-command-error" role="status" aria-live="polite"/);
+  assert.match(markup, /CLP sem comunicação há 5 segundos/);
+});
+
 test("esteira em movimento deixa disponível somente parar entre os comandos normais", () => {
   const locks = workControlLocks({
     loadingId: 7,

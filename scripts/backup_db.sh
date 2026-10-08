@@ -38,7 +38,7 @@ esac
 
 # As credenciais pertencem ao contêiner MySQL. Executar a expansão lá evita
 # depender de variáveis existentes no host do servidor e não expõe a senha.
-bash "$root_dir/scripts/docker_compose.sh" "${compose_args[@]}" exec -T mysql sh -lc 'mysqldump --single-transaction --routines --events --triggers --no-tablespaces -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE"' > "$staging_file"
+bash "$root_dir/scripts/docker_compose.sh" "${compose_args[@]}" exec -T mysql sh -lc 'MYSQL_PWD="$MYSQL_PASSWORD" mysqldump --single-transaction --routines --events --triggers --no-tablespaces -u"$MYSQL_USER" "$MYSQL_DATABASE"' > "$staging_file"
 
 test -s "$staging_file"
 if command -v sha256sum >/dev/null 2>&1; then

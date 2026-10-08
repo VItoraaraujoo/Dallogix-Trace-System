@@ -4,9 +4,10 @@ import { join } from "node:path";
 import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
-const versaoAplicacao = "202610072220";
-const versaoAplicacaoImportacao = "202610072220";
+const versaoAplicacao = "202610080001";
+const versaoAplicacaoImportacao = "202610080001";
 const versaoTela = "202610072220";
+const versaoTelaOperacao = "202610080001";
 const versaoEstilo = "202610070203";
 const versaoEstiloOperacao = "202610072220";
 const versaoEstiloImportacao = "202610071845";
@@ -17,7 +18,7 @@ test("o shell invalida cache quando a aplicação muda", () => {
   assert.match(serviceWorker, /trace-shell-20261007-06/);
   assert.match(aplicacao, new RegExp(`/service-worker\\.js\\?v=${versaoAplicacao}`));
   assert.match(aplicacao, new RegExp(`ArmazenamentoTrace\\.js\\?v=${versaoTela}`));
-  assert.match(aplicacao, new RegExp(`operacao\\.js\\?v=${versaoTela}`));
+  assert.match(aplicacao, new RegExp(`operacao\\.js\\?v=${versaoTelaOperacao}`));
   assert.match(aplicacao, new RegExp(`importar-romaneio\\.js\\?v=${versaoTela}`));
 });
 

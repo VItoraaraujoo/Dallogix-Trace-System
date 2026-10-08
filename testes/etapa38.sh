@@ -2,10 +2,13 @@
 set -u
 source "$(cd "$(dirname "$0")" && pwd)/lib/csrf.sh"
 
-base_url="${TRACE_BASE_URL:-http://localhost:8080}"
+source "$(cd "$(dirname "$0")" && pwd)/lib/ambiente_descartavel.sh"
+trace_preparar_ambiente_descartavel
+trace_exigir_compose_producao_teste
+base_url="$TRACE_BASE_URL"
 gateway_token="${TRACE_DEVICE_TOKEN:-}"
-cookie_file="/tmp/dallogix-trace-etapa38-cookie.txt"
-equipment_id="${TRACE_TEST_EQUIPMENT_ID:-$(docker compose exec -T mysql mysql -N -utrace -p"${MYSQL_PASSWORD:-}" "${MYSQL_DATABASE:-trace_local}" -e "SELECT e.id FROM equipamentos e WHERE NOT EXISTS (SELECT 1 FROM carregamentos c WHERE c.equipment_id = e.id AND c.state <> 'FINALIZADO') ORDER BY e.id LIMIT 1" 2>/dev/null | tr -d '\r' | head -n 1)}"
+cookie_file="$trace_test_tmp_dir/dallogix-trace-etapa38-cookie.txt"
+equipment_id="${TRACE_TEST_EQUIPMENT_ID:-$(trace_test_mysql_query app "SELECT e.id FROM equipamentos e WHERE NOT EXISTS (SELECT 1 FROM carregamentos c WHERE c.equipment_id = e.id AND c.state <> 'FINALIZADO') ORDER BY e.id LIMIT 1" 2>/dev/null | tr -d '\r' | head -n 1)}"
 fail() { echo "FAIL: $1"; exit 1; }
 
 [ -n "$equipment_id" ] || fail "nenhuma Dala livre para o teste"

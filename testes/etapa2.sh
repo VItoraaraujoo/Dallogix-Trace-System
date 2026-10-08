@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -u
 
+source "$(cd "$(dirname "$0")" && pwd)/lib/ambiente_descartavel.sh"
+trace_preparar_ambiente_descartavel
+trace_exigir_compose_producao_teste
+
 mysql_query() {
-  docker compose exec -T mysql sh -lc \
-    'mysql -N -B --default-character-set=utf8mb4 -u root -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE" -e "$1"' \
-    trace-etapa2 "$1"
+  trace_test_mysql_query root "$1"
 }
 
 tables="$(mysql_query 'SHOW TABLES' 2>/dev/null)"

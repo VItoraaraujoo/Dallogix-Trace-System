@@ -4,6 +4,18 @@ set -u
 root="$(cd "$(dirname "$0")/.." && pwd)"
 pass=0
 fail_count=0
+umask 077
+fixture_state_dir="$(mktemp -d "${TMPDIR:-/tmp}/dallogix-trace-regression.XXXXXX")" || {
+  echo "FAIL: não foi possível criar a pasta temporária privada da regressão." >&2
+  exit 1
+}
+fixture_cookie="$fixture_state_dir/fixture.cookies"
+master_cookie="$fixture_state_dir/master.cookies"
+cleanup_fixture_credentials() {
+  rm -f "$fixture_cookie" "$master_cookie"
+  rmdir "$fixture_state_dir"
+}
+trap cleanup_fixture_credentials EXIT
 
 # Esta bateria cria um romaneio/carregamento e pode alterar a licença da fixture.
 # Exija alvo loopback explícito e confirmação de que ele é descartável para não
@@ -22,9 +34,12 @@ if [[ ! "$base_url" =~ ^https?://(localhost|127\.0\.0\.1)(:[0-9]+)?$ ]]; then
   exit 2
 fi
 export TRACE_BASE_URL="$base_url"
+if [[ "${COMPOSE_FILE:-}" != *docker-compose.production-test.yml* || -z "${COMPOSE_PROJECT_NAME:-}" ]]; then
+  echo "FAIL: configure COMPOSE_FILE=docker-compose.production-test.yml e um COMPOSE_PROJECT_NAME isolado." >&2
+  exit 2
+fi
 
 # Garante uma operação local de teste sem acionar nenhum equipamento físico.
-fixture_cookie="/tmp/dallogix-trace-regression-fixture.txt"
 login="$(curl -sS -c "$fixture_cookie" -H 'Content-Type: application/json' -d '{"email":"admin@dallogix.local","password":"password"}' "$base_url/api/login.php")"
 if printf '%s' "$login" | grep -q '"authenticated":true'; then
   company_id="$(printf '%s' "$login" | sed -n 's/.*"company_id":\([0-9][0-9]*\).*/\1/p')"
@@ -33,7 +48,6 @@ if printf '%s' "$login" | grep -q '"authenticated":true'; then
     echo "FAIL: login local não retornou token CSRF para a fixture de regressão." >&2
     exit 1
   fi
-  master_cookie="/tmp/dallogix-trace-regression-master.txt"
   master_login="$(curl -sS -c "$master_cookie" -H 'Content-Type: application/json' -d '{"email":"master@dallogix.local","password":"password"}' "$base_url/api/login.php")"
   master_csrf="$(printf '%s' "$master_login" | sed -n 's/.*"csrf_token":"\([^"]*\)".*/\1/p')"
   if [[ -n "$company_id" && -n "$master_csrf" ]]; then

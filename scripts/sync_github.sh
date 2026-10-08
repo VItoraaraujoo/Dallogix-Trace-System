@@ -60,7 +60,7 @@ if [[ "$dry_run" == "1" ]]; then
 fi
 
 if [[ "$block_active" == "1" ]]; then
-  active="$(docker compose exec -T mysql sh -lc 'mysql -N -B -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "SELECT COUNT(*) FROM carregamentos WHERE state IN ('\''PREPARANDO'\'', '\''CARREGANDO'\'', '\''PAUSADO'\'', '\''FINALIZANDO'\'', '\''EMERGENCIA'\'');"' 2>/dev/null | tr -d '[:space:]')" || {
+  active="$(docker compose exec -T mysql sh -lc 'MYSQL_PWD="$MYSQL_PASSWORD" mysql -N -B -u"$MYSQL_USER" "$MYSQL_DATABASE" -e "SELECT COUNT(*) FROM carregamentos WHERE state IN ('\''PREPARANDO'\'', '\''CARREGANDO'\'', '\''PAUSADO'\'', '\''FINALIZANDO'\'', '\''EMERGENCIA'\'');"' 2>/dev/null | tr -d '[:space:]')" || {
     echo "Sincronização interrompida: não foi possível verificar carregamentos ativos." >&2
     exit 7
   }

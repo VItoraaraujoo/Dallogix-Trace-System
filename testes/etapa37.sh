@@ -2,9 +2,11 @@
 set -u
 source "$(cd "$(dirname "$0")" && pwd)/lib/csrf.sh"
 
-base_url="${TRACE_BASE_URL:-http://localhost:8080}"
-master_cookie="/tmp/dallogix-trace-etapa37-master.txt"
-company_cookie="/tmp/dallogix-trace-etapa37-company.txt"
+source "$(cd "$(dirname "$0")" && pwd)/lib/ambiente_descartavel.sh"
+trace_preparar_ambiente_descartavel
+base_url="$TRACE_BASE_URL"
+master_cookie="$trace_test_tmp_dir/dallogix-trace-etapa37-master.txt"
+company_cookie="$trace_test_tmp_dir/dallogix-trace-etapa37-company.txt"
 fail() { echo "FAIL: $1"; exit 1; }
 
 master="$(curl -sS -c "$master_cookie" -H 'Content-Type: application/json' -d '{"email":"master@dallogix.local","password":"password"}' "$base_url/api/login.php")"
@@ -15,9 +17,9 @@ curl -sS -b "$master_cookie" "$base_url/api/licencas.php" | grep -q '"billing_pe
 blocked="$(curl -sS -X PUT -b "$master_cookie" -H "$csrf_header" -H 'Content-Type: application/json' -d '{"company_id":1,"status":"BLOQUEADA","due_at":"2099-12-31","blocked_reason":"Teste automatizado"}' "$base_url/api/licencas.php")"
 printf '%s' "$blocked" | grep -q '"status":"BLOQUEADA"' || fail "bloqueio da empresa não foi salvo: $blocked"
 
-blocked_login="$(curl -sS -o /tmp/dallogix-trace-etapa37-blocked-login.json -w '%{http_code}' -c "$company_cookie" -H 'Content-Type: application/json' -d '{"email":"admin@dallogix.local","password":"password"}' "$base_url/api/login.php")"
+blocked_login="$(curl -sS -o $trace_test_tmp_dir/dallogix-trace-etapa37-blocked-login.json -w '%{http_code}' -c "$company_cookie" -H 'Content-Type: application/json' -d '{"email":"admin@dallogix.local","password":"password"}' "$base_url/api/login.php")"
 [ "$blocked_login" = "402" ] || fail "licença bloqueada ainda permitiu login: HTTP $blocked_login"
-grep -q '"error_code":"LICENSE_INACTIVE"' /tmp/dallogix-trace-etapa37-blocked-login.json || fail "login bloqueado não informou licença inativa"
+grep -q '"error_code":"LICENSE_INACTIVE"' $trace_test_tmp_dir/dallogix-trace-etapa37-blocked-login.json || fail "login bloqueado não informou licença inativa"
 
 active="$(curl -sS -X PUT -b "$master_cookie" -H "$csrf_header" -H 'Content-Type: application/json' -d '{"company_id":1,"status":"ATIVA","due_at":"2099-12-31","blocked_reason":""}' "$base_url/api/licencas.php")"
 printf '%s' "$active" | grep -q '"status":"ATIVA"' || fail "reativação da licença falhou: $active"
