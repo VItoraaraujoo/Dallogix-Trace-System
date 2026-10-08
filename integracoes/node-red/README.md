@@ -28,18 +28,21 @@ editor fora da rede do cliente e use uma conta técnica para manutenção.
 
 O arquivo `trace-clp-bridge.flow.json` pode ser importado no Node-RED local. Ele contém somente nós nativos e começa em modo seguro:
 
-No `docker compose` do projeto, esse fluxo de referência é carregado
-automaticamente quando o volume do Node-RED ainda contém apenas o `Flow 1`
-vazio criado pela imagem. Um fluxo já configurado pelo operador é preservado;
-os fluxos de simulação continuam sendo importados manualmente quando
-necessário.
+No Compose do projeto, o arquivo persistente é atualizado na inicialização:
+somente a aba `TRACE • Gateway CLP` é substituída pela versão do pacote. O
+arquivo anterior é copiado para backup e as demais abas do operador são
+preservadas. Alterações manuais dentro da aba gerenciada são substituídas; o
+backup conserva o fluxo anterior. Um fluxo sem essa aba é mantido sem alterações.
 
 - testa uma leitura Modbus TCP do CLP e só publica `ONLINE` quando a resposta é válida;
 - publica `OFFLINE` quando o CLP não responde, o endereço/porta são inválidos ou a resposta Modbus é inválida;
 - consulta a fila de comandos a cada 2 segundos;
-- reserva comandos pela API, prioriza `EMERGENCIA`, escreve as bobinas confirmadas por Modbus TCP FC5 e só os conclui depois de validar o eco do CLP;
-- usa M2049 para ligar/desligar o motor, M2050 para ligar/desligar a reversão e M2051 para acionar/liberar a emergência;
-- mantém a emergência travada até `DESBLOQUEAR_MAQUINA` escrever M2051=0 e confirmar a saída física M17=0;
+- reserva comandos pela API e prioriza `EMERGENCIA`;
+- mantém toda escrita física bloqueada por padrão; para liberar, exige aprovação explícita, vínculo com o ID da Dala e quatro endereços Modbus válidos e distintos;
+- lê o mapa da instalação a partir de `config/machine.json`, sem endereços de saída fixos no fluxo, e só conclui uma escrita depois de validar o eco FC5;
+- abre um socket TCP por pedido Modbus e o fecha após a resposta ou o limite absoluto de 5 segundos, evitando respostas atrasadas contaminarem o próximo comando;
+- exige leitura da bobina de retorno configurada em `emergency_feedback_coil` antes de concluir `DESBLOQUEAR_MAQUINA`;
+- não substitui a emergência elétrica nem os intertravamentos do CLP;
 - não acessa o banco diretamente.
 
 Configure no ambiente do Node-RED:
@@ -50,11 +53,20 @@ TRACE_DEVICE_TOKEN=token-da-dala-deste-pc
 TRACE_MODBUS_UNIT_ID=1
 TRACE_MODBUS_HEARTBEAT_FUNCTION=3
 TRACE_MODBUS_HEARTBEAT_REGISTER=2052
+TRACE_PHYSICAL_CLP_ENABLED=0
+TRACE_IO_MAP_STATUS=APPROVED
+TRACE_MODBUS_MAP_EQUIPMENT_ID=0
+TRACE_MODBUS_COIL_CONVEYOR_RUN=2049
+TRACE_MODBUS_COIL_REVERSAL=2050
+TRACE_MODBUS_COIL_EMERGENCY=2051
+TRACE_MODBUS_COIL_EMERGENCY_FEEDBACK=17
 ```
 
-Cada PC industrial é dedicado a uma Dala e usa os tokens dos seus próprios gateways. A API devolve somente a Dala vinculada a esse dispositivo e fornece um destino IPv4 privado validado. O endereço da API deve apontar para a instalação local, nunca para a URL pública. Ao cadastrar ou sincronizar a Dala local, o Trace provisiona automaticamente os tokens CLP e CAMERA do `.env`; o comando `php scripts/provision_device.php` fica reservado para recuperação administrativa de uma instalação existente. O instalador inicia com o perfil comprovado na bancada do INVT TS621: unidade 1, função 3 e endereço 2052 (M2052). Para outro CLP, substitua os três valores no `.env`; as funções 1/2 (coils/entradas discretas) e 3/4 (registros) são validadas antes do envio. O gateway só publica ONLINE depois de uma resposta Modbus válida; IP e porta continuam vindo do cadastro da Dala. Os valores `2049` e `2050` continuam sendo comandos e nunca são usados como heartbeat.
+Esse mapa aprovado é o do INVT TS621 enviado pelo usuário: M2049 liga o motor, M2050 liga o reverso e M2051 aciona a emergência. O Ladder mostra M17 como a saída de estado da emergência; o gateway o consulta separadamente para confirmar o desbloqueio. M2052 é o sensor de contagem e continua sendo lido por FC3 como heartbeat, nunca usado como saída.
 
-O fluxo de escrita usa somente o mapa confirmado para o CLP desta instalação. A variante, IP, porta, unidade Modbus e intertravamentos continuam sendo validados no cadastro e pelo próprio CLP; um destino inválido ou protocolo diferente encerra o pedido como `ERRO` sem escrever.
+Cada PC industrial é dedicado a uma Dala e usa os tokens dos seus próprios gateways. A API devolve somente a Dala vinculada a esse dispositivo e fornece um destino IPv4 privado validado. O endereço da API deve apontar para a instalação local, nunca para a URL pública. Ao cadastrar ou sincronizar a Dala local, o Trace provisiona automaticamente os tokens CLP e CAMERA do `.env`; o comando `php scripts/provision_device.php` fica reservado para recuperação administrativa de uma instalação existente. O heartbeat usa unidade, função e endereço configurados no ambiente. O gateway só publica ONLINE depois de uma resposta Modbus válida; IP e porta continuam vindo do cadastro da Dala.
+
+O instalador Windows gera `config/node-red-clp.env` a partir de `config/machine.json`. O exemplo contém o mapa aprovado do INVT TS621, mas começa com `physical_clp_enabled=false`; assim, instalar ou atualizar o pacote não inicia escritas físicas automaticamente. O assistente reconhece esse modelo, preenche M2049/M2050/M2051 e o retorno M17, e pergunta separadamente se os comandos físicos serão habilitados naquela máquina. Para outro modelo, mantém o mapa bloqueado até configurar os endereços corretos. A liberação valida o `equipment_id`, as três bobinas de saída e o endereço de retorno, rejeitando valores fora de 0–65535 ou repetidos. O gateway também compara o ID do mapa com o ID da Dala reservada. Um destino inválido ou protocolo diferente encerra o pedido sem escrever.
 
 Para validar a fila de comandos em uma instalação descartável, habilite somente
 nesse `.env` local `TRACE_LOCAL_SIMULATION=1` e
@@ -69,7 +81,7 @@ Para testar a lógica sem CLP, importe também `trace-clp-simulador.flow.json`. 
 
 Sequência sugerida: `Resetar` → `Iniciar` → vários `Sensor + produto correto` → `Pausar` → `Retorno`. Depois repita com `Produto incorreto`, `Sensor sem leitura` e `Emergência`. Essa simulação usa somente o contexto do Node-RED e não chama a API nem o CLP real.
 
-O perfil `simulation` sobe um único servidor `modbus-virtual` em `127.0.0.1:1502`. Ele implementa leitura de coils/entradas/registros e escrita de coil/registro em memória, para testes de transporte Modbus TCP. O fluxo operacional `trace-clp-bridge.flow.json` lê o endereço e a porta da Dala cadastrada. O mapa da simulação está em `integracoes/industrial/register-map.example.json`; ele não deve ser reutilizado como mapa de produção. O perfil padrão de produção lê M2052 e libera somente as três bobinas confirmadas do mapa desta instalação.
+O perfil `simulation` sobe um único servidor `modbus-virtual` em `127.0.0.1:1502`. Ele implementa leitura de coils/entradas/registros e escrita de coil/registro em memória, para testes de transporte Modbus TCP. O fluxo operacional `trace-clp-bridge.flow.json` lê o endereço e a porta da Dala cadastrada. O mapa da simulação está em `integracoes/industrial/register-map.example.json`; ele não deve ser reutilizado como mapa de produção. A simulação de comandos não envia escrita Modbus. Em operação física, as escritas permanecem bloqueadas até uma aprovação explícita da instalação.
 
 O [contrato provisório de simulação](../industrial/contrato-provisorio-simulacao.md) documenta os limites dessa bancada e os cenários automatizados com `node --test testes/clp-provisorio-simulacao.mjs`. Ele não envia escrita ao CLP quando os dois flags de simulação estão ativos.
 
@@ -124,16 +136,17 @@ O fluxo contínuo evita abrir uma conexão RTSP nova a cada solicitação e redu
 O painel cria uma solicitação local; o gateway é o único componente que escreve no CLP. A aplicação cria uma entrada local em `solicitacoes_comandos_clp` para iniciar, parar, reversão ou emergência. O fluxo do Node-RED/gateway é:
 
 1. `POST ${TRACE_API_URL}/plc_gateway.php` com o token individual da Dala em `X-Device-Token` e `{"action":"CLAIM","equipment_id":N}`;
-2. validar o estado permitido e o destino Modbus da Dala;
-3. enviar FC5 na bobina M2049, M2050 ou M2051 conforme o comando; para liberar a emergência, escrever M2051=0;
-4. depois da liberação, ler M17 por FC1 e só retornar `APLICADO` quando M17=0; se o retorno continuar 1 ou for inválido, retornar `ERRO` e manter a operação bloqueada;
-5. retornar `{"action":"COMPLETE","request_id":N,"status":"APLICADO"}` ou `REJEITADO`/`ERRO`, com uma mensagem curta. Somente o mesmo dispositivo que reservou o comando pode concluí-lo.
+2. validar o estado permitido, o destino Modbus e a configuração física da instalação;
+3. bloquear a escrita se `physical_clp_enabled` não estiver habilitado, o mapa não estiver `APPROVED`, o ID da Dala não corresponder ou algum dos três endereços de saída e o endereço de retorno estiver ausente, inválido ou repetido;
+4. após a aprovação, enviar FC5 para a bobina configurada para aquele comando; para liberar a emergência, desligar a bobina de comando configurada e ler por FC1 a bobina de retorno configurada;
+5. só retornar `APLICADO` quando o eco da escrita estiver válido e, na liberação, o retorno estiver em 0; se a resposta estiver ausente/inválida ou o retorno continuar 1, retornar `ERRO` e manter a operação bloqueada;
+6. retornar `{"action":"COMPLETE","request_id":N,"status":"APLICADO"}` ou `REJEITADO`/`ERRO`, com uma mensagem curta. Somente o mesmo dispositivo que reservou o comando pode concluí-lo.
 
-O mapa físico usado pelo gateway é: `2049` motor, `2050` reversão, `2051` emergência, `17` retorno físico da emergência e `2052` sensor de contagem. Cada escrita usa função 5, unidade Modbus configurada na instalação e confirmação por eco; a confirmação de liberação usa função 1 na bobina 17. Se o eco ou o retorno forem inválidos ou não chegarem, o pedido termina como `ERRO`; o Trace nunca apresenta `APLICADO` apenas porque abriu uma conexão TCP.
+O `machine.json` guarda o mapa aprovado da instalação e o instalador o envia ao Node-RED. O exemplo inclui o mapa do INVT TS621, mas mantém a escrita física desabilitada até essa opção ser escolhida para a máquina. Cada escrita aprovada usa função 5, unidade Modbus configurada e confirmação por eco. Se o eco ou o retorno forem inválidos ou não chegarem, o pedido termina como `ERRO`; o Trace nunca apresenta `APLICADO` apenas porque abriu uma conexão TCP.
 
 ### Intertravamentos de direção
 
 - `Ligar esteira` (frente) só é aceito em `PREPARANDO` ou `PAUSADO`, depois de o gateway confirmar `REVERSAO_DESATIVAR`. Sem confirmação anterior da reversão desligada, o comando é recusado; o operador deve desligar a reversão e aguardar o retorno.
 - `Ligar reversão` e `Desligar reversão` só são aceitos com o carregamento parado (`PREPARANDO` ou `PAUSADO`). A API e o gateway verificam a condição antes de enfileirar e antes da escrita.
-- `Desligar esteira` permanece disponível como parada normal. `EMERGÊNCIA` tem prioridade na fila, coloca o carregamento em `EMERGENCIA` e solicita M2051=1; início e mudança de direção ficam bloqueados até o procedimento autorizado de liberação.
+- `Desligar esteira` permanece disponível como parada normal. `EMERGÊNCIA` tem prioridade na fila, coloca o carregamento em `EMERGENCIA` e solicita a bobina de emergência configurada; início e mudança de direção ficam bloqueados até o procedimento autorizado de liberação.
 - O ACK de escrita confirma o eco Modbus da bobina, não a velocidade/direção real do motor. A parada de emergência física e os intertravamentos finais precisam continuar no Ladder/circuito aprovado e ser validados em bancada.

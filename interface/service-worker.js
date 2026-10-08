@@ -1,4 +1,4 @@
-const CACHE_NAME = "trace-shell-20261007-04";
+const CACHE_NAME = "trace-shell-20261007-06";
 const SHELL = [
   "/",
   "/service-worker.js",
@@ -142,13 +142,17 @@ async function fetchWithTimeout(request, options = {}, timeoutMs = 8000) {
   }
 }
 
+function isVersionedStaticAsset(url) {
+  return /\.(?:css|js)$/.test(url.pathname) && /^[0-9]{8,}/.test(url.searchParams.get("v") || "");
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then(async (cache) => {
       await Promise.all(
         SHELL.map(async (path) => {
           try {
-            await cache.add(new Request(path, { cache: "reload" }));
+            await cache.add(new Request(path));
           } catch (_) {
             // A instalação não pode falhar se uma tela opcional não estiver disponível.
           }
@@ -185,7 +189,7 @@ self.addEventListener("fetch", (event) => {
 
   if (request.mode === "navigate") {
     event.respondWith(
-      fetchWithTimeout(request, { cache: "no-store" })
+      fetchWithTimeout(request)
         .then((response) => cacheResponse(request, response))
         .catch(async () => (await caches.match(request, { ignoreSearch: true })) || caches.match("/index.html")),
     );
@@ -194,9 +198,17 @@ self.addEventListener("fetch", (event) => {
 
   if (/\.(?:css|js)$/.test(url.pathname)) {
     event.respondWith(
-      fetchWithTimeout(request, { cache: "no-store" })
-        .then((response) => cacheResponse(request, response))
-        .catch(async () => (await caches.match(request, { ignoreSearch: true })) || Response.error()),
+      (async () => {
+        if (isVersionedStaticAsset(url)) {
+          const cached = await caches.match(request);
+          if (cached) return cached;
+        }
+        try {
+          return await cacheResponse(request, await fetchWithTimeout(request));
+        } catch {
+          return (await caches.match(request, { ignoreSearch: true })) || Response.error();
+        }
+      })(),
     );
     return;
   }

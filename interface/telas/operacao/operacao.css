@@ -563,6 +563,17 @@ body.work-page:has(.work-operation-screen) .work-machine-panel .work-command-fee
   margin: 0;
 }
 
+body.work-page:has(.work-operation-screen) .work-command-error {
+  margin: 12px 0 0;
+  padding: 12px 14px;
+  border: 1px solid #f2a6a6;
+  border-radius: 10px;
+  background: #fff1f1;
+  color: #8f1d1d;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
 body.work-page:has(.work-operation-screen) .work-machine-panel .emergency-compact {
   margin: 0;
   padding: 16px;

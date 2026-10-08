@@ -77,6 +77,7 @@ export function createOperationalRealtimeController({ store, getPage, render, re
           activeLoadings = store.state.activeLoadings || activeLoadings;
         }
       }
+      if (!isCurrent(token)) return;
       await store.applyActiveLoadingSnapshot(activeLoadings, selectedId);
       if (!isCurrent(token)) return;
       if (payload?.monitoring) {

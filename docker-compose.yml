@@ -200,6 +200,9 @@ services:
     logging: *trace-logging
     ports:
       - "${BIND_ADDRESS:-127.0.0.1}:${NODE_RED_PORT:-1880}:1880"
+    env_file:
+      - path: ./config/node-red-clp.env
+        required: false
     environment:
       APP_ENV: ${APP_ENV:-local}
       TRACE_API_URL: ${TRACE_API_URL:-http://nginx}

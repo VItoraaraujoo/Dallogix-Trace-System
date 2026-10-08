@@ -76,6 +76,57 @@ test("evento que termina depois da navegação não sobrescreve a tela atual", a
   }
 });
 
+test("evento obsoleto não aplica snapshot depois da consulta de confirmação", async () => {
+  const restaurar = criarAmbiente();
+  let pagina = "work";
+  let onData;
+  let iniciarConsulta;
+  let resolverConsulta;
+  let snapshotsAplicados = 0;
+  const consultaIniciada = new Promise((resolve) => { iniciarConsulta = resolve; });
+  const consulta = new Promise((resolve) => { resolverConsulta = resolve; });
+  const store = {
+    state: {
+      selectedLoadingId: 7,
+      loadingId: 7,
+      activeLoadings: [{ id: 7, equipment_id: 3, state: "CARREGANDO" }],
+    },
+    subscribeOperationalEvents(callback) {
+      onData = callback;
+      return { close() {} };
+    },
+    async loadActiveLoading() {
+      iniciarConsulta();
+      await consulta;
+      this.state.activeLoadings = [];
+      this.state.loadingId = null;
+    },
+    async applyActiveLoadingSnapshot() { snapshotsAplicados += 1; },
+  };
+  const controller = createOperationalRealtimeController({
+    store,
+    getPage: () => pagina,
+    render() {},
+    refreshWorkLiveView() {},
+    workStructureSignature: () => "estrutura",
+    getViewSignature: () => "estrutura",
+  });
+
+  try {
+    controller.start();
+    const evento = onData({ active_loadings: [] });
+    await consultaIniciada;
+    pagina = "settings";
+    controller.stop();
+    resolverConsulta();
+    await evento;
+
+    assert.equal(snapshotsAplicados, 0);
+  } finally {
+    restaurar();
+  }
+});
+
 test("quadro vazio do stream confirma a operação antes de limpar a tela", async () => {
   const restaurar = criarAmbiente();
   let onData;

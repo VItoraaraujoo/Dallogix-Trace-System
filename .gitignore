@@ -4,6 +4,8 @@
 !.env.example
 !.env.production.example
 implantacao/windows/machine-config.json
+/config/machine.json
+/config/node-red-clp.env
 **/credentials.local.*
 **/secrets.local.*
 **/secrets/

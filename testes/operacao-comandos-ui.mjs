@@ -85,6 +85,61 @@ test("comandos permanecem visíveis e direção fica bloqueada em emergência ou
   }
 });
 
+test("falha do comando aparece na tela de operação com mensagem escapada", () => {
+  const markup = work({
+    state: {
+      selectedLoadingId: 7,
+      loadingId: 7,
+      activeLoadings: [{ id: 7, state: "PAUSADO", equipment_id: 3 }],
+      loadingItems: [],
+      equipmentCode: "EST-001",
+      romaneio: "7",
+      truck: "ABC1234",
+      operationalState: "PAUSADO",
+      detectedBags: 0,
+      planned: 1,
+      loaded: 0,
+      userRole: "USUARIO",
+      commandInFlight: false,
+      commandFeedback: "Falha <script>alert(1)</script>",
+      pendingReadings: [],
+    },
+  });
+
+  assert.match(markup, /class="work-command-error" role="alert"/);
+  assert.match(markup, /Falha &lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(markup, /<script>alert\(1\)<\/script>/);
+});
+
+test("erro final do gateway fica visível na tela de operação", () => {
+  const markup = work({
+    state: {
+      selectedLoadingId: 7,
+      loadingId: 7,
+      activeLoadings: [{ id: 7, state: "PAUSADO", equipment_id: 3 }],
+      loadingItems: [],
+      equipmentCode: "EST-001",
+      romaneio: "7",
+      truck: "ABC1234",
+      operationalState: "PAUSADO",
+      detectedBags: 0,
+      planned: 1,
+      loaded: 0,
+      userRole: "USUARIO",
+      commandInFlight: false,
+      plcCommand: {
+        command: "INICIAR_CARREGAMENTO",
+        status: "ERRO",
+        response_message: "Tempo limite Modbus; estado físico não confirmado.",
+      },
+      pendingReadings: [],
+    },
+  });
+
+  assert.match(markup, /Tempo limite Modbus; estado físico não confirmado\./);
+  assert.match(markup, /class="work-command-error" role="alert"/);
+});
+
 test("início pendente deixa a parada e a emergência disponíveis", () => {
   const markup = work({
     state: {

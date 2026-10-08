@@ -16,6 +16,7 @@ $periodDays = filter_var($_GET["period_days"] ?? 30, FILTER_VALIDATE_INT);
 if ($periodDays === false) {
     responder_json(["error" => "Período de monitoramento inválido."], 422);
 }
+session_write_close();
 $limiteSemSinal = limite_sinal_clp_segundos();
 $snapshot = (new ServicoMonitoramento(obter_conexao_banco()))->obterInstantaneo(
     (int) $usuario["company_id"],

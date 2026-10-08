@@ -129,6 +129,18 @@ if (-not [string]::IsNullOrWhiteSpace($equipmentIdText)) {
 }
 $traceUrl = Ask "URL local do Trace" "http://127.0.0.1:8080"
 $physicalConnection = (Ask "A máquina terá conexão prevista com CLP físico? (S/N)" "N").ToUpperInvariant() -eq "S"
+$plcModel = if ($physicalConnection) { Ask "Modelo do CLP (digite INVT TS621 para selecionar o mapa aprovado)" "" } else { "" }
+$hasApprovedTs621Map = $physicalConnection -and $plcModel.Trim().Equals("INVT TS621", [StringComparison]::OrdinalIgnoreCase)
+$approvedMapConfirmed = $false
+if ($hasApprovedTs621Map) {
+    $approvedMapConfirmed = (Ask "Confirma que esta Dala usa o mapa aprovado: motor M2049, reversão M2050, emergência M2051 e retorno M17? (S/N)" "N").ToUpperInvariant() -eq "S"
+}
+$enablePhysicalCommands = $false
+if ($approvedMapConfirmed -and $equipmentId -gt 0) {
+    $enablePhysicalCommands = (Ask "Habilitar comandos físicos usando o mapa aprovado deste INVT TS621? (S/N)" "N").ToUpperInvariant() -eq "S"
+} elseif ($approvedMapConfirmed) {
+    Write-Warning "Vincule primeiro esta máquina a uma Dala. O mapa aprovado será salvo, mas os comandos físicos ficarão desabilitados."
+}
 
 $machineConfig = [ordered]@{
     machine_id = $machineId
@@ -139,13 +151,24 @@ $machineConfig = [ordered]@{
     trace_url = $traceUrl
     heartbeat_seconds = 30
     operation_mode = if ($physicalConnection) { "PHYSICAL" } else { "SIMULATED" }
-    # A resposta do instalador nao comprova o mapa de I/O nem autoriza escrita.
-    physical_clp_enabled = $false
-    io_map_status = "CONFIRMAR"
+    physical_clp_enabled = $enablePhysicalCommands
+    io_map_status = if ($approvedMapConfirmed) { "APPROVED" } else { "CONFIRMAR" }
+    modbus_map = [ordered]@{
+        conveyor_run_coil = if ($approvedMapConfirmed) { 2049 } else { $null }
+        reverse_command_coil = if ($approvedMapConfirmed) { 2050 } else { $null }
+        emergency_command_coil = if ($approvedMapConfirmed) { 2051 } else { $null }
+        emergency_feedback_coil = if ($approvedMapConfirmed) { 17 } else { $null }
+    }
 }
 $machineConfig | ConvertTo-Json -Depth 5 | Set-Content -Path (Join-Path $configDir "machine.json") -Encoding UTF8
 
 & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PackageRoot "implantacao\windows\Install-TraceMachine.ps1") -PackageRoot $PackageRoot -MachineConfig (Join-Path $configDir "machine.json")
 if ($LASTEXITCODE -ne 0) { throw "A preparacao da maquina falhou." }
-Write-Output "Configuração concluída. Escritas no CLP permanecem bloqueadas até a aprovação do mapa oficial de I/O."
+if ($enablePhysicalCommands) {
+    Write-Output "Configuração concluída com comandos físicos habilitados para o mapa aprovado do INVT TS621 vinculado a esta Dala."
+} elseif ($approvedMapConfirmed) {
+    Write-Output "Mapa aprovado do INVT TS621 configurado. Escritas físicas permanecem desabilitadas nesta instalação."
+} else {
+    Write-Output "CLP sem perfil aprovado reconhecido. Escritas físicas permanecem bloqueadas até configurar o mapa correto."
+}
 Write-Output "O Trace será iniciado automaticamente com o Windows."

@@ -10,6 +10,7 @@ if ($_SERVER["REQUEST_METHOD"] !== "GET") {
 if ($user["company_id"] === null) {
     json_response(["error" => "Usuário sem empresa vinculada."], 403);
 }
+session_write_close();
 
 $loadingId = filter_var($_GET["carregamento_id"] ?? null, FILTER_VALIDATE_INT);
  $equipmentId = filter_var($_GET["equipment_id"] ?? null, FILTER_VALIDATE_INT);

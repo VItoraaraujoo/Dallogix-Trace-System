@@ -14,6 +14,7 @@ if ($usuarioAtor["company_id"] === null) {
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $loadingId = filter_var($_GET["carregamento_id"] ?? null, FILTER_VALIDATE_INT);
     if (!$loadingId) responder_json(["error" => "Carregamento obrigatório."], 422);
+    session_write_close();
     $pendencias = (new ServicoLeituras(obter_conexao_banco()))->listarPendentes(
         (int) $usuarioAtor["company_id"],
         (int) $loadingId,
@@ -24,6 +25,7 @@ if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     responder_json(["error" => "Método não permitido."], 405);
 }
 exigir_csrf();
+session_write_close();
 
 $payload = ler_json_da_requisicao();
 $loadingId = filter_var(

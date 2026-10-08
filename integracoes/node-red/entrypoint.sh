@@ -4,14 +4,9 @@ set -eu
 flow_file="/data/flows.json"
 seed_flow="/seed/trace-clp-bridge.flow.json"
 
-# A imagem cria um Flow 1 vazio na primeira inicialização. Troque somente esse
-# placeholder; qualquer fluxo já configurado pelo operador é preservado.
-if [ ! -f "$flow_file" ] || {
-    grep -Eq '"label"[[:space:]]*:[[:space:]]*"Flow 1"' "$flow_file" &&
-    ! grep -q '"id"[[:space:]]*:[[:space:]]*"trace-clp-bridge"' "$flow_file";
-}; then
-    cp "$seed_flow" "$flow_file"
-fi
+# Atualiza somente a aba gerenciada pelo Trace, guarda cópia do arquivo anterior
+# e preserva as demais abas do operador.
+/usr/local/bin/node /seed/sync-managed-flow.js "$flow_file" "$seed_flow"
 
 if [ -n "${FLOWS:-}" ]; then
     set -- "$FLOWS" "$@"

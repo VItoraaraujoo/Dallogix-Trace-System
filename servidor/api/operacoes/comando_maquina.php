@@ -12,11 +12,14 @@ use App\Aplicacao\ServicoComandoClp;
 // Controlador: a saída física continua sob responsabilidade do CLP. Esta rota
 // apenas encaminha a intenção autenticada à camada de aplicação e à sua fila local.
 $user = require_role(["ADMIN_EMPRESA", "SUPERVISOR", "USUARIO"]);
-require_active_license(db(), (int) $user["company_id"]);
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     json_response(["error" => "Método não permitido."], 405);
 }
 require_csrf();
+// As verificações que acessam banco e a transação do comando não devem manter
+// o lock da sessão que as consultas de status usam com o mesmo cookie.
+session_write_close();
+require_active_license(db(), (int) $user["company_id"]);
 $payload = request_json();
 $loadingId = filter_var(
     $payload["carregamento_id"] ?? null,

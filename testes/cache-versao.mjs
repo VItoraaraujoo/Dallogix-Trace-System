@@ -4,20 +4,36 @@ import { join } from "node:path";
 import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
-const versaoAplicacao = "202610071720";
-const versaoAplicacaoImportacao = "202610071845";
-const versaoTela = "202610071720";
+const versaoAplicacao = "202610072220";
+const versaoAplicacaoImportacao = "202610072220";
+const versaoTela = "202610072220";
 const versaoEstilo = "202610070203";
+const versaoEstiloOperacao = "202610072220";
 const versaoEstiloImportacao = "202610071845";
 
 test("o shell invalida cache quando a aplicação muda", () => {
   const serviceWorker = readFileSync(join(raiz, "service-worker.js"), "utf8");
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
-  assert.match(serviceWorker, /trace-shell-20261007-04/);
+  assert.match(serviceWorker, /trace-shell-20261007-06/);
   assert.match(aplicacao, new RegExp(`/service-worker\\.js\\?v=${versaoAplicacao}`));
   assert.match(aplicacao, new RegExp(`ArmazenamentoTrace\\.js\\?v=${versaoTela}`));
   assert.match(aplicacao, new RegExp(`operacao\\.js\\?v=${versaoTela}`));
   assert.match(aplicacao, new RegExp(`importar-romaneio\\.js\\?v=${versaoTela}`));
+});
+
+test("arquivos estáticos versionados reaproveitam o cache e respostas compactadas", () => {
+  const serviceWorker = readFileSync(join(raiz, "service-worker.js"), "utf8");
+  const nginx = readFileSync(join(process.cwd(), "nginx", "default.conf"), "utf8");
+  assert.match(serviceWorker, /function isVersionedStaticAsset\(url\)/);
+  assert.match(serviceWorker, /const cached = await caches\.match\(request\)/);
+  assert.doesNotMatch(serviceWorker, /cache:\s*["'](?:no-store|reload)["']/);
+  assert.match(nginx, /gzip on;/);
+  assert.match(nginx, /gzip_types[^;]*application\/json[^;]*text\/css/);
+  assert.ok(nginx.includes('map "$uri:$arg_v" $trace_static_cache_age'));
+  assert.ok(nginx.includes('~^/service-worker\\.js: "no-cache, must-revalidate";'));
+  assert.ok(nginx.includes("~^[^:]+:[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]"));
+  assert.match(nginx, /max-age=31536000, immutable/);
+  assert.match(nginx, /no-cache, must-revalidate/);
 });
 
 test("todas as telas carregam a aplicação com a versão atual", () => {
@@ -49,11 +65,16 @@ test("a navegação não exibe uma tela intermediária de carregamento", () => {
 test("a navegação interna carrega os estilos exclusivos das telas alteradas", () => {
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
   for (const path of [
-    `/telas/operacao/operacao.css?v=${versaoEstilo}`,
+    `/telas/operacao/operacao.css?v=${versaoEstiloOperacao}`,
     `/telas/importar-romaneio/importar-romaneio.css?v=${versaoEstiloImportacao}`,
     `/telas/configuracoes/configuracoes.css?v=${versaoEstilo}`,
   ]) assert.ok(aplicacao.includes(path), `estilo não registrado no roteador: ${path}`);
   assert.match(aplicacao, /await ensureScreenStyles\(currentPage\)/);
+});
+
+test("a tela inicial da operação usa o CSS com cache atualizado", () => {
+  const tela = readFileSync(join(raiz, "telas", "operacao", "operacao.html"), "utf8");
+  assert.match(tela, new RegExp(`/telas/operacao/operacao\\.css\\?v=${versaoEstiloOperacao}`));
 });
 
 test("Novo romaneio referencia o CSS alinhado com cache versionado", () => {

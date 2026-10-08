@@ -9,5 +9,11 @@
   "heartbeat_seconds": 15,
   "operation_mode": "SIMULATED",
   "physical_clp_enabled": false,
-  "io_map_status": "CONFIRMAR"
+  "io_map_status": "APPROVED",
+  "modbus_map": {
+    "conveyor_run_coil": 2049,
+    "reverse_command_coil": 2050,
+    "emergency_command_coil": 2051,
+    "emergency_feedback_coil": 17
+  }
 }

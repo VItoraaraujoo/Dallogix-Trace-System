@@ -12,6 +12,9 @@ if (!validUsername || !validBcryptHash) {
 }
 
 module.exports = {
+    functionGlobalContext: {
+        traceCreateTcpSocket: () => new (require("node:net").Socket)(),
+    },
     adminAuth: {
         type: "credentials",
         sessionExpiryTime: 28800,

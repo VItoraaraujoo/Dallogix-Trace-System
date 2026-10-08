@@ -68,6 +68,7 @@ export class ArmazenamentoTrace {
       plcCommand: null,
       // Intenção visível enquanto o gateway ainda não confirmou o ACK físico.
       commandIntent: null,
+      commandFeedback: "",
       commandInFlight: false,
       commandInFlightToken: null,
       productFormOpen: false,
@@ -481,8 +482,12 @@ export class ArmazenamentoTrace {
       this.state.equipmentId = null;
       this.state.reversalCommand = null;
       this.state.plcCommand = null;
+      this.state.commandFeedback = "";
       this.state.loadingItems = [];
       return;
+    }
+    if (Number(this.state.loadingId) !== Number(loading.id)) {
+      this.state.commandFeedback = "";
     }
     this.state.loadingId = Number(loading.id);
     this.state.selectedLoadingId = Number(loading.id);
@@ -550,8 +555,12 @@ export class ArmazenamentoTrace {
       this.state.equipmentId = null;
       this.state.reversalCommand = null;
       this.state.plcCommand = null;
+      this.state.commandFeedback = "";
       this.state.loadingItems = [];
       return null;
+    }
+    if (Number(this.state.loadingId) !== Number(loading.id)) {
+      this.state.commandFeedback = "";
     }
     this.state.loadingId = Number(loading.id);
     this.state.selectedLoadingId = Number(loading.id);
@@ -599,6 +608,7 @@ export class ArmazenamentoTrace {
   async requestMachineCommand(loadingId, command) {
     if (!loadingId)
       throw new Error("Nenhum carregamento ativo para esta Dala.");
+    this.state.commandFeedback = "";
     const response = await this.api.fetch("/api/comando_maquina.php", {
       method: "POST",
       headers: this.jsonHeaders(),

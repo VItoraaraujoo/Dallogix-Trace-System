@@ -175,6 +175,13 @@ function workControls(store) {
     : "";
   const pendingStatus = String(store.state.plcCommand?.status || store.state.commandIntent?.status || "").toUpperCase();
   const pendingCommand = store.state.commandIntent?.command || store.state.plcCommand?.command;
+  const failedCommandMessage = store.state.commandFeedback ||
+    (["ERRO", "REJEITADO", "EXPIRADO"].includes(pendingStatus)
+      ? store.state.plcCommand?.response_message || "O gateway não confirmou o comando solicitado."
+      : "");
+  const commandFailureNotice = failedCommandMessage
+    ? `<p class="work-command-error" role="alert">${esc(failedCommandMessage)}</p>`
+    : "";
   const badge = ["PENDENTE", "PROCESSANDO"].includes(pendingStatus) && pendingCommand
       ? `<span class="badge blue">${esc(rotuloComando(pendingCommand))} · aguardando CLP</span>`
       : store.state.operationalState === "EMERGENCIA"
@@ -205,7 +212,7 @@ function workControls(store) {
     ? "Nenhuma leitura pendente"
     : `Falta${remainingTotal === 1 ? "" : "m"} ${numero(remainingTotal)} leitura${remainingTotal === 1 ? "" : "s"} válida${remainingTotal === 1 ? "" : "s"}`;
   const totalSummary = `<section class="work-live-summary" aria-label="Contagem e progresso do carregamento"><div class="work-live-summary-heading"><strong>Sacas detectadas</strong><span><b data-live="detected">${numero(detectedBags)}</b> / <b data-live="planned">${numero(plannedTotal)}</b> · <span data-live="progress-percent">${totalPercent}%</span></span></div><div class="progress work-live-progress" role="progressbar" aria-label="Progresso do carregamento" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${totalPercent}"><i data-live="progress-bar" style="width:${totalPercent}%"></i></div><div class="work-live-summary-foot"><span data-live="remaining-label">${remainingLabel}</span></div><p class="work-completion-notice ${endNoticeTone}" data-live="end-notice"${endNotice ? "" : " hidden"}>${endNotice}</p>${manualOperationReading}</section>`;
-  const machinePanel = `<section class="panel work-machine-panel"><div class="panel-heading"><div><span class="kicker">Comandos da máquina</span><h3>Operar Dala</h3></div>${summaryAction ? `<div class="work-machine-heading-actions">${summaryAction}</div>` : ""}</div><div class="work-machine-controls">${controls}</div></section>`;
+  const machinePanel = `<section class="panel work-machine-panel"><div class="panel-heading"><div><span class="kicker">Comandos da máquina</span><h3>Operar Dala</h3></div>${summaryAction ? `<div class="work-machine-heading-actions">${summaryAction}</div>` : ""}</div><div class="work-machine-controls">${controls}${commandFailureNotice}</div></section>`;
   const statusColumn = `<section class="work-status-column">${totalSummary}${manualIdentification}${itemProgress}</section>`;
   const workHeader = `<header class="work-screen-header">${loadingPicker}<div class="work-screen-heading"><h2>${esc(workTitle)}</h2><p>Dala ${esc(equipmentLabel(store))} · Caminhão ${esc(store.state.truck || "—")} <span class="work-header-state">${badge}</span></p></div></header>`;
   return `<div class="work-operation-screen">${workHeader}<div class="work-operation-layout">${statusColumn}${machinePanel}</div></div>`;

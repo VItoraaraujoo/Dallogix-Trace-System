@@ -31,6 +31,18 @@ final class ServicoGatewayClp
 
         $this->connection->beginTransaction();
         try {
+            // Serializa os CLAIMs da mesma Dala. A emergência pode ultrapassar
+            // outro comando em andamento, mas comandos comuns não são enviados
+            // em paralelo pela mesma máquina.
+            $equipmentLock = $this->connection->prepare(
+                "SELECT id FROM equipamentos WHERE id = :equipment_id LIMIT 1 FOR UPDATE",
+            );
+            $equipmentLock->execute(["equipment_id" => $equipmentId]);
+            if (!$equipmentLock->fetchColumn()) {
+                $this->connection->commit();
+                return null;
+            }
+
             $expired = $this->connection->prepare(
                 "SELECT r.id, r.company_id, r.equipment_id, r.carregamento_id, r.command,
                         r.remote_command_id, c.remote_carregamento_id,
@@ -87,6 +99,19 @@ final class ServicoGatewayClp
                  JOIN carregamentos c ON c.id = r.carregamento_id
                  JOIN equipamentos e ON e.id = r.equipment_id
                  WHERE r.equipment_id = :equipment_id AND r.status = 'PENDENTE'
+                   AND (
+                       (r.command = 'EMERGENCIA' AND NOT EXISTS (
+                           SELECT 1 FROM solicitacoes_comandos_clp processing
+                           WHERE processing.equipment_id = r.equipment_id
+                             AND processing.command = 'EMERGENCIA'
+                             AND processing.status = 'PROCESSANDO'
+                       ))
+                       OR (r.command <> 'EMERGENCIA' AND NOT EXISTS (
+                           SELECT 1 FROM solicitacoes_comandos_clp processing
+                           WHERE processing.equipment_id = r.equipment_id
+                             AND processing.status = 'PROCESSANDO'
+                       ))
+                   )
                  ORDER BY CASE WHEN r.command = 'EMERGENCIA' THEN 0 ELSE 1 END,
                           r.requested_at, r.id
                  LIMIT 1 FOR UPDATE SKIP LOCKED",
