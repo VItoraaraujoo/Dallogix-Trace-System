@@ -5,7 +5,7 @@ import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
 import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610070024";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610130003";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610130005";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { captureOperationScanner, restoreOperationScanner, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio } from "./controladores/operacao.js?v=202610130004";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610130001";
@@ -30,7 +30,7 @@ import { occurrences } from "../telas/ocorrencias/ocorrencias.js?v=202610130001"
 import { products } from "../telas/produtos/produtos.js?v=202610130001";
 import { summary } from "../telas/resumo-final/resumo-final.js?v=202610130001";
 import { division } from "../telas/divisao-carga/divisao-carga.js?v=202610130001";
-import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=202610072220";
+import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=202610130005";
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
 import { manifests } from "../telas/romaneios/romaneios.js?v=202610130001";
 import { manifestView } from "../telas/romaneio/romaneio.js?v=202610130001";
@@ -38,6 +38,7 @@ import { work } from "../telas/operacao/operacao.js?v=202610130003";
 import { dashboard } from "../telas/painel/painel.js?v=202610130001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610130001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
+import { validarCadastroRomaneio } from "./funcoes/romaneio.js?v=202610130005";
 import { logFrontend } from "./utilitarios/LogFrontend.js?v=202610060006";
 import { estadoErro } from "./componentes/estados.js?v=202610060002";
 import {
@@ -390,7 +391,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610130004").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610130005").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -2082,33 +2083,30 @@ function bindForms() {
   if (manifestForm)
     manifestForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      if (manifestForm.dataset.submitting === "1") return;
       const raw = Object.fromEntries(new FormData(manifestForm));
       const scheduledDate = raw.scheduled_date;
       const today = agora();
       const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-      if (!scheduledDate || scheduledDate < todayString) {
-        notificar("Informe uma data igual ou posterior ao dia atual do PC industrial.");
-        return;
-      }
       const items = [...document.querySelectorAll("#manifest-items tbody tr")]
         .map((row) => ({
           product_id: row.querySelector('[name="item_product"]')?.value,
           quantity: row.querySelector('[name="item_quantity"]')?.value,
-        }))
-        .filter((item) => item.product_id && Number(item.quantity) >= 1);
-      if (!items.length) {
-        notificar("Adicione ao menos um item com produto e quantidade.");
+        }));
+      const validationError = validarCadastroRomaneio({
+        scheduledDate,
+        todayString,
+        items,
+      });
+      if (validationError) {
+        setFormFeedback(manifestForm, validationError, "error");
         return;
       }
-      if (new Set(items.map((item) => String(item.product_id))).size !== items.length) {
-        notificar("Selecione cada produto apenas uma vez no romaneio.");
-        return;
-      }
-      if (manifestForm.dataset.submitting === "1") return;
       manifestForm.dataset.submitting = "1";
       manifestForm.querySelectorAll("button").forEach((button) => {
         button.disabled = true;
       });
+      setFormFeedback(manifestForm, "Salvando romaneio…");
       try {
         await store.createManifest({
           number: raw.number,
@@ -2116,17 +2114,36 @@ function bindForms() {
           plate: raw.plate,
           expedidor: raw.expedidor,
           driver_name: raw.driver_name,
-          items,
+          items: items.map((item) => ({
+            product_id: item.product_id,
+            quantity: Number(item.quantity),
+          })),
         });
-        notificar("Romaneio cadastrado.");
-        navigate("manifests");
       } catch (error) {
-        notificar(error.message);
+        if (error.status === 401) {
+          try {
+            sessionStorage.setItem("trace-login-message", error.message);
+          } catch (storageError) {
+            /* armazenamento indisponível */
+          }
+          window.location.replace(pagePath("login"));
+          return;
+        }
+        setFormFeedback(
+          manifestForm,
+          error.message || "Não foi possível salvar o romaneio. Confira os dados e tente novamente.",
+          "error",
+        );
+        return;
       } finally {
         manifestForm.dataset.submitting = "0";
         manifestForm.querySelectorAll("button").forEach((button) => {
           button.disabled = false;
         });
+      }
+      if (manifestForm.isConnected) {
+        setFormFeedback(manifestForm, "Romaneio cadastrado com sucesso.");
+        await navigate("manifests");
       }
     });
   const manifestEditForm = document.querySelector("#edit-manifest-form");

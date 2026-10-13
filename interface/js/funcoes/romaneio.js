@@ -7,6 +7,30 @@ export function produtosDisponiveisParaRomaneio(products, selectedId = "") {
   );
 }
 
+export function validarCadastroRomaneio({ scheduledDate, todayString, items }) {
+  if (!scheduledDate || scheduledDate < todayString) {
+    return "Informe uma data igual ou posterior ao dia atual do PC industrial.";
+  }
+  if (!Array.isArray(items) || items.length === 0) {
+    return "Adicione ao menos um item com produto e quantidade.";
+  }
+
+  for (const [index, item] of items.entries()) {
+    if (!String(item?.product_id || "").trim()) {
+      return `Selecione um produto para o item ${index + 1}.`;
+    }
+    const quantity = Number(item?.quantity);
+    if (!Number.isSafeInteger(quantity) || quantity < 1) {
+      return `Informe uma quantidade inteira maior que zero para o item ${index + 1}.`;
+    }
+  }
+
+  if (new Set(items.map((item) => String(item.product_id))).size !== items.length) {
+    return "Selecione cada produto apenas uma vez no romaneio.";
+  }
+  return "";
+}
+
 export const itemRow = (products, selectedId = "", quantity = 1) => `<tr class="manifest-item">
   <td data-label="Produto"><select name="item_product"><option value="">Selecionar produto…</option>${produtosDisponiveisParaRomaneio(products, selectedId).map((product) => `<option value="${product.id}"${String(product.id) === String(selectedId) ? " selected" : ""}>${esc(product.name)}${product.code ? ` (${esc(product.code)})` : ""}${Number(product.active) !== 1 ? " (inativo — selecione um produto ativo)" : ""}</option>`).join("")}</select></td>
   <td data-label="Quantidade"><input name="item_quantity" type="number" min="1" value="${Number(quantity) || 1}" /></td>

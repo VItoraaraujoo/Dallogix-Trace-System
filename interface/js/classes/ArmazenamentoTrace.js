@@ -261,9 +261,7 @@ export class ArmazenamentoTrace {
       headers: this.jsonHeaders(),
       body: JSON.stringify(payload),
     });
-    const result = await this.jsonResponse(response, "Não foi possível salvar o romaneio.");
-    await this.loadManifests();
-    return result.data;
+    return (await this.jsonResponse(response, "Não foi possível salvar o romaneio.")).data;
   }
   async updateManifest(payload) {
     const response = await this.api.fetch("/api/romaneios.php", {

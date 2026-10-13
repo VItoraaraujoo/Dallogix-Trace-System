@@ -1,5 +1,16 @@
 # Histórico de alterações
 
+## v1.0.139 — 13/10/2026
+
+- O formulário de novo romaneio mostra validações e erros da API na própria tela,
+  e retorna ao login quando a sessão expirou.
+- A criação não é mais considerada falha se a atualização posterior da lista
+  der erro; a navegação para Romaneios faz a consulta separadamente.
+- Itens incompletos não são descartados silenciosamente ao salvar.
+- Adicionadas regressões automatizadas para validação, feedback e confirmação
+  do cadastro.
+- Publicação pendente de validação pelo workflow de produção.
+
 ## v1.0.111 — 06/10/2026
 
 - O atualizador estável também tenta a atualização dez minutos após o logon,
