@@ -139,6 +139,16 @@ body.work-page:has(.work-operation-screen) .work-back-button {
   white-space: nowrap;
 }
 
+body.work-page:has(.work-operation-screen) .work-header-actions {
+  grid-column: 1;
+  display: flex;
+  min-width: 0;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-self: start;
+  align-items: center;
+}
+
 body.work-page:has(.work-operation-screen) .work-operation-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(380px, 0.75fr);
@@ -216,6 +226,11 @@ body.work-page:has(.work-operation-screen) .work-completion-notice {
 body.work-page:has(.work-operation-screen) .work-completion-notice.complete {
   color: #12663c;
   background: #e5f6ec;
+}
+
+body.work-page:has(.work-operation-screen) .work-completion-notice.excess {
+  color: #842c2c;
+  background: #fff0f0;
 }
 
 body.work-page:has(.work-operation-screen) .work-completion-notice[hidden] {
@@ -491,10 +506,38 @@ body.work-page:has(.work-operation-screen) .work-machine-panel > .panel-heading 
 
 body.work-page:has(.work-operation-screen) .work-machine-controls,
 body.work-page:has(.work-operation-screen) .work-controls {
-  display: block;
   min-width: 0;
   min-height: 0;
   flex: 0 0 auto;
+}
+
+body.work-page:has(.work-operation-screen) .work-control-lock-reasons {
+  padding: 10px 12px;
+  border: 1px solid #ead8a7;
+  border-radius: 9px;
+  color: #674b0b;
+  background: #fff8df;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+body.work-page:has(.work-operation-screen) .work-control-lock-reasons p {
+  margin: 0;
+}
+
+body.work-page:has(.work-operation-screen) .work-control-lock-reasons p + p {
+  margin-top: 4px;
+}
+
+body.work-page .work-selection-error {
+  padding: 10px 12px;
+  border: 1px solid #e7b9b9;
+  border-radius: 9px;
+  margin: 0 0 12px;
+  color: #842c2c;
+  background: #fff0f0;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 body.work-page:has(.work-operation-screen) .work-machine-controls .work-routine-controls {
@@ -572,6 +615,17 @@ body.work-page:has(.work-operation-screen) .work-command-error {
   color: #8f1d1d;
   font-weight: 700;
   line-height: 1.45;
+}
+
+body.work-page:has(.work-operation-screen) .work-command-history {
+  margin: 12px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #ead8a7;
+  border-radius: 9px;
+  background: #fff8df;
+  color: #674b0b;
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 body.work-page:has(.work-operation-screen) .work-machine-panel .emergency-compact {
@@ -899,10 +953,16 @@ body.work-page:has(.work-operation-screen) .work-manual-reading-heading p {
   }
 
   body.work-page:has(.work-operation-screen) .work-back-button {
+    position: static;
+    transform: none;
+  }
+
+  body.work-page:has(.work-operation-screen) .work-header-actions {
     position: absolute;
     top: 0;
     left: 0;
-    transform: translateY(-2px);
+    display: flex;
+    max-width: 100%;
   }
 }
 

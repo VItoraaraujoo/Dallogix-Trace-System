@@ -1,6 +1,7 @@
 import { OfflineOperationBuffer, secureRandomId } from "./OfflineOperationBuffer.js?v=20260930-security01";
 import { ClienteApi, erroRespostaHttp } from "../api/ClienteApi.js?v=202610060001";
 import { ServicoSincronizacao } from "../servicos/ServicoSincronizacao.js?v=202610060007";
+import { resolverComandoAtual } from "../funcoes/estado-comando.js?v=202610130003";
 
 export class ArmazenamentoTrace {
   constructor() {
@@ -169,14 +170,20 @@ export class ArmazenamentoTrace {
     return true;
   }
   comandoOperacionalPendente() {
-    const status = String(this.state.plcCommand?.status || "").toUpperCase();
+    const current = resolverComandoAtual(this.state.plcCommand, this.state.commandIntent);
+    const status = String(current?.status || "").toUpperCase();
     return this.state.commandInFlight || ["PENDENTE", "PROCESSANDO"].includes(status);
   }
   aplicarIntencaoDeComando() {
     const intent = this.state.commandIntent;
-    const status = String(this.state.plcCommand?.status || intent?.status || "").toUpperCase();
-    if (!intent || !["PENDENTE", "PROCESSANDO", "APLICADO"].includes(status)) return;
+    const current = resolverComandoAtual(this.state.plcCommand, intent);
+    const status = String(current?.status || "").toUpperCase();
+    if (!intent || !["PENDENTE", "PROCESSANDO"].includes(status)) return;
     if (Number(intent.loadingId) !== Number(this.state.loadingId)) return;
+    const intentId = Number(intent.id) || null;
+    const currentId = Number(current.id) || null;
+    if (!intentId || (currentId && currentId !== intentId)) return;
+    if (String(current.command || "").toUpperCase() !== String(intent.command || "").toUpperCase()) return;
     if (intent.command === "INICIAR_CARREGAMENTO") {
       this.state.operationalState = "CARREGANDO";
       this.state.running = true;
@@ -438,72 +445,9 @@ export class ArmazenamentoTrace {
     const response = await this.api.fetch("/api/carregamentos.php");
     const result = await this.jsonResponse(response, "Não foi possível carregar o carregamento ativo.");
     const loadings = Array.isArray(result.data) ? result.data : [];
-    const nextActiveLoadings = loadings.filter(
-      (item) => item.state !== "FINALIZADO",
-    );
-    const requestedId = Number(selectedId) || null;
-    const requestedLoading = nextActiveLoadings.find(
-      (item) => Number(item.id) === requestedId,
-    );
-    const preservePendingSelection = Boolean(
-      requestedId &&
-      Number(this.state.loadingId) === requestedId &&
-      !requestedLoading &&
-      this.comandoOperacionalPendente(),
-    );
-    if (!preservePendingSelection) {
-      this.state.activeLoadings = nextActiveLoadings;
-    }
-    const loading = requestedLoading?.equipment_id
-      ? requestedLoading
-      : (requestedId
-        ? null
-        : (nextActiveLoadings.length === 1 && nextActiveLoadings[0]?.equipment_id
-          ? nextActiveLoadings[0]
-          : null));
-    if (!loading) {
-      if (preservePendingSelection) {
-        return this.state.activeLoadings.find(
-          (item) => Number(item.id) === requestedId,
-        ) || null;
-      }
-      this.state.loadingId = null;
-      this.state.selectedLoadingId = null;
-      this.state.returnMode = false;
-      this.state.loaded = 0;
-      this.state.detectedBags = 0;
-      this.state.planned = 0;
-      this.state.running = false;
-      this.state.emergency = false;
-      this.state.operationalState = "AGUARDANDO";
-      this.state.truck = "—";
-      this.state.romaneio = "—";
-      this.state.equipmentCode = "—";
-      this.state.equipmentId = null;
-      this.state.reversalCommand = null;
-      this.state.plcCommand = null;
-      this.state.commandFeedback = "";
-      this.state.loadingItems = [];
-      return;
-    }
-    if (Number(this.state.loadingId) !== Number(loading.id)) {
-      this.state.commandFeedback = "";
-    }
-    this.state.loadingId = Number(loading.id);
-    this.state.selectedLoadingId = Number(loading.id);
-    this.state.operationalState = loading.state;
-    this.state.emergency = loading.state === "EMERGENCIA";
-    this.state.running = ["CARREGANDO", "FINALIZANDO"].includes(loading.state);
-    this.state.planned = Number(loading.planned_quantity) || 0;
-    this.state.loaded = Number(loading.valid_readings) || 0;
-    this.state.detectedBags = Number(loading.detected_bags) || 0;
-    this.state.truck = loading.plate || "—";
-    this.state.romaneio = loading.romaneio_number || "—";
-    this.state.equipmentCode = loading.equipment_code || "—";
-    this.state.equipmentId = Number(loading.equipment_id) || null;
-    this.state.loadingItems = Array.isArray(loading.items) ? loading.items : [];
-    this.aplicarIntencaoDeComando();
-    await this.loadPlcCommandStatus(this.state.loadingId);
+    const loading = this._applyActiveLoadingList(loadings, selectedId);
+    if (this.state.loadingId) await this.loadPlcCommandStatus(this.state.loadingId);
+    return loading;
   }
   applyActiveLoadingSnapshot(
     loadings,
@@ -517,6 +461,9 @@ export class ArmazenamentoTrace {
     return refresh;
   }
   _applyActiveLoadingSnapshot(loadings, selectedId = this.state.selectedLoadingId) {
+    return this._applyActiveLoadingList(loadings, selectedId);
+  }
+  _applyActiveLoadingList(loadings, selectedId = this.state.selectedLoadingId) {
     const activeLoadings = (Array.isArray(loadings) ? loadings : []).filter(
       (item) => item.state !== "FINALIZADO",
     );
@@ -559,12 +506,16 @@ export class ArmazenamentoTrace {
       this.state.equipmentId = null;
       this.state.reversalCommand = null;
       this.state.plcCommand = null;
+      this.state.commandIntent = null;
       this.state.commandFeedback = "";
       this.state.loadingItems = [];
       return null;
     }
-    if (Number(this.state.loadingId) !== Number(loading.id)) {
+    const selectionChanged = Number(this.state.loadingId) !== Number(loading.id);
+    if (selectionChanged) {
       this.state.commandFeedback = "";
+      this.state.commandIntent = null;
+      this.state.plcCommand = null;
     }
     this.state.loadingId = Number(loading.id);
     this.state.selectedLoadingId = Number(loading.id);
@@ -619,6 +570,7 @@ export class ArmazenamentoTrace {
       body: JSON.stringify({ carregamento_id: loadingId, command }),
     });
     const result = await this.jsonResponse(response, "Não foi possível enviar o comando ao gateway industrial.");
+    if (Number(this.state.loadingId) !== Number(loadingId)) return result.data;
     this.state.plcCommand = {
       id: result.data.command_request_id,
       command: result.data.command,
@@ -649,6 +601,7 @@ export class ArmazenamentoTrace {
   }
   async requestMachineEmergency(loadingId = this.state.loadingId) {
     const result = await this.requestMachineCommand(loadingId, "EMERGENCIA");
+    if (Number(this.state.loadingId) !== Number(loadingId)) return result;
     this.state.operationalState = "EMERGENCIA";
     this.state.emergency = true;
     this.state.running = false;
@@ -671,10 +624,13 @@ export class ArmazenamentoTrace {
       `/api/comandos_industriais.php?carregamento_id=${encodeURIComponent(loadingId)}`,
     );
     const result = await this.jsonResponse(response, "Não foi possível consultar o comando industrial.");
+    if (Number(this.state.loadingId) !== Number(loadingId)) return null;
+    let confirmedReversalCommand;
     if (Object.hasOwn(result, "reversal_command")) {
       const confirmedCommand = ["REVERSAO_ATIVAR", "REVERSAO_DESATIVAR"].includes(
         result.reversal_command,
       ) ? result.reversal_command : null;
+      confirmedReversalCommand = confirmedCommand;
       this.state.reversalCommand = confirmedCommand;
       this.state.returnMode = confirmedCommand === "REVERSAO_ATIVAR";
     }
@@ -697,6 +653,12 @@ export class ArmazenamentoTrace {
       this.aplicarIntencaoDeComando();
       return currentCommand;
     }
+    if (!nextCommand) {
+      this.state.plcCommand = null;
+      this.state.commandIntent = null;
+      this.aplicarIntencaoDeComando();
+      return null;
+    }
     // Uma consulta antiga pode retornar PENDENTE depois de o gateway já ter
     // confirmado o mesmo comando. Nunca regredir o estado visível nesse caso.
     if (
@@ -716,19 +678,35 @@ export class ArmazenamentoTrace {
       return currentCommand;
     }
     this.state.plcCommand = nextCommand;
-    if (nextCommand && terminal.has(nextStatus)) {
-      const intent = this.state.commandIntent;
-      if (intent && Number(intent.id) === nextId) {
-        if (nextStatus !== "APLICADO" && ["INICIAR_CARREGAMENTO", "PAUSAR_CARREGAMENTO"].includes(intent.command)) {
-          this.state.operationalState = intent.previousState || this.state.operationalState;
-          this.state.running = ["CARREGANDO", "FINALIZANDO"].includes(this.state.operationalState);
-        }
-        if (nextStatus !== "APLICADO" && ["REVERSAO_ATIVAR", "REVERSAO_DESATIVAR"].includes(intent.command)) {
-          this.state.returnMode = Boolean(intent.previousReturnMode);
-          this.state.reversalCommand = intent.previousReversalCommand ?? null;
-        }
-        this.state.commandIntent = null;
+    if (nextId > currentId) this.state.commandFeedback = "";
+    const intent = this.state.commandIntent;
+    const intentId = Number(intent?.id) || 0;
+    const sameCommand = intent &&
+      String(intent.command || "").toUpperCase() === String(nextCommand.command || "").toUpperCase();
+    const matchesIntent = intent && (
+      (intentId && nextId && intentId === nextId) ||
+      ((!intentId || !nextId) && sameCommand)
+    );
+    if (intent && nextId && intentId && nextId > intentId) {
+      this.state.commandIntent = null;
+    } else if (intent && !intentId && !sameCommand) {
+      this.state.commandIntent = null;
+    } else if (matchesIntent && terminal.has(nextStatus)) {
+      this.state.commandFeedback = "";
+      if (nextStatus !== "APLICADO" && ["INICIAR_CARREGAMENTO", "PAUSAR_CARREGAMENTO"].includes(intent.command)) {
+        this.state.operationalState = intent.previousState || this.state.operationalState;
+        this.state.running = ["CARREGANDO", "FINALIZANDO"].includes(this.state.operationalState);
       }
+      if (nextStatus !== "APLICADO" && ["REVERSAO_ATIVAR", "REVERSAO_DESATIVAR"].includes(intent.command)) {
+        const confirmed = confirmedReversalCommand === undefined
+          ? (intent.previousReversalCommand ?? null)
+          : confirmedReversalCommand;
+        this.state.returnMode = confirmed === "REVERSAO_ATIVAR";
+        this.state.reversalCommand = confirmed;
+      }
+      this.state.commandIntent = null;
+    } else if (matchesIntent) {
+      intent.status = nextStatus || intent.status;
     }
     this.aplicarIntencaoDeComando();
     return this.state.plcCommand;

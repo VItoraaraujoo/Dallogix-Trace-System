@@ -5,9 +5,9 @@ import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
 import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610070024";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610130002";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610130003";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
-import { renderDalaStatuses, linhaItemRomaneio } from "./controladores/operacao.js?v=202610130001";
+import { captureOperationScanner, restoreOperationScanner, renderDalaStatuses, linhaItemRomaneio } from "./controladores/operacao.js?v=202610130003";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610130001";
 import { createPageRefreshController } from "./controladores/page-refresh.js?v=202610130001";
 import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
@@ -34,7 +34,7 @@ import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
 import { manifests } from "../telas/romaneios/romaneios.js?v=202610130001";
 import { manifestView } from "../telas/romaneio/romaneio.js?v=202610130001";
-import { work } from "../telas/operacao/operacao.js?v=202610080001";
+import { work } from "../telas/operacao/operacao.js?v=202610130003";
 import { dashboard } from "../telas/painel/painel.js?v=202610130001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610130001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
@@ -390,7 +390,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610130001").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610130003").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -434,7 +434,7 @@ function waitForDocumentStyles() {
 // tela que tem CSS próprio precisa garantir seu arquivo e sua versão antes do
 // primeiro render, inclusive quando a rota inicial veio de outra página.
 const SCREEN_STYLES = {
-  work: "/telas/operacao/operacao.css?v=202610072220",
+  work: "/telas/operacao/operacao.css?v=202610130003",
   import: "/telas/importar-romaneio/importar-romaneio.css?v=202610071845",
   settings: "/telas/configuracoes/configuracoes.css?v=202610070203",
   dalas: "/telas/dalas/dalas.css?v=202610070203",
@@ -609,8 +609,13 @@ function hydrateChrome() {
   el("#user-role").textContent = ROLE_LABELS[userRole] || (authenticatedUser?.role || "");
 }
 function renderScreen() {
+  const screenRoot = el("#screen-root");
+  const scannerSnapshot = currentPage === "work"
+    ? captureOperationScanner(screenRoot)
+    : null;
   hydrateChrome();
-  el("#screen-root").innerHTML = screens[currentPage](store);
+  screenRoot.innerHTML = screens[currentPage](store);
+  if (scannerSnapshot) restoreOperationScanner(screenRoot, scannerSnapshot);
   bindActions();
   bindForms();
   installRelativeTimeRefresh();
@@ -665,6 +670,7 @@ function workStructureSignature() {
   const command = store.state.plcCommand;
   return JSON.stringify([
     store.state.selectedLoadingId || null,
+    (store.state.activeLoadings || []).length,
     unselectedLoadings,
     store.state.emergency,
     store.state.operationalState,
@@ -682,18 +688,20 @@ function workStructureSignature() {
 }
 function refreshWorkLiveView() {
   const detectedBags = Number(store.state.detectedBags) || 0;
+  const validReadings = Number(store.state.loaded) || 0;
   const planned = Number(store.state.planned) || 0;
-  const remaining = Math.max(0, planned - detectedBags);
-  const percent = planned > 0 ? Math.min(100, Math.round((detectedBags / planned) * 100)) : 0;
+  const remaining = Math.max(0, planned - validReadings);
+  const percent = planned > 0 ? Math.min(100, Math.round((validReadings / planned) * 100)) : 0;
   const values = {
     planned: numero(planned),
     detected: numero(detectedBags),
-    remaining: numero(remaining),
-    "remaining-label": remaining === 0
-      ? "Nenhuma leitura pendente"
-      : `Falta${remaining === 1 ? "" : "m"} ${numero(remaining)} leitura${remaining === 1 ? "" : "s"} válida${remaining === 1 ? "" : "s"}`,
+    loaded: numero(validReadings),
+    "remaining-label": planned <= 0
+      ? "Quantidade prevista não informada"
+      : remaining === 0
+        ? "Nenhuma leitura pendente"
+        : `Falta${remaining === 1 ? "" : "m"} ${numero(remaining)} leitura${remaining === 1 ? "" : "s"} válida${remaining === 1 ? "" : "s"}`,
     "progress-percent": `${percent}%`,
-    "progress-count": `${numero(detectedBags)} / ${numero(planned)} sacas`,
   };
   Object.entries(values).forEach(([key, value]) => {
     document.querySelectorAll(`[data-live="${key}"]`).forEach((node) => {
@@ -708,16 +716,20 @@ function refreshWorkLiveView() {
   const endNotice = document.querySelector('[data-live="end-notice"]');
   if (endNotice) {
     const threshold = planned > 0 ? Math.max(1, Math.ceil(planned * 0.1)) : 0;
-    const nearEnd = planned > 0 && detectedBags > 0 && remaining > 0 && remaining <= threshold;
-    const complete = planned > 0 && remaining === 0;
-    endNotice.textContent = complete
-      ? "Quantidade programada atingida. Confira as leituras finais."
-      : nearEnd
-        ? "Atenção: o romaneio está próximo do fim."
-        : "";
-    endNotice.hidden = !complete && !nearEnd;
-    endNotice.classList.toggle("complete", complete);
+    const nearEnd = planned > 0 && validReadings > 0 && remaining > 0 && remaining <= threshold;
+    const complete = planned > 0 && validReadings >= planned;
+    const excess = planned > 0 && validReadings > planned;
+    endNotice.textContent = excess
+      ? `Atenção: ${numero(validReadings - planned)} leituras válidas acima do previsto.`
+      : complete
+        ? "Quantidade programada atingida. Confira as leituras finais."
+        : nearEnd
+          ? "Atenção: o romaneio está próximo do fim."
+          : "";
+    endNotice.hidden = !complete && !nearEnd && !excess;
+    endNotice.classList.toggle("complete", complete && !excess);
     endNotice.classList.toggle("near-end", nearEnd && !complete);
+    endNotice.classList.toggle("excess", excess);
   }
 }
 
@@ -1601,11 +1613,14 @@ function bindActions() {
       }
       if (action === "select-loading") {
         try {
+          store.state.commandFeedback = "";
           await store.loadActiveLoading(node.dataset.id);
           await store.loadMonitoring();
           render();
         } catch (error) {
-          notificar(error.message);
+          store.state.selectedLoadingId = null;
+          store.state.commandFeedback = error?.message || "Não foi possível carregar a Dala selecionada.";
+          render();
         }
         return;
       }
@@ -2322,6 +2337,7 @@ function bindForms() {
           SEM_LEITURA: "Leitura registrada sem código.",
         };
         const message = messages[result.result] || "Leitura registrada.";
+        barcodeInput.value = "";
         render();
         const currentForm = document.querySelector(".manual-operation-reading-form");
         if (currentForm) {

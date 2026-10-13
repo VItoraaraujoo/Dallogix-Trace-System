@@ -17,10 +17,13 @@ const syncSource = readFileSync(new URL("../interface/js/servicos/ServicoSincron
   // relativa que o Node não consegue resolver a partir de data:.
   .replace(/^import .*LogFrontend\.js[^;]*;\n/m, `${loggerSource}\n`);
 const syncModuleUrl = `data:text/javascript;base64,${Buffer.from(syncSource).toString("base64")}`;
+const commandStateSource = readFileSync(new URL("../interface/js/funcoes/estado-comando.js", import.meta.url), "utf8");
+const commandStateModuleUrl = `data:text/javascript;base64,${Buffer.from(commandStateSource).toString("base64")}`;
 const storeSource = readFileSync(new URL("../interface/js/classes/ArmazenamentoTrace.js", import.meta.url), "utf8")
   .replace(/"\.\/OfflineOperationBuffer\.js\?v=[^"]+"/, JSON.stringify(bufferModuleUrl))
   .replace(/"\.\.\/api\/ClienteApi\.js\?v=[^"]+"/, JSON.stringify(clientModuleUrl))
-  .replace(/"\.\.\/servicos\/ServicoSincronizacao\.js\?v=[^"]+"/, JSON.stringify(syncModuleUrl));
+  .replace(/"\.\.\/servicos\/ServicoSincronizacao\.js\?v=[^"]+"/, JSON.stringify(syncModuleUrl))
+  .replace(/"\.\.\/funcoes\/estado-comando\.js\?v=[^"]+"/, JSON.stringify(commandStateModuleUrl));
 const { ArmazenamentoTrace } = await import(`data:text/javascript;base64,${Buffer.from(storeSource).toString("base64")}`);
 
 test("a fila pertence ao usuário e não descarta falhas HTTP", async () => {

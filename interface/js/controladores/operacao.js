@@ -34,6 +34,29 @@ export function renderDalaStatuses(store, error = null) {
   }
 }
 
+export function captureOperationScanner(root, activeElement = globalThis.document?.activeElement) {
+  const selector = ".manual-operation-reading-form input[name=\"barcode\"]";
+  if (!root?.contains?.(activeElement) || !activeElement?.matches?.(selector)) return null;
+  return {
+    value: activeElement.value,
+    selectionStart: activeElement.selectionStart,
+    selectionEnd: activeElement.selectionEnd,
+    selectionDirection: activeElement.selectionDirection,
+  };
+}
+
+export function restoreOperationScanner(root, snapshot) {
+  if (!snapshot) return false;
+  const input = root?.querySelector?.(".manual-operation-reading-form input[name=\"barcode\"]");
+  if (!input || input.disabled) return false;
+  input.value = snapshot.value;
+  input.focus({ preventScroll: true });
+  if (Number.isInteger(snapshot.selectionStart) && Number.isInteger(snapshot.selectionEnd)) {
+    input.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd, snapshot.selectionDirection || "none");
+  }
+  return true;
+}
+
 export async function atualizarStatusDasDalas(store) {
   try {
     await store.loadDalaStatuses();
