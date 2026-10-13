@@ -57,6 +57,19 @@ export function restoreOperationScanner(root, snapshot) {
   return true;
 }
 
+export async function changeOperationLoading(store, render) {
+  store.state.commandFeedback = "";
+  let changed = true;
+  try {
+    await store.loadActiveLoading(null);
+  } catch (error) {
+    changed = false;
+    store.state.commandFeedback = error?.message || "Não foi possível atualizar a lista de Dalas.";
+  }
+  render();
+  return changed;
+}
+
 export async function atualizarStatusDasDalas(store) {
   try {
     await store.loadDalaStatuses();

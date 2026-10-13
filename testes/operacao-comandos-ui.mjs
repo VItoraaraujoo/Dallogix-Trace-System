@@ -8,7 +8,7 @@ import {
   work,
 } from "../interface/telas/operacao/operacao.js";
 import { resolverComandoAtual } from "../interface/js/funcoes/estado-comando.js";
-import { captureOperationScanner, restoreOperationScanner } from "../interface/js/controladores/operacao.js";
+import { captureOperationScanner, restoreOperationScanner, changeOperationLoading } from "../interface/js/controladores/operacao.js";
 import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js";
 
 test("parada pode substituir um início ainda pendente em pausa", () => {
@@ -494,6 +494,42 @@ test("leitor mantém foco, texto parcial e cursor durante uma atualização da t
   assert.equal(newInput.value, "7890123");
   assert.deepEqual(newInput.selection, [4, 4, "none"]);
   assert.deepEqual(newInput.focusOptions, { preventScroll: true });
+});
+
+test("falha ao trocar Dala é exibida sem perder a seleção nem rejeitar o clique", async () => {
+  const store = {
+    state: { selectedLoadingId: 7, commandFeedback: "erro anterior" },
+    loadActiveLoading: async (selectedId) => {
+      assert.equal(selectedId, null);
+      throw new Error("Falha de conexão");
+    },
+  };
+  let renders = 0;
+
+  const changed = await changeOperationLoading(store, () => { renders += 1; });
+
+  assert.equal(changed, false);
+  assert.equal(store.state.selectedLoadingId, 7);
+  assert.equal(store.state.commandFeedback, "Falha de conexão");
+  assert.equal(renders, 1);
+});
+
+test("troca de Dala atualiza a seleção e limpa erro anterior", async () => {
+  const store = {
+    state: { selectedLoadingId: 7, commandFeedback: "erro anterior" },
+    loadActiveLoading: async (selectedId) => {
+      assert.equal(selectedId, null);
+      store.state.selectedLoadingId = null;
+    },
+  };
+  let renders = 0;
+
+  const changed = await changeOperationLoading(store, () => { renders += 1; });
+
+  assert.equal(changed, true);
+  assert.equal(store.state.selectedLoadingId, null);
+  assert.equal(store.state.commandFeedback, "");
+  assert.equal(renders, 1);
 });
 
 test("resumo separa eventos detectados das leituras válidas", () => {

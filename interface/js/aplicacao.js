@@ -7,7 +7,7 @@ import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=20261006000
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610130003";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
-import { captureOperationScanner, restoreOperationScanner, renderDalaStatuses, linhaItemRomaneio } from "./controladores/operacao.js?v=202610130003";
+import { captureOperationScanner, restoreOperationScanner, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio } from "./controladores/operacao.js?v=202610130004";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610130001";
 import { createPageRefreshController } from "./controladores/page-refresh.js?v=202610130001";
 import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
@@ -390,7 +390,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610130003").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610130004").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -1625,9 +1625,7 @@ function bindActions() {
         return;
       }
       if (action === "change-loading") {
-        store.state.selectedLoadingId = null;
-        await store.loadActiveLoading(null);
-        render();
+        await changeOperationLoading(store, render);
         return;
       }
       if (action === "open-summary") {
