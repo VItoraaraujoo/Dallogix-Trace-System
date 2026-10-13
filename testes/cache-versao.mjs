@@ -4,10 +4,11 @@ import { join } from "node:path";
 import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
-const versaoAplicacao = "202610080002";
-const versaoAplicacaoImportacao = "202610080002";
-const versaoTela = "202610072220";
-const versaoTelaOperacao = "202610080001";
+const versaoAplicacao = "202610130001";
+const versaoAplicacaoImportacao = "202610130001";
+const versaoTela = "202610130002";
+const versaoTelaImportacao = "202610072220";
+const versaoTelaOperacao = "202610130001";
 const versaoEstilo = "202610070203";
 const versaoEstiloOperacao = "202610072220";
 const versaoEstiloImportacao = "202610071845";
@@ -15,12 +16,12 @@ const versaoEstiloImportacao = "202610071845";
 test("o shell invalida cache quando a aplicação muda", () => {
   const serviceWorker = readFileSync(join(raiz, "service-worker.js"), "utf8");
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
-  assert.match(serviceWorker, /trace-shell-20261008-01/);
+  assert.match(serviceWorker, /trace-shell-20261013-01/);
   assert.match(aplicacao, new RegExp(`/service-worker\\.js\\?v=${versaoAplicacao}`));
   assert.match(aplicacao, new RegExp(`ArmazenamentoTrace\\.js\\?v=${versaoTela}`));
   assert.match(aplicacao, new RegExp(`operacao\\.js\\?v=${versaoTelaOperacao}`));
-  assert.match(aplicacao, new RegExp(`importar-romaneio\\.js\\?v=${versaoTela}`));
-  assert.match(aplicacao, /status-empresas\.js\?v=202610080002/);
+  assert.match(aplicacao, new RegExp(`importar-romaneio\\.js\\?v=${versaoTelaImportacao}`));
+  assert.match(aplicacao, /page-refresh\.js\?v=202610130001/);
 });
 
 test("arquivos estáticos versionados reaproveitam o cache e respostas compactadas", () => {
@@ -102,8 +103,8 @@ test("a operação deixa os estados em Configurações e usa leitura automática
   assert.match(operacaoCss, /@media \(min-width: 960px\) and \(min-height: 680px\) and \(max-height: 820px\)/);
   assert.match(operacaoCss, /body\.work-page:has\(\.work-operation-screen\) \{[^}]*overflow: auto;/);
   assert.match(aplicacao, /store\.loadMonitoring\(\).*store\.loadEquipments/);
-  assert.match(aplicacao, /settingsRealtime\.start\(\)/);
-  assert.match(aplicacao, /settingsRealtime\.stop\(\)/);
+  assert.match(aplicacao, /statusScreensRealtime\.start\(\)/);
+  assert.match(aplicacao, /createPageRefreshController/);
 });
 
 test("modelo CSV usa caminho absoluto e nome de arquivo estável", () => {

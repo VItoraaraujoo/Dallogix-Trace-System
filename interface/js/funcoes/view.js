@@ -270,7 +270,7 @@ function updateCompanyBadge(node, presentation) {
 }
 
 /** Atualiza apenas conectividade em cards já renderizados, preservando formulários e foco. */
-export function refreshCompanyStatusCards(companies, root = globalThis.document, { stale = false } = {}) {
+export function refreshCompanyStatusCards(companies, root = globalThis.document, { stale = false, staleMessage = null } = {}) {
   if (!root?.querySelectorAll) return;
   const list = Array.isArray(companies) ? companies : [];
   const byId = new Map(list.map((company) => [String(company.id), company]));
@@ -321,7 +321,7 @@ export function refreshCompanyStatusCards(companies, root = globalThis.document,
   const feedback = root.querySelector("[data-company-status-feedback]");
   if (feedback) {
     feedback.textContent = stale
-      ? "Não foi possível atualizar a conectividade. Os indicadores mostram a última consulta confirmada."
+      ? staleMessage || "Não foi possível atualizar a conectividade. Os indicadores mostram a última consulta confirmada."
       : "";
     feedback.hidden = !stale;
   }

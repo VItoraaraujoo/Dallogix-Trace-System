@@ -29,7 +29,7 @@ const products = search
   return `<div class="title-row with-actions"><div><h2>Produtos</h2></div>${button(open ? "Fechar formulário" : "+ Novo produto", "toggle-product-form")}</div>
 ${form}
 <section class="panel product-catalog-panel"><div class="search-row"><label class="product-search-label" for="product-search">Buscar produto<input id="product-search" placeholder="Nome, código ou categoria" aria-label="Buscar por nome, código ou categoria" value="${esc(store.state.productSearch || "")}" /></label></div>
-  <div class="table-wrap"><table class="mobile-card-table"><thead><tr><th>Nome</th><th>Código de Barras</th><th>SKU</th><th>Categoria</th><th>Ativo</th><th>Ações</th></tr></thead><tbody>${
+  <div class="table-wrap"><table class="mobile-card-table"><thead><tr><th>Nome</th><th>Código de Barras</th><th>SKU</th><th>Categoria</th><th>Ativo</th><th>Ações</th></tr></thead><tbody data-status-region="product-list">${
     !store.state.productsLoaded
       ? '<tr><td colspan="6" class="empty-cell">Carregando produtos…</td></tr>'
       : products.length

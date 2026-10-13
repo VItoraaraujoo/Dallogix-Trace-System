@@ -7,34 +7,38 @@ export function linhaItemRomaneio(store, selectedId = "", quantity = 1) {
   return `<tr class="manifest-item"><td><select name="item_product"><option value="">Selecionar produto…</option>${selectableProducts.map((product) => `<option value="${product.id}"${String(product.id) === String(selectedId) ? " selected" : ""}>${esc(product.name)}${product.code ? ` (${esc(product.code)})` : ""}${Number(product.active) !== 1 ? " (inativo — selecione um produto ativo)" : ""}</option>`).join("")}</select></td><td><input name="item_quantity" type="number" min="1" value="${Number(quantity) || 1}" /></td><td><button class="button ghost" data-action="remove-item" type="button">Remover</button></td></tr>`;
 }
 
-export async function atualizarStatusDasDalas(store) {
+export function renderDalaStatuses(store, error = null) {
   const cells = document.querySelectorAll(".dala-status[data-equipment-id]");
   const statusTone = (value) => {
     if (value === "ONLINE") return "online";
     if (value === "OFFLINE" || value === "ERRO") return "offline";
     return "unknown";
   };
-  try {
-    const statuses = await store.loadDalaStatuses();
-    const byEquipmentId = new Map(
-      statuses.map((status) => [String(status.equipment_id), status]),
-    );
-    cells.forEach((cell) => {
-      const status = byEquipmentId.get(String(cell.dataset.equipmentId));
-      const tone = statusTone(status?.status);
-      cell.innerHTML = `<span class="status-dot ${tone}"></span>${esc(status?.message || "Status indisponível.")}`;
-    });
-  } catch (error) {
-    cells.forEach((cell) => {
-      cell.innerHTML = `<span class="status-dot unknown"></span>${esc(error.message)}`;
-    });
-  }
+  const byEquipmentId = new Map(
+    (store.state.dalaStatuses || []).map((status) => [String(status.equipment_id), status]),
+  );
+  cells.forEach((cell) => {
+    const status = byEquipmentId.get(String(cell.dataset.equipmentId));
+    const tone = statusTone(status?.status);
+    const message = error?.message || status?.message || "Status indisponível.";
+    cell.innerHTML = `<span class="status-dot ${tone}"></span>${esc(message)}`;
+  });
   const viewStatus = document.querySelector("#dala-view-status[data-equipment-id]");
   if (!viewStatus) return;
-  const status = store.state.dalaStatuses.find(
+  const status = (store.state.dalaStatuses || []).find(
     (item) => String(item.equipment_id) === String(viewStatus.dataset.equipmentId),
   );
   if (status) {
-    viewStatus.innerHTML = `<span class="status-dot ${statusTone(status.status)}"></span>${esc(status.message || status.status)}`;
+    const message = error?.message || status.message || status.status;
+    viewStatus.innerHTML = `<span class="status-dot ${statusTone(status.status)}"></span>${esc(message)}`;
+  }
+}
+
+export async function atualizarStatusDasDalas(store) {
+  try {
+    await store.loadDalaStatuses();
+    renderDalaStatuses(store);
+  } catch (error) {
+    renderDalaStatuses(store, error);
   }
 }

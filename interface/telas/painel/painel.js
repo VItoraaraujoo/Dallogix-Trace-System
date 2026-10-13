@@ -76,7 +76,7 @@ export function dashboard(store) {
   );
   const content = loading
     ? `${dalaSkeletonCard()}${dalaSkeletonCard()}${dalaSkeletonCard()}`
-    : store.state.equipmentsError
+    : store.state.equipmentsError && !equipments.length
       ? estadoErro("Não foi possível carregar o painel", store.state.equipmentsError, { label: "Tentar novamente", acao: "reload-page" })
       : sortedEquipments.length
         ? sortedEquipments
@@ -84,7 +84,7 @@ export function dashboard(store) {
             .join("")
         : estadoVazio("Nenhuma Dala cadastrada", "Cadastre uma Dala para acompanhar o estado e o progresso da operação.", canManageDalas ? { label: "Gerenciar Dalas", acao: "goto-dalas", tom: "secondary" } : null);
   return `${pageHeader("Esteiras e romaneios", "Operação por Dala", "Estado e progresso de cada operação em andamento.", canManageDalas ? button("Gerenciar Dalas", "goto-dalas", "secondary") : "")}
-  <section class="dashboard-dalas">
+  <section class="dashboard-dalas" data-status-region="dashboard-dalas">
     <div class="dala-album-grid ${loading ? "is-loading" : ""}">${content}</div>
   </section>`;
 }

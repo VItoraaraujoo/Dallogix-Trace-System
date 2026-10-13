@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSettingsStatusController } from "../interface/js/controladores/status-configuracoes.js";
+import { createPageRefreshController } from "../interface/js/controladores/page-refresh.js";
 import { apresentacaoStatusDispositivo, settings } from "../interface/telas/configuracoes/configuracoes.js";
 
 function criarAmbiente() {
@@ -23,7 +23,7 @@ function criarAmbiente() {
       if (tarefa?.id === id) tarefa = null;
     },
   };
-  globalThis.document = { hidden: false };
+  globalThis.document = { hidden: false, addEventListener() {} };
   return {
     get tarefa() { return tarefa; },
     limpas,
@@ -34,6 +34,20 @@ function criarAmbiente() {
       else globalThis.document = originalDocument;
     },
   };
+}
+
+const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+function createSettingsController({ load, refresh, getPage = () => "settings" }) {
+  return createPageRefreshController({
+    getPage,
+    pages: new Map([["settings", {
+      load,
+      refresh,
+      intervalMs: 5000,
+      hiddenIntervalMs: 15000,
+    }]]),
+  });
 }
 
 test("status têm apresentação clara para online, offline, erro e ausência de sinal", () => {
@@ -65,57 +79,74 @@ test("Configurações mostra cartões próprios e status vinculados à Dala", ()
   assert.doesNotMatch(markup, /Atualizado em|Atualizado \d/);
 });
 
-test("status de Configurações atualizam por polling sem redesenhar a tela", async () => {
+test("controlador genérico atualiza Configurações e respeita intervalos", async () => {
   const ambiente = criarAmbiente();
   let pagina = "settings";
-  let monitoramentos = 0;
-  let sincronizacoes = 0;
-  let dalas = 0;
+  let consultas = 0;
   let atualizacoes = 0;
-  const store = {
-    async loadMonitoring() { monitoramentos += 1; },
-    async loadSyncStatus() { sincronizacoes += 1; },
-    async loadDalaStatuses() { dalas += 1; },
-  };
-  const controller = createSettingsStatusController({
-    store,
+  const controller = createSettingsController({
     getPage: () => pagina,
-    refreshView: () => { atualizacoes += 1; },
-    intervalMs: 5000,
-    hiddenIntervalMs: 15000,
+    load: async () => { consultas += 1; },
+    refresh: () => { atualizacoes += 1; },
   });
 
   try {
     controller.start();
     assert.equal(ambiente.tarefa.delay, 5000);
-    const callback = ambiente.tarefa.callback;
-    callback();
-    await new Promise((resolve) => setImmediate(resolve));
-    assert.deepEqual([monitoramentos, sincronizacoes, dalas, atualizacoes], [1, 1, 1, 1]);
+    ambiente.tarefa.callback();
+    await flush();
+    assert.deepEqual([consultas, atualizacoes], [1, 1]);
     assert.equal(ambiente.tarefa.delay, 5000);
+
+    globalThis.document.hidden = true;
+    ambiente.tarefa.callback();
+    await flush();
+    assert.equal(ambiente.tarefa.delay, 15000);
     controller.stop();
-    assert.equal(ambiente.limpas.length, 1);
+    assert.ok(ambiente.limpas.length > 0);
   } finally {
     controller.stop();
     ambiente.restaurar();
   }
 });
 
-test("poll de Configurações não atualiza uma tela após navegar para outro lugar", async () => {
+test("status só fica desatualizado depois de duas consultas consecutivas com falha", async () => {
+  const ambiente = criarAmbiente();
+  let falhas = 0;
+  const freshness = [];
+  const controller = createSettingsController({
+    load: async () => { falhas += 1; throw new Error("Sem conexão"); },
+    refresh: (state) => freshness.push(state),
+  });
+
+  try {
+    controller.start();
+    ambiente.tarefa.callback();
+    await flush();
+    assert.equal(freshness[0].stale, false);
+    assert.equal(freshness[0].consecutiveFailures, 1);
+    ambiente.tarefa.callback();
+    await flush();
+    assert.equal(freshness[1].stale, true);
+    assert.equal(freshness[1].consecutiveFailures, 2);
+    assert.ok(freshness[1].staleForMs >= 0);
+    assert.equal(falhas, 2);
+  } finally {
+    controller.stop();
+    ambiente.restaurar();
+  }
+});
+
+test("resposta atrasada não redesenha Configurações depois da navegação", async () => {
   const ambiente = criarAmbiente();
   let pagina = "settings";
   let liberarConsulta;
   let atualizacoes = 0;
   const consulta = new Promise((resolve) => { liberarConsulta = resolve; });
-  const store = {
-    loadMonitoring: () => consulta,
-    async loadSyncStatus() {},
-    async loadDalaStatuses() {},
-  };
-  const controller = createSettingsStatusController({
-    store,
+  const controller = createSettingsController({
     getPage: () => pagina,
-    refreshView: () => { atualizacoes += 1; },
+    load: () => consulta,
+    refresh: () => { atualizacoes += 1; },
   });
 
   try {
@@ -124,7 +155,7 @@ test("poll de Configurações não atualiza uma tela após navegar para outro lu
     pagina = "work";
     controller.stop();
     liberarConsulta();
-    await new Promise((resolve) => setImmediate(resolve));
+    await flush();
     assert.equal(atualizacoes, 0);
     assert.equal(ambiente.tarefa, null);
   } finally {

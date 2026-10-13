@@ -43,7 +43,7 @@ export function manifestView(store) {
     : "";
   const returnButton = `<button class="button secondary" data-action="goto-manifests" type="button">← Voltar</button>`;
   const quantitySummary = `<div class="manifest-detail-quantity"><span><small>Programado</small><strong>${numero(manifest.planned_quantity)}</strong></span><span><small>Carregado</small><strong>${numero(manifest.loaded_quantity)}</strong></span></div>`;
-  return `<div class="manifest-detail-screen">
+  return `<div class="manifest-detail-screen" data-status-region="manifest-detail">
 <header class="manifest-detail-header"><h2>Romaneio ${esc(manifest.number)}</h2><div class="manifest-detail-actions">${auditReport}${prepareAction}${accessAction}${cancelLoadingAction}${returnButton}</div></header>
 <div class="manifest-detail-grid">
 <article class="manifest-detail-card"><small>Data do carregamento</small><strong>${data(manifest.scheduled_date)}</strong></article>
@@ -57,4 +57,3 @@ export function manifestView(store) {
 ${items.length ? items.map((item) => `<tr><td data-label="Produto"><strong>${esc(item.name)}</strong></td><td data-label="Código"><code>${esc(item.code || "—")}</code></td><td data-label="Quantidade">${numero(item.planned_quantity)}</td></tr>`).join("") : '<tr><td colspan="3" class="empty-cell">Nenhum item cadastrado.</td></tr>'}
 </tbody></table></div></section>${canCancel ? `<section class="panel manifest-cancel-panel"><div><strong>Cancelamento do romaneio</strong><p>Use somente se o carregamento ainda não tiver começado.</p></div>${button("Cancelar romaneio", "cancel-manifest", "danger")}</section>` : ""}</div>`;
 }
-

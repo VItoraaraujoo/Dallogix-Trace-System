@@ -22,7 +22,9 @@ function dalaReferenceActions(equipment, canManage, canDelete) {
 
 export function dalas(store) {
   const rows = store.state.equipments || [];
-  const loadError = store.state.equipmentsError;
+  const loadError = store.state.equipmentsError && rows.length === 0
+    ? store.state.equipmentsError
+    : "";
   const loading = !store.state.equipmentsLoaded || store.state.equipmentsLoading;
   const open = store.state.dalaFormOpen;
   const hasIndustrialPc = rows.some((equipment) => "industrial_pc_name" in equipment);
@@ -51,7 +53,7 @@ ${hasIndustrialPc ? `<div class="dala-grid-cell-v2" data-label="PC industrial" r
     : loadError
     ? estadoErro("Não foi possível carregar as Dalas", loadError, { label: "Tentar novamente", acao: "reload-dalas" }, { className: "dala-load-error" })
     : `<div class="dalas-grid-v2 ${hasIndustrialPc ? "has-industrial-pc" : ""}" role="table"><div class="dala-grid-head-v2 ${hasIndustrialPc ? "has-industrial-pc" : ""}" role="row">${["Nome", "Identificador", ...(hasIndustrialPc ? ["PC industrial"] : []), "IP do CLP", "Porta do CLP", "Status", "Ações"].map((label) => `<div role="columnheader">${label}</div>`).join("")}</div>${rows.length ? rows.map(cells).join("") : '<div class="dala-empty-v2" role="row"><div role="cell">Nenhuma Dala cadastrada.</div></div>'}</div>`;
-  return `<section class="dalas-screen-v2" aria-labelledby="dalas-title"><div class="dalas-header-v2"><h2 id="dalas-title">Dalas</h2>${canManage ? button("Nova dala", "toggle-dala-form", "primary") : ""}</div>${content}</section>`;
+  return `<section class="dalas-screen-v2" aria-labelledby="dalas-title"><div class="dalas-header-v2"><h2 id="dalas-title">Dalas</h2>${canManage ? button("Nova dala", "toggle-dala-form", "primary") : ""}</div><div data-status-region="dala-list">${content}</div></section>`;
 }
 
 // Tela Visualizar Dala: cartões com dados cadastrais e status de comunicação.

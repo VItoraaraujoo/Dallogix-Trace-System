@@ -7,5 +7,5 @@ export function emergency(store) {
   const loading = store.state.loadingId
     ? `Carregamento #${esc(store.state.loadingId)} • romaneio ${esc(store.state.romaneio)} • caminhão ${esc(store.state.truck)}`
     : "Nenhum carregamento ativo identificado.";
-  return emergencyPanel({ loading, canUnlock, commandStatus: store.state.plcCommand });
+  return `<div data-status-region="emergency-status">${emergencyPanel({ loading, canUnlock, commandStatus: store.state.plcCommand })}</div>`;
 }

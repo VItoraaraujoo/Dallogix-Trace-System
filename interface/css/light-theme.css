@@ -2857,6 +2857,19 @@ textarea {
   line-height: 1.4;
 }
 
+.status-refresh-feedback {
+  position: sticky;
+  top: 76px;
+  z-index: 5;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--yellow);
+  border-radius: 8px;
+  background: #fff7df;
+  color: var(--ink);
+  box-shadow: 0 2px 8px rgba(23, 33, 43, 0.08);
+}
+
 .form-feedback.is-error {
   color: var(--red);
 }

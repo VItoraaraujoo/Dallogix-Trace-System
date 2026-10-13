@@ -5,39 +5,38 @@ import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
 import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610070024";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610072220";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610130002";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
-import { atualizarStatusDasDalas, linhaItemRomaneio } from "./controladores/operacao.js";
-import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610072220";
-import { createSettingsStatusController } from "./controladores/status-configuracoes.js?v=202610070203";
-import { createCompanyStatusController } from "./controladores/status-empresas.js?v=202610080002";
+import { renderDalaStatuses, linhaItemRomaneio } from "./controladores/operacao.js?v=202610130001";
+import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610130001";
+import { createPageRefreshController } from "./controladores/page-refresh.js?v=202610130001";
 import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
 import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
-import { refreshCompanyStatusCards } from "./funcoes/view.js?v=202610080002";
+import { refreshCompanyStatusCards } from "./funcoes/view.js?v=202610130001";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js?v=202609240001";
 import { apresentacaoStatusDispositivo, settings } from "../telas/configuracoes/configuracoes.js?v=202610070203";
-import { dalas } from "../telas/dalas/dalas.js?v=202610010001";
+import { dalas } from "../telas/dalas/dalas.js?v=202610130001";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
-import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610010001";
-import { company } from "../telas/empresa/empresa.js?v=202610020006";
-import { companies } from "../telas/empresas/empresas.js?v=202610080002";
-import { errorLogs } from "../telas/logs-erros/logs-erros.js?v=202610010001";
+import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610130001";
+import { company } from "../telas/empresa/empresa.js?v=202610130001";
+import { companies } from "../telas/empresas/empresas.js?v=202610130001";
+import { errorLogs } from "../telas/logs-erros/logs-erros.js?v=202610130001";
 import { masterHome } from "../telas/painel-dallogix/painel-dallogix.js?v=202610080002";
-import { alerts } from "../telas/alertas/alertas.js?v=202610010001";
-import { emergency } from "../telas/emergencia/emergencia.js?v=202610010001";
-import { occurrences } from "../telas/ocorrencias/ocorrencias.js?v=202610010001";
-import { products } from "../telas/produtos/produtos.js?v=202610010001";
-import { summary } from "../telas/resumo-final/resumo-final.js?v=202610010001";
-import { division } from "../telas/divisao-carga/divisao-carga.js?v=202610010001";
+import { alerts } from "../telas/alertas/alertas.js?v=202610130001";
+import { emergency } from "../telas/emergencia/emergencia.js?v=202610130001";
+import { occurrences } from "../telas/ocorrencias/ocorrencias.js?v=202610130001";
+import { products } from "../telas/produtos/produtos.js?v=202610130001";
+import { summary } from "../telas/resumo-final/resumo-final.js?v=202610130001";
+import { division } from "../telas/divisao-carga/divisao-carga.js?v=202610130001";
 import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=202610072220";
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
-import { manifests } from "../telas/romaneios/romaneios.js?v=202610010001";
-import { manifestView } from "../telas/romaneio/romaneio.js?v=202610010001";
+import { manifests } from "../telas/romaneios/romaneios.js?v=202610130001";
+import { manifestView } from "../telas/romaneio/romaneio.js?v=202610130001";
 import { work } from "../telas/operacao/operacao.js?v=202610080001";
-import { dashboard } from "../telas/painel/painel.js?v=202610010001";
-import { users } from "../telas/usuarios/usuarios.js?v=202610010001";
+import { dashboard } from "../telas/painel/painel.js?v=202610130001";
+import { users } from "../telas/usuarios/usuarios.js?v=202610130001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
 import { logFrontend } from "./utilitarios/LogFrontend.js?v=202610060006";
 import { estadoErro } from "./componentes/estados.js?v=202610060002";
@@ -83,6 +82,42 @@ const screens = {
   users,
   "error-logs": errorLogs,
 };
+const FAST_STATUS_PAGES = new Set([
+  "dashboard",
+  "division",
+  "manifest",
+  "occurrences",
+  "summary",
+  "alerts",
+  "settings",
+  "dalas",
+  "dala",
+]);
+const PAGE_REFRESHERS = new Map([
+  "dashboard",
+  "manifests",
+  "manifest",
+  "division",
+  "occurrences",
+  "summary",
+  "products",
+  "alerts",
+  "settings",
+  "dalas",
+  "dala",
+  "users",
+  "companies",
+  "master-home",
+  "company",
+  "error-logs",
+].map((page) => [page, {
+  load: () => loadLiveStatusData(page),
+  refresh: (freshness) => refreshLiveStatusView(page, freshness),
+  intervalMs: FAST_STATUS_PAGES.has(page) ? 5000 : 15000,
+  hiddenIntervalMs: FAST_STATUS_PAGES.has(page)
+    ? 15000
+    : ["companies", "master-home"].includes(page) ? 60000 : 30000,
+}]));
 // Os arquivos HTML continuam acessíveis diretamente, mas, após o primeiro carregamento,
 // as mudanças de tela usam o History API para não reiniciar toda a aplicação.
 const initialPage =
@@ -154,37 +189,18 @@ const workRealtime = createOperationalRealtimeController({
   getPage: () => currentPage,
   render: () => render(),
   refreshWorkLiveView: () => refreshWorkLiveView(),
+  refreshOtherLiveView: (page) => refreshLiveStatusView(page),
+  setFreshness: (page, freshness) => {
+    if (currentPage === page) {
+      refreshStatusRefreshFeedback(el("#screen-root"), freshness);
+    }
+  },
   workStructureSignature: () => workStructureSignature(),
   getViewSignature: () => workViewSignature,
 });
-const settingsRealtime = createSettingsStatusController({
-  store,
+const statusScreensRealtime = createPageRefreshController({
   getPage: () => currentPage,
-  refreshView: () => refreshSettingsStatusView(),
-});
-const companiesRealtime = createCompanyStatusController({
-  store,
-  getPage: () => currentPage,
-  refreshView: ({ stale = false } = {}) => {
-    store.state.companyStatusStale = stale;
-    if (currentPage === "companies") {
-      refreshCompanyStatusCards(store.state.companies, document.querySelector("#screen-root"), { stale });
-      refreshRelativeTimes();
-      return;
-    }
-    if (currentPage === "master-home") {
-      if (companyStatusViewSignature() === companyViewSignature) {
-        if (!stale) refreshCompanyStatusCards(store.state.companies, document.querySelector("#screen-root"));
-        return;
-      }
-      const scrollTop = window.scrollY;
-      renderScreen();
-      if (stale) {
-        refreshCompanyStatusCards(store.state.companies, document.querySelector("#screen-root"), { stale: true });
-      }
-      window.scrollTo(0, scrollTop);
-    }
-  },
+  pages: PAGE_REFRESHERS,
 });
 
 function sidebarCollapsed() {
@@ -374,7 +390,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610080002").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610130001").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -598,14 +614,10 @@ function renderScreen() {
   bindActions();
   bindForms();
   installRelativeTimeRefresh();
-  if (["settings", "dalas", "dala"].includes(currentPage)) atualizarStatusDasDalas(store);
   workViewSignature = currentPage === "work" ? workStructureSignature() : "";
-  if (currentPage === "work") startWorkPolling();
+  if (["work", "emergency"].includes(currentPage)) startWorkPolling();
   else stopWorkPolling();
-  if (currentPage === "settings") settingsRealtime.start();
-  else settingsRealtime.stop();
-  if (["companies", "master-home"].includes(currentPage)) companiesRealtime.start();
-  else companiesRealtime.stop();
+  statusScreensRealtime.start();
   if (currentPage === "master-home") companyViewSignature = companyStatusViewSignature();
 }
 function companyStatusViewSignature() {
@@ -796,6 +808,201 @@ function refreshSettingsStatusView() {
     cell.innerHTML = `<span class="status-dot ${tone}"></span>${esc(status?.message || (raw === "ONLINE" ? "Online" : raw === "OFFLINE" ? "Sem comunicação" : "Status indisponível."))}`;
   });
 }
+
+function loadLiveStatusData(page) {
+  switch (page) {
+    case "dashboard":
+      return [store.loadMonitoring(), loadEquipmentStatus()];
+    case "manifests":
+      return [store.loadManifests()];
+    case "manifest":
+      return [store.loadManifest(queryId())];
+    case "occurrences":
+      return [store.loadMonitoring()];
+    case "summary":
+      return [store.loadMonitoring(), store.loadActiveLoading(store.state.selectedLoadingId)];
+    case "division":
+      return [store.loadManifest(queryId()), store.loadActiveLoading(), loadEquipmentStatus()];
+    case "products":
+      return [store.loadProducts()];
+    case "alerts":
+      return [store.loadMonitoring(), store.loadSyncStatus()];
+    case "dalas":
+      return [store.loadDalaStatuses(), loadEquipmentStatus()];
+    case "dala":
+      return [
+        store.loadMonitoring(),
+        store.loadDalaCommandHistory(queryId()),
+        store.loadDalaStatuses(),
+      ];
+    case "users":
+      return [store.loadUsers()];
+    case "settings":
+      return [store.loadConfiguration(), store.loadMonitoring(), store.loadSyncStatus(), store.loadDalaStatuses()];
+    case "companies":
+    case "master-home":
+      return [store.loadCompanies()];
+    case "company":
+      return [store.loadCompanyDetail()];
+    case "error-logs":
+      return [store.loadErrorLogs(), store.loadTechnicalDiagnostics(), store.loadDeadLetters()];
+    default:
+      return [];
+  }
+}
+
+async function loadEquipmentStatus() {
+  await store.loadEquipments({ force: true });
+  if (store.state.equipmentsError) {
+    throw new Error(store.state.equipmentsError);
+  }
+}
+
+function refreshLiveStatusView(page, freshness = {}) {
+  if (currentPage !== page) return;
+  const root = el("#screen-root");
+  if (!root) return;
+
+  const { stale = false, staleForMs = 0 } = freshness;
+  if (page === "settings") {
+    refreshSettingsStatusView();
+    refreshStatusRefreshFeedback(root, freshness);
+    return;
+  }
+  if (["companies", "master-home"].includes(page)) {
+    store.state.companyStatusStale = stale;
+    const staleMessage = stale ? statusRefreshMessage(staleForMs) : null;
+    if (page === "master-home" && companyStatusViewSignature() !== companyViewSignature) {
+      const scrollTop = window.scrollY;
+      renderScreen();
+      refreshCompanyStatusCards(store.state.companies, root, { stale, staleMessage });
+      window.scrollTo(0, scrollTop);
+      refreshRelativeTimes();
+      return;
+    }
+    if (page === "companies") {
+      const template = document.createElement("template");
+      template.innerHTML = screens[page](store);
+      const next = template.content.querySelector('[data-status-region="company-status-overview"]');
+      const current = root.querySelector('[data-status-region="company-status-overview"]');
+      const scrollTop = window.scrollY;
+      const focusedControl = document.activeElement?.matches?.("input, select, textarea, button, [contenteditable='true']")
+        && current?.contains(document.activeElement);
+      if (next && current && !focusedControl && current.innerHTML !== next.innerHTML) {
+        current.innerHTML = next.innerHTML;
+        window.scrollTo(0, scrollTop);
+      }
+    }
+    refreshCompanyStatusCards(store.state.companies, root, { stale, staleMessage });
+    refreshRelativeTimes();
+    bindActions();
+    return;
+  }
+
+  const template = document.createElement("template");
+  template.innerHTML = screens[page](store);
+  const nextRegions = new Map(
+    [...template.content.querySelectorAll("[data-status-region]")]
+      .map((node) => [node.dataset.statusRegion, node]),
+  );
+  const activeElement = document.activeElement;
+  const focusedControl = activeElement?.matches?.(
+    "input, select, textarea, button, [contenteditable='true']",
+  ) ? activeElement : null;
+  const scrollTop = window.scrollY;
+  let didPatch = false;
+  root.querySelectorAll("[data-status-region]").forEach((region) => {
+    const next = nextRegions.get(region.dataset.statusRegion);
+    if (!next || focusedControl && region.contains(focusedControl)) return;
+    const nextClassName = next.className;
+    const nextHidden = next.hidden;
+    const attributesChanged = ["aria-label", "aria-live", "aria-busy"].some((attribute) =>
+      region.getAttribute(attribute) !== next.getAttribute(attribute),
+    );
+    if (
+      region.innerHTML === next.innerHTML &&
+      region.className === nextClassName &&
+      region.hidden === nextHidden &&
+      !attributesChanged
+    ) return;
+    const selectedEquipment = region.dataset.statusRegion === "division-equipment"
+      ? region.querySelector('select[name="equipment_id"]')?.value
+      : null;
+    region.innerHTML = next.innerHTML;
+    region.className = nextClassName;
+    region.hidden = nextHidden;
+    if (selectedEquipment) {
+      const equipmentSelect = region.querySelector('select[name="equipment_id"]');
+      if ([...(equipmentSelect?.options || [])].some((option) => option.value === selectedEquipment && !option.disabled)) {
+        equipmentSelect.value = selectedEquipment;
+      }
+    }
+    ["aria-label", "aria-live", "aria-busy"].forEach((attribute) => {
+      if (next.hasAttribute(attribute)) region.setAttribute(attribute, next.getAttribute(attribute));
+      else region.removeAttribute(attribute);
+    });
+    didPatch = true;
+  });
+
+  if (didPatch) window.scrollTo(0, scrollTop);
+  if (["dalas", "dala"].includes(page)) renderDalaStatuses(store);
+  if (page === "company") refreshIndustrialInstallationStatuses();
+  refreshStatusRefreshFeedback(root, freshness);
+  bindActions();
+  refreshRelativeTimes();
+}
+
+function statusRefreshMessage(staleForMs = 0) {
+  const seconds = Math.max(1, Math.floor(Number(staleForMs) / 1000));
+  return `Dados desatualizados há ${seconds} s. Exibindo a última informação confirmada.`;
+}
+
+function refreshStatusRefreshFeedback(root, { stale = false, staleForMs = 0 } = {}) {
+  let feedback = root.querySelector("[data-status-refresh-feedback]");
+  if (!feedback && stale) {
+    feedback = document.createElement("p");
+    feedback.className = "form-feedback status-refresh-feedback";
+    feedback.dataset.statusRefreshFeedback = "1";
+    feedback.setAttribute("role", "status");
+    feedback.setAttribute("aria-live", "polite");
+    root.prepend(feedback);
+  }
+  if (!feedback) return;
+  feedback.textContent = stale ? statusRefreshMessage(staleForMs) : "";
+  feedback.hidden = !stale;
+}
+
+function refreshIndustrialInstallationStatuses() {
+  const installations = new Map(
+    (store.state.industrialInstallations || []).map((item) => [String(item.id), item]),
+  );
+  const labels = {
+    ONLINE: ["Online", "online"],
+    OFFLINE: ["Offline", "offline"],
+    ERRO: ["Com erro", "error"],
+    DESCONHECIDO: ["Sem sinal", "unknown"],
+  };
+  document.querySelectorAll("[data-installation-status]").forEach((node) => {
+    const installation = installations.get(node.dataset.installationStatus);
+    if (!installation) return;
+    const status = String(installation.status || "DESCONHECIDO").toUpperCase();
+    let [label, tone] = labels[status] || labels.DESCONHECIDO;
+    if (!installation.activated && !installation.activated_at) [label, tone] = ["Pendente de ativação", "pending"];
+    if (installation.access_blocked) [label, tone] = [installation.activated ? "Acesso bloqueado" : "Ativação bloqueada", "blocked"];
+    if (installation.archived) [label, tone] = ["Arquivado", "archived"];
+    node.className = `industrial-pc-status is-${tone}`;
+    node.textContent = label;
+    const card = node.closest(".industrial-pc-row");
+    if (card) {
+      card.classList.remove("is-online", "is-offline", "is-error", "is-unknown", "is-pending", "is-blocked", "is-archived");
+      card.classList.add(`is-${tone}`);
+    }
+    const lastSeen = [...document.querySelectorAll("[data-installation-last-seen]")]
+      .find((candidate) => candidate.dataset.installationLastSeen === String(installation.id));
+    if (lastSeen) lastSeen.textContent = installation.last_seen_at ? dataHora(installation.last_seen_at) : "Ainda não se conectou";
+  });
+}
+
 let relativeTimeTimer = null;
 function refreshRelativeTimes() {
   document.querySelectorAll("[data-relative-time]").forEach((node) => {
@@ -2348,7 +2555,7 @@ async function loadPageData(page) {
     ],
     emergency: () => [store.loadActiveLoading(), store.loadMonitoring()],
     settings: () => [store.loadConfiguration(), store.loadMonitoring(), store.loadEquipments(), store.loadSyncStatus(), store.loadDalaStatuses()],
-    dalas: () => [store.loadEquipments()],
+    dalas: () => [store.loadEquipments(), store.loadDalaStatuses()],
     dala: () => [loadDalaView(queryId())],
     "dala-edit": () => [store.loadEquipment(queryId())],
     "error-logs": () => [store.loadErrorLogs(), store.loadTechnicalDiagnostics(), store.loadDeadLetters()],
@@ -2367,6 +2574,7 @@ async function loadDalaView(id) {
   const results = await Promise.allSettled([
     store.loadMonitoring(),
     store.loadDalaCommandHistory(id),
+    store.loadDalaStatuses(),
   ]);
   results.forEach((result) => {
     if (result.status === "rejected") {

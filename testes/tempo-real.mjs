@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js";
 import { createOperationalRealtimeController } from "../interface/js/controladores/tempo-real.js";
 
 function criarAmbiente() {
@@ -254,4 +255,106 @@ test("mantém polling quando o stream SSE conecta", async () => {
     window.clearTimeout = originalClearTimeout;
     restaurar();
   }
+});
+
+test("Emergência compartilha o stream sem reiniciar o ciclo e mostra o retorno do comando", async () => {
+  const restaurar = criarAmbiente();
+  let onData;
+  let assinaturas = 0;
+  let comandos = 0;
+  let leiturasPendentes = 0;
+  const telasAtualizadas = [];
+  const frescor = [];
+  const store = {
+    state: { selectedLoadingId: 7, loadingId: 7 },
+    subscribeOperationalEvents(callback) {
+      assinaturas += 1;
+      onData = callback;
+      return { close() {} };
+    },
+    async applyActiveLoadingSnapshot() {},
+    async loadPlcCommandStatus() { comandos += 1; },
+    async loadPendingReadings() { leiturasPendentes += 1; },
+  };
+  const controller = createOperationalRealtimeController({
+    store,
+    getPage: () => "emergency",
+    render() {},
+    refreshWorkLiveView() {},
+    refreshOtherLiveView: (page) => telasAtualizadas.push(page),
+    setFreshness: (page, state) => frescor.push([page, state]),
+    workStructureSignature: () => "estrutura",
+    getViewSignature: () => "estrutura",
+  });
+
+  try {
+    controller.start();
+    controller.start();
+    await onData({ active_loadings: [{ id: 7, equipment_id: 3, state: "EMERGENCIA" }] });
+    assert.equal(assinaturas, 1);
+    assert.equal(comandos, 1);
+    assert.equal(leiturasPendentes, 0);
+    assert.deepEqual(telasAtualizadas, ["emergency"]);
+    assert.equal(frescor[0][0], "emergency");
+    assert.equal(frescor[0][1].stale, false);
+  } finally {
+    controller.stop();
+    restaurar();
+  }
+});
+
+test("duas consultas operacionais falhas exibem dados desatualizados", async () => {
+  const restaurar = criarAmbiente();
+  const originalSetTimeout = window.setTimeout;
+  const originalClearTimeout = window.clearTimeout;
+  const timers = [];
+  const frescor = [];
+  window.setTimeout = (callback) => {
+    timers.push(callback);
+    return timers.length;
+  };
+  window.clearTimeout = () => {};
+  const store = {
+    state: { selectedLoadingId: 7, loadingId: 7 },
+    subscribeOperationalEvents() { return { close() {} }; },
+    async loadActiveLoading() { throw new Error("Gateway sem resposta"); },
+    async loadMonitoring() {},
+    async loadPendingReadings() {},
+  };
+  const controller = createOperationalRealtimeController({
+    store,
+    getPage: () => "work",
+    render() {},
+    refreshWorkLiveView() {},
+    setFreshness: (page, state) => frescor.push([page, state]),
+    workStructureSignature: () => "estrutura",
+    getViewSignature: () => "estrutura",
+  });
+
+  try {
+    controller.start();
+    await timers.shift()();
+    await timers.shift()();
+    assert.equal(frescor.length, 2);
+    assert.equal(frescor[0][1].stale, false);
+    assert.equal(frescor[1][1].stale, true);
+    assert.equal(frescor[1][1].consecutiveFailures, 2);
+  } finally {
+    controller.stop();
+    window.setTimeout = originalSetTimeout;
+    window.clearTimeout = originalClearTimeout;
+    restaurar();
+  }
+});
+
+test("snapshot operacional enfileirado é descartado quando a página fica obsoleta", async () => {
+  let liberarFila;
+  let aplicado = false;
+  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  armazenamento.activeLoadingRefresh = new Promise((resolve) => { liberarFila = resolve; });
+  armazenamento._applyActiveLoadingSnapshot = () => { aplicado = true; };
+  const consulta = armazenamento.applyActiveLoadingSnapshot([], 7, () => false);
+  liberarFila();
+  await consulta;
+  assert.equal(aplicado, false);
 });

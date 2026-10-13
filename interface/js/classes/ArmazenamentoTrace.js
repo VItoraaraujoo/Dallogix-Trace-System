@@ -505,10 +505,14 @@ export class ArmazenamentoTrace {
     this.aplicarIntencaoDeComando();
     await this.loadPlcCommandStatus(this.state.loadingId);
   }
-  applyActiveLoadingSnapshot(loadings, selectedId = this.state.selectedLoadingId) {
+  applyActiveLoadingSnapshot(
+    loadings,
+    selectedId = this.state.selectedLoadingId,
+    isCurrent = () => true,
+  ) {
     const refresh = this.activeLoadingRefresh
       .catch(() => {})
-      .then(() => this._applyActiveLoadingSnapshot(loadings, selectedId));
+      .then(() => isCurrent() ? this._applyActiveLoadingSnapshot(loadings, selectedId) : null);
     this.activeLoadingRefresh = refresh.catch(() => {});
     return refresh;
   }
