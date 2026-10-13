@@ -32,6 +32,9 @@ export function manifestView(store) {
       : "";
   const canCancel = canManage && ["IMPORTADO", "AGUARDANDO"].includes(status);
   const canCancelInProgress = canManage && status === "EM_ANDAMENTO" && activeLoadingId;
+  const actionFeedback = store.state.manifestActionFeedback;
+  const actionFeedbackRole = actionFeedback?.type === "error" ? "alert" : "status";
+  const actionFeedbackHtml = `<p class="form-feedback manifest-action-feedback${actionFeedback?.type === "error" ? " is-error" : ""}" data-manifest-action-feedback role="${actionFeedbackRole}" aria-live="${actionFeedback?.type === "error" ? "assertive" : "polite"}"${actionFeedback?.message ? "" : " hidden"}>${esc(actionFeedback?.message || "")}</p>`;
   const prepareAction = canPrepare
     ? `<button class="button primary" data-action="prepare-manifest" data-id="${Number(manifest.id)}" type="button">Preparar carregamento</button>`
     : "";
@@ -39,12 +42,12 @@ export function manifestView(store) {
     ? `<button class="button primary" data-action="resume-loading" data-loading-id="${activeLoadingId}" type="button">Acessar operação</button>`
     : "";
   const cancelLoadingAction = canCancelInProgress
-    ? `<button class="button danger" data-action="cancel-manifest-progress" data-id="${Number(manifest.id)}" type="button">Cancelar operação</button>`
+    ? `<button class="button danger" data-action="cancel-manifest-progress" data-id="${Number(manifest.id)}" type="button"${store.state.manifestActionPending ? " disabled aria-busy=\"true\"" : ""}>${store.state.manifestActionPending ? "Cancelando operação…" : "Cancelar operação"}</button>`
     : "";
   const returnButton = `<button class="button secondary" data-action="goto-manifests" type="button">← Voltar</button>`;
   const quantitySummary = `<div class="manifest-detail-quantity"><span><small>Programado</small><strong>${numero(manifest.planned_quantity)}</strong></span><span><small>Carregado</small><strong>${numero(manifest.loaded_quantity)}</strong></span></div>`;
   return `<div class="manifest-detail-screen" data-status-region="manifest-detail">
-<header class="manifest-detail-header"><h2>Romaneio ${esc(manifest.number)}</h2><div class="manifest-detail-actions">${auditReport}${prepareAction}${accessAction}${cancelLoadingAction}${returnButton}</div></header>
+<header class="manifest-detail-header"><h2>Romaneio ${esc(manifest.number)}</h2><div class="manifest-detail-actions">${auditReport}${prepareAction}${accessAction}${cancelLoadingAction}${returnButton}</div></header>${actionFeedbackHtml}
 <div class="manifest-detail-grid">
 <article class="manifest-detail-card"><small>Data do carregamento</small><strong>${data(manifest.scheduled_date)}</strong></article>
 <article class="manifest-detail-card"><small>Expedidor</small><strong>${esc(manifest.expedidor || "—")}</strong></article>

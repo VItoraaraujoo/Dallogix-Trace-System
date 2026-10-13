@@ -37,7 +37,13 @@ export function manifests(store) {
   const pagination = pages > 1
     ? `<nav class="table-pagination" aria-label="Paginação de romaneios"><span>${numero(meta.total)} romaneio(s) · página ${currentPage} de ${pages}</span><div class="actions"><button class="button secondary small" data-action="manifest-page" data-page="${currentPage - 1}" type="button" ${currentPage <= 1 ? "disabled" : ""}>Anterior</button><button class="button secondary small" data-action="manifest-page" data-page="${currentPage + 1}" type="button" ${currentPage >= pages ? "disabled" : ""}>Próxima</button></div></nav>`
     : "";
+  const actionFeedback = store.state.manifestActionFeedback;
+  const actionFeedbackRole = actionFeedback?.type === "error" ? "alert" : "status";
+  const actionFeedbackHtml = actionFeedback?.message
+    ? `<p class="form-feedback manifest-action-feedback${actionFeedbackRole === "alert" ? " is-error" : ""}" data-manifest-action-feedback role="${actionFeedbackRole}" aria-live="${actionFeedbackRole === "alert" ? "assertive" : "polite"}">${esc(actionFeedback.message)}</p>`
+    : "";
   return `${pageHeader("Operação", "Romaneios", "Consulte os carregamentos e abra uma operação.", canCreate ? button("Novo romaneio", "new-manifest") : "")}
+${actionFeedbackHtml}
 <div class="filter-toolbar"><button class="button secondary filter-toggle" data-action="toggle-manifest-filters" aria-expanded="true" aria-controls="manifest-filters-panel" type="button">Filtros de pesquisa</button></div>
 <section class="panel filters" id="manifest-filters-panel"><form id="manifest-filters"><div class="filter-grid">
 <label>Data inicial<input name="date_from" type="date" value="${esc(filters.date_from || "")}" /></label>

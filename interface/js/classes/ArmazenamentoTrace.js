@@ -56,6 +56,8 @@ export class ArmazenamentoTrace {
       },
       manifestPage: 1,
       manifestMeta: { page: 1, per_page: 50, total: 0, pages: 0 },
+      manifestActionFeedback: null,
+      manifestActionPending: false,
       dashboard: null,
       manifestDetail: null,
       equipmentDetail: null,
@@ -791,12 +793,6 @@ export class ArmazenamentoTrace {
       }),
     });
     const result = await this.jsonResponse(response, "Não foi possível cancelar o romaneio.");
-    await Promise.all([
-      this.loadManifests(),
-      this.loadMonitoring(),
-      this.loadActiveLoading(null),
-      this.loadEquipments({ force: true }),
-    ]);
     return result.data;
   }
   async registerReturn(readingId, reason) {

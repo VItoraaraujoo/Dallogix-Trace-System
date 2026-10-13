@@ -5,7 +5,7 @@ import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
 import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610070024";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610130005";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610130006";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { captureOperationScanner, restoreOperationScanner, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio } from "./controladores/operacao.js?v=202610130004";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610130001";
@@ -32,8 +32,8 @@ import { summary } from "../telas/resumo-final/resumo-final.js?v=202610130001";
 import { division } from "../telas/divisao-carga/divisao-carga.js?v=202610130001";
 import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=202610130005";
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
-import { manifests } from "../telas/romaneios/romaneios.js?v=202610130001";
-import { manifestView } from "../telas/romaneio/romaneio.js?v=202610130001";
+import { manifests } from "../telas/romaneios/romaneios.js?v=202610130006";
+import { manifestView } from "../telas/romaneio/romaneio.js?v=202610130006";
 import { work } from "../telas/operacao/operacao.js?v=202610130003";
 import { dashboard } from "../telas/painel/painel.js?v=202610130001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610130001";
@@ -391,7 +391,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610130005").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610130006").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -1593,13 +1593,38 @@ function bindActions() {
         const reason = await solicitarTexto("Informe o motivo do cancelamento da operação:", { obrigatorio: true }) || "";
         if (!reason.trim()) return;
         if (!await confirmarAcao("Confirma o cancelamento? A operação precisa estar pausada ou em emergência.")) return;
+        const manifestId = node.dataset.id || queryId();
+        store.state.manifestActionPending = true;
+        store.state.manifestActionFeedback = { type: "status", message: "Cancelando operação…" };
+        render();
+        let cancellationResult;
         try {
-          await store.cancelManifest(node.dataset.id || queryId(), reason.trim());
-          notificar("Operação cancelada e registrada na auditoria.");
-          await navigate(isDashboardReturn() ? "dashboard" : "manifests");
-          render();
+          cancellationResult = await store.cancelManifest(manifestId, reason.trim());
         } catch (error) {
-          notificar(error.message);
+          store.state.manifestActionPending = false;
+          store.state.manifestActionFeedback = {
+            type: "error",
+            message: error.message || "Não foi possível cancelar a operação.",
+          };
+          render();
+          return;
+        }
+
+        store.state.manifestActionPending = false;
+        if (store.state.manifestDetail) {
+          store.state.manifestDetail.status = cancellationResult?.status || "CANCELADO";
+          store.state.manifestDetail.active_loading_id = null;
+        }
+        store.state.manifestActionFeedback = {
+          type: "success",
+          message: "Operação cancelada e registrada na auditoria.",
+        };
+        render();
+        try {
+          await navigate(isDashboardReturn() ? "dashboard" : "manifests");
+          store.state.manifestActionFeedback = null;
+        } catch (error) {
+          logFrontend.aviso("romaneio.cancelamento.navegacao", error);
         }
         return;
       }

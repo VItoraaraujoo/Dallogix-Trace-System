@@ -4,9 +4,9 @@ import { join } from "node:path";
 import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
-const versaoAplicacao = "202610130005";
-const versaoAplicacaoImportacao = "202610130005";
-const versaoTela = "202610130005";
+const versaoAplicacao = "202610130006";
+const versaoAplicacaoImportacao = "202610130006";
+const versaoTela = "202610130006";
 const versaoTelaImportacao = "202610130005";
 const versaoTelaOperacao = "202610130003";
 const versaoEstilo = "202610070203";
@@ -16,7 +16,7 @@ const versaoEstiloImportacao = "202610071845";
 test("o shell invalida cache quando a aplicação muda", () => {
   const serviceWorker = readFileSync(join(raiz, "service-worker.js"), "utf8");
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
-  assert.match(serviceWorker, /trace-shell-20261013-04/);
+  assert.match(serviceWorker, /trace-shell-20261013-05/);
   assert.match(aplicacao, new RegExp(`/service-worker\\.js\\?v=${versaoAplicacao}`));
   assert.match(aplicacao, new RegExp(`ArmazenamentoTrace\\.js\\?v=${versaoTela}`));
   assert.match(aplicacao, new RegExp(`operacao\\.js\\?v=${versaoTelaOperacao}`));
