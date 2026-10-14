@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 
 test("auditoria resolve wrappers da API e verifica o contrato efetivo", () => {
@@ -48,7 +49,7 @@ test("REST e SSE compartilham o snapshot filtrado de carregamentos ativos", () =
 });
 
 test("sessões de perfis altos não são renovadas apenas pelo polling", () => {
-  const bootstrapPath = new URL("../servidor/configuracao/bootstrap.php", import.meta.url).pathname;
+  const bootstrapPath = fileURLToPath(new URL("../servidor/configuracao/bootstrap.php", import.meta.url));
   const script = `
     require_once ${JSON.stringify(bootstrapPath)};
     $_SERVER = ["REQUEST_METHOD" => "GET"];
