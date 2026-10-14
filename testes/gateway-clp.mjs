@@ -191,6 +191,15 @@ test("iniciar e parar usam a bobina configurada com FC5", () => {
   assert.equal(stop.payload.readUInt16BE(10), 0x0000);
 });
 
+test("parada de segurança é aceita quando a operação está pausada ou finalizando", () => {
+  for (const state of ["PAUSADO", "FINALIZANDO"]) {
+    const { written } = physicalFrame(physicalRuntime(), "PAUSAR_CARREGAMENTO", state);
+    assert.equal(written.payload[7], 5);
+    assert.equal(written.payload.readUInt16BE(8), 2049);
+    assert.equal(written.payload.readUInt16BE(10), 0x0000);
+  }
+});
+
 test("reversão e emergência usam suas bobinas configuradas", () => {
   const call = physicalRuntime();
   const reverse = physicalFrame(call, "REVERSAO_ATIVAR", "PAUSADO").written;

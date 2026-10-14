@@ -13,7 +13,10 @@ fail() { echo "FAIL: $1"; exit 1; }
 
 [ -n "$equipment_id" ] || fail "nenhuma Dala livre para o teste"
 
-login="$(curl -sS -c "$cookie_file" -H 'Content-Type: application/json' -d '{"email":"admin@dallogix.local","password":"password"}' "$base_url/api/login.php")"
+test_admin_email="${TRACE_TEST_ADMIN_EMAIL:-admin@dallogix.local}"
+test_admin_password="${TRACE_TEST_ADMIN_PASSWORD:-password}"
+login_payload="$(node -e 'const [email,password]=process.argv.slice(1);process.stdout.write(JSON.stringify({email,password}))' "$test_admin_email" "$test_admin_password")"
+login="$(curl -sS -c "$cookie_file" -H 'Content-Type: application/json' -d "$login_payload" "$base_url/api/login.php")"
 printf '%s' "$login" | grep -q '"authenticated":true' || fail "login falhou"
 csrf_header="$(trace_csrf_header "$login")" || fail "login sem CSRF"
 
@@ -50,6 +53,30 @@ printf '%s' "$first" | grep -q '"result":"VALIDO"' || fail "primeira unidade vá
 
 second="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":${loading_id},\"barcode\":\"7898250782592\"}" "$base_url/api/leituras.php")"
 printf '%s' "$second" | grep -q '"result":"EXCESSO"' || fail "excesso do produto A não foi detectado por item: $second"
+pause_request_id="$(printf '%s' "$second" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const r=JSON.parse(s);process.stdout.write(String(r.data?.pause_command_request_id||""))})')"
+[ -n "$pause_request_id" ] || fail "a divergência não criou pedido de parada no gateway: $second"
+pause_request="$(trace_test_mysql_query app "SELECT CONCAT(command, ':', status) FROM solicitacoes_comandos_clp WHERE id = ${pause_request_id} AND carregamento_id = ${loading_id}")"
+[ "$pause_request" = "PAUSAR_CARREGAMENTO:PENDENTE" ] || fail "pedido de parada não ficou pendente no ambiente sem gateway: $pause_request"
+active_loadings="$(curl -sS -b "$cookie_file" "$base_url/api/carregamentos.php")"
+printf '%s' "$active_loadings" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const id=Number(process.argv[1]);const row=(JSON.parse(s).data||[]).find(x=>Number(x.id)===id);if(!row||row.stop_reason!=="EXCESSO"||!row.operator_alert)process.exitCode=1})' "$loading_id" || fail "o snapshot ativo não entregou o motivo e o alerta de parada: $active_loadings"
+blocked_start="$(curl -sS -o "$trace_test_tmp_dir/dallogix-trace-etapa38-blocked-start.json" -w '%{http_code}' -b "$cookie_file" -X PATCH -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":${loading_id},\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php")"
+[ "$blocked_start" = "409" ] || fail "retomada sem confirmar remoção/parada deveria retornar 409, recebeu $blocked_start"
+unconfirmed="$(curl -sS -o "$trace_test_tmp_dir/dallogix-trace-etapa38-unconfirmed.json" -w '%{http_code}' -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":${loading_id}}" "$base_url/api/confirmar_remocao.php")"
+[ "$unconfirmed" = "422" ] || fail "confirmação sem atestado explícito deveria retornar 422, recebeu $unconfirmed"
+# Simula a pequena janela entre limpar o alerta e cancelar a ordem pendente.
+# O start precisa continuar bloqueado tanto na rota de comandos como na
+# alteração genérica de estado, sem fingir que o gateway confirmou a parada.
+trace_test_mysql_query app "UPDATE carregamentos SET stop_reason = NULL, operator_alert = NULL WHERE id = ${loading_id}" >/dev/null
+pending_pause_start="$(curl -sS -o "$trace_test_tmp_dir/dallogix-trace-etapa38-pending-pause-start.json" -w '%{http_code}' -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":${loading_id},\"command\":\"INICIAR_CARREGAMENTO\"}" "$base_url/api/comando_maquina.php")"
+[ "$pending_pause_start" = "409" ] || fail "comando de início substituiu uma parada pendente: HTTP $pending_pause_start"
+grep -q 'Aguarde o gateway confirmar ou cancelar a parada' "$trace_test_tmp_dir/dallogix-trace-etapa38-pending-pause-start.json" || fail "comando de início não informou o bloqueio pela parada pendente"
+pending_pause_state="$(curl -sS -o "$trace_test_tmp_dir/dallogix-trace-etapa38-pending-pause-state.json" -w '%{http_code}' -b "$cookie_file" -X PATCH -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":${loading_id},\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php")"
+[ "$pending_pause_state" = "409" ] || fail "alteração genérica de estado ignorou parada pendente: HTTP $pending_pause_state"
+trace_test_mysql_query app "UPDATE carregamentos SET stop_reason = 'EXCESSO', operator_alert = 'Remova a unidade excedente e confirme para continuar.' WHERE id = ${loading_id}" >/dev/null
+confirmed="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":${loading_id},\"confirmar_remocao\":true}" "$base_url/api/confirmar_remocao.php")"
+printf '%s' "$confirmed" | grep -q '"confirmed":true' || fail "confirmação da remoção/parada falhou: $confirmed"
+pause_request_after_confirmation="$(trace_test_mysql_query app "SELECT CONCAT(command, ':', status) FROM solicitacoes_comandos_clp WHERE id = ${pause_request_id} AND carregamento_id = ${loading_id}")"
+[ "$pause_request_after_confirmation" = "PAUSAR_CARREGAMENTO:REJEITADO" ] || fail "comando ainda não reservado não foi cancelado após a confirmação: $pause_request_after_confirmation"
 
 # A fixture é descartável; finalize-a para não bloquear as etapas seguintes
 # por ocupação da única Dala disponível no ambiente local.

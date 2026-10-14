@@ -1,13 +1,13 @@
 import {
   configurarSessaoPorAba,
 } from "./sessao.js?v=202609222100";
-import { ClienteApi } from "./api/ClienteApi.js?v=202610140002";
+import { ClienteApi } from "./api/ClienteApi.js?v=202610140003";
 import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610070024";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610140001";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610140002";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
-import { captureOperationScanner, restoreOperationScanner, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio, operationStructureSignature } from "./controladores/operacao.js?v=202610140001";
+import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio, operationStructureSignature } from "./controladores/operacao.js?v=202610140002";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610140001";
 import { createPageRefreshController } from "./controladores/page-refresh.js?v=202610130001";
 import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
@@ -34,7 +34,7 @@ import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
 import { manifests } from "../telas/romaneios/romaneios.js?v=202610130006";
 import { manifestView } from "../telas/romaneio/romaneio.js?v=202610130006";
-import { work } from "../telas/operacao/operacao.js?v=202610140002";
+import { alternarTecladoLeituraManual, work } from "../telas/operacao/operacao.js?v=202610140004";
 import { dashboard } from "../telas/painel/painel.js?v=202610130001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610130001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
@@ -54,7 +54,19 @@ import {
 configurarSessaoPorAba();
 
 const store = new ArmazenamentoTrace();
-const api = new ClienteApi();
+let sessionRedirectStarted = false;
+const api = new ClienteApi({
+  onUnauthorized: () => {
+    if (sessionRedirectStarted || currentPage === "login") return;
+    sessionRedirectStarted = true;
+    try {
+      sessionStorage.setItem("trace-login-message", "Sua sessão expirou. Entre novamente no sistema.");
+    } catch (error) {
+      logFrontend.aviso("sessao.expirada.mensagem", error);
+    }
+    window.location.replace(pagePath("login"));
+  },
+});
 const servicoEmergencia = new ServicoEmergencia(store);
 const servicoOperacao = new ServicoOperacao(store);
 let renderRequestId = 0;
@@ -435,7 +447,7 @@ function waitForDocumentStyles() {
 // tela que tem CSS próprio precisa garantir seu arquivo e sua versão antes do
 // primeiro render, inclusive quando a rota inicial veio de outra página.
 const SCREEN_STYLES = {
-  work: "/telas/operacao/operacao.css?v=202610130003",
+  work: "/telas/operacao/operacao.css?v=202610140001",
   import: "/telas/importar-romaneio/importar-romaneio.css?v=202610071845",
   settings: "/telas/configuracoes/configuracoes.css?v=202610070203",
   dalas: "/telas/dalas/dalas.css?v=202610070203",
@@ -617,6 +629,7 @@ function renderScreen() {
   hydrateChrome();
   screenRoot.innerHTML = screens[currentPage](store);
   if (scannerSnapshot) restoreOperationScanner(screenRoot, scannerSnapshot);
+  else if (currentPage === "work") focusOperationScanner(screenRoot);
   bindActions();
   bindForms();
   installRelativeTimeRefresh();
@@ -701,6 +714,7 @@ function refreshWorkLiveView() {
     endNotice.classList.toggle("near-end", nearEnd && !complete);
     endNotice.classList.toggle("excess", excess);
   }
+  focusOperationScanner(el("#screen-root"));
 }
 
 function refreshSettingsStatusView() {
@@ -2323,6 +2337,10 @@ function bindForms() {
   });
   document.querySelectorAll(".manual-operation-reading-form").forEach((form) => {
     const barcodeInput = form.querySelector('[name="barcode"]');
+    const keyboardToggle = form.querySelector(".manual-reading-keyboard-toggle");
+    keyboardToggle?.addEventListener("click", () => {
+      alternarTecladoLeituraManual(barcodeInput, keyboardToggle);
+    });
     barcodeInput?.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" || barcodeInput.disabled) return;
       event.preventDefault();
@@ -2382,6 +2400,44 @@ function bindForms() {
         if (form.isConnected) {
           form.dataset.submitting = "";
           if (submit) submit.disabled = false;
+        }
+      }
+    });
+  });
+  document.querySelectorAll(".confirm-stop-removal-form").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      if (form.dataset.submitting === "1") return;
+      const confirmation = form.querySelector('[name="confirmar_remocao"]');
+      if (!confirmation?.checked) {
+        setFormFeedback(
+          form,
+          "Confirme a remoção da unidade e a parada física antes de continuar.",
+          "error",
+        );
+        return;
+      }
+      form.dataset.submitting = "1";
+      form.querySelectorAll("button").forEach((button) => {
+        button.disabled = true;
+      });
+      setFormFeedback(form, "Registrando confirmação…");
+      try {
+        await store.confirmStopRemoval();
+        notificar("Confirmação registrada. A operação continua pausada; use Ligar esteira quando estiver pronta.");
+        render();
+      } catch (error) {
+        setFormFeedback(
+          form,
+          error.message || "Não foi possível registrar a confirmação de segurança.",
+          "error",
+        );
+      } finally {
+        if (form.isConnected) {
+          form.dataset.submitting = "";
+          form.querySelectorAll("button").forEach((button) => {
+            button.disabled = false;
+          });
         }
       }
     });

@@ -1,5 +1,5 @@
 import { agora } from "../funcoes/relogio.js?v=202609170015";
-import { ClienteApi } from "../api/ClienteApi.js?v=202610060001";
+import { ClienteApi } from "../api/ClienteApi.js?v=202610140003";
 
 export function secureRandomId() {
   const webCrypto = globalThis.crypto;

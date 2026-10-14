@@ -139,6 +139,51 @@ test("padroniza mensagens e códigos dos erros HTTP", async () => {
   );
 });
 
+test("encaminha 401 de telas protegidas para o fluxo de sessão expirada", async () => {
+  const originalFetch = globalThis.fetch;
+  let unauthorized = null;
+  globalThis.fetch = async () => resposta(401, JSON.stringify({ error: "Sessão expirada." }));
+  try {
+    const api = new ClienteApi({
+      retry: 0,
+      onUnauthorized: (response, url) => { unauthorized = { status: response.status, url }; },
+    });
+    const response = await api.fetch("/api/monitoramento.php");
+    assert.equal(response.status, 401);
+    assert.deepEqual(unauthorized, { status: 401, url: "/api/monitoramento.php" });
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("falha de credencial no formulário de login não dispara redirecionamento de sessão", async () => {
+  const originalFetch = globalThis.fetch;
+  let unauthorizedCalls = 0;
+  globalThis.fetch = async () => resposta(401, JSON.stringify({ error: "Senha inválida." }));
+  try {
+    const api = new ClienteApi({ retry: 0, onUnauthorized: () => { unauthorizedCalls += 1; } });
+    const response = await api.fetch("/api/login.php");
+    assert.equal(response.status, 401);
+    assert.equal(unauthorizedCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("consulta de autenticação inicial mantém o tratamento próprio de acesso", async () => {
+  const originalFetch = globalThis.fetch;
+  let unauthorizedCalls = 0;
+  globalThis.fetch = async () => resposta(401, JSON.stringify({ error: "Autenticação necessária." }));
+  try {
+    const api = new ClienteApi({ retry: 0, onUnauthorized: () => { unauthorizedCalls += 1; } });
+    const response = await api.fetch("/api/me.php");
+    assert.equal(response.status, 401);
+    assert.equal(unauthorizedCalls, 0);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("preserva o corpo para a tela depois de classificar um erro HTTP", async () => {
   const response = resposta(503, JSON.stringify({ error: "Fila indisponível." }));
   await assert.rejects(exigirRespostaHttp(response), /Fila indisponível/);

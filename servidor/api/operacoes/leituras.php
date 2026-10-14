@@ -382,13 +382,43 @@ if (in_array($result, ["PRODUTO_INCORRETO", "EXCESSO"], true)) {
         "id" => $loadingId,
         "company_id" => $usuarioAtor["company_id"],
     ]);
+    $pendingStop = $pdo->prepare(
+        "SELECT id FROM solicitacoes_comandos_clp
+         WHERE carregamento_id = :carregamento_id AND company_id = :company_id
+           AND command = 'PAUSAR_CARREGAMENTO'
+           AND status IN ('PENDENTE', 'PROCESSANDO')
+         ORDER BY id DESC LIMIT 1 FOR UPDATE",
+    );
+    $pendingStop->execute([
+        "carregamento_id" => $loadingId,
+        "company_id" => $usuarioAtor["company_id"],
+    ]);
+    $pauseCommandRequestId = (int) ($pendingStop->fetchColumn() ?: 0);
+    if ($pauseCommandRequestId < 1) {
+        $queueStop = $pdo->prepare(
+            "INSERT INTO solicitacoes_comandos_clp
+             (company_id, equipment_id, carregamento_id, command, requested_by)
+             VALUES (:company_id, :equipment_id, :carregamento_id, 'PAUSAR_CARREGAMENTO', :requested_by)",
+        );
+        $queueStop->execute([
+            "company_id" => $usuarioAtor["company_id"],
+            "equipment_id" => $loading["equipment_id"],
+            "carregamento_id" => $loadingId,
+            "requested_by" => $usuarioAtor["id"],
+        ]);
+        $pauseCommandRequestId = (int) $pdo->lastInsertId();
+    }
     record_operational_event(
         $pdo,
         $usuarioAtor,
         "ESTEIRA_PAUSADA_AUTOMATICAMENTE",
         "carregamento",
         (int) $loadingId,
-        ["reason" => $stopReason, "safe_physical_action" => "gateway_clp_required"],
+        [
+            "reason" => $stopReason,
+            "safe_physical_action" => "gateway_clp_required",
+            "command_request_id" => $pauseCommandRequestId,
+        ],
     );
 }
 if (
@@ -507,6 +537,7 @@ responder_json(
             "operator_alert" => in_array($result, ["PRODUTO_INCORRETO", "EXCESSO"], true)
                 ? ($stopAlert ?? null)
                 : $endProductAlert,
+            "pause_command_request_id" => $pauseCommandRequestId ?? null,
             "end_product_alert" => $endProductAlert,
         ],
     ],

@@ -53,6 +53,20 @@ function loadingSelection(store) {
 export function podeVincularDala(role) {
   return ["ADMIN_EMPRESA", "SUPERVISOR"].includes(String(role || "").toUpperCase());
 }
+
+export function alternarTecladoLeituraManual(input, button) {
+  if (!input || input.disabled || typeof input.setAttribute !== "function") return false;
+  const keyboardEnabled = input.getAttribute("inputmode") !== "text";
+  input.blur?.();
+  input.setAttribute("inputmode", keyboardEnabled ? "text" : "none");
+  if (button) {
+    button.textContent = keyboardEnabled ? "Usar leitor" : "Digitar código";
+    button.setAttribute?.("aria-pressed", String(keyboardEnabled));
+  }
+  input.focus?.({ preventScroll: true });
+  return keyboardEnabled;
+}
+
 export function paradaPodeSubstituirInicio({ state, pendingStatus, pendingCommand }) {
   return String(state || "").toUpperCase() === "PAUSADO" &&
     String(pendingStatus || "").toUpperCase() === "PENDENTE" &&
@@ -138,6 +152,8 @@ export function workControlLocks(state, {
   };
   locks.run = emergency
     ? "A emergência precisa ser liberada antes de iniciar."
+    : state.stopReason
+      ? "Confirme que a unidade foi removida e que a esteira está fisicamente parada antes de retomar."
     : !stopped
       ? stateLock("iniciar a esteira")
       : state.reversalCommand !== "REVERSAO_DESATIVAR"
@@ -145,9 +161,9 @@ export function workControlLocks(state, {
         : "";
   locks.stop = emergency
     ? "A emergência já mantém a operação parada."
-    : running
+    : running || operationalState === "FINALIZANDO"
       ? ""
-      : operationalState === "FINALIZANDO" || !stopped
+      : !stopped
         ? stateLock("parar a esteira")
         : "A esteira já está parada.";
   locks["reverse-on"] = !canReverse
@@ -201,17 +217,23 @@ function workControls(store) {
     ? ""
     : { disabled: true, "aria-disabled": "true", title: "Nenhum carregamento selecionado" };
   const loadingPicker = `<div class="work-header-actions"><button class="button secondary small work-back-button" data-action="goto-manifests" type="button">← Romaneios</button>${(store.state.activeLoadings || []).length > 1 ? `<button class="button secondary small work-back-button" data-action="change-loading" type="button">Trocar Dala</button>` : ""}</div>`;
+  const currentCommand = resolverComandoAtual(store.state.plcCommand, store.state.commandIntent);
+  const pendingStatus = String(currentCommand?.status || "").toUpperCase();
+  const pendingCommand = currentCommand?.command;
+  const pausePending = pendingCommand === "PAUSAR_CARREGAMENTO" && ["PENDENTE", "PROCESSANDO"].includes(pendingStatus);
   const pendingReadings = store.state.pendingReadings || [];
-  const manualReadingBlocked = pendingReadings.length > 0;
+  const manualReadingBlocked = pendingReadings.length > 0 || pausePending;
   const manualReadingUnavailable = store.state.operationalState !== "CARREGANDO";
   const manualReadingDisabled = manualReadingBlocked || manualReadingUnavailable;
   const manualReadingPlaceholder = manualReadingBlocked
-    ? "Corrija a leitura pendente abaixo"
+    ? pendingReadings.length
+      ? "Corrija a leitura pendente abaixo"
+      : "Aguardando confirmação da parada pelo gateway…"
     : manualReadingUnavailable
       ? "Aguardando início da esteira…"
       : "Aguardando leitura…";
   const manualOperationReading = store.state.loadingId
-    ? `<div class="work-manual-reading"><div class="work-manual-reading-heading"><span class="kicker">Leitura automática</span></div><form class="manual-operation-reading-form"><label for="manual-operation-barcode">Código de barras<input id="manual-operation-barcode" name="barcode" type="text" required maxlength="128" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="none" placeholder="${manualReadingPlaceholder}"${manualReadingDisabled ? " disabled" : " autofocus"} /></label><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form></div>`
+    ? `<div class="work-manual-reading"><div class="work-manual-reading-heading"><span class="kicker">Leitura automática</span></div><form class="manual-operation-reading-form"><label for="manual-operation-barcode">Código de barras<input id="manual-operation-barcode" name="barcode" type="text" required maxlength="128" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="none" placeholder="${manualReadingPlaceholder}"${manualReadingDisabled ? " disabled" : " autofocus"} /></label><button class="button ghost small manual-reading-keyboard-toggle" type="button" aria-pressed="false"${manualReadingDisabled ? " disabled" : ""}>Digitar código</button><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form></div>`
     : "";
   const manualIdentification = pendingReadings.length
     ? `<section class="work-scanner-corrections" aria-labelledby="work-scanner-corrections-title"><div class="work-scanner-corrections-heading"><div><span class="kicker">Conferência pendente</span><h3 id="work-scanner-corrections-title">Leituras sem código</h3></div><p>Passe o leitor de código de barras ou digite o código conferido.</p></div><div class="work-scanner-corrections-list">${pendingReadings.map((reading, index) => `<form class="manual-reading-form" data-reading-id="${reading.id}"><label>Leitura #${reading.id}<input name="barcode" type="text" required maxlength="128" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" placeholder="Leia o código do produto" aria-label="Código de barras da leitura ${reading.id}"${index === 0 ? " autofocus" : ""} /></label>${button("Confirmar código", "identify-reading", "secondary")}<p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form>`).join("")}</div></section>`
@@ -227,16 +249,27 @@ function workControls(store) {
   const summaryAction = summaryReady
     ? `${button("Abrir resumo final", "open-summary", "secondary")}`
     : "";
-  const currentCommand = resolverComandoAtual(store.state.plcCommand, store.state.commandIntent);
-  const pendingStatus = String(currentCommand?.status || "").toUpperCase();
-  const pendingCommand = currentCommand?.command;
   const commandFailureNotice = store.state.commandFeedback
     ? `<p class="work-command-error" role="alert">${esc(store.state.commandFeedback)}</p>`
+    : pendingStatus === "REJEITADO" && pendingCommand === "PAUSAR_CARREGAMENTO" &&
+        String(currentCommand?.response_message || "").includes("cancelada após confirmação física")
+      ? '<p class="work-command-history" role="status">Parada cancelada antes do envio ao gateway, após confirmação física do operador.</p>'
     : ["ERRO", "REJEITADO", "EXPIRADO"].includes(pendingStatus)
       ? `<p class="work-command-history" role="status">Último comando (${esc(rotuloComando(pendingCommand))}): ${esc(currentCommand?.response_message || "o gateway não confirmou a solicitação.")}</p>`
     : !clpAvailable
       ? `<p class="work-command-error" role="status" aria-live="polite">${esc(clpUnavailableMessage)}</p>`
       : "";
+  const stopCommand = pendingCommand === "PAUSAR_CARREGAMENTO" ? currentCommand : null;
+  const stopConfirmationMessage = !stopCommand
+    ? "O gateway ainda não confirmou um comando de parada. Verifique a máquina antes de confirmar."
+    : ["PENDENTE", "PROCESSANDO"].includes(pendingStatus)
+      ? "Parada solicitada ao gateway; aguardando resposta. O estado local pausado não confirma que a esteira parou."
+      : pendingStatus === "APLICADO"
+        ? "O gateway confirmou o comando de parada. Verifique a máquina e retire a unidade antes de liberar a retomada."
+        : `O gateway não confirmou a parada: ${currentCommand.response_message || "estado físico não confirmado."} Verifique a máquina antes de liberar a retomada.`;
+  const stopConfirmation = store.state.stopReason
+    ? `<section class="work-stop-confirmation" aria-labelledby="work-stop-confirmation-title"><h3 id="work-stop-confirmation-title">Atenção: operação pausada</h3><p class="work-stop-confirmation-alert" role="alert">${esc(store.state.operatorAlert || "Remova a unidade e confirme antes de continuar.")}</p><p>${esc(stopConfirmationMessage)}</p><form class="confirm-stop-removal-form"><label><input type="checkbox" name="confirmar_remocao" value="true" required /><span>Confirmo que a unidade foi removida e que a esteira está fisicamente parada.</span></label><button class="button primary" type="submit">Confirmar e liberar retomada</button><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form></section>`
+    : "";
   const badge = ["PENDENTE", "PROCESSANDO"].includes(pendingStatus) && pendingCommand
       ? `<span class="badge blue">${esc(rotuloComando(pendingCommand))} · aguardando CLP</span>`
       : store.state.operationalState === "EMERGENCIA"
@@ -284,7 +317,7 @@ function workControls(store) {
       ? "Nenhuma leitura pendente"
       : `Falta${remainingTotal === 1 ? "" : "m"} ${numero(remainingTotal)} leitura${remainingTotal === 1 ? "" : "s"} válida${remainingTotal === 1 ? "" : "s"}`;
   const totalSummary = `<section class="work-live-summary" aria-label="Contagem e progresso do carregamento"><div class="work-live-summary-heading"><strong>Sacas detectadas</strong><span><b data-live="detected">${numero(detectedBags)}</b> detectadas · <b data-live="loaded">${numero(validReadings)}</b> válidas / <b data-live="planned">${numero(plannedTotal)}</b> previstas · <span data-live="progress-percent">${totalPercent}%</span></span></div><div class="progress work-live-progress" role="progressbar" aria-label="Progresso de leituras válidas" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${totalPercent}"><i data-live="progress-bar" style="width:${totalPercent}%"></i></div><div class="work-live-summary-foot"><span data-live="remaining-label">${remainingLabel}</span></div><p class="work-completion-notice ${endNoticeTone}" data-live="end-notice"${endNotice ? "" : " hidden"}>${endNotice}</p>${manualOperationReading}</section>`;
-  const machinePanel = `<section class="panel work-machine-panel"><div class="panel-heading"><div><span class="kicker">Comandos da máquina</span><h3>Operar Dala</h3></div>${summaryAction ? `<div class="work-machine-heading-actions">${summaryAction}</div>` : ""}</div><div class="work-machine-controls">${controls}${commandFailureNotice}</div></section>`;
+  const machinePanel = `<section class="panel work-machine-panel"><div class="panel-heading"><div><span class="kicker">Comandos da máquina</span><h3>Operar Dala</h3></div>${summaryAction ? `<div class="work-machine-heading-actions">${summaryAction}</div>` : ""}</div><div class="work-machine-controls">${stopConfirmation}${controls}${commandFailureNotice}</div></section>`;
   const statusColumn = `<section class="work-status-column">${totalSummary}${manualIdentification}${itemProgress}</section>`;
   const workHeader = `<header class="work-screen-header">${loadingPicker}<div class="work-screen-heading"><h2>${esc(workTitle)}</h2><p>Dala ${esc(equipmentLabel(store))} · Caminhão ${esc(store.state.truck || "—")} <span class="work-header-state">${badge}</span></p></div></header>`;
   return `<div class="work-operation-screen">${workHeader}<div class="work-operation-layout">${statusColumn}${machinePanel}</div></div>`;

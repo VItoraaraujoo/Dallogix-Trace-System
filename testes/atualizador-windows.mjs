@@ -16,6 +16,8 @@ test("quiosque bloqueia gestos de zoom e navegação por deslize", () => {
 
 test("quiosque tenta recuperar travamentos do WebView com limite de tentativas", () => {
   assert.match(desktopProgram, /ProcessFailed \+= RecoverWebViewAfterRendererFailure/);
+assert.match(desktopProgram, /NavigationCompleted \+= RecoverWebViewAfterNavigationFailure/);
+assert.match(desktopProgram, /CoreWebView2WebErrorStatus\.OperationCanceled/);
   assert.match(desktopProgram, /CoreWebView2ProcessFailedKind\.RenderProcessExited/);
   assert.match(desktopProgram, /CoreWebView2ProcessFailedKind\.RenderProcessUnresponsive/);
   assert.match(desktopProgram, /webRecoveryAttempts >= 3/);

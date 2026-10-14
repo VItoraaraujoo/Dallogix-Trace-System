@@ -5,11 +5,12 @@ import {
   paradaPodeSubstituirInicio,
   podeLiberarEmergencia,
   podeVincularDala,
+  alternarTecladoLeituraManual,
   workControlLocks,
   work,
 } from "../interface/telas/operacao/operacao.js";
 import { resolverComandoAtual } from "../interface/js/funcoes/estado-comando.js";
-import { captureOperationScanner, restoreOperationScanner, changeOperationLoading, operationStructureSignature } from "../interface/js/controladores/operacao.js";
+import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, changeOperationLoading, operationStructureSignature } from "../interface/js/controladores/operacao.js";
 import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js";
 
 test("somente administrador da empresa e supervisor recebem a ação de vincular Dala", () => {
@@ -53,6 +54,53 @@ test("a confirmação de código envia o formulário e deixa espaço para feedba
   assert.match(markup, /data-action="identify-reading" type="submit"/);
   assert.match(markup, /inputmode="text"/);
   assert.match(markup, /class="form-feedback" data-form-feedback role="status"/);
+});
+
+test("a leitura principal oferece entrada pelo teclado touch sem perder o leitor", () => {
+  const markup = work({ state: {
+    selectedLoadingId: 7,
+    loadingId: 7,
+    activeLoadings: [{ id: 7, state: "CARREGANDO", equipment_id: 3 }],
+    loadingItems: [],
+    equipmentCode: "D-003",
+    romaneio: "R-7",
+    truck: "ABC1234",
+    operationalState: "CARREGANDO",
+    detectedBags: 0,
+    planned: 1,
+    loaded: 0,
+    userRole: "USUARIO",
+    commandInFlight: false,
+    emergency: false,
+    pendingReadings: [],
+  } });
+  assert.match(markup, /inputmode="none"/);
+  assert.match(markup, /class="button ghost small manual-reading-keyboard-toggle" type="button" aria-pressed="false">Digitar código/);
+});
+
+test("alternar teclado touch mantém o leitor de código como modo reversível", () => {
+  const attributes = new Map([["inputmode", "none"]]);
+  const input = {
+    disabled: false,
+    getAttribute: (name) => attributes.get(name) || null,
+    setAttribute: (name, value) => attributes.set(name, value),
+    focus(options) { this.focusOptions = options; },
+  };
+  const button = {
+    textContent: "Digitar código",
+    setAttribute(name, value) { this[name] = value; },
+  };
+
+  assert.equal(alternarTecladoLeituraManual(input, button), true);
+  assert.equal(attributes.get("inputmode"), "text");
+  assert.equal(button.textContent, "Usar leitor");
+  assert.equal(button["aria-pressed"], "true");
+  assert.deepEqual(input.focusOptions, { preventScroll: true });
+
+  assert.equal(alternarTecladoLeituraManual(input, button), false);
+  assert.equal(attributes.get("inputmode"), "none");
+  assert.equal(button.textContent, "Digitar código");
+  assert.equal(button["aria-pressed"], "false");
 });
 
 test("parada pode substituir um início ainda pendente em pausa", () => {
@@ -185,6 +233,54 @@ test("erro final do gateway fica visível na tela de operação", () => {
   assert.match(markup, /Tempo limite Modbus; estado físico não confirmado\./);
   assert.match(markup, /class="work-command-history" role="status"/);
   assert.match(markup, /Último comando \(Iniciar carregamento\)/);
+});
+
+test("divergência mantém alerta, pausa do gateway e confirmação física explícita", () => {
+  const markup = work({ state: {
+    selectedLoadingId: 7,
+    loadingId: 7,
+    activeLoadings: [{ id: 7, state: "PAUSADO", equipment_id: 3 }],
+    loadingItems: [],
+    equipmentCode: "EST-001",
+    romaneio: "7",
+    truck: "ABC1234",
+    operationalState: "PAUSADO",
+    stopReason: "PRODUTO_INCORRETO",
+    operatorAlert: "Produto incorreto detectado. Remova a unidade.",
+    detectedBags: 1,
+    planned: 1,
+    loaded: 0,
+    userRole: "USUARIO",
+    pendingReadings: [],
+    plcCommand: { command: "PAUSAR_CARREGAMENTO", status: "ERRO", response_message: "Timeout Modbus" },
+  } });
+
+  assert.match(markup, /Produto incorreto detectado\. Remova a unidade\./);
+  assert.match(markup, /O gateway não confirmou a parada: Timeout Modbus/);
+  assert.match(markup, /name="confirmar_remocao" value="true" required/);
+  assert.match(markup, /a esteira está fisicamente parada/);
+  assert.match(markup, /data-action="run"[^>]*disabled/);
+});
+
+test("cancelamento da parada pendente após confirmação é mostrado como informação", () => {
+  const markup = work({ state: {
+    selectedLoadingId: 7,
+    loadingId: 7,
+    activeLoadings: [{ id: 7, state: "PAUSADO", equipment_id: 3 }],
+    loadingItems: [],
+    equipmentCode: "EST-001",
+    operationalState: "PAUSADO",
+    userRole: "USUARIO",
+    reversalCommand: "REVERSAO_DESATIVAR",
+    pendingReadings: [],
+    plcCommand: {
+      command: "PAUSAR_CARREGAMENTO",
+      status: "REJEITADO",
+      response_message: "Solicitação cancelada após confirmação física do operador, antes de ser reservada pelo gateway.",
+    },
+  } });
+  assert.match(markup, /Parada cancelada antes do envio ao gateway/);
+  assert.doesNotMatch(markup, /class="work-command-error" role="alert"/);
 });
 
 test("início pendente deixa a parada e a emergência disponíveis", () => {
@@ -859,6 +955,24 @@ test("quadro vazio remove a seleção quando não há comando pendente", async (
   assert.deepEqual(armazenamento.state.activeLoadings, []);
 });
 
+test("snapshot ativo preserva a causa da pausa e o aviso do operador", async () => {
+  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  armazenamento.state = { loadingId: 7, selectedLoadingId: 7, activeLoadings: [] };
+  armazenamento.activeLoadingRefresh = Promise.resolve();
+  const loading = {
+    id: 7,
+    state: "PAUSADO",
+    equipment_id: 3,
+    stop_reason: "EXCESSO",
+    operator_alert: "Remova a unidade excedente e confirme para continuar.",
+  };
+
+  await armazenamento.applyActiveLoadingSnapshot([loading], 7);
+
+  assert.equal(armazenamento.state.stopReason, "EXCESSO");
+  assert.equal(armazenamento.state.operatorAlert, loading.operator_alert);
+});
+
 test("excesso total de leituras válidas gera alerta de conferência", () => {
   const markup = work({ state: {
     selectedLoadingId: 7,
@@ -889,14 +1003,36 @@ test("comandos normais respeitam os perfis aceitos pelo endpoint", () => {
   }
 });
 
-test("estado finalizando explica o bloqueio de parada", () => {
+test("estado finalizando mantém a parada disponível como ação de segurança", () => {
   const locks = workControlLocks({
     loadingId: 7,
     operationalState: "FINALIZANDO",
     running: true,
     userRole: "USUARIO",
   });
-  assert.match(locks.stop, /finalizando/);
+  assert.equal(locks.stop, "");
+  assert.match(locks.run, /finalizando/);
+});
+
+test("assinatura da Operação muda quando a parada pendente muda", () => {
+  const base = { selectedLoadingId: 7, loadingId: 7, activeLoadings: [], pendingReadings: [], loadingItems: [] };
+  const original = operationStructureSignature({ ...base, stopReason: null, operatorAlert: "" }, true);
+  assert.notEqual(operationStructureSignature({ ...base, stopReason: "EXCESSO", operatorAlert: "Remova a unidade." }, true), original);
+});
+
+test("foco do leitor é restaurado sem roubar foco de outro campo de entrada", () => {
+  let focusCalls = 0;
+  const scanner = { disabled: false, focus: () => { focusCalls += 1; } };
+  const correctionInput = { matches: (selector) => selector.includes("input"), focus: () => assert.fail("não deve roubar foco") };
+  const button = { matches: () => false };
+  const root = {
+    querySelector: () => scanner,
+    contains: (element) => [scanner, correctionInput, button].includes(element),
+  };
+
+  assert.equal(focusOperationScanner(root, correctionInput), false);
+  assert.equal(focusOperationScanner(root, button), true);
+  assert.equal(focusCalls, 1);
 });
 
 test("resposta de status atrasada de outra Dala não sobrescreve a seleção atual", async () => {
@@ -976,4 +1112,19 @@ test("CLP sem last_seen não é exibido como sem sinal há zero segundos", () =>
     }] },
   };
   assert.doesNotMatch(armazenamento.mensagemClpIndisponivel(), /0 segundos/);
+});
+
+test("heartbeat com zero segundo usa texto de menos de um segundo", () => {
+  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  armazenamento.state = {
+    equipmentId: 3,
+    monitoringUpdatedAt: new Date().toISOString(),
+    monitoring: { dispositivos: [{
+      equipment_id: 3,
+      device_type: "CLP",
+      status: "OFFLINE",
+      segundos_sem_sinal: 0,
+    }] },
+  };
+  assert.match(armazenamento.mensagemClpIndisponivel(), /há menos de 1 segundo/);
 });

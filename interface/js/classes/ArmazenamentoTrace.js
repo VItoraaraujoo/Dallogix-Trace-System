@@ -1,5 +1,5 @@
 import { OfflineOperationBuffer, secureRandomId } from "./OfflineOperationBuffer.js?v=20260930-security01";
-import { ClienteApi, erroRespostaHttp } from "../api/ClienteApi.js?v=202610060001";
+import { ClienteApi, erroRespostaHttp } from "../api/ClienteApi.js?v=202610140003";
 import { ServicoSincronizacao } from "../servicos/ServicoSincronizacao.js?v=202610060007";
 import { resolverComandoAtual } from "../funcoes/estado-comando.js?v=202610130003";
 
@@ -20,6 +20,8 @@ export class ArmazenamentoTrace {
       activeLoadings: [],
       loadingItems: [],
       operationalState: "AGUARDANDO",
+      stopReason: null,
+      operatorAlert: "",
       truck: "—",
       romaneio: "—",
       equipmentCode: "—",
@@ -502,6 +504,8 @@ export class ArmazenamentoTrace {
       this.state.running = false;
       this.state.emergency = false;
       this.state.operationalState = "AGUARDANDO";
+      this.state.stopReason = null;
+      this.state.operatorAlert = "";
       this.state.truck = "—";
       this.state.romaneio = "—";
       this.state.equipmentCode = "—";
@@ -522,6 +526,8 @@ export class ArmazenamentoTrace {
     this.state.loadingId = Number(loading.id);
     this.state.selectedLoadingId = Number(loading.id);
     this.state.operationalState = loading.state;
+    this.state.stopReason = loading.stop_reason || null;
+    this.state.operatorAlert = loading.operator_alert || "";
     this.state.emergency = loading.state === "EMERGENCIA";
     this.state.running = ["CARREGANDO", "FINALIZANDO"].includes(loading.state);
     this.state.planned = Number(loading.planned_quantity) || 0;
@@ -564,7 +570,9 @@ export class ArmazenamentoTrace {
     const seconds = rawSeconds === null || rawSeconds === undefined || rawSeconds === ""
       ? Number.NaN
       : Number(rawSeconds);
-    const time = Number.isFinite(seconds) && seconds >= 0 ? ` há ${seconds} segundos` : "";
+    const time = Number.isFinite(seconds) && seconds >= 0
+      ? ` há ${seconds === 0 ? "menos de 1 segundo" : `${seconds} segundos`}`
+      : "";
     if (!device || status === "NAO_REGISTRADO") {
       return "CLP sem status registrado. Novos comandos estão bloqueados até chegar um heartbeat válido.";
     }
@@ -788,6 +796,18 @@ export class ArmazenamentoTrace {
     const result = await this.jsonResponse(response, "Não foi possível registrar a leitura manual.");
     await this.loadActiveLoading(loadingId);
     await this.loadPendingReadings();
+    return result.data;
+  }
+  async confirmStopRemoval(loadingId = this.state.loadingId) {
+    const id = Number(loadingId) || 0;
+    if (!id) throw new Error("Nenhum carregamento selecionado.");
+    const response = await this.api.fetch("/api/confirmar_remocao.php", {
+      method: "POST",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify({ carregamento_id: id, confirmar_remocao: true }),
+    });
+    const result = await this.jsonResponse(response, "Não foi possível registrar a confirmação de segurança.");
+    await this.loadActiveLoading(id);
     return result.data;
   }
   async identifyReading(readingId, barcode) {

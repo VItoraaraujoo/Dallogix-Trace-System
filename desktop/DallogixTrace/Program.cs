@@ -178,6 +178,7 @@ internal sealed class TraceForm : Form
                 ShowFailure("A interface local não respondeu em 15 segundos ou foi recusada pelo WebView2. Confira o estado do nginx e do PHP.");
                 return;
             }
+            web.CoreWebView2.NavigationCompleted += RecoverWebViewAfterNavigationFailure;
             web.Visible = true;
             loadingPanel.Visible = false;
             web.BringToFront();
@@ -206,6 +207,21 @@ internal sealed class TraceForm : Form
         }
     }
 
+    private async void RecoverWebViewAfterNavigationFailure(
+        object? sender,
+        CoreWebView2NavigationCompletedEventArgs args
+    )
+    {
+        if (args.IsSuccess ||
+            args.WebErrorStatus == CoreWebView2WebErrorStatus.OperationCanceled ||
+            webRecoveryInProgress)
+        {
+            return;
+        }
+
+        await RecoverWebViewAsync("A navegação da interface falhou. Tentando restaurar a tela...");
+    }
+
     private async void RecoverWebViewAfterRendererFailure(
         object? sender,
         CoreWebView2ProcessFailedEventArgs args
@@ -219,6 +235,12 @@ internal sealed class TraceForm : Form
             return;
         }
 
+        await RecoverWebViewAsync("A interface parou de responder. Recuperando a tela...");
+    }
+
+    private async Task RecoverWebViewAsync(string statusMessage)
+    {
+        if (webRecoveryInProgress) return;
         var now = DateTime.UtcNow;
         if (now - lastWebRecoveryAttempt > TimeSpan.FromMinutes(5))
         {
@@ -236,7 +258,7 @@ internal sealed class TraceForm : Form
         web.Visible = false;
         loadingPanel.Visible = true;
         loadingPanel.BringToFront();
-        SetLoadingStatus("A interface parou de responder. Recuperando a tela...");
+        SetLoadingStatus(statusMessage);
         try
         {
             await Task.Delay(TimeSpan.FromSeconds(1));
