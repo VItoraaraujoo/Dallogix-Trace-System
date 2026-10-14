@@ -18,6 +18,18 @@ export class ErroApi extends Error {
 
 const METODOS_SEGUROS = new Set(["GET", "HEAD", "OPTIONS"]);
 const RETRY_STATUS = new Set([408, 425, 429, 502, 503, 504]);
+const JANELA_ATIVIDADE_USUARIO_MS = 60_000;
+let ultimaAtividadeUsuarioEm = 0;
+
+export function registrarAtividadeDeUsuario() {
+  ultimaAtividadeUsuarioEm = Date.now();
+}
+
+if (globalThis.window?.addEventListener) {
+  for (const evento of ["pointerdown", "keydown", "touchstart", "wheel"]) {
+    globalThis.window.addEventListener(evento, registrarAtividadeDeUsuario, { capture: true, passive: true });
+  }
+}
 
 const MENSAGENS_HTTP = new Map([
   [400, "A requisição é inválida."],
@@ -76,6 +88,14 @@ function mensagemDeErro(error, url) {
   return error?.message || "Não foi possível comunicar com o servidor.";
 }
 
+function copiarCabecalhos(headers) {
+  if (Array.isArray(headers)) return Object.fromEntries(headers);
+  if (typeof Headers !== "undefined" && headers instanceof Headers) {
+    return Object.fromEntries(headers.entries());
+  }
+  return { ...(headers || {}) };
+}
+
 function sinalComPrazo(signal, timeoutMs) {
   const controller = new AbortController();
   let timer = null;
@@ -124,11 +144,21 @@ export class ClienteApi {
     const navigationSignal = canRetry ? this.navigationController?.signal : undefined;
     const callerSignal = options.signal || navigationSignal;
     const { timeoutMs: _timeout, retry: _retry, ...requestOptions } = options;
+    const headers = copiarCabecalhos(requestOptions.headers);
+    if (
+      ultimaAtividadeUsuarioEm > 0 &&
+      Date.now() - ultimaAtividadeUsuarioEm <= JANELA_ATIVIDADE_USUARIO_MS
+    ) {
+      const activityHeader = Object.keys(headers).find(
+        (name) => name.toLowerCase() === "x-trace-user-activity",
+      ) || "X-Trace-User-Activity";
+      headers[activityHeader] = "1";
+    }
 
     for (let attempt = 0; attempt <= attempts; attempt += 1) {
       const request = sinalComPrazo(callerSignal, timeoutMs);
       try {
-        const response = await fetch(url, { ...requestOptions, signal: request.signal });
+        const response = await fetch(url, { ...requestOptions, headers, signal: request.signal });
         if (response.ok || !canRetry || !RETRY_STATUS.has(response.status) || attempt >= attempts) {
           return response;
         }

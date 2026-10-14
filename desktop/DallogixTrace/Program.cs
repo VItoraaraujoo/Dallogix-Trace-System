@@ -28,6 +28,9 @@ internal sealed class TraceForm : Form
     private readonly Panel loadingPanel = new();
     private readonly Label loadingStatus = new();
     private readonly ProgressBar loadingProgress = new();
+    private bool webRecoveryInProgress;
+    private int webRecoveryAttempts;
+    private DateTime lastWebRecoveryAttempt = DateTime.MinValue;
 
     public TraceForm()
     {
@@ -164,36 +167,99 @@ internal sealed class TraceForm : Form
             web.CoreWebView2.Settings.AreDevToolsEnabled = false;
             web.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             web.CoreWebView2.Settings.AreBrowserAcceleratorKeysEnabled = false;
+            web.CoreWebView2.Settings.IsZoomControlEnabled = false;
+            web.CoreWebView2.Settings.IsPinchZoomEnabled = false;
+            web.CoreWebView2.Settings.IsSwipeNavigationEnabled = false;
+            web.CoreWebView2.ProcessFailed += RecoverWebViewAfterRendererFailure;
             web.BackColor = Color.FromArgb(9, 27, 42);
             SetLoadingStatus("Abrindo a interface local...");
-            var navigation = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-            EventHandler<CoreWebView2NavigationCompletedEventArgs>? navigationCompleted = null;
-            navigationCompleted = (_, args) => navigation.TrySetResult(args.IsSuccess);
-            web.CoreWebView2.NavigationCompleted += navigationCompleted;
-            web.CoreWebView2.Navigate(TraceUrl);
-            try
+            if (!await NavigateToTraceAsync(TimeSpan.FromSeconds(15)))
             {
-                var completed = await Task.WhenAny(navigation.Task, Task.Delay(TimeSpan.FromSeconds(15)));
-                if (completed != navigation.Task)
-                {
-                    ShowFailure("A interface local não respondeu em 15 segundos. Confira o estado do nginx e do PHP.");
-                    return;
-                }
-                if (!await navigation.Task)
-                {
-                    ShowFailure("A interface local não pôde ser carregada pelo WebView2.");
-                    return;
-                }
-                web.Visible = true;
-                loadingPanel.Visible = false;
-                web.BringToFront();
+                ShowFailure("A interface local não respondeu em 15 segundos ou foi recusada pelo WebView2. Confira o estado do nginx e do PHP.");
+                return;
             }
-            finally
+            web.Visible = true;
+            loadingPanel.Visible = false;
+            web.BringToFront();
+        }
+        catch (Exception error) { ShowFailure($"Não foi possível iniciar o Trace. {error.Message}"); }
+    }
+
+    private async Task<bool> NavigateToTraceAsync(TimeSpan timeout)
+    {
+        var navigation = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        EventHandler<CoreWebView2NavigationCompletedEventArgs>? navigationCompleted = null;
+        navigationCompleted = (_, args) => navigation.TrySetResult(args.IsSuccess);
+        web.CoreWebView2.NavigationCompleted += navigationCompleted;
+        try
+        {
+            web.CoreWebView2.Navigate(TraceUrl);
+            var completed = await Task.WhenAny(navigation.Task, Task.Delay(timeout));
+            return completed == navigation.Task && await navigation.Task;
+        }
+        finally
+        {
+            if (web.CoreWebView2 is not null)
             {
                 web.CoreWebView2.NavigationCompleted -= navigationCompleted;
             }
         }
-        catch (Exception error) { ShowFailure($"Não foi possível iniciar o Trace. {error.Message}"); }
+    }
+
+    private async void RecoverWebViewAfterRendererFailure(
+        object? sender,
+        CoreWebView2ProcessFailedEventArgs args
+    )
+    {
+        if (args.ProcessFailedKind is not (
+            CoreWebView2ProcessFailedKind.RenderProcessExited or
+            CoreWebView2ProcessFailedKind.RenderProcessUnresponsive
+        ) || webRecoveryInProgress)
+        {
+            return;
+        }
+
+        var now = DateTime.UtcNow;
+        if (now - lastWebRecoveryAttempt > TimeSpan.FromMinutes(5))
+        {
+            webRecoveryAttempts = 0;
+        }
+        lastWebRecoveryAttempt = now;
+        if (webRecoveryAttempts >= 3)
+        {
+            ShowFailure("A interface parou de responder repetidamente. Feche e abra o Trace e verifique os logs do PC industrial.", "A interface do Trace parou");
+            return;
+        }
+
+        webRecoveryInProgress = true;
+        webRecoveryAttempts += 1;
+        web.Visible = false;
+        loadingPanel.Visible = true;
+        loadingPanel.BringToFront();
+        SetLoadingStatus("A interface parou de responder. Recuperando a tela...");
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1));
+            if (IsDisposed || web.IsDisposed || web.CoreWebView2 is null)
+            {
+                return;
+            }
+            if (!await NavigateToTraceAsync(TimeSpan.FromSeconds(15)))
+            {
+                throw new TimeoutException("A tela não respondeu durante a recuperação.");
+            }
+            web.Visible = true;
+            loadingPanel.Visible = false;
+            web.BringToFront();
+        }
+        catch (Exception error)
+        {
+            ShowFailure($"A interface local não conseguiu se recuperar. {error.Message}", "A interface do Trace parou");
+        }
+        finally
+        {
+            webRecoveryInProgress = false;
+        }
     }
 
     private static string FindDockerCli()
@@ -279,7 +345,7 @@ internal sealed class TraceForm : Form
         return (process.ExitCode, await output, await error);
     }
 
-    private void ShowFailure(string message)
+    private void ShowFailure(string message, string titleText = "Não foi possível iniciar o Trace")
     {
         Controls.Clear();
         var panel = new Panel { Dock = DockStyle.Fill, BackColor = Color.FromArgb(9, 27, 42), Padding = new Padding(48) };
@@ -298,7 +364,7 @@ internal sealed class TraceForm : Form
             Dock = DockStyle.Fill,
             Font = new Font("Segoe UI", 24, FontStyle.Bold),
             ForeColor = Color.White,
-            Text = "Não foi possível iniciar o Trace",
+            Text = titleText,
             TextAlign = ContentAlignment.MiddleCenter,
         };
         var detail = new Label

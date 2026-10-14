@@ -265,6 +265,15 @@ function &trace_contexto_sessao(): array
     return $_SESSION["_trace_tabs"][$tabId];
 }
 
+function trace_requisicao_conta_como_atividade(): bool
+{
+    $method = strtoupper(trim((string) ($_SERVER["REQUEST_METHOD"] ?? "GET")));
+    if (!in_array($method, ["GET", "HEAD", "OPTIONS"], true)) {
+        return true;
+    }
+    return trim((string) ($_SERVER["HTTP_X_TRACE_USER_ACTIVITY"] ?? "")) === "1";
+}
+
 session_name("dallogix_trace_session");
 $appUrl = strtolower(trim((string) (getenv("APP_URL") ?: "")));
 $isSecureSession =
@@ -319,7 +328,9 @@ if ($startSession) {
         }
     }
     $sessionContext =& trace_contexto_sessao();
-    $sessionContext["last_activity"] = time();
+    if (trace_requisicao_conta_como_atividade()) {
+        $sessionContext["last_activity"] = time();
+    }
     unset($sessionContext);
 }
 trace_correlation_id();

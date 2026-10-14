@@ -6,6 +6,21 @@ const updaterRegistration = readFileSync(new URL("../implantacao/windows/Registe
 const updaterScript = readFileSync(new URL("../implantacao/windows/TraceUpdater.ps1", import.meta.url), "utf8");
 const machineInstaller = readFileSync(new URL("../implantacao/windows/Install-TraceMachine.ps1", import.meta.url), "utf8");
 const dockerStarter = readFileSync(new URL("../implantacao/windows/Start-TraceDocker.ps1", import.meta.url), "utf8");
+const desktopProgram = readFileSync(new URL("../desktop/DallogixTrace/Program.cs", import.meta.url), "utf8");
+
+test("quiosque bloqueia gestos de zoom e navegação por deslize", () => {
+  assert.match(desktopProgram, /Settings\.IsZoomControlEnabled = false/);
+  assert.match(desktopProgram, /Settings\.IsPinchZoomEnabled = false/);
+  assert.match(desktopProgram, /Settings\.IsSwipeNavigationEnabled = false/);
+});
+
+test("quiosque tenta recuperar travamentos do WebView com limite de tentativas", () => {
+  assert.match(desktopProgram, /ProcessFailed \+= RecoverWebViewAfterRendererFailure/);
+  assert.match(desktopProgram, /CoreWebView2ProcessFailedKind\.RenderProcessExited/);
+  assert.match(desktopProgram, /CoreWebView2ProcessFailedKind\.RenderProcessUnresponsive/);
+  assert.match(desktopProgram, /webRecoveryAttempts >= 3/);
+  assert.match(desktopProgram, /NavigateToTraceAsync\(TimeSpan\.FromSeconds\(15\)\)/);
+});
 
 test("atualizador estável fica agendado diariamente com a conta SYSTEM", () => {
   assert.match(updaterRegistration, /\$taskName = 'Dallogix Trace Atualizacao Estavel'/);
