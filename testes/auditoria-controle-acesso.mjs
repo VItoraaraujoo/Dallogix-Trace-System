@@ -43,7 +43,10 @@ test("REST e SSE compartilham o snapshot filtrado de carregamentos ativos", () =
   assert.match(endpoint, /new ServicoMonitoramento\(\$pdo\)/);
   assert.match(endpoint, /carregamentosAtivos\(\(int\) \$usuarioAtor\["company_id"\]\)/);
   assert.match(service, /WITH carregamentos_ativos AS/);
-  assert.match(service, /JOIN carregamentos_ativos ca ON ca\.id = se\.carregamento_id/);
+  assert.match(
+    service,
+    /JOIN carregamentos_ativos ca\s+ON ca\.id = se\.carregamento_id AND ca\.equipment_id = se\.equipment_id/,
+  );
   assert.match(service, /COALESCE\(ed\.detected_bags, 0\) AS detected_bags/);
   assert.doesNotMatch(endpoint, /eventos_detectados|quantidades_planejadas/);
 });

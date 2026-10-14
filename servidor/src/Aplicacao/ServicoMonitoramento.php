@@ -137,10 +137,11 @@ final class ServicoMonitoramento
                  AND (ri.truck_id = ca.truck_id OR ri.truck_id IS NULL)
                 GROUP BY ca.id
             ), eventos_detectados AS (
-                SELECT se.carregamento_id, COUNT(*) AS detected_bags
+                SELECT se.carregamento_id, se.equipment_id, COUNT(*) AS detected_bags
                 FROM eventos_sensor se
-                JOIN carregamentos_ativos ca ON ca.id = se.carregamento_id
-                GROUP BY se.carregamento_id
+                JOIN carregamentos_ativos ca
+                  ON ca.id = se.carregamento_id AND ca.equipment_id = se.equipment_id
+                GROUP BY se.carregamento_id, se.equipment_id
             ), alertas_fim_produto AS (
                 SELECT la.entity_id AS carregamento_id,
                        JSON_UNQUOTE(JSON_EXTRACT(la.metadata, '$.message')) AS end_product_alert,
@@ -163,7 +164,8 @@ final class ServicoMonitoramento
             JOIN romaneio_caminhoes rt ON rt.id = ca.truck_id
             LEFT JOIN equipamentos e ON e.id = ca.equipment_id
             LEFT JOIN quantidades_romaneio qr ON qr.carregamento_id = ca.id
-            LEFT JOIN eventos_detectados ed ON ed.carregamento_id = ca.id
+            LEFT JOIN eventos_detectados ed
+              ON ed.carregamento_id = ca.id AND ed.equipment_id = ca.equipment_id
             LEFT JOIN alertas_fim_produto afp
               ON afp.carregamento_id = ca.id AND afp.rn = 1
             ORDER BY ca.id DESC",
