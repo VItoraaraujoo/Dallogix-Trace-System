@@ -28,10 +28,9 @@ $statement->execute(["image_cutoff" => $cutoff, "request_cutoff" => $cutoff]);
 $removed = 0;
 $failed = 0;
 foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $image) {
-    $absolutePath = trace_image_storage_path($root . '/armazenamento', (string) $image['path']);
     // Não apague o registro se a evidência estiver ausente, for um symlink
     // para fora do armazenamento ou não puder ser removida.
-    if ($absolutePath === null || !unlink($absolutePath)) {
+    if (trace_remove_image_storage_file($root . '/armazenamento', (string) $image['path']) !== true) {
         $failed++;
         continue;
     }

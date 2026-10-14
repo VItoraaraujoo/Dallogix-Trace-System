@@ -17,6 +17,7 @@ if (!$requestId || !is_array($upload) || ($upload['error'] ?? UPLOAD_ERR_NO_FILE
     || !is_string($upload['tmp_name'] ?? null) || !is_uploaded_file($upload['tmp_name'])) {
     json_response(['error' => 'Envie request_id e uma imagem da câmera.'], 422);
 }
+$requestId = (int) $requestId;
 $bytes = filesize($upload['tmp_name']);
 if ($bytes === false || $bytes < 1 || $bytes > 5 * 1024 * 1024) {
     json_response(['error' => 'Imagem vazia ou acima de 5 MB.'], 413);
@@ -64,30 +65,35 @@ if ($storageRoot === false) {
     json_response(['error' => 'Armazenamento de evidências indisponível.'], 503);
 }
 $relativeFolder = 'company_' . (int) $device['company_id'] . '/equipment_' . (int) $device['equipment_id'];
-$folder = $storageRoot . '/' . $relativeFolder;
-if (!is_dir($folder) && !mkdir($folder, 0700, true) && !is_dir($folder)) {
+$resolvedFolder = trace_prepare_image_storage_directory($storageRoot, $relativeFolder);
+if ($resolvedFolder === null) {
     json_response(['error' => 'Não foi possível preparar a pasta de evidências.'], 503);
 }
-$resolvedFolder = realpath($folder);
-if ($resolvedFolder === false || !str_starts_with($resolvedFolder, $storageRoot . DIRECTORY_SEPARATOR)) {
-    json_response(['error' => 'Pasta de evidências inválida.'], 503);
-}
 $filename = 'capture-' . $requestId . '-' . $sha256 . '.pdf';
-$destination = $resolvedFolder . DIRECTORY_SEPARATOR . $filename;
 $storedPdfPath = $relativeFolder . '/' . $filename;
 if (is_string($request['evidence_pdf_path'] ?? null) && $request['evidence_pdf_path'] !== $storedPdfPath) {
     json_response(['error' => 'Esta captura já recebeu outro PDF de evidência.'], 409);
 }
-$alreadyStored = is_file($destination);
+$destination = trace_image_storage_path($storageRoot, $storedPdfPath);
+// nosemgrep: php.lang.security.injection.tainted-filename.tainted-filename -- Pasta canônica; nome usa o ID inteiro validado e SHA-256 gerado pelo servidor.
+if ($destination === null && is_link($resolvedFolder . DIRECTORY_SEPARATOR . $filename)) {
+    json_response(['error' => 'Nome de evidência PDF já ocupado por um link simbólico.'], 409);
+}
+$alreadyStored = $destination !== null;
+if (!$alreadyStored) {
+    $destination = $resolvedFolder . DIRECTORY_SEPARATOR . $filename;
+}
+// nosemgrep: php.lang.security.injection.tainted-filename.tainted-filename -- Destino existente vem do resolvedor, que recusa travessia e componentes com link simbólico.
 if ($alreadyStored && hash_file('sha256', $destination) !== $sha256) {
     json_response(['error' => 'Nome de evidência PDF já ocupado por outro arquivo.'], 409);
 }
 if (!$alreadyStored) {
-    $temporary = $destination . '.tmp-' . bin2hex(random_bytes(8));
+    $temporaryRelativePath = $storedPdfPath . '.tmp-' . bin2hex(random_bytes(8));
+    $temporary = $resolvedFolder . DIRECTORY_SEPARATOR . basename($temporaryRelativePath);
     if (file_put_contents($temporary, $pdfBytes, LOCK_EX) !== strlen($pdfBytes)
         || !chmod($temporary, 0600) || !rename($temporary, $destination)) {
         if (is_file($temporary)) {
-            unlink($temporary);
+            trace_remove_image_storage_file($storageRoot, $temporaryRelativePath);
         }
         json_response(['error' => 'Falha ao guardar o PDF de evidência.'], 503);
     }
@@ -95,7 +101,7 @@ if (!$alreadyStored) {
 if (trace_camera_evidence_pdf_path($storageRoot, (int) $device['company_id'],
     (int) $device['equipment_id'], (int) $requestId, $storedPdfPath) === null) {
     if (!$alreadyStored) {
-        unlink($destination);
+        trace_remove_image_storage_file($storageRoot, $storedPdfPath);
     }
     json_response(['error' => 'O PDF de evidência não pôde ser validado.'], 422);
 }
@@ -121,8 +127,9 @@ try {
         throw new RuntimeException('O caminho do PDF não foi confirmado pela solicitação de captura.');
     }
 } catch (Throwable $exception) {
+    // nosemgrep: php.lang.security.injection.tainted-filename.tainted-filename -- Verificação limitada à pasta canônica e ao nome de evidência gerado pelo servidor.
     if (!$alreadyStored && is_file($destination)) {
-        unlink($destination);
+        trace_remove_image_storage_file($storageRoot, $storedPdfPath);
     }
     json_response(['error' => 'Não foi possível vincular o PDF à solicitação de captura.'], 503);
 }

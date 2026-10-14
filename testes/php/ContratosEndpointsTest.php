@@ -111,6 +111,21 @@ final class ContratosEndpointsTest extends TestCase
         self::assertStringContainsString("remote_product_id", $migration);
     }
 
+    public function testSnapshotSincronizaRomaneiosDaApiComAInstalacaoDaDala(): void
+    {
+        $snapshot = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao/sincronizacao_instalacao.php");
+        $service = file_get_contents(__DIR__ . "/../../servidor/src/Aplicacao/ServicoSincronizacaoRemota.php");
+        $migration = file_get_contents(__DIR__ . "/../../banco-de-dados/migrations/063_romaneios_api_atribuicao_instalacao.sql");
+
+        self::assertIsString($snapshot);
+        self::assertIsString($service);
+        self::assertIsString($migration);
+        self::assertStringContainsString('assigned_installation_id', $snapshot);
+        self::assertStringContainsString('"romaneios_disponiveis" => $availableManifests', $snapshot);
+        self::assertStringContainsString('sincronizarRomaneiosDisponiveis', $service);
+        self::assertStringContainsString('assigned_installation_id', $migration);
+    }
+
     public function testStatusDoPcNaoQuebraSemMigrationEMantemErrosReaisVisiveis(): void
     {
         $groups = ["empresas.php" => "empresas", "sync_status.php" => "sincronizacao", "diagnostico.php" => "sistema"];

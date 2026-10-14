@@ -16,6 +16,7 @@ final class SegurancaHardeningTest extends TestCase
             1 => ["pipe", "w"],
             2 => ["pipe", "w"],
         ];
+        // nosemgrep: php.lang.security.exec-use.exec-use -- Teste inicia o PHP fixo com argumentos separados; nenhum shell interpreta o código do teste.
         $process = proc_open(
             [PHP_BINARY, "-r", $codigo],
             $descriptors,

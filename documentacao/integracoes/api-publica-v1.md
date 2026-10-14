@@ -19,7 +19,7 @@ O segredo é mostrado uma única vez pelo provisionamento. O banco guarda soment
 As chaves são provisionadas no servidor Central, fora da tela operacional do PC industrial:
 
 ```text
-php scripts/provision_api_key.php --create --company-id=ID --name=ERP-CLIENTE --scopes=empresa:read,romaneios:read --expires-at=AAAA-MM-DDThh:mm:ssZ
+php scripts/provision_api_key.php --create --company-id=ID --name=ERP-CLIENTE --scopes=empresa:read,romaneios:read,romaneios:write --expires-at=AAAA-MM-DDThh:mm:ssZ
 php scripts/provision_api_key.php --list --company-id=ID
 php scripts/provision_api_key.php --revoke --id=ID_DA_INTEGRACAO
 ```
@@ -33,12 +33,13 @@ Para executar pelo Compose, use o serviço PHP do Central e o caminho `/var/www/
 
 ## Recursos disponíveis
 
-Todos os recursos são somente leitura na primeira versão. A chave pode receber um ou mais escopos:
+As consultas usam escopos de leitura. A primeira gravação pública cria romaneios e requer um escopo próprio. A chave pode receber um ou mais escopos:
 
 | Recurso | Escopo |
 | --- | --- |
 | `GET /empresa` | `empresa:read` |
 | `GET /romaneios` e `GET /romaneios/{id}` | `romaneios:read` |
+| `POST /romaneios` (cria romaneio, caminhão e itens) | `romaneios:write` |
 | `GET /carregamentos` e `GET /carregamentos/{id}` | `carregamentos:read` |
 | `GET /carregamentos/{id}/leituras` | `leituras:read` |
 | `GET /equipamentos` (inclui estado da comunicação do CLP) | `equipamentos:read` |
@@ -46,6 +47,8 @@ Todos os recursos são somente leitura na primeira versão. A chave pode receber
 | `GET /romaneios/{id}/relatorio.pdf` | `relatorios:read` |
 
 A raiz `/api/v1/` informa a versão e `/api/v1/openapi.yaml` entrega a especificação OpenAPI.
+
+Para criar um romaneio, envie `equipment_code`, `number`, `scheduled_date` (`AAAA-MM-DD`), `plate` e de 1 a 100 `items`. `equipment_code` deve identificar uma Dala vinculada a um PC industrial com sincronização configurada. Cada item informa `product_id` ou `product_code` e `quantity`. `expedidor` e `driver_name` são opcionais. A empresa é sempre derivada da chave; `company_id` e campos desconhecidos são recusados. O romaneio é atribuído ao PC daquela Dala e aparece na fila operacional após a sincronização. Um número repetido para a mesma Dala retorna `409 duplicate_romaneio`, sem duplicar dados. Use `GET /romaneios?number=...` para consultar um número após uma resposta perdida ou duplicada. O endpoint grava os dados de negócio e um registro de auditoria em uma transação. Não cria comandos, não altera configuração nem escreve no CLP.
 
 Exemplo de consulta:
 
@@ -93,4 +96,4 @@ Erros incluem um código estável e um identificador de requisição:
 
 Status usados: `401` chave ausente/inválida, `403` escopo insuficiente, `404` registro fora do escopo ou inexistente, `402` licença inativa, `405` método não permitido, `409` relatório ainda indisponível, `422` filtro/paginação inválidos, `429` limite de chamadas, `500` erro inesperado e `503` armazenamento/relatório indisponível.
 
-O tráfego é limitado pelo Nginx e todas as consultas são vinculadas à empresa da chave. A v1 não disponibiliza criação/alteração de romaneios nem comandos para CLP.
+O tráfego é limitado pelo Nginx e todos os acessos são vinculados à empresa da chave. A v1 permite criar romaneios, mas não permite alterá-los ou excluí-los. Nenhum endpoint da API pública envia comandos ou altera o CLP.

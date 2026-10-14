@@ -91,6 +91,7 @@ $source = str_replace("__DIR__ . '/../../../armazenamento'", 'TRACE_CAMERA_TEST_
 $source = preg_replace('/\A<\?php\s*/', '', $source, 1);
 define('TRACE_CAMERA_TEST_STORAGE', (string) getenv('TRACE_CAMERA_TEST_STORAGE'));
 try {
+    // nosemgrep: php.lang.security.eval-use.eval-use -- Executa endpoint do repositório com substituições do teste; o upload é dado e nunca código PHP.
     eval($source);
 } catch (CameraUploadResponse $response) {
     http_response_code($response->status);

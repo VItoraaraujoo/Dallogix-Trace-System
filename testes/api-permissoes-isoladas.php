@@ -103,6 +103,7 @@ if ($scenario === 'sync-reserved') {
 // eval já recebe código PHP: uma saída para HTML antes do declare viola strict_types no PHP 8.3.
 $code = preg_replace('/\A<\?php\s*/', '', $code, 1);
 try {
+    // nosemgrep: php.lang.security.eval-use.eval-use -- Executa somente o endpoint selecionado deste repositório após remover dependências do teste; dados da requisição não viram código.
     eval($code);
     throw new RuntimeException('Resposta ausente.');
 } catch (Result $result) {

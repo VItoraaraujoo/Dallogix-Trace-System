@@ -88,8 +88,8 @@ CREATE TABLE IF NOT EXISTS limites_login (
 UPDATE usuarios
 SET must_change_password = 1
 WHERE password_hash IN (
-  '$2y$10$ebOT1MqNyajFths8pCaJu.qE7MOSNMWkXYLan9LVzGSXFHIdgxK8C',
-  '$2y$12$rNW5syuIUQXWmnkzFzzCUOq7APYSVr.0iN9JIkPvCvoT0mfa/Bwm.'
+  '$2y$10$ebOT1MqNyajFths8pCaJu.qE7MOSNMWkXYLan9LVzGSXFHIdgxK8C', -- nosemgrep: generic.secrets.security.detected-bcrypt-hash.detected-bcrypt-hash -- Hash público de demonstração local; força troca de senha para contas existentes.
+  '$2y$12$rNW5syuIUQXWmnkzFzzCUOq7APYSVr.0iN9JIkPvCvoT0mfa/Bwm.' -- nosemgrep: generic.secrets.security.detected-bcrypt-hash.detected-bcrypt-hash -- Hash público de demonstração local; força troca de senha para contas existentes.
 );
 
 -- Consolida o estado atual da licença, preservando versões anteriores para consulta.

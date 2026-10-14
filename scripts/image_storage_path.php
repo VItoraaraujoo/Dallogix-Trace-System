@@ -64,18 +64,54 @@ function trace_image_storage_path(string $storageDirectory, string $storedPath):
     if ($storageRoot === false || trim($storedPath) === '') {
         return null;
     }
-    $relative = ltrim($storedPath, '/');
+
+    if (str_contains($storedPath, "\\") || str_contains($storedPath, "\0")) {
+        return null;
+    }
+    $storagePrefix = rtrim($storageRoot, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+    if (str_starts_with($storedPath, DIRECTORY_SEPARATOR)) {
+        if (!str_starts_with($storedPath, $storagePrefix)) {
+            return null;
+        }
+        $relative = substr($storedPath, strlen($storagePrefix));
+    } else {
+        $relative = $storedPath;
+    }
     if (str_starts_with($relative, 'armazenamento/')) {
         $relative = substr($relative, strlen('armazenamento/'));
     }
-    $candidate = str_starts_with($storedPath, '/')
-        ? $storedPath
-        : $storageRoot . DIRECTORY_SEPARATOR . $relative;
+
+    $segments = explode('/', $relative);
+    if ($relative === '' || in_array('', $segments, true)
+        || in_array('.', $segments, true) || in_array('..', $segments, true)) {
+        return null;
+    }
+    $candidate = $storageRoot;
+    foreach ($segments as $segment) {
+        $candidate .= DIRECTORY_SEPARATOR . $segment;
+        // Reject links in every component, including the final file. A realpath
+        // prefix check alone accepts internal links across company directories.
+        if (is_link($candidate)) {
+            return null;
+        }
+    }
     $resolved = realpath($candidate);
-    if ($resolved === false || !str_starts_with($resolved, $storageRoot . DIRECTORY_SEPARATOR) || !is_file($resolved)) {
+    if ($resolved === false || !str_starts_with($resolved, $storagePrefix) || !is_file($resolved)) {
         return null;
     }
     return $resolved;
+}
+
+/** Remove only an existing regular file resolved inside the evidence storage. */
+function trace_remove_image_storage_file(string $storageDirectory, string $storedPath): ?bool
+{
+    $resolved = trace_image_storage_path($storageDirectory, $storedPath);
+    if ($resolved === null) {
+        return null;
+    }
+
+    // nosemgrep: php.lang.security.unlink-use.unlink-use -- Caminho resolvido sob a raiz canônica; os componentes com link simbólico são recusados acima.
+    return unlink($resolved);
 }
 
 /** Confirma que a evidência enviada pertence exatamente à solicitação reservada. */
