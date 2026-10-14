@@ -64,7 +64,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
-      - name: Run clean MySQL migrations, HTTPS application, and backup regression
+      - name: Run clean MySQL migrations, HTTPS application, operation, and backup regression
         env:
           TRACE_PRODUCTION_TEST_PROJECT: trace-pr-${{ github.run_id }}-${{ github.run_attempt }}
           TRACE_PRODUCTION_TEST_STATE_DIR: ${{ runner.temp }}/trace-pr-${{ github.run_id }}-${{ github.run_attempt }}
@@ -74,6 +74,17 @@ jobs:
         run: |
           python3 scripts/production_test.py
           python3 testes/production_smoke.py
+          while IFS= read -r line; do
+            if [[ -z "$line" || "${line:0:1}" == "#" ]]; then continue; fi
+            export "$line"
+          done < "$TRACE_PRODUCTION_TEST_ENV_FILE"
+          export COMPOSE_FILE="$GITHUB_WORKSPACE/docker-compose.production-test.yml"
+          export COMPOSE_PROJECT_NAME="$TRACE_PRODUCTION_TEST_PROJECT"
+          export TRACE_BASE_URL="https://localhost:$TRACE_TEST_HTTPS_PORT"
+          export TRACE_REGRESSION_DISPOSABLE=1
+          export CURL_CA_BUNDLE="$TRACE_PRODUCTION_TEST_STATE_DIR/tls/fullchain.pem"
+          export TRACE_TEST_ADMIN_PASSWORD="$(python3 -c 'import json,sys;print(json.load(open(sys.argv[1]))["admin@dallogix.local"])' "$TRACE_PRODUCTION_TEST_STATE_DIR/acessos.json")"
+          bash testes/etapa38.sh
           python3 testes/production_backup.py
       - name: Remove this run's isolated containers and database volume
         if: always()
