@@ -26,6 +26,8 @@ As etapas HTTP `etapa<N>.sh` aplicam a mesma proteção quando executadas
 individualmente: exigem `TRACE_BASE_URL` loopback e
 `TRACE_REGRESSION_DISPOSABLE=1`. Seus cookies e arquivos temporários ficam em
 uma pasta privada exclusiva da execução e são removidos ao sair.
+`regressao_completa.sh` também exige `TRACE_DEVICE_TOKEN` provisionado somente
+na fixture descartável, pois as etapas de leitura simulam o heartbeat do CLP.
 
 As regressões isoladas `gateway-clp.mjs`, `operacoes-offline.mjs`,
 `camera-upload-http.mjs` e `modbus-transporte.py` não precisam do banco da

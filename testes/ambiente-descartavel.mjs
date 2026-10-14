@@ -5,6 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const helper = fileURLToPath(new URL("./lib/ambiente_descartavel.sh", import.meta.url));
+const regression = fileURLToPath(new URL("./regressao_completa.sh", import.meta.url));
 const invoke = (environment = {}) => {
   const env = { ...process.env, ...environment };
   for (const key of ["TRACE_BASE_URL", "TRACE_REGRESSION_DISPOSABLE"]) {
@@ -36,6 +37,20 @@ test("recusa um alvo que não seja loopback", () => {
   });
   assert.equal(result.status, 2);
   assert.match(result.stderr, /loopback/);
+});
+
+test("regressão completa exige token de CLP provisionado na fixture", () => {
+  const env = {
+    ...process.env,
+    TRACE_BASE_URL: "https://127.0.0.1:18443",
+    TRACE_REGRESSION_DISPOSABLE: "1",
+    COMPOSE_FILE: "docker-compose.production-test.yml",
+    COMPOSE_PROJECT_NAME: "trace-regression-preflight-test",
+  };
+  delete env.TRACE_DEVICE_TOKEN;
+  const result = spawnSync("bash", [regression], { encoding: "utf8", env });
+  assert.equal(result.status, 2);
+  assert.match(result.stderr, /TRACE_DEVICE_TOKEN provisionado somente na fixture descartável/);
 });
 
 test("normaliza loopback, restringe permissões e limpa o temporário ao sair", () => {

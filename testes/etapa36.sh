@@ -12,6 +12,7 @@ grep -q 'validarComando' servidor/src/Aplicacao/ServicoComandoClp.php || fail "r
 grep -q 'validarComando' servidor/api/operacoes/desbloquear_maquina.php || fail "desbloqueio sem validação de CLP"
 grep -q 'a cada \*\*1 segundo\*\*' integracoes/node-red/README.md || fail "heartbeat do gateway não atualizado"
 grep -q 'a cada 2 segundos' integracoes/node-red/README.md || fail "tentativa de reconexão não documentada"
-grep -q 'clpAvailable: typeof store.clpDisponivel' interface/telas/operacao/operacao.js || fail "tela de trabalho não bloqueia comandos sem CLP"
+grep -q 'typeof store.clpDisponivel === "function"' interface/telas/operacao/operacao.js || fail "tela de trabalho não consulta a disponibilidade do CLP"
+grep -q 'if (!clpAvailable)' interface/telas/operacao/operacao.js || fail "tela de trabalho não bloqueia comandos sem CLP"
 
 echo "OK: indisponibilidade do CLP bloqueia comandos na API e é apresentada ao operador."

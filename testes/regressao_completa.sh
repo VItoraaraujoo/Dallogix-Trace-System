@@ -4,6 +4,9 @@ set -u
 root="$(cd "$(dirname "$0")/.." && pwd)"
 pass=0
 fail_count=0
+fixture_loading_id=""
+fixture_equipment_id=""
+fixture_manifest_id=""
 umask 077
 fixture_state_dir="$(mktemp -d "${TMPDIR:-/tmp}/dallogix-trace-regression.XXXXXX")" || {
   echo "FAIL: não foi possível criar a pasta temporária privada da regressão." >&2
@@ -36,6 +39,10 @@ fi
 export TRACE_BASE_URL="$base_url"
 if [[ "${COMPOSE_FILE:-}" != *docker-compose.production-test.yml* || -z "${COMPOSE_PROJECT_NAME:-}" ]]; then
   echo "FAIL: configure COMPOSE_FILE=docker-compose.production-test.yml e um COMPOSE_PROJECT_NAME isolado." >&2
+  exit 2
+fi
+if [[ -z "${TRACE_DEVICE_TOKEN:-}" ]]; then
+  echo "FAIL: defina TRACE_DEVICE_TOKEN provisionado somente na fixture descartável." >&2
   exit 2
 fi
 
@@ -76,6 +83,7 @@ if printf '%s' "$login" | grep -q '"authenticated":true'; then
     manifest_date="$(date +%Y-%m-%d)"
     manifest="$(curl -sS -b "$fixture_cookie" -H "X-CSRF-Token: $admin_csrf" -H 'Content-Type: application/json' -d "{\"number\":\"$number\",\"scheduled_date\":\"$manifest_date\",\"plate\":\"$plate\",\"product_code\":\"PROD3\",\"planned_quantity\":20}" "$base_url/api/romaneios.php")"
     manifest_id="$(printf '%s' "$manifest" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
+    fixture_manifest_id="$manifest_id"
     truck_id="$(printf '%s' "$manifest" | sed -n 's/.*"truck_id":\([0-9][0-9]*\).*/\1/p')"
     equipment_ids="$(curl -sS -b "$fixture_cookie" "$base_url/api/equipamentos.php" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const x of (JSON.parse(s).data||[]).reverse()) console.log(x.id)})')"
     prepared=""
@@ -92,6 +100,8 @@ if printf '%s' "$login" | grep -q '"authenticated":true'; then
       exit 1
     fi
     loading_id="$(printf '%s' "$prepared" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
+    fixture_loading_id="$loading_id"
+    fixture_equipment_id="$equipment_id"
     if [[ -n "$loading_id" && -n "${TRACE_DEVICE_TOKEN:-}" ]]; then
       curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: ${TRACE_DEVICE_TOKEN}" \
         -d "{\"equipment_id\":${equipment_id},\"device_type\":\"CLP\",\"status\":\"ONLINE\"}" \
@@ -106,6 +116,34 @@ fi
 for i in $(seq 1 39); do
   test_file="$root/testes/etapa${i}.sh"
   [ -f "$test_file" ] || continue
+  if [[ "$i" -eq 30 && -n "$fixture_loading_id" ]]; then
+    fixture_state="$(curl -sS -b "$fixture_cookie" "$base_url/api/carregamentos.php" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const id=Number(process.argv[1]);const row=(JSON.parse(s).data||[]).find(item=>Number(item.id)===id);if(row)process.stdout.write(`${row.state}|${row.equipment_id}`)})' "$fixture_loading_id")"
+    if [[ -n "$fixture_state" ]]; then
+      IFS='|' read -r current_state fixture_equipment_id <<< "$fixture_state"
+      if [[ "$current_state" == "CARREGANDO" ]]; then
+        heartbeat="$(curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: $TRACE_DEVICE_TOKEN" -d "{\"equipment_id\":$fixture_equipment_id,\"device_type\":\"CLP\",\"status\":\"ONLINE\"}" "$base_url/api/device_heartbeat.php")"
+        if ! printf '%s' "$heartbeat" | grep -q '"status":"ONLINE"'; then
+          echo "FAIL: não foi possível renovar o heartbeat da fixture antes da etapa 30: $heartbeat" >&2
+          exit 1
+        fi
+        paused="$(curl -sS -b "$fixture_cookie" -X PATCH -H "X-CSRF-Token: $admin_csrf" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$fixture_loading_id,\"state\":\"PAUSADO\"}" "$base_url/api/estado_carregamento.php")"
+        if ! printf '%s' "$paused" | grep -q '"state":"PAUSADO"'; then
+          echo "FAIL: não foi possível pausar a fixture antes do cancelamento: $paused" >&2
+          exit 1
+        fi
+        current_state="PAUSADO"
+      fi
+      if [[ ! "$current_state" =~ ^(PREPARANDO|PAUSADO|EMERGENCIA)$ ]]; then
+        echo "FAIL: estado inesperado da fixture antes da etapa 30: $current_state" >&2
+        exit 1
+      fi
+      cancelled="$(curl -sS -b "$fixture_cookie" -X PATCH -H "X-CSRF-Token: $admin_csrf" -H 'Content-Type: application/json' -d "{\"action\":\"cancel\",\"romaneio_id\":$fixture_manifest_id,\"justification\":\"Fixture integrada descartável liberada para as etapas 30 a 39.\"}" "$base_url/api/romaneios.php")"
+      if ! printf '%s' "$cancelled" | grep -q '"status":"CANCELADO"'; then
+        echo "FAIL: não foi possível cancelar o romaneio da fixture antes da etapa 30: $cancelled" >&2
+        exit 1
+      fi
+    fi
+  fi
   # O backend limita tentativas por IP a 30/min; manter intervalo evita que
   # a própria bateria de homologação acione a proteção legítima.
   sleep "${TRACE_REGRESSION_STAGE_DELAY:-3}"
