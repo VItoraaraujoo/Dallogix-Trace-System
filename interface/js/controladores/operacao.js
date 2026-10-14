@@ -1,6 +1,53 @@
 import { esc } from "../funcoes/html.js";
 import { produtosDisponiveisParaRomaneio } from "../funcoes/romaneio.js?v=202610020002";
 
+export function operationStructureSignature(state, clpAvailable) {
+  const pending = (state.pendingReadings || []).map((reading) => reading.id).join(",");
+  const unselectedLoadings = state.selectedLoadingId
+    ? []
+    : (state.activeLoadings || []).map((loading) => [
+        loading.id,
+        loading.equipment_id,
+        loading.state,
+        loading.detected_bags,
+      ]);
+  const loadingItems = (state.loadingItems || []).map((item) => [
+    item.product_id,
+    item.loaded_quantity,
+    item.planned_quantity,
+  ]);
+  const command = state.plcCommand;
+  const intent = state.commandIntent;
+  return JSON.stringify([
+    state.selectedLoadingId || null,
+    state.loadingId || null,
+    (state.activeLoadings || []).length,
+    unselectedLoadings,
+    state.emergency,
+    state.operationalState,
+    state.running,
+    state.reversalCommand,
+    state.returnMode,
+    state.equipmentCode,
+    state.truck,
+    state.romaneio,
+    state.userRole,
+    pending,
+    command?.id || null,
+    command?.command || null,
+    command?.status || null,
+    command?.response_message || null,
+    intent?.id || null,
+    intent?.loadingId || null,
+    intent?.command || null,
+    intent?.status || null,
+    state.commandInFlight === true,
+    state.commandFeedback || "",
+    clpAvailable === true,
+    loadingItems,
+  ]);
+}
+
 export function linhaItemRomaneio(store, selectedId = "", quantity = 1) {
   const products = store.state.products || [];
   const selectableProducts = produtosDisponiveisParaRomaneio(products, selectedId);

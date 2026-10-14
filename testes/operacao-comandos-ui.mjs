@@ -8,7 +8,7 @@ import {
   work,
 } from "../interface/telas/operacao/operacao.js";
 import { resolverComandoAtual } from "../interface/js/funcoes/estado-comando.js";
-import { captureOperationScanner, restoreOperationScanner, changeOperationLoading } from "../interface/js/controladores/operacao.js";
+import { captureOperationScanner, restoreOperationScanner, changeOperationLoading, operationStructureSignature } from "../interface/js/controladores/operacao.js";
 import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js";
 
 test("parada pode substituir um início ainda pendente em pausa", () => {
@@ -875,4 +875,61 @@ test("resposta de status atrasada de outra Dala não sobrescreve a seleção atu
   assert.equal(armazenamento.state.operationalState, "CARREGANDO");
   assert.equal(armazenamento.state.plcCommand.id, 55);
   assert.equal(armazenamento.state.reversalCommand, undefined);
+});
+
+test("assinatura da Operação muda quando reversão ou identificação da Dala muda", () => {
+  const base = {
+    selectedLoadingId: 7,
+    loadingId: 7,
+    activeLoadings: [{ id: 7, state: "PAUSADO", equipment_id: 3 }],
+    operationalState: "PAUSADO",
+    reversalCommand: "REVERSAO_ATIVAR",
+    returnMode: true,
+    equipmentCode: "DALA-03",
+    truck: "ABC-1234",
+    romaneio: "ROM-42",
+    commandInFlight: false,
+    pendingReadings: [],
+    loadingItems: [],
+  };
+  const original = operationStructureSignature(base, true);
+  assert.notEqual(
+    operationStructureSignature({ ...base, reversalCommand: "REVERSAO_DESATIVAR", returnMode: false }, true),
+    original,
+  );
+  assert.notEqual(operationStructureSignature({ ...base, truck: "XYZ-9876" }, true), original);
+  assert.notEqual(operationStructureSignature(base, false), original);
+});
+
+test("status de CLP só libera comandos quando o monitoramento local é recente e ONLINE", () => {
+  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  armazenamento.state = {
+    equipmentId: 3,
+    monitoring: { dispositivos: [{ equipment_id: 3, device_type: "CLP", status: "ONLINE" }] },
+    monitoringUpdatedAt: new Date().toISOString(),
+  };
+  assert.equal(armazenamento.clpDisponivel(), true);
+
+  armazenamento.state.monitoringUpdatedAt = new Date(Date.now() - 7000).toISOString();
+  assert.equal(armazenamento.clpDisponivel(), false);
+  assert.match(armazenamento.mensagemClpIndisponivel(), /servidor local/);
+
+  armazenamento.state.monitoringUpdatedAt = new Date().toISOString();
+  armazenamento.state.monitoring.dispositivos[0].status = "OK";
+  assert.equal(armazenamento.clpDisponivel(), false);
+});
+
+test("CLP sem last_seen não é exibido como sem sinal há zero segundos", () => {
+  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  armazenamento.state = {
+    equipmentId: 3,
+    monitoringUpdatedAt: new Date().toISOString(),
+    monitoring: { dispositivos: [{
+      equipment_id: 3,
+      device_type: "CLP",
+      status: "OFFLINE",
+      segundos_sem_sinal: null,
+    }] },
+  };
+  assert.doesNotMatch(armazenamento.mensagemClpIndisponivel(), /0 segundos/);
 });

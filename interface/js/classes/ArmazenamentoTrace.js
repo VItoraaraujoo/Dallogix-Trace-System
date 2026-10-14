@@ -3,6 +3,8 @@ import { ClienteApi, erroRespostaHttp } from "../api/ClienteApi.js?v=20261006000
 import { ServicoSincronizacao } from "../servicos/ServicoSincronizacao.js?v=202610060007";
 import { resolverComandoAtual } from "../funcoes/estado-comando.js?v=202610130003";
 
+const LIMITE_IDADE_MONITORAMENTO_OPERACIONAL_MS = 6000;
+
 export class ArmazenamentoTrace {
   constructor() {
     this.state = {
@@ -541,21 +543,35 @@ export class ArmazenamentoTrace {
         Number(device.equipment_id) === Number(this.state.equipmentId),
     );
   }
+  monitoramentoOperacionalAtual() {
+    const updatedAt = Date.parse(this.state.monitoringUpdatedAt || "");
+    if (!Number.isFinite(updatedAt)) return false;
+    const ageMs = Date.now() - updatedAt;
+    return ageMs >= -1000 && ageMs <= LIMITE_IDADE_MONITORAMENTO_OPERACIONAL_MS;
+  }
   clpDisponivel() {
+    if (!this.monitoramentoOperacionalAtual()) return false;
     const status = String(this.clpDaDalaAtual()?.status || "").toUpperCase();
-    return ["ONLINE", "LOCAL", "OK"].includes(status);
+    return status === "ONLINE";
   }
   mensagemClpIndisponivel() {
+    if (!this.monitoramentoOperacionalAtual()) {
+      return "Sem comunicação recente com o servidor local. Novos comandos estão bloqueados até o status ser atualizado.";
+    }
     const device = this.clpDaDalaAtual();
-    const seconds = Number(device?.segundos_sem_sinal);
-    const time = Number.isFinite(seconds) ? ` há ${seconds} segundos` : "";
-    if (!device || device.status === "NAO_REGISTRADO") {
+    const status = String(device?.status || "").toUpperCase();
+    const rawSeconds = device?.segundos_sem_sinal;
+    const seconds = rawSeconds === null || rawSeconds === undefined || rawSeconds === ""
+      ? Number.NaN
+      : Number(rawSeconds);
+    const time = Number.isFinite(seconds) && seconds >= 0 ? ` há ${seconds} segundos` : "";
+    if (!device || status === "NAO_REGISTRADO") {
       return "CLP sem status registrado. Novos comandos estão bloqueados até chegar um heartbeat válido.";
     }
-    if (device.status === "ERRO") {
+    if (status === "ERRO") {
       return "O gateway reportou erro na comunicação com o CLP. Novos comandos estão bloqueados.";
     }
-    if (device.status === "DESCONHECIDO") {
+    if (status === "DESCONHECIDO") {
       return "O status do CLP está desconhecido. Novos comandos estão bloqueados até chegar um heartbeat válido.";
     }
     return `CLP sem comunicação${time}. Novos comandos estão bloqueados; reconectando a cada 2 segundos.`;
