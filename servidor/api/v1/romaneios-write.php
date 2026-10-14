@@ -295,7 +295,6 @@ function api_v1_criar_romaneio(PDO $pdo, array $client): never
         "id" => $romaneioId,
         "equipment_code" => $payload["equipment_code"],
         "number" => $payload["number"],
-        "equipment_code" => $payload["equipment_code"],
         "scheduled_date" => $payload["scheduled_date"],
         "truck_id" => $truckId,
         "status" => "AGUARDANDO",
