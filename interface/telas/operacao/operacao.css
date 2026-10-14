@@ -529,6 +529,47 @@ body.work-page:has(.work-operation-screen) .work-control-lock-reasons p + p {
   margin-top: 4px;
 }
 
+body.work-page:has(.work-operation-screen) .work-stop-confirmation {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border: 1px solid #d88b22;
+  border-radius: 10px;
+  color: #573900;
+  background: #fff6df;
+}
+
+body.work-page:has(.work-operation-screen) .work-stop-confirmation h3,
+body.work-page:has(.work-operation-screen) .work-stop-confirmation p {
+  margin: 0;
+}
+
+body.work-page:has(.work-operation-screen) .work-stop-confirmation-alert {
+  font-weight: 750;
+}
+
+body.work-page:has(.work-operation-screen) .confirm-stop-removal-form {
+  display: grid;
+  gap: 10px;
+}
+
+body.work-page:has(.work-operation-screen) .confirm-stop-removal-form label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+body.work-page:has(.work-operation-screen) .confirm-stop-removal-form input[type="checkbox"] {
+  width: 20px;
+  min-width: 20px;
+  height: 20px;
+  margin: 0;
+}
+
+body.work-page:has(.work-operation-screen) .confirm-stop-removal-form .form-feedback {
+  margin: 0;
+}
+
 body.work-page .work-selection-error {
   padding: 10px 12px;
   border: 1px solid #e7b9b9;

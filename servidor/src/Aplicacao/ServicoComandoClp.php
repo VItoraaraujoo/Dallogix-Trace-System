@@ -59,12 +59,29 @@ final class ServicoComandoClp
             }
             $allowedStates = $command === "INICIAR_CARREGAMENTO"
                 ? ["PREPARANDO", "PAUSADO"]
-                : ["PREPARANDO", "CARREGANDO"];
+                : ["PREPARANDO", "CARREGANDO", "FINALIZANDO"];
+            if ($command === "INICIAR_CARREGAMENTO" && !empty($loading["stop_reason"])) {
+                throw new ExcecaoComandoClp(
+                    "Confirme a remoção da unidade e a parada física antes de retomar o carregamento.",
+                    409,
+                );
+            }
             // Uma parada pode ser enfileirada atrás de um início PENDENTE ou
             // já reservado pelo gateway. O início não é apagado depois de
             // reservado: o gateway conclui a sequência na ordem registrada,
             // mantendo o comando físico e o retorno auditável.
             $pending = $this->comandoPendente($loadingId);
+            if (
+                $command === "INICIAR_CARREGAMENTO"
+                && $pending
+                && $pending["command"] === "PAUSAR_CARREGAMENTO"
+                && in_array($pending["status"], ["PENDENTE", "PROCESSANDO"], true)
+            ) {
+                throw new ExcecaoComandoClp(
+                    "Aguarde o gateway confirmar ou cancelar a parada antes de retomar o carregamento.",
+                    409,
+                );
+            }
             $paradaAposInicio = $command === "PAUSAR_CARREGAMENTO"
                 && $pending
                 && in_array($pending["status"], ["PENDENTE", "PROCESSANDO"], true)
@@ -463,7 +480,7 @@ final class ServicoComandoClp
     private function localizarCarregamento(int $loadingId, int $companyId): array|false
     {
         $statement = $this->connection->prepare(
-            "SELECT id, state, equipment_id, remote_carregamento_id
+            "SELECT id, state, equipment_id, remote_carregamento_id, stop_reason, operator_alert
              FROM carregamentos WHERE id = :id AND company_id = :company_id LIMIT 1 FOR UPDATE",
         );
         $statement->execute(["id" => $loadingId, "company_id" => $companyId]);

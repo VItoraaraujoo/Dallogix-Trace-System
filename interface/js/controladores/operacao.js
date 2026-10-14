@@ -29,6 +29,8 @@ export function operationStructureSignature(state, clpAvailable) {
     state.reversalCommand,
     state.returnMode,
     state.equipmentCode,
+    state.stopReason || null,
+    state.operatorAlert || "",
     state.truck,
     state.romaneio,
     state.userRole,
@@ -101,6 +103,18 @@ export function restoreOperationScanner(root, snapshot) {
   if (Number.isInteger(snapshot.selectionStart) && Number.isInteger(snapshot.selectionEnd)) {
     input.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd, snapshot.selectionDirection || "none");
   }
+  return true;
+}
+
+export function focusOperationScanner(root, activeElement = globalThis.document?.activeElement) {
+  const input = root?.querySelector?.(".manual-operation-reading-form input[name=\"barcode\"]");
+  if (!input || input.disabled) return false;
+  if (
+    activeElement !== input &&
+    root?.contains?.(activeElement) &&
+    activeElement?.matches?.("input, select, textarea, [contenteditable='true']")
+  ) return false;
+  if (activeElement !== input) input.focus({ preventScroll: true });
   return true;
 }
 

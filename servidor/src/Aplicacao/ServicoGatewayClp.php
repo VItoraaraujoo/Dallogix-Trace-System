@@ -233,7 +233,7 @@ final class ServicoGatewayClp
                     : "PAUSADO";
                 $allowedStates = $request["command"] === "INICIAR_CARREGAMENTO"
                     ? ["PREPARANDO", "PAUSADO"]
-                    : ["PREPARANDO", "CARREGANDO"];
+                    : ["PREPARANDO", "CARREGANDO", "PAUSADO", "FINALIZANDO"];
                 if (!in_array($previousState, $allowedStates, true)) {
                     $status = "ERRO";
                     $message = "O estado do carregamento mudou antes da confirmação física; o comando não foi aplicado ao estado local.";

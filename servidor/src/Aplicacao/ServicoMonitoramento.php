@@ -122,7 +122,7 @@ final class ServicoMonitoramento
             "WITH carregamentos_ativos AS (
                 SELECT c.id, c.company_id, c.romaneio_id, c.truck_id,
                        c.equipment_id, c.state, c.started_at, c.finished_at,
-                       c.leituras_validas
+                       c.leituras_validas, c.stop_reason, c.operator_alert
                 FROM carregamentos c
                 JOIN romaneios r ON r.id = c.romaneio_id
                 WHERE c.company_id = :company_id_ativos
@@ -156,6 +156,7 @@ final class ServicoMonitoramento
                    COALESCE(qr.planned_quantity, 0) AS planned_quantity,
                    COALESCE(ca.leituras_validas, 0) AS valid_readings,
                    COALESCE(ed.detected_bags, 0) AS detected_bags,
+                   ca.stop_reason, ca.operator_alert,
                    afp.end_product_alert
             FROM carregamentos_ativos ca
             JOIN romaneios r ON r.id = ca.romaneio_id
