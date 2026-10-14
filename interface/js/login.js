@@ -2,7 +2,7 @@ import "../telas/acesso/acesso.js";
 import {
   configurarSessaoPorAba,
 } from "./sessao.js?v=202609222100";
-import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
+import { ClienteApi } from "./api/ClienteApi.js?v=202610140003";
 import { notificar } from "./componentes/notificacoes.js?v=202610070024";
 
 configurarSessaoPorAba();

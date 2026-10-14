@@ -119,10 +119,11 @@ function sinalComPrazo(signal, timeoutMs) {
 }
 
 export class ClienteApi {
-  constructor({ timeoutMs = 15000, retry = 2, backoffMs = 400 } = {}) {
+  constructor({ timeoutMs = 15000, retry = 2, backoffMs = 400, onUnauthorized = null } = {}) {
     this.timeoutMs = timeoutMs;
     this.retry = retry;
     this.backoffMs = backoffMs;
+    this.onUnauthorized = typeof onUnauthorized === "function" ? onUnauthorized : null;
     this.navigationController = null;
   }
 
@@ -159,6 +160,13 @@ export class ClienteApi {
       const request = sinalComPrazo(callerSignal, timeoutMs);
       try {
         const response = await fetch(url, { ...requestOptions, headers, signal: request.signal });
+        const requestPath = String(url).split(/[?#]/, 1)[0];
+        const isAuthenticationBootstrap = ["/api/login.php", "/api/me.php"].some(
+          (path) => requestPath.endsWith(path),
+        );
+        if (response.status === 401 && !isAuthenticationBootstrap) {
+          this.onUnauthorized?.(response, url);
+        }
         if (response.ok || !canRetry || !RETRY_STATUS.has(response.status) || attempt >= attempts) {
           return response;
         }

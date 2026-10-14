@@ -5,6 +5,7 @@ import {
   paradaPodeSubstituirInicio,
   podeLiberarEmergencia,
   podeVincularDala,
+  alternarTecladoLeituraManual,
   workControlLocks,
   work,
 } from "../interface/telas/operacao/operacao.js";
@@ -53,6 +54,53 @@ test("a confirmação de código envia o formulário e deixa espaço para feedba
   assert.match(markup, /data-action="identify-reading" type="submit"/);
   assert.match(markup, /inputmode="text"/);
   assert.match(markup, /class="form-feedback" data-form-feedback role="status"/);
+});
+
+test("a leitura principal oferece entrada pelo teclado touch sem perder o leitor", () => {
+  const markup = work({ state: {
+    selectedLoadingId: 7,
+    loadingId: 7,
+    activeLoadings: [{ id: 7, state: "CARREGANDO", equipment_id: 3 }],
+    loadingItems: [],
+    equipmentCode: "D-003",
+    romaneio: "R-7",
+    truck: "ABC1234",
+    operationalState: "CARREGANDO",
+    detectedBags: 0,
+    planned: 1,
+    loaded: 0,
+    userRole: "USUARIO",
+    commandInFlight: false,
+    emergency: false,
+    pendingReadings: [],
+  } });
+  assert.match(markup, /inputmode="none"/);
+  assert.match(markup, /class="button ghost small manual-reading-keyboard-toggle" type="button" aria-pressed="false">Digitar código/);
+});
+
+test("alternar teclado touch mantém o leitor de código como modo reversível", () => {
+  const attributes = new Map([["inputmode", "none"]]);
+  const input = {
+    disabled: false,
+    getAttribute: (name) => attributes.get(name) || null,
+    setAttribute: (name, value) => attributes.set(name, value),
+    focus(options) { this.focusOptions = options; },
+  };
+  const button = {
+    textContent: "Digitar código",
+    setAttribute(name, value) { this[name] = value; },
+  };
+
+  assert.equal(alternarTecladoLeituraManual(input, button), true);
+  assert.equal(attributes.get("inputmode"), "text");
+  assert.equal(button.textContent, "Usar leitor");
+  assert.equal(button["aria-pressed"], "true");
+  assert.deepEqual(input.focusOptions, { preventScroll: true });
+
+  assert.equal(alternarTecladoLeituraManual(input, button), false);
+  assert.equal(attributes.get("inputmode"), "none");
+  assert.equal(button.textContent, "Digitar código");
+  assert.equal(button["aria-pressed"], "false");
 });
 
 test("parada pode substituir um início ainda pendente em pausa", () => {

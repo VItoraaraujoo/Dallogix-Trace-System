@@ -53,6 +53,20 @@ function loadingSelection(store) {
 export function podeVincularDala(role) {
   return ["ADMIN_EMPRESA", "SUPERVISOR"].includes(String(role || "").toUpperCase());
 }
+
+export function alternarTecladoLeituraManual(input, button) {
+  if (!input || input.disabled || typeof input.setAttribute !== "function") return false;
+  const keyboardEnabled = input.getAttribute("inputmode") !== "text";
+  input.blur?.();
+  input.setAttribute("inputmode", keyboardEnabled ? "text" : "none");
+  if (button) {
+    button.textContent = keyboardEnabled ? "Usar leitor" : "Digitar código";
+    button.setAttribute?.("aria-pressed", String(keyboardEnabled));
+  }
+  input.focus?.({ preventScroll: true });
+  return keyboardEnabled;
+}
+
 export function paradaPodeSubstituirInicio({ state, pendingStatus, pendingCommand }) {
   return String(state || "").toUpperCase() === "PAUSADO" &&
     String(pendingStatus || "").toUpperCase() === "PENDENTE" &&
@@ -219,7 +233,7 @@ function workControls(store) {
       ? "Aguardando início da esteira…"
       : "Aguardando leitura…";
   const manualOperationReading = store.state.loadingId
-    ? `<div class="work-manual-reading"><div class="work-manual-reading-heading"><span class="kicker">Leitura automática</span></div><form class="manual-operation-reading-form"><label for="manual-operation-barcode">Código de barras<input id="manual-operation-barcode" name="barcode" type="text" required maxlength="128" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="none" placeholder="${manualReadingPlaceholder}"${manualReadingDisabled ? " disabled" : " autofocus"} /></label><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form></div>`
+    ? `<div class="work-manual-reading"><div class="work-manual-reading-heading"><span class="kicker">Leitura automática</span></div><form class="manual-operation-reading-form"><label for="manual-operation-barcode">Código de barras<input id="manual-operation-barcode" name="barcode" type="text" required maxlength="128" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="none" placeholder="${manualReadingPlaceholder}"${manualReadingDisabled ? " disabled" : " autofocus"} /></label><button class="button ghost small manual-reading-keyboard-toggle" type="button" aria-pressed="false"${manualReadingDisabled ? " disabled" : ""}>Digitar código</button><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form></div>`
     : "";
   const manualIdentification = pendingReadings.length
     ? `<section class="work-scanner-corrections" aria-labelledby="work-scanner-corrections-title"><div class="work-scanner-corrections-heading"><div><span class="kicker">Conferência pendente</span><h3 id="work-scanner-corrections-title">Leituras sem código</h3></div><p>Passe o leitor de código de barras ou digite o código conferido.</p></div><div class="work-scanner-corrections-list">${pendingReadings.map((reading, index) => `<form class="manual-reading-form" data-reading-id="${reading.id}"><label>Leitura #${reading.id}<input name="barcode" type="text" required maxlength="128" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" placeholder="Leia o código do produto" aria-label="Código de barras da leitura ${reading.id}"${index === 0 ? " autofocus" : ""} /></label>${button("Confirmar código", "identify-reading", "secondary")}<p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form>`).join("")}</div></section>`

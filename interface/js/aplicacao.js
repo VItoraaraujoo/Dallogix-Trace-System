@@ -1,7 +1,7 @@
 import {
   configurarSessaoPorAba,
 } from "./sessao.js?v=202609222100";
-import { ClienteApi } from "./api/ClienteApi.js?v=202610140002";
+import { ClienteApi } from "./api/ClienteApi.js?v=202610140003";
 import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610070024";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
@@ -34,7 +34,7 @@ import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
 import { manifests } from "../telas/romaneios/romaneios.js?v=202610130006";
 import { manifestView } from "../telas/romaneio/romaneio.js?v=202610130006";
-import { work } from "../telas/operacao/operacao.js?v=202610140003";
+import { alternarTecladoLeituraManual, work } from "../telas/operacao/operacao.js?v=202610140004";
 import { dashboard } from "../telas/painel/painel.js?v=202610130001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610130001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
@@ -54,7 +54,19 @@ import {
 configurarSessaoPorAba();
 
 const store = new ArmazenamentoTrace();
-const api = new ClienteApi();
+let sessionRedirectStarted = false;
+const api = new ClienteApi({
+  onUnauthorized: () => {
+    if (sessionRedirectStarted || currentPage === "login") return;
+    sessionRedirectStarted = true;
+    try {
+      sessionStorage.setItem("trace-login-message", "Sua sessão expirou. Entre novamente no sistema.");
+    } catch (error) {
+      logFrontend.aviso("sessao.expirada.mensagem", error);
+    }
+    window.location.replace(pagePath("login"));
+  },
+});
 const servicoEmergencia = new ServicoEmergencia(store);
 const servicoOperacao = new ServicoOperacao(store);
 let renderRequestId = 0;
@@ -2325,6 +2337,10 @@ function bindForms() {
   });
   document.querySelectorAll(".manual-operation-reading-form").forEach((form) => {
     const barcodeInput = form.querySelector('[name="barcode"]');
+    const keyboardToggle = form.querySelector(".manual-reading-keyboard-toggle");
+    keyboardToggle?.addEventListener("click", () => {
+      alternarTecladoLeituraManual(barcodeInput, keyboardToggle);
+    });
     barcodeInput?.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" || barcodeInput.disabled) return;
       event.preventDefault();
