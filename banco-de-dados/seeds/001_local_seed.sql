@@ -54,7 +54,7 @@ SELECT
   e.id,
   'PLC-EST-001',
   'CLP',
-  '$2y$12$3tAPnZ8YIz3SZPV4KXntie3UKgIXqTiiD4pQKdxcuBYoGOolpyWTm',
+  '$2y$12$3tAPnZ8YIz3SZPV4KXntie3UKgIXqTiiD4pQKdxcuBYoGOolpyWTm', -- nosemgrep: generic.secrets.security.detected-bcrypt-hash.detected-bcrypt-hash -- Seed de demonstração isolado; o verificador de produção rejeita credenciais conhecidas.
   0
 FROM equipamentos e
 WHERE e.equipment_code = 'EST-001'
@@ -69,7 +69,7 @@ SELECT
   e.id,
   'CAM-EST-001',
   'CAMERA',
-  '$2y$12$qXieqL6ctQPl3vwOjT9amuDed0qfKMDcmn1izzq/4p0QNyoBIm9.O',
+  '$2y$12$qXieqL6ctQPl3vwOjT9amuDed0qfKMDcmn1izzq/4p0QNyoBIm9.O', -- nosemgrep: generic.secrets.security.detected-bcrypt-hash.detected-bcrypt-hash -- Seed de demonstração isolado; o verificador de produção rejeita credenciais conhecidas.
   0
 FROM equipamentos e
 WHERE e.equipment_code = 'EST-001'
@@ -83,7 +83,7 @@ SELECT
   c.id,
   'Administrador local',
   'admin@dallogix.local',
-  '$2y$10$ebOT1MqNyajFths8pCaJu.qE7MOSNMWkXYLan9LVzGSXFHIdgxK8C',
+  '$2y$10$ebOT1MqNyajFths8pCaJu.qE7MOSNMWkXYLan9LVzGSXFHIdgxK8C', -- nosemgrep: generic.secrets.security.detected-bcrypt-hash.detected-bcrypt-hash -- Seed de demonstração isolado; o verificador de produção rejeita credenciais conhecidas.
   'ADMIN_EMPRESA',
   0
 FROM
@@ -105,7 +105,7 @@ SELECT
   c.id,
   'Supervisor local',
   'supervisor@dallogix.local',
-  '$2y$12$rNW5syuIUQXWmnkzFzzCUOq7APYSVr.0iN9JIkPvCvoT0mfa/Bwm.',
+  '$2y$12$rNW5syuIUQXWmnkzFzzCUOq7APYSVr.0iN9JIkPvCvoT0mfa/Bwm.', -- nosemgrep: generic.secrets.security.detected-bcrypt-hash.detected-bcrypt-hash -- Seed de demonstração isolado; o verificador de produção rejeita credenciais conhecidas.
   'SUPERVISOR',
   0
 FROM
@@ -122,7 +122,7 @@ SELECT
   c.id,
   'Operador local',
   'operador@dallogix.local',
-  '$2y$12$rNW5syuIUQXWmnkzFzzCUOq7APYSVr.0iN9JIkPvCvoT0mfa/Bwm.',
+  '$2y$12$rNW5syuIUQXWmnkzFzzCUOq7APYSVr.0iN9JIkPvCvoT0mfa/Bwm.', -- nosemgrep: generic.secrets.security.detected-bcrypt-hash.detected-bcrypt-hash -- Seed de demonstração isolado; o verificador de produção rejeita credenciais conhecidas.
   'USUARIO',
   0
 FROM
@@ -178,7 +178,7 @@ SELECT
   NULL,
   'Administrador Dallogix',
   'master@dallogix.local',
-  '$2y$10$ebOT1MqNyajFths8pCaJu.qE7MOSNMWkXYLan9LVzGSXFHIdgxK8C',
+  '$2y$10$ebOT1MqNyajFths8pCaJu.qE7MOSNMWkXYLan9LVzGSXFHIdgxK8C', -- nosemgrep: generic.secrets.security.detected-bcrypt-hash.detected-bcrypt-hash -- Seed de demonstração isolado; o verificador de produção rejeita credenciais conhecidas.
   'ADMIN_DALLOGIX',
   0
 WHERE

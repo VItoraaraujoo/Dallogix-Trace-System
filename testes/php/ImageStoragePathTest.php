@@ -35,7 +35,7 @@ final class ImageStoragePathTest extends TestCase
             self::assertNull(trace_prepare_image_storage_directory($storage, 'company_link/reports'));
             self::assertFalse(is_dir($outside . '/reports'));
         } finally {
-            unlink($storage . '/company_link');
+            $this->removeFixturePath($storage . '/company_link');
             rmdir($outside);
             rmdir($storage);
         }
@@ -57,10 +57,38 @@ final class ImageStoragePathTest extends TestCase
             self::assertNull(trace_image_storage_path($storage, '/../other.jpg'));
             self::assertNull(trace_image_storage_path($storage, 'company_1/equipment_7/outside.jpg'));
         } finally {
-            unlink($outsideLink);
-            unlink($image);
+            $this->removeFixturePath($outsideLink);
+            $this->removeFixturePath($image);
             rmdir($folder);
             rmdir($storage . '/company_1');
+            rmdir($storage);
+        }
+    }
+
+    public function testRecusaLinkSimbolicoEntrePastasDoProprioArmazenamento(): void
+    {
+        $storage = sys_get_temp_dir() . '/trace-image-internal-symlink-' . bin2hex(random_bytes(6));
+        $company = $storage . '/company_1';
+        $targetFolder = $company . '/equipment_real';
+        $linkedFolder = $company . '/equipment_alias';
+        mkdir($targetFolder, 0700, true);
+        $image = $targetFolder . '/incident.pdf';
+        file_put_contents($image, '%PDF-fixture');
+        symlink('equipment_real', $linkedFolder);
+        try {
+            self::assertNull(trace_image_storage_path(
+                $storage,
+                'company_1/equipment_alias/incident.pdf',
+            ));
+            self::assertSame(realpath($image), trace_image_storage_path(
+                $storage,
+                'company_1/equipment_real/incident.pdf',
+            ));
+        } finally {
+            $this->removeFixturePath($linkedFolder);
+            $this->removeFixturePath($image);
+            rmdir($targetFolder);
+            rmdir($company);
             rmdir($storage);
         }
     }
@@ -85,10 +113,28 @@ final class ImageStoragePathTest extends TestCase
             file_put_contents($image, 'not an image');
             self::assertNull(trace_camera_evidence_path($storage, 1, 7, 42, $relative));
         } finally {
-            unlink($image);
+            $this->removeFixturePath($image);
             rmdir($folder);
             rmdir($storage . '/company_1');
             rmdir($storage);
+        }
+    }
+
+    private function removeFixturePath(string $path): void
+    {
+        $temporaryRoot = realpath(sys_get_temp_dir());
+        $parent = realpath(dirname($path));
+        if ($temporaryRoot === false || $parent === false
+            || !str_starts_with($parent, $temporaryRoot . DIRECTORY_SEPARATOR)) {
+            throw new RuntimeException('A limpeza do teste saiu da pasta temporária isolada.');
+        }
+        if (!is_file($path) && !is_link($path)) {
+            return;
+        }
+
+        // nosemgrep: php.lang.security.unlink-use.unlink-use -- Remove apenas fixtures aleatórias da pasta temporária; ao limpar symlink, remove o link e não o destino.
+        if (!unlink($path)) {
+            throw new RuntimeException('Não foi possível limpar um arquivo temporário do teste.');
         }
     }
 }

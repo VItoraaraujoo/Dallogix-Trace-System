@@ -225,6 +225,78 @@ $cancelledManifestsStatement = $pdo->prepare(
 );
 $cancelledManifestsStatement->execute(["company_id" => $companyId]);
 $cancelledManifests = $cancelledManifestsStatement->fetchAll();
+$availableManifestsStatement = $pdo->prepare(
+    "SELECT r.id, r.number, r.scheduled_date, r.status, r.expedidor,
+            t.id AS truck_id, t.plate, t.driver_name
+     FROM romaneios r
+     JOIN romaneio_caminhoes t ON t.romaneio_id = r.id
+     WHERE r.company_id = :company_id
+       AND r.assigned_installation_id = :installation_id
+       AND r.status IN ('IMPORTADO', 'AGUARDANDO')
+       AND NOT EXISTS (
+         SELECT 1 FROM carregamentos c
+         WHERE c.company_id = r.company_id AND c.romaneio_id = r.id
+       )
+     ORDER BY r.id, t.id",
+);
+$availableManifestsStatement->execute([
+    "company_id" => $companyId,
+    "installation_id" => $installationId,
+]);
+$manifestsById = [];
+$availableManifestTruckIds = [];
+foreach ($availableManifestsStatement->fetchAll() as $row) {
+    $manifestId = (int) $row["id"];
+    $truckId = (int) $row["truck_id"];
+    if (!isset($manifestsById[$manifestId])) {
+        $manifestsById[$manifestId] = [
+            "id" => $manifestId,
+            "number" => $row["number"],
+            "scheduled_date" => $row["scheduled_date"],
+            "status" => $row["status"],
+            "expedidor" => $row["expedidor"],
+            "trucks" => [],
+        ];
+    }
+    $manifestsById[$manifestId]["trucks"][] = [
+        "id" => $truckId,
+        "plate" => $row["plate"],
+        "driver_name" => $row["driver_name"],
+        "items" => [],
+    ];
+    $availableManifestTruckIds[$truckId] = ["manifest_id" => $manifestId, "truck_index" => count($manifestsById[$manifestId]["trucks"]) - 1];
+}
+$availableTruckIds = array_keys($availableManifestTruckIds);
+if ($availableTruckIds !== []) {
+    $placeholders = implode(",", array_fill(0, count($availableTruckIds), "?"));
+    $availableItems = $pdo->prepare(
+        "SELECT ri.romaneio_id, ri.truck_id, p.code, p.name, SUM(ri.planned_quantity) AS planned_quantity
+         FROM romaneio_itens ri
+         JOIN produtos p ON p.id = ri.product_id
+         WHERE ri.truck_id IN ({$placeholders})
+            OR (ri.truck_id IS NULL AND ri.romaneio_id IN (
+                SELECT t.romaneio_id FROM romaneio_caminhoes t WHERE t.id IN ({$placeholders})
+            ))
+         GROUP BY ri.truck_id, ri.romaneio_id, p.code, p.name
+         ORDER BY ri.romaneio_id, ri.truck_id, p.code",
+    );
+    $availableItems->execute([...$availableTruckIds, ...$availableTruckIds]);
+    foreach ($availableItems->fetchAll() as $item) {
+        $manifestId = (int) $item["romaneio_id"];
+        $truckId = $item["truck_id"] === null ? null : (int) $item["truck_id"];
+        $targetTrucks = $truckId === null
+            ? array_filter($availableManifestTruckIds, static fn (array $truckRef): bool => $truckRef["manifest_id"] === $manifestId)
+            : (isset($availableManifestTruckIds[$truckId]) ? [$truckId => $availableManifestTruckIds[$truckId]] : []);
+        foreach ($targetTrucks as $truckRef) {
+            $manifestsById[$truckRef["manifest_id"]]["trucks"][$truckRef["truck_index"]]["items"][] = [
+                "code" => $item["code"],
+                "name" => $item["name"],
+                "planned_quantity" => (int) $item["planned_quantity"],
+            ];
+        }
+    }
+}
+$availableManifests = array_values($manifestsById);
 $loadingIds = array_map(static fn (array $row): int => (int) $row["id"], $carregamentos);
 foreach ($carregamentos as &$loading) {
     $loading["id"] = (int) $loading["id"];
@@ -320,6 +392,7 @@ responder_json([
         ],
         "equipamentos" => $equipamentos,
         "produtos" => $produtos,
+        "romaneios_disponiveis" => $availableManifests,
         "romaneios_cancelados" => $cancelledManifests,
         "carregamentos_ativos" => $carregamentos,
         "comandos" => $commandStatement->fetchAll(),

@@ -47,6 +47,7 @@ if ($action === "create") {
     $allowedScopes = [
         "empresa:read",
         "romaneios:read",
+        "romaneios:write",
         "carregamentos:read",
         "leituras:read",
         "equipamentos:read",

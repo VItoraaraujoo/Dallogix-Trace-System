@@ -76,6 +76,7 @@ $source = (string) file_get_contents(__DIR__ . '/../servidor/api/dalas/equipamen
 $source = preg_replace('/^require_once .*;$/m', '', $source);
 $source = preg_replace('/\A<\?php\s*/', '', $source, 1);
 try {
+    // nosemgrep: php.lang.security.eval-use.eval-use -- Executa somente o endpoint fixo deste repositório após remover dependências do teste; dados da requisição não viram código.
     eval($source);
     throw new RuntimeException('Resposta ausente.');
 } catch (ConnectivityResponse $response) {

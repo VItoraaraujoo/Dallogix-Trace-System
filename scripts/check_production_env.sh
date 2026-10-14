@@ -91,7 +91,9 @@ fi
 
 if [[ "${TRACE_ENV_CHECK_SKIP_DATABASE:-0}" != "1" ]]; then
   known_hashes=(
+    # nosemgrep: generic.secrets.security.detected-bcrypt-hash.detected-bcrypt-hash -- Hashes conhecidos do demo local servem como lista de bloqueio, não são credenciais de produção.
     '$2y$10$ebOT1MqNyajFths8pCaJu.qE7MOSNMWkXYLan9LVzGSXFHIdgxK8C'
+    # nosemgrep: generic.secrets.security.detected-bcrypt-hash.detected-bcrypt-hash -- Hashes conhecidos do demo local servem como lista de bloqueio, não são credenciais de produção.
     '$2y$12$rNW5syuIUQXWmnkzFzzCUOq7APYSVr.0iN9JIkPvCvoT0mfa/Bwm.'
   )
   for hash in "${known_hashes[@]}"; do

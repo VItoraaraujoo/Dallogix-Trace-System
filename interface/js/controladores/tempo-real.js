@@ -187,7 +187,7 @@ export function createOperationalRealtimeController({
       if (!isCurrent(token)) return;
       const currentPage = getPage();
       if (requestError) recordFailure(requestError);
-      else recordSuccess();
+      else if (!snapshotPredatesPoll) recordSuccess();
       refreshCurrentView(currentPage);
       publishFreshness(currentPage);
     };

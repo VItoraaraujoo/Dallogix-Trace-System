@@ -88,6 +88,7 @@ foreach ($criticalFiles as $filePath) {
         1 => ['pipe', 'w'],
         2 => ['pipe', 'w'],
     ];
+    // nosemgrep: php.lang.security.exec-use.exec-use -- Usa o executável PHP fixo e argumentos separados, sem shell, para validar arquivos do repositório.
     $process = proc_open(
         [PHP_BINARY, '-l', $filePath],
         $descriptors,

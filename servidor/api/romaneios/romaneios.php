@@ -90,37 +90,39 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
         responder_json(["error" => "Status inválido."], 422);
     }
 
-    $conditions = ["r.company_id = :company_id"];
-    $params = ["company_id" => $companyId];
-    if ($dateFrom !== null) {
-        $conditions[] = "r.scheduled_date >= :date_from";
-        $params["date_from"] = $dateFrom;
-    }
-    if ($dateTo !== null) {
-        $conditions[] = "r.scheduled_date <= :date_to";
-        $params["date_to"] = $dateTo;
-    }
+    $params = [
+        "company_id" => $companyId,
+        "filter_date_from" => $dateFrom === null ? 0 : 1,
+        "date_from" => $dateFrom ?? "1000-01-01",
+        "filter_date_to" => $dateTo === null ? 0 : 1,
+        "date_to" => $dateTo ?? "9999-12-31",
+        "filter_number" => $number === "" ? 0 : 1,
+        "number" => "%" . addcslashes($number, "%_\\") . "%",
+        "filter_expedidor" => $expedidor === "" ? 0 : 1,
+        "expedidor" => "%" . addcslashes($expedidor, "%_\\") . "%",
+        "filter_status" => $status === "" ? 0 : 1,
+        "status" => $status,
+    ];
     if ($number !== "") {
         if (mb_strlen($number, "UTF-8") > 80) {
             responder_json(["error" => "O número pode ter no máximo 80 caracteres."], 422);
         }
-        $conditions[] = "r.number LIKE :number";
-        $params["number"] = "%" . addcslashes($number, "%_\\") . "%";
     }
     if ($expedidor !== "") {
         if (mb_strlen($expedidor, "UTF-8") > 160) {
             responder_json(["error" => "O expedidor pode ter no máximo 160 caracteres."], 422);
         }
-        $conditions[] = "r.expedidor LIKE :expedidor";
-        $params["expedidor"] = "%" . addcslashes($expedidor, "%_\\") . "%";
-    }
-    if ($status !== "") {
-        $conditions[] = "r.status = :status";
-        $params["status"] = $status;
     }
 
-    $where = implode(" AND ", $conditions);
-    $totalStatement = $pdo->prepare("SELECT COUNT(*) FROM romaneios r WHERE {$where}");
+    $totalStatement = $pdo->prepare(
+        "SELECT COUNT(*) FROM romaneios r
+         WHERE r.company_id = :company_id
+           AND (:filter_date_from = 0 OR r.scheduled_date >= :date_from)
+           AND (:filter_date_to = 0 OR r.scheduled_date <= :date_to)
+           AND (:filter_number = 0 OR r.number LIKE :number)
+           AND (:filter_expedidor = 0 OR r.expedidor LIKE :expedidor)
+           AND (:filter_status = 0 OR r.status = :status)",
+    );
     $totalStatement->execute($params);
     $total = (int) $totalStatement->fetchColumn();
     $statement = $pdo->prepare(
@@ -165,12 +167,22 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
          ) occurrences ON occurrences.romaneio_id = r.id
          LEFT JOIN carregamento_ativo ca
            ON ca.romaneio_id = r.id AND ca.rn = 1
-         WHERE {$where}
+         WHERE r.company_id = :company_id
+           AND (:filter_date_from = 0 OR r.scheduled_date >= :date_from)
+           AND (:filter_date_to = 0 OR r.scheduled_date <= :date_to)
+           AND (:filter_number = 0 OR r.number LIKE :number)
+           AND (:filter_expedidor = 0 OR r.expedidor LIKE :expedidor)
+           AND (:filter_status = 0 OR r.status = :status)
          GROUP BY r.id, ca.id, ca.state, ca.equipment_code
          ORDER BY r.scheduled_date DESC, r.id DESC
-         LIMIT {$perPage} OFFSET {$offset}",
+         LIMIT :limit OFFSET :offset",
     );
-    $statement->execute($params);
+    foreach ($params as $name => $value) {
+        $statement->bindValue(':' . $name, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+    }
+    $statement->bindValue(':limit', $perPage, PDO::PARAM_INT);
+    $statement->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $statement->execute();
     $rows = $statement->fetchAll();
 
     foreach ($rows as &$row) {

@@ -4,6 +4,8 @@ declare(strict_types=1);
 use App\Aplicacao\ServicoSincronizacaoRemota;
 use PHPUnit\Framework\TestCase;
 
+require_once __DIR__ . '/../../servidor/configuracao/bootstrap.php';
+
 final class SincronizacaoSnapshotPendenteTest extends TestCase
 {
     private function database(): PDO
@@ -17,6 +19,27 @@ final class SincronizacaoSnapshotPendenteTest extends TestCase
         $pdo->exec('CREATE TABLE codigos_produtos (id INTEGER PRIMARY KEY, company_id INTEGER, product_id INTEGER, barcode TEXT)');
         $pdo->exec('CREATE TABLE romaneios (id INTEGER PRIMARY KEY, company_id INTEGER, remote_romaneio_id INTEGER,
             number TEXT, status TEXT)');
+        return $pdo;
+    }
+
+    private function databaseForAvailableManifests(): PDO
+    {
+        $pdo = new PDO('sqlite::memory:', null, null, [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION, PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC]);
+        $pdo->exec('CREATE TABLE fila_sincronizacao (company_id INTEGER, aggregate_type TEXT, aggregate_id INTEGER, status TEXT)');
+        $pdo->exec('CREATE TABLE produtos (id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER, code TEXT, name TEXT, active INTEGER)');
+        $pdo->exec('CREATE TABLE romaneios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER, remote_romaneio_id INTEGER,
+            number TEXT, scheduled_date TEXT, expedidor TEXT, status TEXT
+        )');
+        $pdo->exec('CREATE TABLE romaneio_caminhoes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, romaneio_id INTEGER, remote_truck_id INTEGER,
+            plate TEXT, driver_name TEXT
+        )');
+        $pdo->exec('CREATE TABLE romaneio_itens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, romaneio_id INTEGER, product_id INTEGER,
+            truck_id INTEGER, planned_quantity INTEGER
+        )');
+        $pdo->exec("INSERT INTO produtos (company_id, code, name, active) VALUES (1, 'SKU-1', 'Produto 1', 1)");
         return $pdo;
     }
 
@@ -123,5 +146,51 @@ final class SincronizacaoSnapshotPendenteTest extends TestCase
         $this->expectException(RuntimeException::class);
         $this->expectExceptionMessage('aceita uma Dala');
         $method->invoke($service, ['remote_company_id' => 9], $snapshot);
+    }
+
+    public function testRomaneioAtribuidoEAplicadoUmaUnicaVezComCaminhaoEItens(): void
+    {
+        $pdo = $this->databaseForAvailableManifests();
+        $service = new ServicoSincronizacaoRemota($pdo);
+        $method = new ReflectionMethod(ServicoSincronizacaoRemota::class, 'sincronizarRomaneiosDisponiveis');
+        $manifest = [[
+            'id' => 70,
+            'number' => 'ROM-700',
+            'scheduled_date' => '2026-10-14',
+            'status' => 'AGUARDANDO',
+            'expedidor' => 'ERP',
+            'trucks' => [[
+                'id' => 90,
+                'plate' => 'ABC1D23',
+                'driver_name' => 'Motorista ERP',
+                'items' => [['code' => 'SKU-1', 'name' => 'Produto 1', 'planned_quantity' => 12]],
+            ]],
+        ]];
+
+        self::assertSame(1, $method->invoke($service, 1, $manifest));
+        $method->invoke($service, 1, $manifest);
+        self::assertSame(1, (int) $pdo->query('SELECT COUNT(*) FROM romaneios')->fetchColumn());
+        self::assertSame(1, (int) $pdo->query('SELECT COUNT(*) FROM romaneio_caminhoes')->fetchColumn());
+        self::assertSame(1, (int) $pdo->query('SELECT COUNT(*) FROM romaneio_itens')->fetchColumn());
+        self::assertSame(70, (int) $pdo->query('SELECT remote_romaneio_id FROM romaneios')->fetchColumn());
+        self::assertSame(12, (int) $pdo->query('SELECT planned_quantity FROM romaneio_itens')->fetchColumn());
+    }
+
+    public function testRomaneioCentralNaoSeVinculaPorNumeroARegistroLocalAmbiguo(): void
+    {
+        $pdo = $this->databaseForAvailableManifests();
+        $pdo->exec("INSERT INTO romaneios (company_id, number, scheduled_date, status)
+            VALUES (1, 'ROM-700', '2026-10-14', 'AGUARDANDO')");
+        $service = new ServicoSincronizacaoRemota($pdo);
+        $method = new ReflectionMethod(ServicoSincronizacaoRemota::class, 'sincronizarRomaneiosDisponiveis');
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('conflita com um registro local');
+        $method->invoke($service, 1, [[
+            'id' => 70,
+            'number' => 'ROM-700',
+            'scheduled_date' => '2026-10-14',
+            'status' => 'AGUARDANDO',
+            'trucks' => [['id' => 90, 'plate' => 'ABC1D23', 'items' => []]],
+        ]]);
     }
 }

@@ -51,7 +51,7 @@ $statement->execute(["email" => $email]);
 $usuario = $statement->fetch();
 $hashComparacao = is_array($usuario)
     ? (string) $usuario["password_hash"]
-    : '$2y$10$KyYdGXeTDGHkxm8b83po0OrNc6y90vZqVfUreYwjbQU4ptOOeHcB2';
+    : '$2y$10$KyYdGXeTDGHkxm8b83po0OrNc6y90vZqVfUreYwjbQU4ptOOeHcB2'; // nosemgrep: generic.secrets.security.detected-bcrypt-hash.detected-bcrypt-hash -- Hash fictício fixo equaliza o custo de password_verify para usuário inexistente; não autentica uma conta.
 $senhaValida = password_verify($password, $hashComparacao);
 
 if (

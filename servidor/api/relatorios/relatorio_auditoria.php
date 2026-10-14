@@ -38,8 +38,7 @@ function trace_cleanup_report_evidence(PDO $pdo, array $loadIds, int $companyId,
         ) !== 1) {
             continue;
         }
-        $absolutePath = trace_image_storage_path($storageRoot, $relativePath);
-        if ($absolutePath !== null && !unlink($absolutePath) && is_file($absolutePath)) {
+        if (trace_remove_image_storage_file($storageRoot, $relativePath) === false) {
             throw new RuntimeException("Não foi possível remover um arquivo de captura após salvar o PDF final.");
         }
     }
@@ -148,6 +147,7 @@ if (is_link($reportPath)) {
 }
 $savedReport = trace_image_storage_path($storageRoot, $reportRelativePath);
 if ($savedReport !== null) {
+    // nosemgrep: php.lang.security.injection.tainted-filename.tainted-filename -- Caminho usa IDs inteiros validados e é resolvido na raiz canônica, recusando links simbólicos.
     $savedPdf = file_get_contents($savedReport);
     if (!is_string($savedPdf) || !str_starts_with($savedPdf, "%PDF-")) {
         $respondJson(["error" => "O PDF salvo está inválido; as evidências foram preservadas."], 503);
@@ -366,7 +366,7 @@ $temporaryReportPath = $reportPath . ".tmp-" . bin2hex(random_bytes(8));
 if (file_put_contents($temporaryReportPath, $pdfBytes, LOCK_EX) !== strlen($pdfBytes)
     || !chmod($temporaryReportPath, 0600) || !rename($temporaryReportPath, $reportPath)) {
     if (is_file($temporaryReportPath)) {
-        unlink($temporaryReportPath);
+        trace_remove_image_storage_file($storageRoot, $temporaryReportPath);
     }
     $respondJson(["error" => "Não foi possível salvar o PDF final no servidor; as evidências foram preservadas."], 503);
 }

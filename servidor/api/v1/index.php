@@ -3,8 +3,9 @@ declare(strict_types=1);
 
 require_once __DIR__ . "/_bootstrap.php";
 
-if (strtoupper((string) ($_SERVER["REQUEST_METHOD"] ?? "GET")) !== "GET") {
-    api_v1_responder_erro("method_not_allowed", "A API v1 aceita somente consultas GET.", 405);
+$method = strtoupper((string) ($_SERVER["REQUEST_METHOD"] ?? "GET"));
+if (!in_array($method, ["GET", "POST"], true)) {
+    api_v1_responder_erro("method_not_allowed", "Método não permitido para a API v1.", 405);
 }
 header("Cache-Control: no-store");
 header("X-Content-Type-Options: nosniff");
@@ -15,12 +16,15 @@ if (!is_string($requestPath) || ($requestPath !== $prefix && !str_starts_with($r
     api_v1_responder_erro("not_found", "Rota da API não encontrada.", 404);
 }
 $route = trim(substr($requestPath, strlen($prefix)), "/");
+if ($method === "POST" && $route !== "romaneios") {
+    api_v1_responder_erro("method_not_allowed", "A API só aceita gravação na criação de romaneios.", 405);
+}
 if ($route === "") {
     header("Content-Type: application/json; charset=utf-8");
     responder_json([
         "name" => "Dallogix Trace API",
         "version" => "v1",
-        "mode" => "read_only",
+        "mode" => "read_write_business_data",
         "openapi" => "/api/v1/openapi.yaml",
     ]);
 }
@@ -60,16 +64,31 @@ if ($route === "empresa") {
 }
 
 if ($route === "romaneios") {
+    if ($method === "POST") {
+        $client = api_v1_exigir_cliente(["romaneios:write"]);
+        require __DIR__ . "/romaneios-write.php";
+        api_v1_criar_romaneio($pdo, $client);
+    }
+
     $client = api_v1_exigir_cliente(["romaneios:read"]);
     $pagination = api_v1_paginacao();
     $conditions = ["r.company_id = :company_id", "r.id > :cursor"];
     $params = ["company_id" => $client["company_id"], "cursor" => $pagination["cursor"]];
     $dateFrom = api_v1_validar_data(isset($_GET["date_from"]) ? (string) $_GET["date_from"] : null, "date_from");
     $dateTo = api_v1_validar_data(isset($_GET["date_to"]) ? (string) $_GET["date_to"] : null, "date_to");
+    $rawNumber = $_GET["number"] ?? "";
+    if (!is_string($rawNumber)) {
+        api_v1_responder_erro("invalid_filter", "number deve ser texto.", 422);
+    }
+    $number = trim($rawNumber);
     $status = strtoupper(trim((string) ($_GET["status"] ?? "")));
     $allowedStatuses = ["IMPORTADO", "AGUARDANDO", "EM_ANDAMENTO", "FINALIZADO", "CANCELADO"];
     if ($dateFrom !== null && $dateTo !== null && $dateFrom > $dateTo) {
         api_v1_responder_erro("invalid_filter", "date_from não pode ser posterior a date_to.", 422);
+    }
+    if ($number !== "" && (mb_strlen($number, "UTF-8") > 80
+        || preg_match('/^[A-Za-z0-9À-ÿ _.,\/-]{1,80}$/u', $number) !== 1)) {
+        api_v1_responder_erro("invalid_filter", "number deve conter até 80 caracteres válidos.", 422);
     }
     if ($status !== "" && !in_array($status, $allowedStatuses, true)) {
         api_v1_responder_erro("invalid_filter", "status não reconhecido.", 422);
@@ -86,10 +105,19 @@ if ($route === "romaneios") {
         $conditions[] = "r.status = :status";
         $params["status"] = $status;
     }
-    $sql = "SELECT r.id, r.number, r.scheduled_date, r.status, r.expedidor, r.created_at, r.updated_at,
+    if ($number !== "") {
+        $conditions[] = "r.number = :number";
+        $params["number"] = $number;
+    }
+    $sql = "SELECT r.id, r.number, r.scheduled_date, r.status, r.expedidor, ae.equipment_code,
+                   r.created_at, r.updated_at,
                    (SELECT COUNT(*) FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id) AS trucks_count,
                    COALESCE((SELECT SUM(ri.planned_quantity) FROM romaneio_itens ri WHERE ri.romaneio_id = r.id), 0) AS planned_quantity
-            FROM romaneios r WHERE " . implode(" AND ", $conditions) . "
+            FROM romaneios r
+            LEFT JOIN instalacoes_industriais ai
+              ON ai.id = r.assigned_installation_id AND ai.company_id = r.company_id
+            LEFT JOIN equipamentos ae ON ae.id = ai.equipment_id AND ae.company_id = r.company_id
+            WHERE " . implode(" AND ", $conditions) . "
             ORDER BY r.id ASC LIMIT :fetch_limit";
     api_v1_responder_lista($pdo, $sql, $params, $pagination["limit"]);
 }
@@ -98,8 +126,13 @@ if (preg_match('/\Aromaneios\/([1-9][0-9]*)\z/', $route, $matches) === 1) {
     $client = api_v1_exigir_cliente(["romaneios:read"]);
     $romaneioId = api_v1_validar_id($matches[1]);
     $statement = $pdo->prepare(
-        "SELECT id, number, scheduled_date, status, expedidor, created_at, updated_at
-         FROM romaneios WHERE id = :id AND company_id = :company_id LIMIT 1",
+        "SELECT r.id, r.number, r.scheduled_date, r.status, r.expedidor, ae.equipment_code,
+                r.created_at, r.updated_at
+         FROM romaneios r
+         LEFT JOIN instalacoes_industriais ai
+           ON ai.id = r.assigned_installation_id AND ai.company_id = r.company_id
+         LEFT JOIN equipamentos ae ON ae.id = ai.equipment_id AND ae.company_id = r.company_id
+         WHERE r.id = :id AND r.company_id = :company_id LIMIT 1",
     );
     $statement->execute(["id" => $romaneioId, "company_id" => $client["company_id"]]);
     $romaneio = $statement->fetch(PDO::FETCH_ASSOC);

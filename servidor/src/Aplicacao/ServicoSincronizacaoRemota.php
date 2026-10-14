@@ -199,6 +199,9 @@ final class ServicoSincronizacaoRemota
         if (array_key_exists("romaneios_cancelados", $snapshot) && !is_array($snapshot["romaneios_cancelados"])) {
             throw new RuntimeException("Resposta do servidor central contém uma lista de romaneios cancelados inválida.");
         }
+        if (array_key_exists("romaneios_disponiveis", $snapshot) && !is_array($snapshot["romaneios_disponiveis"])) {
+            throw new RuntimeException("Resposta do servidor central contém uma lista de romaneios disponíveis inválida.");
+        }
 
         if (count($snapshot["equipamentos"]) !== 1) {
             throw new RuntimeException(
@@ -236,6 +239,43 @@ final class ServicoSincronizacaoRemota
                 || strtoupper(trim((string) ($manifest["status"] ?? ""))) !== "CANCELADO"
             ) {
                 throw new RuntimeException("Resposta do servidor central contém um cancelamento de romaneio inválido.");
+            }
+        }
+
+        foreach (($snapshot["romaneios_disponiveis"] ?? []) as $manifest) {
+            if (!is_array($manifest)
+                || (int) ($manifest["id"] ?? 0) < 1
+                || trim((string) ($manifest["number"] ?? "")) === ""
+                || !in_array(strtoupper(trim((string) ($manifest["status"] ?? ""))), ["IMPORTADO", "AGUARDANDO"], true)
+                || !is_array($manifest["trucks"] ?? null)
+                || $manifest["trucks"] === []
+            ) {
+                throw new RuntimeException("Resposta do servidor central contém um romaneio disponível inválido.");
+            }
+            $scheduledDate = trim((string) ($manifest["scheduled_date"] ?? ""));
+            $date = \DateTime::createFromFormat("!Y-m-d", $scheduledDate);
+            if ($date === false || $date->format("Y-m-d") !== $scheduledDate) {
+                throw new RuntimeException("Resposta do servidor central contém uma data de romaneio inválida.");
+            }
+            foreach ($manifest["trucks"] as $truck) {
+                if (!is_array($truck)
+                    || (int) ($truck["id"] ?? 0) < 1
+                    || !placa_caminhao_valida((string) ($truck["plate"] ?? ""))
+                    || !is_array($truck["items"] ?? null)
+                ) {
+                    throw new RuntimeException("Resposta do servidor central contém um caminhão de romaneio inválido.");
+                }
+                foreach ($truck["items"] as $item) {
+                    $quantity = is_array($item)
+                        ? filter_var($item["planned_quantity"] ?? null, FILTER_VALIDATE_INT)
+                        : false;
+                    if (!is_array($item)
+                        || trim((string) ($item["code"] ?? "")) === ""
+                        || $quantity === false || $quantity < 1
+                    ) {
+                        throw new RuntimeException("Resposta do servidor central contém um item de romaneio inválido.");
+                    }
+                }
             }
         }
 
@@ -317,6 +357,10 @@ final class ServicoSincronizacaoRemota
             $updated += $this->sincronizarRomaneiosCancelados(
                 $companyId,
                 $snapshot["romaneios_cancelados"] ?? [],
+            );
+            $updated += $this->sincronizarRomaneiosDisponiveis(
+                $companyId,
+                $snapshot["romaneios_disponiveis"] ?? [],
             );
 
             $loadingIds = [];
@@ -715,6 +759,104 @@ final class ServicoSincronizacaoRemota
             $updated += $cancel->rowCount();
         }
 
+        return $updated;
+    }
+
+    /** @param list<array<string,mixed>> $manifests */
+    private function sincronizarRomaneiosDisponiveis(int $companyId, array $manifests): int
+    {
+        $findByRemoteId = $this->connection->prepare(
+            "SELECT id FROM romaneios
+             WHERE company_id = :company_id AND remote_romaneio_id = :remote_id LIMIT 1",
+        );
+        $findByNumber = $this->connection->prepare(
+            "SELECT id, remote_romaneio_id FROM romaneios
+             WHERE company_id = :company_id AND number = :number ORDER BY id LIMIT 2",
+        );
+        $insert = $this->connection->prepare(
+            "INSERT INTO romaneios
+             (company_id, remote_romaneio_id, number, scheduled_date, expedidor, status)
+             VALUES (:company_id, :remote_id, :number, :scheduled_date, :expedidor, :status)",
+        );
+        $update = $this->connection->prepare(
+            "UPDATE romaneios SET remote_romaneio_id = :remote_id, number = :number,
+             scheduled_date = :scheduled_date, expedidor = :expedidor, status = :status
+             WHERE id = :id AND company_id = :company_id",
+        );
+        $linkRemoteId = $this->connection->prepare(
+            "UPDATE romaneios SET remote_romaneio_id = :remote_id
+             WHERE id = :id AND company_id = :company_id",
+        );
+
+        $updated = 0;
+        foreach ($manifests as $manifest) {
+            $remoteId = (int) ($manifest["id"] ?? 0);
+            $number = trim((string) ($manifest["number"] ?? ""));
+            $status = strtoupper(trim((string) ($manifest["status"] ?? "")));
+            if ($remoteId < 1 || $number === "" || !in_array($status, ["IMPORTADO", "AGUARDANDO"], true)) {
+                throw new RuntimeException("Romaneio disponível recebido do Central é inválido.");
+            }
+
+            $findByRemoteId->execute(["company_id" => $companyId, "remote_id" => $remoteId]);
+            $localId = (int) ($findByRemoteId->fetchColumn() ?: 0);
+            if ($localId < 1) {
+                $findByNumber->execute(["company_id" => $companyId, "number" => $number]);
+                $sameNumber = $findByNumber->fetchAll(PDO::FETCH_ASSOC);
+                if ($sameNumber !== []) {
+                    throw new RuntimeException(
+                        "Romaneio central {$number} conflita com um registro local; a sincronização não o vinculou automaticamente.",
+                    );
+                }
+                $insert->execute([
+                    "company_id" => $companyId,
+                    "remote_id" => $remoteId,
+                    "number" => $number,
+                    "scheduled_date" => $manifest["scheduled_date"],
+                    "expedidor" => $manifest["expedidor"] ?? null,
+                    "status" => $status,
+                ]);
+                $localId = (int) $this->connection->lastInsertId();
+                $updated++;
+            } elseif ($this->possuiEventoLocalPendente($companyId, "romaneio", $localId)) {
+                $linkRemoteId->execute([
+                    "remote_id" => $remoteId,
+                    "id" => $localId,
+                    "company_id" => $companyId,
+                ]);
+            } else {
+                $current = $this->connection->prepare(
+                    "SELECT status FROM romaneios WHERE id = :id AND company_id = :company_id LIMIT 1",
+                );
+                $current->execute(["id" => $localId, "company_id" => $companyId]);
+                $currentStatus = strtoupper(trim((string) ($current->fetchColumn() ?: "")));
+                if (in_array($currentStatus, ["FINALIZADO", "CANCELADO"], true)) {
+                    continue;
+                }
+                $update->execute([
+                    "remote_id" => $remoteId,
+                    "number" => $number,
+                    "scheduled_date" => $manifest["scheduled_date"],
+                    "expedidor" => $manifest["expedidor"] ?? null,
+                    "status" => $status,
+                    "id" => $localId,
+                    "company_id" => $companyId,
+                ]);
+                $updated++;
+            }
+
+            if ($this->possuiEventoLocalPendente($companyId, "romaneio", $localId)) {
+                continue;
+            }
+            foreach (($manifest["trucks"] ?? []) as $remoteTruck) {
+                $truckId = $this->salvarOuAtualizarCaminhao(
+                    $companyId,
+                    $localId,
+                    (int) ($remoteTruck["id"] ?? 0),
+                    $remoteTruck,
+                );
+                $this->sincronizarItens($localId, $companyId, $truckId, $remoteTruck["items"] ?? []);
+            }
+        }
         return $updated;
     }
 

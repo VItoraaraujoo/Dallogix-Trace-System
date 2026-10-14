@@ -429,3 +429,59 @@ test("snapshot SSE anterior à consulta em curso não substitui dados mais novos
     restaurar();
   }
 });
+
+test("evento SSE antigo não limpa aviso de monitoramento desatualizado", async () => {
+  const restaurar = criarAmbiente();
+  const originalSetTimeout = window.setTimeout;
+  const originalClearTimeout = window.clearTimeout;
+  const timers = [];
+  const frescor = [];
+  window.setTimeout = (callback) => {
+    timers.push(callback);
+    return timers.length;
+  };
+  window.clearTimeout = () => {};
+
+  let onData;
+  const store = {
+    state: { selectedLoadingId: 7, loadingId: 7 },
+    subscribeOperationalEvents(callback) {
+      onData = callback;
+      return { close() {} };
+    },
+    async loadActiveLoading() { throw new Error("Gateway sem resposta"); },
+    async loadMonitoring() {},
+    async loadPendingReadings() {},
+    async loadPlcCommandStatus() {},
+  };
+  const controller = createOperationalRealtimeController({
+    store,
+    getPage: () => "work",
+    render() {},
+    refreshWorkLiveView() {},
+    setFreshness: (page, state) => frescor.push([page, state]),
+    workStructureSignature: () => "estrutura",
+    getViewSignature: () => "estrutura",
+  });
+
+  try {
+    controller.start();
+    await timers.shift()();
+    await timers.shift()();
+    assert.equal(frescor.at(-1)[1].stale, true);
+
+    await onData({
+      sent_at: new Date(Date.now() - 5000).toISOString(),
+      monitoring: { antigo: true },
+      active_loadings: [],
+    });
+
+    assert.equal(frescor.at(-1)[1].stale, true);
+    assert.equal(frescor.at(-1)[1].consecutiveFailures, 2);
+  } finally {
+    controller.stop();
+    window.setTimeout = originalSetTimeout;
+    window.clearTimeout = originalClearTimeout;
+    restaurar();
+  }
+});
