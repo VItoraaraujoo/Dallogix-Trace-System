@@ -119,29 +119,58 @@ final class ServicoMonitoramento
     public function carregamentosAtivos(int $companyId): array
     {
         $statement = $this->connection->prepare(
-            "WITH quantidades_romaneio AS (
-                SELECT ri.romaneio_id, ri.truck_id, SUM(ri.planned_quantity) AS planned_quantity
-                FROM romaneio_itens ri
-                GROUP BY ri.romaneio_id, ri.truck_id
+            "WITH carregamentos_ativos AS (
+                SELECT c.id, c.company_id, c.romaneio_id, c.truck_id,
+                       c.equipment_id, c.state, c.started_at, c.finished_at,
+                       c.leituras_validas
+                FROM carregamentos c
+                JOIN romaneios r ON r.id = c.romaneio_id
+                WHERE c.company_id = :company_id_ativos
+                  AND c.state <> 'FINALIZADO'
+                  AND r.status NOT IN ('FINALIZADO', 'CANCELADO')
+            ), quantidades_romaneio AS (
+                SELECT ca.id AS carregamento_id,
+                       SUM(ri.planned_quantity) AS planned_quantity
+                FROM carregamentos_ativos ca
+                JOIN romaneio_itens ri
+                  ON ri.romaneio_id = ca.romaneio_id
+                 AND (ri.truck_id = ca.truck_id OR ri.truck_id IS NULL)
+                GROUP BY ca.id
+            ), eventos_detectados AS (
+                SELECT se.carregamento_id, COUNT(*) AS detected_bags
+                FROM eventos_sensor se
+                JOIN carregamentos_ativos ca ON ca.id = se.carregamento_id
+                GROUP BY se.carregamento_id
+            ), alertas_fim_produto AS (
+                SELECT la.entity_id AS carregamento_id,
+                       JSON_UNQUOTE(JSON_EXTRACT(la.metadata, '$.message')) AS end_product_alert,
+                       ROW_NUMBER() OVER (PARTITION BY la.entity_id ORDER BY la.id DESC) AS rn
+                FROM logs_auditoria la
+                JOIN carregamentos_ativos ca ON ca.id = la.entity_id
+                WHERE la.company_id = :company_id_alertas
+                  AND la.action = 'ALERTA_FIM_PRODUTO'
+                  AND la.entity_type = 'carregamento'
             )
-            SELECT c.id, c.state, c.equipment_id, c.started_at, c.finished_at,
+            SELECT ca.id, ca.state, ca.equipment_id, ca.started_at, ca.finished_at,
                    r.number AS romaneio_number, rt.plate, e.equipment_code,
-                   COALESCE(qe.planned_quantity, 0) + COALESCE(qg.planned_quantity, 0) AS planned_quantity,
-                   COALESCE(c.leituras_validas, 0) AS valid_readings
-            FROM carregamentos c
-            JOIN romaneios r ON r.id = c.romaneio_id
-            JOIN romaneio_caminhoes rt ON rt.id = c.truck_id
-            LEFT JOIN equipamentos e ON e.id = c.equipment_id
-            LEFT JOIN quantidades_romaneio qe
-              ON qe.romaneio_id = c.romaneio_id AND qe.truck_id = c.truck_id
-            LEFT JOIN quantidades_romaneio qg
-              ON qg.romaneio_id = c.romaneio_id AND qg.truck_id IS NULL
-            WHERE c.company_id = :company_id
-              AND c.state <> 'FINALIZADO'
-              AND r.status NOT IN ('FINALIZADO', 'CANCELADO')
-            ORDER BY c.id DESC",
+                   COALESCE(qr.planned_quantity, 0) AS planned_quantity,
+                   COALESCE(ca.leituras_validas, 0) AS valid_readings,
+                   COALESCE(ed.detected_bags, 0) AS detected_bags,
+                   afp.end_product_alert
+            FROM carregamentos_ativos ca
+            JOIN romaneios r ON r.id = ca.romaneio_id
+            JOIN romaneio_caminhoes rt ON rt.id = ca.truck_id
+            LEFT JOIN equipamentos e ON e.id = ca.equipment_id
+            LEFT JOIN quantidades_romaneio qr ON qr.carregamento_id = ca.id
+            LEFT JOIN eventos_detectados ed ON ed.carregamento_id = ca.id
+            LEFT JOIN alertas_fim_produto afp
+              ON afp.carregamento_id = ca.id AND afp.rn = 1
+            ORDER BY ca.id DESC",
         );
-        $statement->execute(["company_id" => $companyId]);
+        $statement->execute([
+            "company_id_ativos" => $companyId,
+            "company_id_alertas" => $companyId,
+        ]);
         $rows = $statement->fetchAll();
         foreach ($rows as &$row) {
             $row["items"] = [];

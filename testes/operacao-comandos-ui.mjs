@@ -4,12 +4,56 @@ import {
   paradaPodeSerEnfileiradaAposInicio,
   paradaPodeSubstituirInicio,
   podeLiberarEmergencia,
+  podeVincularDala,
   workControlLocks,
   work,
 } from "../interface/telas/operacao/operacao.js";
 import { resolverComandoAtual } from "../interface/js/funcoes/estado-comando.js";
 import { captureOperationScanner, restoreOperationScanner, changeOperationLoading, operationStructureSignature } from "../interface/js/controladores/operacao.js";
 import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js";
+
+test("somente administrador da empresa e supervisor recebem a ação de vincular Dala", () => {
+  assert.equal(podeVincularDala("ADMIN_EMPRESA"), true);
+  assert.equal(podeVincularDala("SUPERVISOR"), true);
+  assert.equal(podeVincularDala("USUARIO"), false);
+  assert.equal(podeVincularDala("ADMIN_DALLOGIX"), false);
+  assert.equal(podeVincularDala(null), false);
+});
+
+test("a tela esconde o vínculo de Dala para operador e informa quem pode agir", () => {
+  const state = {
+    selectedLoadingId: null,
+    activeLoadings: [{ id: 7, state: "PAUSADO", equipment_id: null }],
+    equipments: [{ id: 3, name: "Dala 3", equipment_code: "D-003" }],
+    userRole: "USUARIO",
+  };
+  const markup = work({ state });
+  assert.doesNotMatch(markup, /class="reassign-loading-form"/);
+  assert.match(markup, /Solicite a um administrador da empresa ou supervisor/);
+});
+
+test("a confirmação de código envia o formulário e deixa espaço para feedback", () => {
+  const markup = work({ state: {
+    selectedLoadingId: 7,
+    loadingId: 7,
+    activeLoadings: [{ id: 7, state: "PAUSADO", equipment_id: 3 }],
+    loadingItems: [],
+    equipmentCode: "D-003",
+    romaneio: "R-7",
+    truck: "ABC1234",
+    operationalState: "PAUSADO",
+    detectedBags: 0,
+    planned: 1,
+    loaded: 0,
+    userRole: "USUARIO",
+    commandInFlight: false,
+    emergency: false,
+    pendingReadings: [{ id: 31 }],
+  } });
+  assert.match(markup, /data-action="identify-reading" type="submit"/);
+  assert.match(markup, /inputmode="text"/);
+  assert.match(markup, /class="form-feedback" data-form-feedback role="status"/);
+});
 
 test("parada pode substituir um início ainda pendente em pausa", () => {
   assert.equal(

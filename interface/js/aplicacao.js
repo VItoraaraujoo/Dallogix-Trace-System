@@ -1,7 +1,7 @@
 import {
   configurarSessaoPorAba,
 } from "./sessao.js?v=202609222100";
-import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
+import { ClienteApi } from "./api/ClienteApi.js?v=202610140002";
 import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610070024";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
@@ -34,7 +34,7 @@ import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
 import { manifests } from "../telas/romaneios/romaneios.js?v=202610130006";
 import { manifestView } from "../telas/romaneio/romaneio.js?v=202610130006";
-import { work } from "../telas/operacao/operacao.js?v=202610130003";
+import { work } from "../telas/operacao/operacao.js?v=202610140002";
 import { dashboard } from "../telas/painel/painel.js?v=202610130001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610130001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
@@ -391,7 +391,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610140001").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610140002").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -2309,12 +2309,13 @@ function bindForms() {
       event.preventDefault();
       const submit = form.querySelector('button[type="submit"]');
       if (submit) submit.disabled = true;
+      setFormFeedback(form, "Vinculando a nova Dala…");
       try {
         const raw = Object.fromEntries(new FormData(form));
         await store.reassignLoading(form.dataset.loadingId, raw.equipment_id);
         render();
       } catch (error) {
-        notificarForaDaOperacao(error.message, "erro");
+        setFormFeedback(form, error.message || "Não foi possível vincular a nova Dala.", "error");
       } finally {
         if (submit) submit.disabled = false;
       }
@@ -2370,12 +2371,13 @@ function bindForms() {
       form.dataset.submitting = "1";
       const submit = form.querySelector('button[type="submit"]');
       if (submit) submit.disabled = true;
+      setFormFeedback(form, "Confirmando código…");
       try {
         const raw = Object.fromEntries(new FormData(form));
         await store.identifyReading(form.dataset.readingId, raw.barcode);
         render();
       } catch (error) {
-        notificarForaDaOperacao(error.message, "erro");
+        setFormFeedback(form, error.message || "Não foi possível confirmar o código.", "error");
       } finally {
         if (form.isConnected) {
           form.dataset.submitting = "";

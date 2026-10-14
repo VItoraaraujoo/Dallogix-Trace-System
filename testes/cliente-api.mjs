@@ -1,6 +1,12 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { ClienteApi, ErroApi, exigirRespostaHttp, mensagemHttp } from "../interface/js/api/ClienteApi.js";
+import {
+  ClienteApi,
+  ErroApi,
+  exigirRespostaHttp,
+  mensagemHttp,
+  registrarAtividadeDeUsuario,
+} from "../interface/js/api/ClienteApi.js";
 
 const resposta = (status = 200, body = "{}") => new Response(body, {
   status,
@@ -137,4 +143,20 @@ test("preserva o corpo para a tela depois de classificar um erro HTTP", async ()
   const response = resposta(503, JSON.stringify({ error: "Fila indisponível." }));
   await assert.rejects(exigirRespostaHttp(response), /Fila indisponível/);
   assert.deepEqual(await response.json(), { error: "Fila indisponível." });
+});
+
+test("marca requisições próximas a uma interação real para renovar a sessão", async () => {
+  const originalFetch = globalThis.fetch;
+  let headers;
+  globalThis.fetch = async (_url, options) => {
+    headers = new Headers(options.headers);
+    return resposta();
+  };
+  try {
+    registrarAtividadeDeUsuario();
+    await new ClienteApi({ retry: 0 }).fetch("/api/monitoramento.php");
+    assert.equal(headers.get("X-Trace-User-Activity"), "1");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
 });

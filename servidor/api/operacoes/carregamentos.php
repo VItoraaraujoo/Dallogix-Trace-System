@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 require_once __DIR__ . "/../../configuracao/bootstrap.php";
+require_once __DIR__ . "/../../src/Aplicacao/ServicoMonitoramento.php";
+
+use App\Aplicacao\ServicoMonitoramento;
 
 $usuarioAtor = exigir_sessao_usuario();
 if ($usuarioAtor["company_id"] === null) {
@@ -14,117 +17,8 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
 $pdo = obter_conexao_banco();
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
-    $statement = obter_conexao_banco()->prepare(
-        "WITH quantidades_planejadas AS (
-                SELECT c2.id AS carregamento_id,
-                       SUM(ri.planned_quantity) AS planned_quantity
-                FROM carregamentos c2
-                JOIN romaneio_itens ri
-                  ON ri.romaneio_id = c2.romaneio_id
-                 AND (ri.truck_id = c2.truck_id OR ri.truck_id IS NULL)
-                WHERE c2.company_id = :company_id_planejado
-                GROUP BY c2.id
-            ), eventos_detectados AS (
-                SELECT se.carregamento_id, se.equipment_id, COUNT(*) AS detected_bags
-                FROM eventos_sensor se
-                JOIN carregamentos c2 ON c2.id = se.carregamento_id
-                WHERE c2.company_id = :company_id_eventos
-                GROUP BY se.carregamento_id, se.equipment_id
-            ), alertas_fim_produto AS (
-                SELECT la.entity_id AS carregamento_id,
-                       JSON_UNQUOTE(JSON_EXTRACT(la.metadata, '$.message')) AS end_product_alert,
-                       ROW_NUMBER() OVER (PARTITION BY la.entity_id ORDER BY la.id DESC) AS rn
-                FROM logs_auditoria la
-                WHERE la.company_id = :company_id_alertas
-                  AND la.action = 'ALERTA_FIM_PRODUTO'
-                  AND la.entity_type = 'carregamento'
-            )
-         SELECT c.id, c.state, c.equipment_id, c.started_at, c.finished_at,
-                r.number AS romaneio_number, rt.plate, e.equipment_code,
-                COALESCE(qp.planned_quantity, 0) AS planned_quantity,
-                COALESCE(c.leituras_validas, 0) AS valid_readings,
-                COALESCE(ed.detected_bags, 0) AS detected_bags,
-                afp.end_product_alert
-         FROM carregamentos c
-         JOIN romaneios r ON r.id = c.romaneio_id
-         JOIN romaneio_caminhoes rt ON rt.id = c.truck_id
-         LEFT JOIN equipamentos e ON e.id = c.equipment_id
-         LEFT JOIN quantidades_planejadas qp ON qp.carregamento_id = c.id
-         LEFT JOIN eventos_detectados ed
-           ON ed.carregamento_id = c.id AND ed.equipment_id = c.equipment_id
-         LEFT JOIN alertas_fim_produto afp
-           ON afp.carregamento_id = c.id AND afp.rn = 1
-         WHERE c.company_id = :company_id_principal
-           AND c.state <> 'FINALIZADO'
-           AND r.status NOT IN ('FINALIZADO', 'CANCELADO')
-         ORDER BY c.id DESC",
-    );
-    $statement->execute([
-        "company_id_planejado" => $usuarioAtor["company_id"],
-        "company_id_eventos" => $usuarioAtor["company_id"],
-        "company_id_alertas" => $usuarioAtor["company_id"],
-        "company_id_principal" => $usuarioAtor["company_id"],
-    ]);
-    $rows = $statement->fetchAll();
-    foreach ($rows as &$row) {
-        $row["items"] = [];
-    }
-    unset($row);
-
-    if ($rows) {
-        $loadingIds = array_values(array_unique(array_map(
-            static fn (array $row): int => (int) $row["id"],
-            $rows,
-        )));
-        $placeholders = [];
-        $params = ["company_id" => (int) $usuarioAtor["company_id"]];
-        foreach ($loadingIds as $index => $loadingId) {
-            $name = "loading_id_{$index}";
-            $placeholders[] = ":{$name}";
-            $params[$name] = $loadingId;
-        }
-        $itemsStatement = $pdo->prepare(
-            "WITH leituras_validas AS (
-                    SELECT carregamento_id, product_id, COUNT(*) AS loaded_quantity
-                    FROM leituras
-                    WHERE result = 'VALIDO'
-                    GROUP BY carregamento_id, product_id
-                )
-             SELECT c.id AS loading_id, ri.product_id, p.name, p.code,
-                    SUM(ri.planned_quantity) AS planned_quantity,
-                    COALESCE(lv.loaded_quantity, 0) AS loaded_quantity
-             FROM carregamentos c
-             JOIN romaneio_itens ri
-               ON ri.romaneio_id = c.romaneio_id
-              AND (ri.truck_id = c.truck_id OR ri.truck_id IS NULL)
-             JOIN produtos p ON p.id = ri.product_id
-             LEFT JOIN leituras_validas lv
-               ON lv.carregamento_id = c.id AND lv.product_id = ri.product_id
-             WHERE c.company_id = :company_id
-               AND c.id IN (" . implode(", ", $placeholders) . ")
-             GROUP BY c.id, ri.product_id, p.name, p.code, lv.loaded_quantity
-             ORDER BY c.id DESC, ri.product_id",
-        );
-        $itemsStatement->execute($params);
-        $itemsByLoading = [];
-        foreach ($itemsStatement->fetchAll() as $item) {
-            $planned = (int) $item["planned_quantity"];
-            $loaded = (int) $item["loaded_quantity"];
-            $itemsByLoading[(int) $item["loading_id"]][] = [
-                "product_id" => (int) $item["product_id"],
-                "name" => $item["name"],
-                "code" => $item["code"],
-                "planned_quantity" => $planned,
-                "loaded_quantity" => $loaded,
-                "remaining_quantity" => max(0, $planned - $loaded),
-            ];
-        }
-        foreach ($rows as &$row) {
-            $row["items"] = $itemsByLoading[(int) $row["id"]] ?? [];
-        }
-        unset($row);
-    }
-    responder_json(["data" => $rows]);
+    $service = new ServicoMonitoramento($pdo);
+    responder_json(["data" => $service->carregamentosAtivos((int) $usuarioAtor["company_id"])]);
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "PATCH") {

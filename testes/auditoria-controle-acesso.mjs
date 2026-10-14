@@ -33,3 +33,32 @@ test("rotas operacionais liberam a sessão antes de consultas demoradas", () => 
     assert.ok(closeSession < databaseWork, route + " mantém a sessão aberta durante acesso ao banco");
   }
 });
+
+test("REST e SSE compartilham o snapshot filtrado de carregamentos ativos", () => {
+  const root = new URL("../servidor/", import.meta.url);
+  const endpoint = readFileSync(new URL("api/operacoes/carregamentos.php", root), "utf8");
+  const service = readFileSync(new URL("src/Aplicacao/ServicoMonitoramento.php", root), "utf8");
+
+  assert.match(endpoint, /new ServicoMonitoramento\(\$pdo\)/);
+  assert.match(endpoint, /carregamentosAtivos\(\(int\) \$usuarioAtor\["company_id"\]\)/);
+  assert.match(service, /WITH carregamentos_ativos AS/);
+  assert.match(service, /JOIN carregamentos_ativos ca ON ca\.id = se\.carregamento_id/);
+  assert.match(service, /COALESCE\(ed\.detected_bags, 0\) AS detected_bags/);
+  assert.doesNotMatch(endpoint, /eventos_detectados|quantidades_planejadas/);
+});
+
+test("sessões de perfis altos não são renovadas apenas pelo polling", () => {
+  const bootstrapPath = new URL("../servidor/configuracao/bootstrap.php", import.meta.url).pathname;
+  const script = `
+    require_once ${JSON.stringify(bootstrapPath)};
+    $_SERVER = ["REQUEST_METHOD" => "GET"];
+    $polling = trace_requisicao_conta_como_atividade();
+    $_SERVER["HTTP_X_TRACE_USER_ACTIVITY"] = "1";
+    $interacao = trace_requisicao_conta_como_atividade();
+    $_SERVER = ["REQUEST_METHOD" => "POST"];
+    $mutacao = trace_requisicao_conta_como_atividade();
+    echo json_encode([$polling, $interacao, $mutacao]);
+  `;
+  const output = execFileSync("php", ["-r", script], { encoding: "utf8" });
+  assert.deepEqual(JSON.parse(output), [false, true, true]);
+});
