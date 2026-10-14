@@ -358,3 +358,74 @@ test("snapshot operacional enfileirado é descartado quando a página fica obsol
   await consulta;
   assert.equal(aplicado, false);
 });
+
+test("snapshot SSE anterior à consulta em curso não substitui dados mais novos", async () => {
+  const restaurar = criarAmbiente();
+  const originalSetTimeout = window.setTimeout;
+  const originalClearTimeout = window.clearTimeout;
+  const timers = [];
+  window.setTimeout = (callback) => {
+    timers.push(callback);
+    return timers.length;
+  };
+  window.clearTimeout = () => {};
+
+  let onData;
+  let iniciarConsulta;
+  let liberarConsulta;
+  let snapshotsAplicados = 0;
+  let comandosConsultados = 0;
+  const consultaIniciada = new Promise((resolve) => { iniciarConsulta = resolve; });
+  const consulta = new Promise((resolve) => { liberarConsulta = resolve; });
+  const dadosAtuais = [{ id: 7, state: "CARREGANDO" }];
+  const store = {
+    state: {
+      selectedLoadingId: 7,
+      loadingId: 7,
+      activeLoadings: [],
+    },
+    subscribeOperationalEvents(callback) {
+      onData = callback;
+      return { close() {} };
+    },
+    async loadActiveLoading() {
+      iniciarConsulta();
+      await consulta;
+      this.state.activeLoadings = dadosAtuais;
+    },
+    async loadMonitoring() {},
+    async loadPendingReadings() {},
+    async loadPlcCommandStatus() { comandosConsultados += 1; },
+    async applyActiveLoadingSnapshot() { snapshotsAplicados += 1; },
+  };
+  const controller = createOperationalRealtimeController({
+    store,
+    getPage: () => "work",
+    render() {},
+    refreshWorkLiveView() {},
+    workStructureSignature: () => "estrutura",
+    getViewSignature: () => "estrutura",
+  });
+
+  try {
+    controller.start();
+    const polling = timers.shift()();
+    await consultaIniciada;
+    await onData({
+      sent_at: new Date(Date.now() - 5000).toISOString(),
+      monitoring: { antigo: true },
+      active_loadings: [{ id: 7, state: "PAUSADO" }],
+    });
+    assert.equal(snapshotsAplicados, 0);
+    assert.equal(comandosConsultados, 1);
+    liberarConsulta();
+    await polling;
+    assert.deepEqual(store.state.activeLoadings, dadosAtuais);
+    assert.equal(store.state.monitoring, undefined);
+  } finally {
+    controller.stop();
+    window.setTimeout = originalSetTimeout;
+    window.clearTimeout = originalClearTimeout;
+    restaurar();
+  }
+});

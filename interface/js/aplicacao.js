@@ -5,10 +5,10 @@ import { ClienteApi } from "./api/ClienteApi.js?v=202610060001";
 import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610070024";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610130006";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610140001";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
-import { captureOperationScanner, restoreOperationScanner, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio } from "./controladores/operacao.js?v=202610130004";
-import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610130001";
+import { captureOperationScanner, restoreOperationScanner, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio, operationStructureSignature } from "./controladores/operacao.js?v=202610140001";
+import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610140001";
 import { createPageRefreshController } from "./controladores/page-refresh.js?v=202610130001";
 import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
 import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
@@ -391,7 +391,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610130006").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610140001").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -654,38 +654,7 @@ function startWorkPolling() {
   workRealtime.start();
 }
 function workStructureSignature() {
-  const pending = (store.state.pendingReadings || []).map((reading) => reading.id).join(",");
-  const unselectedLoadings = store.state.selectedLoadingId
-    ? []
-    : (store.state.activeLoadings || []).map((loading) => [
-        loading.id,
-        loading.equipment_id,
-        loading.state,
-        loading.detected_bags,
-      ]);
-  const loadingItems = (store.state.loadingItems || []).map((item) => [
-    item.product_id,
-    item.loaded_quantity,
-    item.planned_quantity,
-  ]);
-  const command = store.state.plcCommand;
-  return JSON.stringify([
-    store.state.selectedLoadingId || null,
-    (store.state.activeLoadings || []).length,
-    unselectedLoadings,
-    store.state.emergency,
-    store.state.operationalState,
-    pending,
-    command?.id || null,
-    command?.command || null,
-    command?.status || null,
-    command?.response_message || null,
-    store.state.commandIntent?.id || null,
-    store.state.commandIntent?.command || null,
-    store.state.commandIntent?.status || null,
-    store.clpDisponivel(),
-    loadingItems,
-  ]);
+  return operationStructureSignature(store.state, store.clpDisponivel());
 }
 function refreshWorkLiveView() {
   const detectedBags = Number(store.state.detectedBags) || 0;

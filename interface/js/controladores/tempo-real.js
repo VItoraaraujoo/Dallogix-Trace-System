@@ -19,6 +19,7 @@ export function createOperationalRealtimeController({
   let generation = 0;
   let active = false;
   let consecutiveFailures = 0;
+  let lastPollStartedAt = 0;
   let lastSuccessAt = Date.now();
   let lastError = "";
 
@@ -76,6 +77,7 @@ export function createOperationalRealtimeController({
   const pollOnce = async (token, page) => {
     if (!isCurrent(token) || polling) return false;
     polling = true;
+    lastPollStartedAt = Date.now();
     try {
       const requests = [
         store.loadActiveLoading(store.state.selectedLoadingId),
@@ -110,6 +112,9 @@ export function createOperationalRealtimeController({
       fallbackTimer = null;
       if (!isCurrent(token)) return;
       if (polling) {
+        const currentPage = getPage();
+        refreshCurrentView(currentPage);
+        publishFreshness(currentPage);
         fallback(token);
         return;
       }
@@ -133,45 +138,52 @@ export function createOperationalRealtimeController({
       const requestPage = getPage();
       reconnectFailures = 0;
       let requestError = null;
-      // O stream pode capturar a transição entre a gravação do comando e a
-      // atualização da lista. Confirme o vazio pelo endpoint HTTP antes de
-      // aceitar que o carregamento terminou.
-      const selectedId = Number(store.state.selectedLoadingId) || null;
-      let activeLoadings = Array.isArray(payload?.active_loadings)
-        ? payload.active_loadings
-        : [];
-      const snapshotHasSelection = selectedId === null || activeLoadings.some(
-        (loading) => Number(loading?.id) === selectedId,
-      );
-      if (selectedId && store.state.loadingId && !snapshotHasSelection) {
-        try {
-          await store.loadActiveLoading(selectedId);
-          if (store.state.selectedLoadingId === selectedId) {
+      const snapshotAt = Date.parse(payload?.sent_at || "");
+      const snapshotPredatesPoll = Number.isFinite(snapshotAt) &&
+        lastPollStartedAt > 0 && snapshotAt + 1000 < lastPollStartedAt;
+      if (!snapshotPredatesPoll) {
+        // O stream pode capturar a transição entre a gravação do comando e a
+        // atualização da lista. Confirme o vazio pelo endpoint HTTP antes de
+        // aceitar que o carregamento terminou.
+        const selectedId = Number(store.state.selectedLoadingId) || null;
+        let activeLoadings = Array.isArray(payload?.active_loadings)
+          ? payload.active_loadings
+          : [];
+        const snapshotHasSelection = selectedId === null || activeLoadings.some(
+          (loading) => Number(loading?.id) === selectedId,
+        );
+        if (selectedId && store.state.loadingId && !snapshotHasSelection) {
+          try {
+            await store.loadActiveLoading(selectedId);
+            if (store.state.selectedLoadingId === selectedId) {
+              activeLoadings = store.state.activeLoadings || activeLoadings;
+            }
+          } catch (error) {
+            requestError = error;
             activeLoadings = store.state.activeLoadings || activeLoadings;
           }
-        } catch (error) {
-          requestError = error;
-          activeLoadings = store.state.activeLoadings || activeLoadings;
         }
-      }
-      if (!isCurrent(token)) return;
-      try {
-        await store.applyActiveLoadingSnapshot(activeLoadings, selectedId, () => isCurrent(token));
         if (!isCurrent(token)) return;
-        if (payload?.monitoring) {
-          store.state.monitoring = payload.monitoring;
-          store.state.monitoringUpdatedAt = new Date().toISOString();
+        try {
+          await store.applyActiveLoadingSnapshot(activeLoadings, selectedId, () => isCurrent(token));
+          if (!isCurrent(token)) return;
+          if (payload?.monitoring) {
+            store.state.monitoring = payload.monitoring;
+            store.state.monitoringUpdatedAt = Number.isFinite(snapshotAt)
+              ? new Date(snapshotAt).toISOString()
+              : new Date().toISOString();
+          }
+        } catch (error) {
+          requestError ||= error;
         }
-        const requests = [];
-        if (store.state.loadingId) {
-          requests.push(store.loadPlcCommandStatus(store.state.loadingId));
-          if (requestPage === "work") requests.push(store.loadPendingReadings());
-        }
-        const results = await Promise.allSettled(requests);
-        requestError ||= results.find((result) => result.status === "rejected")?.reason || null;
-      } catch (error) {
-        requestError ||= error;
       }
+      const requests = [];
+      if (store.state.loadingId) {
+        requests.push(store.loadPlcCommandStatus(store.state.loadingId));
+        if (requestPage === "work") requests.push(store.loadPendingReadings());
+      }
+      const results = await Promise.allSettled(requests);
+      requestError ||= results.find((result) => result.status === "rejected")?.reason || null;
       if (!isCurrent(token)) return;
       const currentPage = getPage();
       if (requestError) recordFailure(requestError);
