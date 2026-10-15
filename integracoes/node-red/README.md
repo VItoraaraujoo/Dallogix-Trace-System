@@ -51,7 +51,7 @@ Configure no ambiente do Node-RED:
 TRACE_API_URL=http://trace-api.local
 TRACE_DEVICE_TOKEN=token-da-dala-deste-pc
 TRACE_MODBUS_UNIT_ID=1
-TRACE_MODBUS_HEARTBEAT_FUNCTION=3
+TRACE_MODBUS_HEARTBEAT_FUNCTION=1
 TRACE_MODBUS_HEARTBEAT_REGISTER=2052
 TRACE_PHYSICAL_CLP_ENABLED=0
 TRACE_IO_MAP_STATUS=APPROVED
@@ -62,7 +62,7 @@ TRACE_MODBUS_COIL_EMERGENCY=2051
 TRACE_MODBUS_COIL_EMERGENCY_FEEDBACK=17
 ```
 
-Esse mapa aprovado é o do INVT TS621 enviado pelo usuário: M2049 liga o motor, M2050 liga o reverso, M2051 aciona a emergência, M17 devolve o estado da emergência e M2052 é o registro de contagem do sensor. O gateway lê M2052 por FC3 para o heartbeat, mas ainda não transforma a variação do contador em eventos de saco; por isso, hoje a leitura USB não fica correlacionada automaticamente a uma passagem.
+Esse mapa aprovado é o do INVT TS621 enviado pelo usuário: M2049 liga o motor, M2050 liga o reverso, M2051 aciona a emergência, M17 devolve o estado da emergência e M2052 é um bit do sensor. O gateway lê M2052 por FC1 para confirmar comunicação e expõe seu valor 0/1 no heartbeat. O [manual oficial de programação TS600](https://www.invt.com/uploads/file1/20250421/TS600%20Series%20PLC%20Programming%20and%20Applicaiton%20Manual_V1.2.pdf) descreve variáveis BOOL na área M e variáveis WORD na área D. Ainda falta observar no Ladder se esse bit pulsa ou fica travado por passagem; por isso, o gateway ainda não cria eventos de saco a partir dele e a leitura USB não fica correlacionada automaticamente.
 
 Cada PC industrial é dedicado a uma Dala e usa os tokens dos seus próprios gateways. A API devolve somente a Dala vinculada a esse dispositivo e fornece um destino IPv4 privado validado. O endereço da API deve apontar para a instalação local, nunca para a URL pública. Ao cadastrar ou sincronizar a Dala local, o Trace provisiona automaticamente os tokens CLP e CAMERA do `.env`; o comando `php scripts/provision_device.php` fica reservado para recuperação administrativa de uma instalação existente. O heartbeat usa unidade, função e endereço configurados no ambiente. O gateway só publica ONLINE depois de uma resposta Modbus válida; IP e porta continuam vindo do cadastro da Dala.
 
