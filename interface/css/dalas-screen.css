@@ -175,11 +175,9 @@
 
 .dalas-screen-v2 .dala-delete-action {
   display: inline-flex;
-  flex: 0 0 auto;
   min-height: 40px;
   align-items: center;
   justify-content: center;
-  margin-left: auto;
   gap: 6px;
   padding: 7px 11px;
   border-color: #e5c8cc;
@@ -278,12 +276,15 @@
 }
 
 .dalas-screen-v2 .dala-actions-v2 {
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: stretch;
+  gap: 6px;
 }
 
 body .dalas-screen-v2 .dala-action-v2 {
   min-width: 0;
-  padding-inline: 10px;
+  padding-inline: 6px;
 }
 
 .dala-action-v2 {
@@ -292,20 +293,14 @@ body .dalas-screen-v2 .dala-action-v2 {
   border-radius: 7px;
 }
 
-/* Os controles precisam caber na coluna de acoes dos PCs industriais. */
-.dalas-screen-v2 .dala-actions-v2 {
-  justify-content: center;
-}
-
-.dalas-screen-v2 .dala-action-v2:not(.dala-delete-action) {
-  flex: 1 1 96px;
+.dalas-screen-v2 .dala-actions-v2 > .dala-action-v2 {
+  width: 100%;
   min-width: 0;
-  padding-inline: 8px;
 }
 
 .dalas-screen-v2 .dala-grid-cell-v2 .dala-delete-action {
-  justify-self: end;
-  width: auto;
+  justify-self: stretch;
+  width: 100%;
 }
 
 .dala-loading {

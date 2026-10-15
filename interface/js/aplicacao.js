@@ -450,9 +450,9 @@ const SCREEN_STYLES = {
   work: "/telas/operacao/operacao.css?v=202610140001",
   import: "/telas/importar-romaneio/importar-romaneio.css?v=202610071845",
   settings: "/telas/configuracoes/configuracoes.css?v=202610070203",
-  dalas: "/telas/dalas/dalas.css?v=202610150001",
-  dala: "/telas/dalas/dalas.css?v=202610150001",
-  "dala-edit": "/telas/dalas/dalas.css?v=202610150001",
+  dalas: "/telas/dalas/dalas.css?v=202610150002",
+  dala: "/telas/dalas/dalas.css?v=202610150002",
+  "dala-edit": "/telas/dalas/dalas.css?v=202610150002",
   company: "/telas/empresa/empresa.css?v=202610020006",
 };
 
