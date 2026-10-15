@@ -57,18 +57,22 @@ test('iniciar e contar somente durante carregamento', () => {
   assert.equal(executar('LEITURA_CORRETA').estado.loaded, 1);
 });
 
-test('produto incorreto e ausência de leitura pausam a simulação', () => {
-  for (const [acao, contador] of [
-    ['LEITURA_INCORRETA', 'wrong'],
-    ['SEM_LEITURA', 'no_read'],
-  ]) {
-    const executar = criarBancada();
-    executar('INICIAR');
-    const resultado = executar(acao);
-    assert.equal(resultado.evento, acao === 'LEITURA_INCORRETA' ? 'PRODUTO_INCORRETO' : 'SEM_LEITURA');
-    assert.equal(resultado.estado.loading_state, 'PAUSADO');
-    assert.equal(resultado.estado[contador], 1);
-  }
+test('produto incorreto pausa e dispara evento para a aplicação', () => {
+  const executar = criarBancada();
+  executar('INICIAR');
+  const resultado = executar('LEITURA_INCORRETA');
+  assert.equal(resultado.evento, 'PRODUTO_INCORRETO');
+  assert.equal(resultado.estado.loading_state, 'PAUSADO');
+  assert.equal(resultado.estado.wrong, 1);
+});
+
+test('ausência de leitura registra evento sem pausar o carregamento', () => {
+  const executar = criarBancada();
+  executar('INICIAR');
+  const resultado = executar('SEM_LEITURA');
+  assert.equal(resultado.evento, 'SEM_LEITURA');
+  assert.equal(resultado.estado.loading_state, 'CARREGANDO');
+  assert.equal(resultado.estado.no_read, 1);
 });
 
 test('emergência impede reinício e novas leituras válidas', () => {
