@@ -173,77 +173,33 @@
   background: #ffe0e5;
 }
 
-.dalas-screen-v2 .dala-more-actions {
-  position: relative;
-  z-index: 1;
-  flex: 0 0 42px;
-  margin-left: auto;
+.dalas-screen-v2 .dala-delete-action {
+  display: inline-flex;
+  flex: 0 0 auto;
+  min-height: 40px;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 7px 11px;
+  border-color: #e5c8cc;
+  background: #fff;
+  color: #984852;
+  font-size: 12px;
 }
 
-.dalas-screen-v2 .dala-more-actions-trigger {
-  display: grid;
-  width: 42px;
-  min-height: 42px;
-  place-items: center;
-  border: 1px solid #cbd9e0;
-  border-radius: 8px;
-  background: #f7fafb;
-  color: #385464;
-  cursor: pointer;
-  list-style: none;
-  font-size: 24px;
-  font-weight: 700;
-  line-height: 1;
-  transition: background-color 160ms ease, border-color 160ms ease;
+.dalas-screen-v2 .dala-delete-action:hover,
+.dalas-screen-v2 .dala-delete-action:focus-visible {
+  border-color: #d88d96;
+  background: #fff5f6;
 }
 
-.dalas-screen-v2 .dala-more-actions-trigger::-webkit-details-marker {
-  display: none;
-}
-
-.dalas-screen-v2 .dala-more-actions-trigger::marker {
-  content: "";
-}
-
-.dalas-screen-v2 .dala-more-actions-trigger:hover,
-.dalas-screen-v2 .dala-more-actions[open] > .dala-more-actions-trigger {
-  border-color: #1daac4;
-  background: #e8f5f8;
-}
-
-.dalas-screen-v2 .dala-more-actions-trigger:focus-visible {
-  outline: 3px solid rgba(29, 170, 196, 0.35);
+.dalas-screen-v2 .dala-delete-action:focus-visible {
+  outline: 3px solid rgba(216, 141, 150, 0.3);
   outline-offset: 2px;
 }
 
-.dalas-screen-v2 .dala-more-actions-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  right: 0;
-  z-index: 10;
-  min-width: 164px;
-  padding: 6px;
-  border: 1px solid #d7e2e9;
-  border-radius: 9px;
-  background: #fff;
-  box-shadow: 0 10px 24px rgba(20, 35, 50, 0.16);
-}
-
-.dalas-screen-v2 .dala-more-actions-menu .dala-action-v2 {
-  display: flex;
-  width: 100%;
-  min-height: 42px;
+.dalas-screen-v2 .dala-delete-action svg {
   flex: 0 0 auto;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 8px 12px;
-  text-align: left;
-}
-
-.dalas-screen-v2 .dala-grid-row-v2:has(.dala-more-actions[open]) {
-  position: relative;
-  z-index: 2;
-  overflow: visible;
 }
 
 .dala-empty-v2 {
@@ -344,6 +300,11 @@ body .dalas-screen-v2 .dala-action-v2 {
   flex: 1 1 96px;
   min-width: 0;
   padding-inline: 8px;
+}
+
+.dalas-screen-v2 .dala-grid-cell-v2 .dala-delete-action {
+  justify-self: end;
+  width: auto;
 }
 
 .dala-loading {

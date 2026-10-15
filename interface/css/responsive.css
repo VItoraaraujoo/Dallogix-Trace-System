@@ -2883,9 +2883,10 @@ button.button {
     min-width: 0;
   }
 
-  .dalas-screen-v2 .dala-grid-cell-v2 .dala-more-actions {
+  .dalas-screen-v2 .dala-grid-cell-v2 .dala-delete-action {
     grid-column: 1 / -1;
     justify-self: end;
+    width: auto;
   }
 
   .dala-diagnostics-panel .mobile-card-table tbody td {
