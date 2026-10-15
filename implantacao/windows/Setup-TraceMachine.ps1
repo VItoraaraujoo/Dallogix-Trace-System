@@ -55,8 +55,9 @@ function Get-TraceEnvValue([string]$Name) {
 function Test-TraceReleaseAccess([string]$ManifestUrl, [string]$MinimumVersion, [hashtable]$Headers = @{}) {
     $manifestUri = $null
     if (-not [Uri]::TryCreate($ManifestUrl, [UriKind]::Absolute, [ref]$manifestUri) -or
-        $manifestUri.Scheme -ne 'https' -or $manifestUri.UserInfo) {
-        throw 'A URL do manifesto de atualização precisa usar HTTPS e não pode conter credenciais.'
+        $manifestUri.Scheme -ne 'https' -or $manifestUri.UserInfo -or
+        $manifestUri.Query -or $manifestUri.Fragment) {
+        throw 'A URL do manifesto precisa usar HTTPS e não pode conter credenciais ou parâmetros na URL. Use UPDATE_MANIFEST_TOKEN para autenticação.'
     }
 
     try {
