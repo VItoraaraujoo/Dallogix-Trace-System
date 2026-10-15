@@ -179,6 +179,7 @@
   min-height: 40px;
   align-items: center;
   justify-content: center;
+  margin-left: auto;
   gap: 6px;
   padding: 7px 11px;
   border-color: #e5c8cc;
@@ -296,7 +297,7 @@ body .dalas-screen-v2 .dala-action-v2 {
   justify-content: center;
 }
 
-.dalas-screen-v2 .dala-action-v2 {
+.dalas-screen-v2 .dala-action-v2:not(.dala-delete-action) {
   flex: 1 1 96px;
   min-width: 0;
   padding-inline: 8px;

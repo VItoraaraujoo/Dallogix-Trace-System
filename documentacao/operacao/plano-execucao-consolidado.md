@@ -2,7 +2,19 @@
 
 Este registro centraliza a execução das pendências reunidas nas conversas do projeto. A release imutável `v1.0.103` foi gerada a partir do commit de código `bc7cd745` e publicada no Central após a validação do pacote, das migrações e da saúde dos serviços; a `master` também contém o registro documental posterior dessa publicação.
 
-## Concluído na master e publicado
+## Estado verificado em 15/10/2026
+
+- **Git e release:** `origin/master` está no commit `a049656` e a release mais recente é `v1.0.145`, com o mesmo commit. O workflow de produção terminou com sucesso.
+- **Central:** `/api/health.php` respondeu HTTP 200, com PHP e MySQL saudáveis, versão `v1.0.145` e commit `a049656`.
+- **PC industrial:** a verificação posterior à atualização confirmou `v1.0.145`; o painel autenticado do Central recebeu heartbeat às 00:35. Essa conexão não comprova vídeo da câmera nem resposta física do motor.
+- **Validação local:** `bash testes/qualidade.sh` passou. O teste isolado HTTPS/CSRF passou; o backup foi restaurado em banco descartável e comparado em 34 tabelas.
+- **Semgrep:** `p/security-audit` terminou sem achados e sem erros. `--config auto` não encontrou achados, mas reportou quatro erros de análise em trechos Bash embutidos; portanto, esse resultado não é uma varredura automática integral sem ressalvas.
+- **CLP na bancada:** leitura Modbus sem escrita mostrou `M17=1` (emergência ativa segundo o gateway), `M2049=0`, `M2050=0` e `M2051=1`. O motor e o sensor não estão conectados; o retorno de movimento segue sem configuração. Não houve teste de acionamento nesta rodada.
+- **Câmera:** o HiTools Delivery no PC listou `192.168.50.10` como Off-line. O fluxo RTSP real não foi confirmado.
+- **Leitor:** o requisito está definido como Elgin EL8600 USB HID, mas o leitor estava desconectado durante a verificação.
+- **Integração sensor/leitor:** o endpoint de evento de sensor existe, mas o fluxo Node-RED publicado não chama esse endpoint, e a leitura USB da tela não envia `sensor_event_id`. Essa associação ainda não está implementada no caminho real.
+
+## Registro histórico da publicação v1.0.103
 
 1. **Atualização e release:** a release `v1.0.103` foi gerada a partir do commit `bc7cd745`, validada na execução 108 do GitHub Actions e aplicada pelo atualizador protegido do Central. O healthcheck confirmou `status=ok`, `version=v1.0.103`, `installation_mode=central` e o mesmo commit; a prontidão confirmou PHP e MySQL saudáveis. O atualizador escolhe o Compose pela instalação, mantém o bloqueio de carga ativa e aciona rollback quando não consegue gravar metadados ou a versão instalada.
 2. **Windows:** fluxo de instalação e atualização incorpora o pacote/runtime, perfil industrial e consulta de versão do Central. O instalador não habilita escrita física no CLP sem mapa oficial aprovado.

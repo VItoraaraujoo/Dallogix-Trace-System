@@ -62,7 +62,7 @@ TRACE_MODBUS_COIL_EMERGENCY=2051
 TRACE_MODBUS_COIL_EMERGENCY_FEEDBACK=17
 ```
 
-Esse mapa aprovado é o do INVT TS621 enviado pelo usuário: M2049 liga o motor, M2050 liga o reverso e M2051 aciona a emergência. O Ladder mostra M17 como a saída de estado da emergência; o gateway o consulta separadamente para confirmar o desbloqueio. M2052 é o sensor de contagem e continua sendo lido por FC3 como heartbeat, nunca usado como saída.
+Esse mapa aprovado é o do INVT TS621 enviado pelo usuário: M2049 liga o motor, M2050 liga o reverso, M2051 aciona a emergência, M17 devolve o estado da emergência e M2052 é o registro de contagem do sensor. O gateway lê M2052 por FC3 para o heartbeat, mas ainda não transforma a variação do contador em eventos de saco; por isso, hoje a leitura USB não fica correlacionada automaticamente a uma passagem.
 
 Cada PC industrial é dedicado a uma Dala e usa os tokens dos seus próprios gateways. A API devolve somente a Dala vinculada a esse dispositivo e fornece um destino IPv4 privado validado. O endereço da API deve apontar para a instalação local, nunca para a URL pública. Ao cadastrar ou sincronizar a Dala local, o Trace provisiona automaticamente os tokens CLP e CAMERA do `.env`; o comando `php scripts/provision_device.php` fica reservado para recuperação administrativa de uma instalação existente. O heartbeat usa unidade, função e endereço configurados no ambiente. O gateway só publica ONLINE depois de uma resposta Modbus válida; IP e porta continuam vindo do cadastro da Dala.
 
@@ -85,13 +85,11 @@ O perfil `simulation` sobe um único servidor `modbus-virtual` em `127.0.0.1:150
 
 O [contrato provisório de simulação](../industrial/contrato-provisorio-simulacao.md) documenta os limites dessa bancada e os cenários automatizados com `node --test testes/clp-provisorio-simulacao.mjs`. Ele não envia escrita ao CLP quando os dois flags de simulação estão ativos.
 
-## Referência elétrica recebida
+## Sinal de contagem e leitor
 
-O diagrama externo `I-007-00017` confirma a identificação Delta DVP-14SS2 e apresenta sinais candidatos de emergência, fins de curso e comandos. A leitura foi organizada em `mapa-io-candidato.md`, mas o documento não deve ser tratado como mapa Modbus da instalação atual: ele não confirma o painel, o módulo Ethernet nem os endereços de comunicação. A validação em bancada continua obrigatória.
+O CLP informado para a bancada é o INVT TS621, ligado por Modbus TCP. O mapa de comandos foi aprovado; o documento histórico `mapa-io-candidato.md` descreve outro equipamento e não deve orientar a configuração desta Dala.
 
-Integração industrial preparada para o Delta DVP14SS. A variante exata, o mapa de registradores e o módulo Ethernet ainda precisam ser confirmados em bancada. A referência principal é **Modbus TCP por Ethernet**; Modbus RTU por RS-485 é somente alternativa caso a instalação não disponha de Ethernet.
-
-O scanner Elgin EL8600 ficará conectado ao PC industrial em USB ou RS-232 e permanecerá em leitura contínua. O adaptador deverá manter um buffer das leituras e associá-las ao evento do sensor recebido do CLP. Se o evento não receber código dentro da janela operacional definida, o servidor registra `SEM_LEITURA` e solicita a captura imediata da câmera.
+O Elgin EL8600 está definido como USB HID (teclado) e envia o código ao campo focado na tela de Operação. O endpoint aceita `sensor_event_id`, mas o gateway ainda não publica eventos a partir de M2052 e o formulário não liga automaticamente um código ao evento pendente. O timeout `SEM_LEITURA` e a captura de incidente só podem ser homologados ponta a ponta depois dessa associação e do teste com o leitor e a câmera conectados.
 
 ## Heartbeat dos dispositivos
 

@@ -1,12 +1,12 @@
-# Adaptador industrial
+# Integração industrial
 
-Esta pasta define o contrato entre o PC industrial, o scanner Elgin EL8600 e o CLP Delta DVP14SS.
+Esta pasta descreve o contrato entre o PC industrial, o scanner Elgin EL8600 e o CLP INVT TS621 informado para a bancada. O mapa aprovado e os endereços usados pelo gateway estão documentados em [`integracoes/node-red/README.md`](../node-red/README.md).
 
 ## Responsabilidades
 
-- O scanner permanece aberto e em leitura contínua.
-- Cada leitura recebida é guardada em buffer com horário e origem.
-- O sinal `sack_sensor` do CLP abre uma janela para associar a leitura ao saco.
+- O scanner USB funciona como teclado HID e digita no campo de leitura focado da tela de Operação.
+- Cada leitura é enviada pelo formulário da tela; ainda falta associá-la ao evento de passagem do sensor do CLP.
+- O sinal `sack_sensor` do CLP deve abrir a janela para associar a leitura ao saco; o fluxo Node-RED publicado ainda não emite esse evento.
 - Código válido ou incorreto é enviado para `/api/leituras.php`.
 - Se a janela expirar sem código, o adaptador envia uma leitura sem `barcode`; o servidor dispara a captura de incidente.
 - Comandos de operação são enviados ao CLP somente depois de o adaptador validar os intertravamentos informados pelo CLP.
@@ -22,9 +22,9 @@ sem leitura → SEM_LEITURA + câmera imediata
 
 ## Configuração
 
-Use [`register-map.example.json`](./register-map.example.json) como base. Os endereços estão deliberadamente como `CONFIRMAR`: não devem ser escritos no CLP antes da entrega do mapa elétrico e do programa Ladder.
+[`register-map.example.json`](./register-map.example.json) é somente um modelo genérico de documentação/simulação; seus endereços físicos `CONFIRMAR` não são o mapa da bancada. Para esta Dala, use exclusivamente o mapa aprovado registrado no README do Node-RED: M2049 (esteira), M2050 (reversão), M2051 (emergência), M17 (retorno da emergência) e M2052 (registro de contagem do sensor, lido por FC3).
 
-O escopo confirmado usa Ethernet entre o PC industrial e o CLP. A configuração principal será Modbus TCP; Modbus RTU via RS-485 permanece apenas como alternativa caso a variante instalada não tenha Ethernet. A Delta documenta leitura/escrita de sinais do DVP por Modbus, mas o módulo Ethernet e os registradores finais devem ser confirmados.
+O endereço cadastrado é `192.168.1.10:502`, com Modbus TCP por Ethernet. A escrita física começa desabilitada no instalador e só pode ser habilitada explicitamente depois dos testes de intertravamento. O retorno de movimento da esteira ainda não está configurado; M17 é retorno de emergência e não deve ser reutilizado para indicar movimento.
 
 ## Critério de prontidão física
 
@@ -32,6 +32,8 @@ O adaptador só pode ser ligado à esteira depois de validar em bancada:
 
 1. leitura somente dos sinais do CLP;
 2. heartbeat do CLP no Dallogix;
-3. sensor sem acionamento repetido por debounce;
-4. comando de desbloqueio com intertravamento;
-5. comportamento seguro na perda de comunicação.
+3. leitura USB HID com Enter/sufixo e correlação com cada evento do sensor;
+4. ausência de leitura com pausa controlada e captura da câmera;
+5. retorno de movimento separado do comando de saída e do retorno de emergência;
+6. comando de desbloqueio com intertravamento e confirmação do CLP;
+7. comportamento seguro na perda de comunicação.

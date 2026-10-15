@@ -1,39 +1,39 @@
 # Pendências para decisão da empresa
 
-Este documento reúne apenas decisões que dependem de informações externas ou confirmação do negócio. O desenvolvimento local-first continua sem bloquear essas decisões.
+Este documento acompanha configurações, implementação e validações ainda necessárias para a entrega. Decisões de negócio já tomadas e o mapa aprovado ficam registrados como concluídos; itens que exigem acesso físico continuam marcados como pendentes de homologação.
+
+> Atualizado em 15/10/2026. O modelo do CLP e o mapa de comandos já foram informados e aprovados; esta lista registra o que ainda depende de configuração ou validação física.
 
 ## 1. Câmera IP
 
-- Fabricante e modelo:
-- Endereço IP ou DHCP reservado:
-- Protocolo disponível: RTSP, HTTP snapshot, ONVIF ou outro:
-- Credencial técnica:
-- Intervalo/pre-buffer necessário para capturar sacos em alta velocidade:
+- Fabricante e modelo: **Hikvision DS-2CD2121G0-I**.
+- Interface e protocolo previstos: **Ethernet/RJ45, RTSP sobre TCP, porta 554, canal 101**.
+- Endereço: o HiTools Delivery no PC mostrou `192.168.50.10` como **Off-line**; esse endereço ainda é apenas um candidato, não confirmado como IP atual da câmera.
+- Credencial: criar/configurar usuário dedicado somente para visualização; não registrar a senha neste documento.
+- Intervalo/pre-buffer: validar em bancada com o fluxo real da esteira.
 
-Impacto: o Node-RED já possui o worker protegido; falta implementar o adaptador específico do modelo.
+Impacto: o worker RTSP e a geração de evidência PDF estão implementados. A câmera ainda não entregou quadros: faltam endereço alcançável pelo PC, credencial RTSP configurada localmente e teste de captura.
 
 ## 2. CLP
 
-- Fabricante/modelo de referência: **Delta DVP14SS**.
-- Sufixo/variante exata:
-- IP e porta:
-- Protocolo de referência: **Ethernet/Modbus TCP entre CLP e PC industrial**; Modbus RTU via RS-485 somente como alternativa da variante instalada.
-- Mapa de registradores:
-- Sinais de sensor, iniciar, parar, pausa e emergência:
-- Comportamento seguro em perda de comunicação:
+- Fabricante/modelo informado: **INVT TS621**. Registrar também o sufixo exato da etiqueta antes de validar a ligação elétrica.
+- IP/porta cadastrados na Dala: `192.168.1.10:502`; confirmar a topologia final da bancada.
+- Protocolo: **Modbus TCP por Ethernet**.
+- Mapa aprovado: `M2049` comando da esteira, `M2050` reversão, `M2051` emergência, `M17` retorno da emergência e `M2052` registro de contagem do sensor, lido por FC3.
+- Retorno de movimento da esteira: **não configurado**; o Central mostra “sem retorno de movimento configurado”.
+- Comportamento em perda de comunicação: ainda precisa de aceite no Ladder e teste físico.
 
-Impacto: os estados do servidor já existem; a comunicação real não deve ser inventada sem esses dados.
+Impacto: o gateway Modbus e as travas por mapa/aprovação existem. A última leitura somente de consulta em 15/10/2026 mostrou `M17=1` (emergência ativa segundo o gateway), `M2049=0`, `M2050=0` e `M2051=1`. Nenhuma escrita foi enviada nessa leitura; com o motor ausente e o retorno de movimento sem configuração, a resposta física ainda não está homologada.
 
 ## 3. Scanner
 
 - Modelo: **Elgin EL8600**.
-- Interface disponível: **USB ou RS-232**; a instalação deve escolher uma delas.
+- Interface definida: **USB como teclado (HID)**.
 - Modo operacional: **leitura contínua, sempre ativo**.
-- Formato enviado pelo scanner:
-- Timeout de leitura:
-- Código de término da leitura:
+- Formato/prefixo/sufixo enviados pelo scanner: verificar quando o leitor estiver conectado.
+- Estado na bancada em 15/10/2026: **desconectado**.
 
-Impacto: o fluxo `SEM_LEITURA` já está persistido. O driver do PC industrial manterá o scanner ouvindo continuamente; o evento do sensor do CLP será usado para associar a leitura ao saco correto. Não será necessário ligar/desligar o scanner a cada saco.
+Impacto: a tela mantém o campo de leitura focado para o teclado USB e o fluxo `SEM_LEITURA` existe. A integração publicada ainda não correlaciona o evento de sensor do CLP com o código lido; falta implementar e testar essa associação com o sensor conectado.
 
 ## 4. Cloud AWS
 
@@ -56,7 +56,10 @@ Impacto: o projeto usa `SYNC_REMOTE_URL` e permanece portátil para futura migra
 
 ## 6. Ainda pendente
 
-- Confirmar se retorno será identificado por sinal do CLP, modo manual ou ambos.
+- Configurar e testar um sinal de retorno de movimento separado do comando de saída; não reutilizar o retorno M17 da emergência como estado da esteira.
+- Integrar a leitura do sensor do CLP ao evento de saco e associar esse evento à leitura USB.
+- Testar ausência de leitura após o sensor: registro `SEM_LEITURA`, pausa controlada e captura de evidência pela câmera.
+- Validar em bancada o comportamento seguro na perda de comunicação com o PC.
 - Confirmar o texto/alarme exibido ao operador quando a quantidade planejada for atingida.
 
 ## 7. Licenciamento — definido
