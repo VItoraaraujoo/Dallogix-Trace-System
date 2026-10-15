@@ -114,11 +114,23 @@ test("sonda usa unidade, função e registrador explicitamente configurados", ()
   assert.equal(msg.payload.readUInt16BE(8), 23);
   assert.equal(msg.modbusTransaction, msg.payload.readUInt16BE(0));
 });
-test("instalação nova usa o perfil comprovado do sensor M2052", () => {
+test("instalação nova lê o bit M2052 com FC1", () => {
   const msg = runtime({ TRACE_API_URL: "http://api.local" })("modbus-frame", { modbusHost: "192.168.4.8", modbusPort: 502 });
   assert.equal(msg.payload[6], 1);
-  assert.equal(msg.payload[7], 3);
+  assert.equal(msg.payload[7], 1);
   assert.equal(msg.payload.readUInt16BE(8), 2052);
+});
+test("resposta FC1 publica os estados 0 e 1 do bit M2052", () => {
+  for (const bit of [0, 1]) {
+    const frame = Buffer.from([0, 0, 0, 0, 0, 4, 7, 1, 1, bit]);
+    frame.writeUInt16BE(42, 0);
+    const message = resultMessage(frame);
+    message.modbusFunction = 1;
+    message.modbusRegister = 2052;
+    const result = runtime()("modbus-result", message);
+    assert.equal(result.payload.status, "ONLINE");
+    assert.equal(result.payload.details.diagnostic_value, bit);
+  }
 });
 test("resposta correlacionada e completa produz ONLINE", () => {
   assert.equal(runtime()("modbus-result", resultMessage(response())).payload.status, "ONLINE");

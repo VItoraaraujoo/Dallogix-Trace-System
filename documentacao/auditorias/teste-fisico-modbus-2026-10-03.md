@@ -27,3 +27,33 @@ Uma segunda execução independente repetiu os seis passos de `2049` e `2050` e 
 2051 FC1: 00010000000401010100 -> 0
 2052 FC3: 0002000000050103020000 -> 0
 ```
+
+## Leitura comparativa no PC industrial — 15/10/2026
+
+Com o PC conectado à bancada, sem sensor/leitor ou atuadores conectados, o gateway
+Node-RED fez duas leituras somente de leitura no endereço numérico `2052`, unidade
+`1`, porta `502`:
+
+```text
+2052 FC1: 00010000000401010100 -> bit 0
+2052 FC3: 0002000000050103020000 -> registrador 0
+```
+
+As duas funções responderam, mas a resposta FC3 é um registrador holding distinto
+da bobina M2052. O manual TS600 associa a área M às funções de bobina (FC1/FC2) e
+áreas D/R aos registradores (FC3/FC4); por isso, o default do gateway foi alinhado
+à leitura FC1. Como o sensor não estava conectado/acionado, este teste não confirma
+se o Ladder pulsa ou mantém o bit, nem valida a geração de eventos de passagem.
+
+Na mesma sessão, os coils `2049` e `2050` começaram em `0`. O teste repetiu
+FC5 `ON` → leitura FC1 `1` → FC5 `OFF` → leitura FC1 `0` para ambos; o eco FC5
+foi confirmado e os dois terminaram em `0`. `2051` não foi escrito.
+
+Leitura final somente de consulta no CLP:
+
+```text
+M17 FC1=1; M2049 FC1=0; M2050 FC1=0; M2051 FC1=1; M2052 FC1=0
+```
+
+O retorno M17 em `1` mantém a condição de emergência ativa no gateway; por isso,
+os comandos normais continuam bloqueados. O estado de emergência não foi alterado.

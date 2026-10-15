@@ -346,7 +346,7 @@ try {
     # uma instalação nova nunca inicia com a sonda Modbus vazia.
     Ensure-EnvDefaults $envPath @{
         TRACE_MODBUS_UNIT_ID = '1'
-        TRACE_MODBUS_HEARTBEAT_FUNCTION = '3'
+        TRACE_MODBUS_HEARTBEAT_FUNCTION = '1'
         TRACE_MODBUS_HEARTBEAT_REGISTER = '2052'
         NODE_RED_ADMIN_USER = 'trace-admin'
         NODE_RED_ADMIN_PASSWORD_HASH = ''
