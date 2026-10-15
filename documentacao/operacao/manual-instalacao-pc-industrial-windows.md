@@ -8,16 +8,18 @@ Este procedimento instala o Trace como operação local de produção. O banco e
 - conta técnica local com permissão de administrador;
 - Docker Desktop instalado e iniciado;
 - Edge ou Chrome instalado;
-- disco com pelo menos 30 GB livres e Wi-Fi industrial estável;
+- disco com pelo menos 30 GB livres e uma conexão de internet estável por Wi-Fi ou Ethernet;
 - IP, porta e protocolo do CLP confirmados; a câmera pode ser configurada depois.
 
 Crie duas contas Windows: `trace-operator`, sem privilégios administrativos, e `trace-tech`, exclusiva para manutenção. A conta técnica não deve ser usada na operação diária.
 
-### Wi-Fi industrial
+### Conexão de internet
 
-Use uma rede Wi-Fi industrial dedicada, protegida por WPA2/WPA3, com reserva DHCP ou IP previsível para o PC. Posicione o ponto de acesso para manter sinal estável na área da esteira e desative a economia de energia do adaptador Wi-Fi no Windows. O PC deve reconectar automaticamente após reinício ou perda de sinal.
+Use uma conexão de internet estável por Wi-Fi ou por uma interface Ethernet separada, com gateway e DNS válidos. Se usar Wi-Fi, proteja a rede com WPA2/WPA3, mantenha sinal estável e desative a economia de energia do adaptador. O PC deve reconectar automaticamente após reinício ou perda de sinal. A instalação verifica o acesso HTTPS ao Central, ao manifesto de release e ao pacote publicado; ela não termina se algum deles estiver inacessível.
 
-Mesmo conectado por Wi-Fi, a interface do Trace permanece limitada a `127.0.0.1`: outros dispositivos da rede não acessam o sistema local. O PC usa a rede apenas para sincronizar com o servidor central por HTTPS.
+Mantenha as interfaces do CLP e da câmera separadas da conexão de internet e sem gateway padrão. A rede de internet precisa permitir HTTPS (porta 443) para `trace.santocloud.com.br`, `github.com` e os ativos de release do GitHub. Se a rede da fábrica bloquear esses destinos, configure uma rota de saída aprovada antes da instalação; não use a interface do CLP ou da câmera como gateway.
+
+Mesmo conectado à internet, a interface do Trace permanece limitada a `127.0.0.1`: outros dispositivos da rede não acessam o sistema local. O PC usa a conexão de saída para sincronizar com o Central e buscar releases assinadas por HTTPS.
 
 ## 2. Copiar e configurar o pacote
 

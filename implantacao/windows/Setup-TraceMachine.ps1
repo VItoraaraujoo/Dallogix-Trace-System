@@ -27,6 +27,80 @@ function Test-WebView2Runtime {
     return $false
 }
 
+function Get-TraceNetworkRouteHint {
+    try {
+        $routes = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop |
+            Where-Object { $_.NextHop -and $_.NextHop -ne '0.0.0.0' })
+        if ($routes.Count -eq 0) {
+            return 'O Windows não possui uma rota padrão IPv4. Conecte uma interface de internet por Wi-Fi ou Ethernet com gateway e DNS. As interfaces do CLP e da câmera devem permanecer separadas e sem gateway.'
+        }
+        return 'Há uma rota padrão IPv4, mas o destino HTTPS não respondeu. Verifique DNS, proxy e firewall para a conta que executará o atualizador.'
+    } catch {
+        return 'Não foi possível consultar a rota padrão. Verifique a conexão Wi-Fi ou Ethernet, o gateway e o DNS.'
+    }
+}
+
+function Get-TraceEnvValue([string]$Name) {
+    $envPath = Join-Path $resolvedPackageRoot '.env'
+    if (-not (Test-Path -LiteralPath $envPath -PathType Leaf)) { return '' }
+    $pattern = '^\s*' + [regex]::Escape($Name) + '=(.*)$'
+    foreach ($line in Get-Content -LiteralPath $envPath) {
+        if ($line -match $pattern) {
+            return $Matches[1].Trim().Trim('"').Trim("'")
+        }
+    }
+    return ''
+}
+
+function Test-TraceReleaseAccess([string]$ManifestUrl, [string]$MinimumVersion, [hashtable]$Headers = @{}) {
+    $manifestUri = $null
+    if (-not [Uri]::TryCreate($ManifestUrl, [UriKind]::Absolute, [ref]$manifestUri) -or
+        $manifestUri.Scheme -ne 'https' -or $manifestUri.UserInfo) {
+        throw 'A URL do manifesto de atualização precisa usar HTTPS e não pode conter credenciais.'
+    }
+
+    try {
+        $manifest = Invoke-RestMethod -Uri $manifestUri.AbsoluteUri -Headers $Headers -TimeoutSec 20
+    } catch {
+        throw "A instalação não pode continuar: o manifesto de atualização não está acessível por HTTPS. $((Get-TraceNetworkRouteHint)) Detalhe: $($_.Exception.Message)"
+    }
+
+    foreach ($field in @('version', 'artifact_url', 'sha256', 'signature')) {
+        if (-not $manifest.$field) {
+            throw "A instalação não pode continuar: o manifesto de atualização está sem o campo $field."
+        }
+    }
+    if ($manifest.version -notmatch '^v\d+\.\d+\.\d+$' -or
+        ($manifest.channel -and $manifest.channel -ne 'stable') -or
+        $manifest.sha256 -notmatch '^[0-9a-fA-F]{64}$') {
+        throw 'A instalação não pode continuar: o manifesto de atualização tem versão, canal ou SHA-256 inválido.'
+    }
+    if ([version]($manifest.version.Substring(1)) -lt [version]($MinimumVersion.Substring(1))) {
+        throw "A instalação não pode continuar: a release estável $($manifest.version) é anterior ao instalador $MinimumVersion."
+    }
+
+    $artifactUri = $null
+    $versionPath = [regex]::Escape([string]$manifest.version)
+    $artifactPathPattern = "^/VItoraaraujoo/Dallogix-Trace-System/releases/download/$versionPath/trace-$versionPath\.tar\.gz$"
+    if (-not [Uri]::TryCreate([string]$manifest.artifact_url, [UriKind]::Absolute, [ref]$artifactUri) -or
+        $artifactUri.Scheme -ne 'https' -or
+        $artifactUri.Host -ne 'github.com' -or
+        $artifactUri.AbsolutePath -notmatch $artifactPathPattern) {
+        throw 'A instalação não pode continuar: o pacote não aponta para uma release HTTPS aprovada do Trace no GitHub.'
+    }
+
+    try {
+        $artifactResponse = Invoke-WebRequest -Uri $artifactUri.AbsoluteUri -Method Head -MaximumRedirection 5 -TimeoutSec 20 -UseBasicParsing
+        if ([int]$artifactResponse.StatusCode -lt 200 -or [int]$artifactResponse.StatusCode -ge 300) {
+            throw "HTTP $([int]$artifactResponse.StatusCode)"
+        }
+    } catch {
+        throw "A instalação não pode continuar: o pacote assinado não está acessível por HTTPS. $((Get-TraceNetworkRouteHint)) Detalhe: $($_.Exception.Message)"
+    }
+
+    return $manifest
+}
+
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw "Execute o instalador como administrador."
 }
@@ -46,11 +120,27 @@ if (-not [Uri]::TryCreate($centralUrl, [UriKind]::Absolute, [ref]$centralUri) -o
 }
 $expectedVersion = [IO.File]::ReadAllText((Join-Path $PackageRoot 'trace-build-version.txt')).Trim()
 $expectedCommit = [IO.File]::ReadAllText((Join-Path $PackageRoot 'trace-build-commit.txt')).Trim()
-$centralHealth = Invoke-RestMethod -Uri ($centralUrl.TrimEnd('/') + '/api/health.php') -TimeoutSec 15
+$updateManifestUrl = Get-TraceEnvValue 'UPDATE_MANIFEST_URL'
+if ([string]::IsNullOrWhiteSpace($updateManifestUrl)) {
+    $updateManifestUrl = 'https://github.com/VItoraaraujoo/Dallogix-Trace-System/releases/latest/download/manifest.json'
+}
+$manifestHeaders = @{}
+$manifestToken = Get-TraceEnvValue 'UPDATE_MANIFEST_TOKEN'
+if (-not [string]::IsNullOrWhiteSpace($manifestToken)) {
+    $manifestHeaders.Authorization = "Bearer $manifestToken"
+}
+$centralHealth = $null
+try {
+    $centralHealth = Invoke-RestMethod -Uri ($centralUrl.TrimEnd('/') + '/api/health.php') -TimeoutSec 15
+} catch {
+    throw "A instalação não pode continuar: o servidor Central não está acessível por HTTPS. $((Get-TraceNetworkRouteHint)) Detalhe: $($_.Exception.Message)"
+}
 if ($centralHealth.status -ne 'ok' -or $centralHealth.installation_mode -ne 'central' -or
     $centralHealth.version -ne $expectedVersion -or $centralHealth.commit -ne $expectedCommit) {
     throw "O servidor Central ainda nao serve $expectedVersion no commit $expectedCommit. A instalacao local nao sera iniciada."
 }
+$releaseManifest = Test-TraceReleaseAccess $updateManifestUrl $expectedVersion $manifestHeaders
+Write-Host "Rede validada: Central, manifesto $($releaseManifest.version) e pacote assinado acessíveis por HTTPS."
 if (-not (Test-WebView2Runtime)) {
     $webViewBootstrapper = Join-Path $PackageRoot 'Dependencies\MicrosoftEdgeWebView2Setup.exe'
     if (-not (Test-Path -LiteralPath $webViewBootstrapper -PathType Leaf)) {
@@ -75,7 +165,7 @@ $configDir = Join-Path $PackageRoot "config"
 $envPath = Join-Path $PackageRoot ".env"
 New-Item -ItemType Directory -Force -Path $configDir | Out-Null
 $updateDefaults = [ordered]@{
-    UPDATE_MANIFEST_URL = "https://github.com/VItoraaraujoo/Dallogix-Trace-System/releases/latest/download/manifest.json"
+    UPDATE_MANIFEST_URL = $updateManifestUrl
     UPDATE_PUBLIC_KEY_FILE = (Join-Path $PackageRoot "servidor\configuracao\trace-update-public.pem")
     UPDATE_CHANNEL = "stable"
 }
