@@ -89,7 +89,7 @@ O [contrato provisório de simulação](../industrial/contrato-provisorio-simula
 
 O CLP informado para a bancada é o INVT TS621, ligado por Modbus TCP. O mapa de comandos foi aprovado; o documento histórico `mapa-io-candidato.md` descreve outro equipamento e não deve orientar a configuração desta Dala.
 
-O Elgin EL8600 está definido como USB HID (teclado) e envia o código ao campo focado na tela de Operação. O endpoint aceita `sensor_event_id`, mas o gateway ainda não publica eventos a partir de M2052 e o formulário não liga automaticamente um código ao evento pendente. O timeout `SEM_LEITURA` e a captura de incidente só podem ser homologados ponta a ponta depois dessa associação e do teste com o leitor e a câmera conectados.
+O Elgin EL8600 está definido como USB HID (teclado) e envia o código ao campo focado na tela de Operação. O endpoint aceita `sensor_event_id`, mas o gateway ainda não publica eventos a partir de M2052 e o formulário não liga automaticamente um código ao evento pendente. `SEM_LEITURA` registra a ocorrência e solicita foto sem pausar o carregamento. Essa captura só pode ser homologada ponta a ponta depois de associar a passagem do sensor à leitura e testar o leitor e a câmera conectados.
 
 ## Heartbeat dos dispositivos
 

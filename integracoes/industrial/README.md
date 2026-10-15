@@ -8,7 +8,7 @@ Esta pasta descreve o contrato entre o PC industrial, o scanner Elgin EL8600 e o
 - Cada leitura é enviada pelo formulário da tela; ainda falta associá-la ao evento de passagem do sensor do CLP.
 - O sinal `sack_sensor` do CLP deve abrir a janela para associar a leitura ao saco; o fluxo Node-RED publicado ainda não emite esse evento.
 - Código válido ou incorreto é enviado para `/api/leituras.php`.
-- Se a janela expirar sem código, o adaptador envia uma leitura sem `barcode`; o servidor dispara a captura de incidente.
+- Se a janela expirar sem código, o adaptador envia uma leitura sem `barcode`; o servidor registra `SEM_LEITURA`, solicita a captura de incidente e mantém o carregamento em andamento, sem pedir pausa automática.
 - Comandos de operação são enviados ao CLP somente depois de o adaptador validar os intertravamentos informados pelo CLP.
 
 ## Sequência de um saco
@@ -17,7 +17,7 @@ Esta pasta descreve o contrato entre o PC industrial, o scanner Elgin EL8600 e o
 scanner contínuo → buffer local
 sensor do CLP → evento do saco
 buffer dentro da janela → leitura no Dallogix
-sem leitura → SEM_LEITURA + câmera imediata
+sem leitura → SEM_LEITURA + captura da câmera, sem pausar o carregamento
 ```
 
 ## Configuração
@@ -33,7 +33,7 @@ O adaptador só pode ser ligado à esteira depois de validar em bancada:
 1. leitura somente dos sinais do CLP;
 2. heartbeat do CLP no Dallogix;
 3. leitura USB HID com Enter/sufixo e correlação com cada evento do sensor;
-4. ausência de leitura com pausa controlada e captura da câmera;
+4. ausência de leitura com ocorrência e captura da câmera, sem pausar o carregamento;
 5. retorno de movimento separado do comando de saída e do retorno de emergência;
 6. comando de desbloqueio com intertravamento e confirmação do CLP;
 7. comportamento seguro na perda de comunicação.
