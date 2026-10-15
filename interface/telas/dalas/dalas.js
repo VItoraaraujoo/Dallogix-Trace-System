@@ -14,7 +14,7 @@ function dalaReferenceActions(equipment, canManage, canDelete) {
     canManage ? `<button data-action="edit-dala" data-id="${equipment.id}" type="button">Editar</button>` : "",
   ].filter(Boolean);
   const deleteAction = canDelete
-    ? `<details class="dala-more-actions" name="dala-actions"><summary class="dala-more-actions-trigger" aria-label="Mais ações para Dala ${esc(equipment.name)}" title="Mais ações"><span aria-hidden="true">⋯</span></summary><div class="dala-more-actions-menu"><button class="dala-action-v2 danger" data-action="delete-dala" data-id="${equipment.id}" data-name="${esc(equipment.name)}" type="button">Excluir Dala</button></div></details>`
+    ? `<button class="dala-action-v2 danger dala-delete-action" data-action="delete-dala" data-id="${equipment.id}" data-name="${esc(equipment.name)}" type="button" aria-label="Excluir Dala ${esc(equipment.name)}" title="Excluir Dala"><svg aria-hidden="true" viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 4h10M6 4V2.75A.75.75 0 0 1 6.75 2h2.5a.75.75 0 0 1 .75.75V4M4.5 4.5l.55 8.1a1 1 0 0 0 1 .93h3.9a1 1 0 0 0 1-.93l.55-8.1M6.5 7v4M9.5 7v4" /></svg>Excluir</button>`
     : "";
   return `<div class="dala-actions-v2">${actions.map((item) => item.replace("<button ", '<button class="dala-action-v2" ')).join("")}${deleteAction}</div>`;
 }
