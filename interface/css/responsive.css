@@ -2871,24 +2871,6 @@ button.button {
     text-align: left;
   }
 
-  .dalas-screen-v2 .dala-grid-cell-v2 .dala-actions-v2 {
-    display: grid;
-    width: 100%;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .dalas-screen-v2 .dala-grid-cell-v2 .dala-action-v2 {
-    width: 100%;
-    min-width: 0;
-  }
-
-  .dalas-screen-v2 .dala-grid-cell-v2 .dala-delete-action {
-    grid-column: 1 / -1;
-    justify-self: end;
-    width: auto;
-  }
-
   .dala-diagnostics-panel .mobile-card-table tbody td {
     display: block;
     padding: 12px 14px;
@@ -3413,19 +3395,6 @@ body .sidebar-toggle {
     justify-content: flex-start;
   }
 
-  .dalas-screen-v2 .dala-actions-v2 {
-    display: flex;
-    width: 100%;
-    flex-wrap: wrap;
-    justify-content: stretch;
-    gap: 8px;
-  }
-
-  .dalas-screen-v2 .dala-action-v2:not(.dala-delete-action) {
-    flex: 1 1 calc(50% - 8px);
-    min-width: 0;
-  }
-
   .shell .sidebar-toggle {
     width: 46px !important;
     height: 46px !important;
@@ -3521,18 +3490,6 @@ body .sidebar-toggle {
     justify-content: flex-start;
   }
 
-  .dalas-screen-v2 .dala-actions-v2 {
-    display: flex;
-    width: 100%;
-    flex-wrap: wrap;
-    justify-content: stretch;
-    gap: 8px;
-  }
-
-  .dalas-screen-v2 .dala-action-v2:not(.dala-delete-action) {
-    flex: 1 1 calc(50% - 8px);
-    min-width: 0;
-  }
 }
 
 /* Operação da Dala: acompanhamento principal à esquerda e comandos fixos à direita. */

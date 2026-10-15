@@ -4,13 +4,14 @@ import { join } from "node:path";
 import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
-const versaoAplicacao = "202610150001";
-const versaoAplicacaoImportacao = "202610150001";
+const versaoAplicacao = "202610150002";
+const versaoAplicacaoImportacao = "202610150002";
 const versaoServiceWorker = "202610140002";
 const versaoTela = "202610140002";
 const versaoTelaImportacao = "202610130005";
 const versaoTelaOperacao = "202610140004";
 const versaoEstilo = "202610070203";
+const versaoEstiloDalas = "202610150002";
 const versaoEstiloOperacao = "202610140001";
 const versaoEstiloImportacao = "202610071845";
 
@@ -70,11 +71,25 @@ test("a navegação não exibe uma tela intermediária de carregamento", () => {
 test("a navegação interna carrega os estilos exclusivos das telas alteradas", () => {
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
   for (const path of [
+    `/telas/dalas/dalas.css?v=${versaoEstiloDalas}`,
     `/telas/operacao/operacao.css?v=${versaoEstiloOperacao}`,
     `/telas/importar-romaneio/importar-romaneio.css?v=${versaoEstiloImportacao}`,
     `/telas/configuracoes/configuracoes.css?v=${versaoEstilo}`,
   ]) assert.ok(aplicacao.includes(path), `estilo não registrado no roteador: ${path}`);
   assert.match(aplicacao, /await ensureScreenStyles\(currentPage\)/);
+});
+
+test("ações das Dalas atualizam os estilos compartilhados com o cache correto", () => {
+  const tela = readFileSync(join(raiz, "telas", "dalas", "dalas.html"), "utf8");
+  const estilos = readFileSync(join(raiz, "telas", "dalas", "dalas.css"), "utf8");
+  const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
+  assert.match(tela, new RegExp(`/telas/dalas/dalas\\.css\\?v=${versaoEstiloDalas}`));
+  assert.match(estilos, new RegExp(`/css/responsive\\.css\\?v=${versaoEstiloDalas}`));
+  assert.match(estilos, new RegExp(`/css/dalas-screen\\.css\\?v=${versaoEstiloDalas}`));
+  for (const page of ["dalas", "dala", "dala-edit"]) {
+    const chave = page === "dala-edit" ? '"dala-edit"' : page;
+    assert.ok(aplicacao.includes(`${chave}: "/telas/dalas/dalas.css?v=${versaoEstiloDalas}"`));
+  }
 });
 
 test("a tela inicial da operação usa o CSS com cache atualizado", () => {
