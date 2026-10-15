@@ -3421,7 +3421,7 @@ body .sidebar-toggle {
     gap: 8px;
   }
 
-  .dalas-screen-v2 .dala-action-v2 {
+  .dalas-screen-v2 .dala-action-v2:not(.dala-delete-action) {
     flex: 1 1 calc(50% - 8px);
     min-width: 0;
   }
@@ -3529,7 +3529,7 @@ body .sidebar-toggle {
     gap: 8px;
   }
 
-  .dalas-screen-v2 .dala-action-v2 {
+  .dalas-screen-v2 .dala-action-v2:not(.dala-delete-action) {
     flex: 1 1 calc(50% - 8px);
     min-width: 0;
   }
