@@ -5,6 +5,7 @@ import { readFileSync } from "node:fs";
 const updaterRegistration = readFileSync(new URL("../implantacao/windows/Register-TraceUpdater.ps1", import.meta.url), "utf8");
 const updaterScript = readFileSync(new URL("../implantacao/windows/TraceUpdater.ps1", import.meta.url), "utf8");
 const machineInstaller = readFileSync(new URL("../implantacao/windows/Install-TraceMachine.ps1", import.meta.url), "utf8");
+const setupMachine = readFileSync(new URL("../implantacao/windows/Setup-TraceMachine.ps1", import.meta.url), "utf8");
 const dockerStarter = readFileSync(new URL("../implantacao/windows/Start-TraceDocker.ps1", import.meta.url), "utf8");
 const desktopProgram = readFileSync(new URL("../desktop/DallogixTrace/Program.cs", import.meta.url), "utf8");
 
@@ -46,6 +47,18 @@ test("falha de pré-requisito do atualizador deixa diagnóstico persistente", ()
   assert.match(updaterScript, /Fail-Preflight \"Docker Desktop não está disponível\.\"/);
   assert.match(updaterScript, /Detalhe: \$dockerDetail/);
   assert.match(updaterScript, /update-stable-errors\.log/);
+});
+
+test("instalação valida Central, manifesto e pacote HTTPS antes de configurar a máquina", () => {
+  assert.match(setupMachine, /function Get-TraceNetworkRouteHint/);
+  assert.match(setupMachine, /function Test-TraceReleaseAccess\(\[string\]\$ManifestUrl, \[string\]\$MinimumVersion/);
+  assert.match(setupMachine, /Get-NetRoute -DestinationPrefix '0\.0\.0\.0\/0'/);
+  assert.match(setupMachine, /Invoke-RestMethod -Uri \$manifestUri\.AbsoluteUri -Headers \$Headers -TimeoutSec 20/);
+  assert.match(setupMachine, /Invoke-WebRequest -Uri \$artifactUri\.AbsoluteUri -Method Head -MaximumRedirection 5 -TimeoutSec 20 -UseBasicParsing/);
+  assert.match(setupMachine, /release estável \$\(\$manifest\.version\) é anterior ao instalador/);
+  assert.match(setupMachine, /\$updateManifestUrl = Get-TraceEnvValue 'UPDATE_MANIFEST_URL'/);
+  assert.match(setupMachine, /UPDATE_MANIFEST_URL = \$updateManifestUrl/);
+  assert.ok(setupMachine.indexOf("Test-TraceReleaseAccess $updateManifestUrl") < setupMachine.indexOf("Instalar-TraceLocal.ps1"));
 });
 
 test("pré-verificação do Docker não fica presa quando o motor ainda está iniciando", () => {
