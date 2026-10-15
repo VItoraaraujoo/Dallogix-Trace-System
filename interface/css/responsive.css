@@ -2883,6 +2883,11 @@ button.button {
     min-width: 0;
   }
 
+  .dalas-screen-v2 .dala-grid-cell-v2 .dala-more-actions {
+    grid-column: 1 / -1;
+    justify-self: end;
+  }
+
   .dala-diagnostics-panel .mobile-card-table tbody td {
     display: block;
     padding: 12px 14px;

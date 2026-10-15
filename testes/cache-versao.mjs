@@ -4,8 +4,8 @@ import { join } from "node:path";
 import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
-const versaoAplicacao = "202610140004";
-const versaoAplicacaoImportacao = "202610140004";
+const versaoAplicacao = "202610140005";
+const versaoAplicacaoImportacao = "202610140005";
 const versaoServiceWorker = "202610140002";
 const versaoTela = "202610140002";
 const versaoTelaImportacao = "202610130005";

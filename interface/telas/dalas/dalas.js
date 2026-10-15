@@ -12,12 +12,11 @@ function dalaReferenceActions(equipment, canManage, canDelete) {
   const actions = [
     `<button data-action="view-dala" data-id="${equipment.id}" type="button">Visualizar</button>`,
     canManage ? `<button data-action="edit-dala" data-id="${equipment.id}" type="button">Editar</button>` : "",
-    canDelete ? `<button class="danger" data-action="delete-dala" data-id="${equipment.id}" data-name="${esc(equipment.name)}" type="button">Excluir</button>` : "",
   ].filter(Boolean);
-  const withClass = (item) => item.includes('class="danger"')
-    ? item.replace('class="danger"', 'class="dala-action-v2 danger"')
-    : item.replace("<button ", '<button class="dala-action-v2" ');
-  return `<div class="dala-actions-v2">${actions.map(withClass).join("")}</div>`;
+  const deleteAction = canDelete
+    ? `<details class="dala-more-actions" name="dala-actions"><summary class="dala-more-actions-trigger" aria-label="Mais ações para Dala ${esc(equipment.name)}" title="Mais ações"><span aria-hidden="true">⋯</span></summary><div class="dala-more-actions-menu"><button class="dala-action-v2 danger" data-action="delete-dala" data-id="${equipment.id}" data-name="${esc(equipment.name)}" type="button">Excluir Dala</button></div></details>`
+    : "";
+  return `<div class="dala-actions-v2">${actions.map((item) => item.replace("<button ", '<button class="dala-action-v2" ')).join("")}${deleteAction}</div>`;
 }
 
 export function dalas(store) {

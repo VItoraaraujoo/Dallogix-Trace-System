@@ -17,7 +17,7 @@ import { refreshCompanyStatusCards } from "./funcoes/view.js?v=202610130001";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js?v=202609240001";
 import { apresentacaoStatusDispositivo, settings } from "../telas/configuracoes/configuracoes.js?v=202610070203";
-import { dalas } from "../telas/dalas/dalas.js?v=202610130001";
+import { dalas } from "../telas/dalas/dalas.js?v=202610140005";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
 import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610130001";
 import { company } from "../telas/empresa/empresa.js?v=202610130001";
@@ -450,9 +450,9 @@ const SCREEN_STYLES = {
   work: "/telas/operacao/operacao.css?v=202610140001",
   import: "/telas/importar-romaneio/importar-romaneio.css?v=202610071845",
   settings: "/telas/configuracoes/configuracoes.css?v=202610070203",
-  dalas: "/telas/dalas/dalas.css?v=202610070203",
-  dala: "/telas/dalas/dalas.css?v=202610070203",
-  "dala-edit": "/telas/dalas/dalas.css?v=202610070203",
+  dalas: "/telas/dalas/dalas.css?v=202610140005",
+  dala: "/telas/dalas/dalas.css?v=202610140005",
+  "dala-edit": "/telas/dalas/dalas.css?v=202610140005",
   company: "/telas/empresa/empresa.css?v=202610020006",
 };
 
@@ -1775,6 +1775,7 @@ function bindActions() {
         return;
       }
       if (action === "delete-dala") {
+        node.closest(".dala-more-actions")?.removeAttribute("open");
         if (!["ADMIN_DALLOGIX", "ADMIN_EMPRESA"].includes(store.state.userRole)) {
           notificar("Somente administradores podem excluir Dala.");
           return;
