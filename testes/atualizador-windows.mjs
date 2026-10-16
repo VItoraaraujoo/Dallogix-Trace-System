@@ -6,6 +6,12 @@ const updaterRegistration = readFileSync(new URL("../implantacao/windows/Registe
 const updaterScript = readFileSync(new URL("../implantacao/windows/TraceUpdater.ps1", import.meta.url), "utf8");
 const releaseWorkflow = readFileSync(new URL("../.github/workflows/release-production.yml", import.meta.url), "utf8");
 const machineInstaller = readFileSync(new URL("../implantacao/windows/Install-TraceMachine.ps1", import.meta.url), "utf8");
+const localInstaller = readFileSync(new URL("../implantacao/windows/Instalar-TraceLocal.ps1", import.meta.url), "utf8");
+const traceLauncher = readFileSync(new URL("../implantacao/windows/TraceLauncher.ps1", import.meta.url), "utf8");
+const databaseVolumeGuard = readFileSync(new URL("../implantacao/windows/TraceDatabaseVolume.ps1", import.meta.url), "utf8");
+const databaseBackup = readFileSync(new URL("../implantacao/windows/TraceDatabaseBackup.ps1", import.meta.url), "utf8");
+const setupPackage = readFileSync(new URL("../implantacao/windows/TraceSetup.iss", import.meta.url), "utf8");
+const masterHomologationUpdater = readFileSync(new URL("../implantacao/windows/auto-master-homologacao/Atualizar.ps1", import.meta.url), "utf8");
 const setupMachine = readFileSync(new URL("../implantacao/windows/Setup-TraceMachine.ps1", import.meta.url), "utf8");
 const dockerStarter = readFileSync(new URL("../implantacao/windows/Start-TraceDocker.ps1", import.meta.url), "utf8");
 const desktopProgram = readFileSync(new URL("../desktop/DallogixTrace/Program.cs", import.meta.url), "utf8");
@@ -131,4 +137,76 @@ test("inicialização do Docker garante serviço privilegiado e aguarda o motor 
   assert.match(dockerStarter, /docker\.exe/);
   assert.match(dockerStarter, /info.*OSType/);
   assert.match(dockerStarter, /Mecanismo Linux do Docker respondeu ao teste de saúde/);
+});
+
+test("o Compose resolve a identidade do volume e bloqueia sua ausência ou troca", () => {
+  assert.match(databaseVolumeGuard, /compose --project-directory \$InstallRoot config --format json/);
+  assert.match(databaseVolumeGuard, /docker\.exe volume inspect --format '\{\{\.CreatedAt\}\}' \$volumeName/);
+  assert.match(databaseVolumeGuard, /Volume persistente do MySQL ausente/);
+  assert.match(databaseVolumeGuard, /A identidade do volume MySQL mudou/);
+  assert.match(databaseVolumeGuard, /volume_created_at = \$Snapshot\.CreatedAt/);
+});
+
+test("banco vazio só é criado no primeiro setup explícito sem instalação ou backup anterior", () => {
+  assert.match(databaseVolumeGuard, /Initialize-TraceMySqlVolumeForInstall\(\[string\]\$InstallRoot, \[switch\]\$AllowFreshDatabaseCreation\)/);
+  assert.match(databaseVolumeGuard, /if \(\$hasPriorInstallEvidence\) \{[\s\S]*?volume MySQL '[^\n]*esta ausente/);
+  assert.match(databaseVolumeGuard, /if \(-not \$AllowFreshDatabaseCreation\)/);
+  assert.match(databaseVolumeGuard, /docker\.exe volume create \$snapshot\.Name/);
+  assert.match(setupMachine, /Instalar-TraceLocal\.ps1[\s\S]*?-AllowFreshDatabaseCreation/);
+  assert.match(localInstaller, /Initialize-TraceMySqlVolumeForInstall[\s\S]*?AllowFreshDatabaseCreation/);
+});
+
+test("o marcador só é registrado depois de confirmar a tabela carregamentos", () => {
+  assert.match(databaseVolumeGuard, /Test-TraceMySqlApplicationSchema/);
+  assert.match(databaseVolumeGuard, /table_name = 0x636172726567616d656e746f73/);
+  assert.match(databaseVolumeGuard, /RedirectStandardInput = \$true/);
+  assert.match(databaseVolumeGuard, /StandardInput\.WriteLine\(\$query\)/);
+  assert.match(databaseVolumeGuard, /exec', '-T', '-i', 'mysql'/);
+  assert.doesNotMatch(databaseVolumeGuard, /-e "' \+ \$query/);
+  assert.match(databaseVolumeGuard, /function Register-TraceMySqlVolumeAfterDatabaseCheck/);
+  const validationIndex = localInstaller.indexOf("Test-TraceMySqlApplicationSchema -InstallRoot $PackageRoot");
+  const registrationIndex = localInstaller.indexOf("Register-TraceMySqlVolumeAfterDatabaseCheck -InstallRoot $PackageRoot");
+  assert.ok(validationIndex >= 0 && registrationIndex > validationIndex);
+  assert.match(localInstaller, /Migrations bloqueadas para proteger os dados existentes/);
+});
+
+test("atualizador e rotas Windows de inicialização validam o volume antes de compose up", () => {
+  assert.match(updaterScript, /function Invoke-DockerCompose\(\[string\[\]\]\$Arguments\) \{[\s\S]*?if \(\$Arguments -contains 'up'\) \{[\s\S]*?Assert-TraceMySqlVolumeExists[\s\S]*?-RequireMarker/);
+  assert.match(updaterScript, /Ensure-TraceDatabaseVolumeGuard/);
+  assert.match(updaterScript, /Register-TraceMySqlVolumeAfterDatabaseCheck/);
+  assert.match(traceLauncher, /Assert-TraceMySqlVolumeExists -InstallRoot \$InstallRoot -RequireMarker[\s\S]*?docker compose --profile industrial up -d/);
+  assert.match(machineInstaller, /Assert-TraceMySqlVolumeExists -InstallRoot \$PackageRoot -RequireMarker[\s\S]*?docker\.exe compose --profile industrial up -d/);
+  assert.match(masterHomologationUpdater, /Assert-TraceMySqlVolumeExists -InstallRoot \$installRoot[\s\S]*?docker\.exe compose exec/);
+  assert.match(masterHomologationUpdater, /function Ensure-TraceDatabaseBackupSchedule/);
+  assert.match(masterHomologationUpdater, /Ensure-TraceDatabaseVolumeMarker\n        Ensure-TraceDatabaseBackupSchedule/);
+  const firstMarkerSetup = updaterScript.indexOf("Ensure-TraceDatabaseVolumeGuard");
+  const storagePruning = updaterScript.indexOf("Invoke-TraceStoragePruning $installedVersion");
+  assert.ok(firstMarkerSetup >= 0 && storagePruning > firstMarkerSetup, "retenção não pode remover backups antes de conferir o volume");
+  const masterBootstrap = masterHomologationUpdater.indexOf("function Ensure-TraceDatabaseVolumeMarker");
+  const masterNoOp = masterHomologationUpdater.indexOf("Ensure-TraceDatabaseBackupSchedule\n        if ($current");
+  assert.ok(masterBootstrap >= 0 && masterNoOp > masterBootstrap, "a rota de homologação também valida o banco sem release nova");
+});
+
+test("o instalador inclui o guard e o atualizador protege o PC ao migrar uma instalação existente", () => {
+  assert.match(setupPackage, /Source: "TraceDatabaseVolume\.ps1"/);
+  assert.match(setupPackage, /Source: "TraceDatabaseBackup\.ps1"/);
+  assert.match(setupPackage, /Source: "Start-TraceDocker\.ps1"/);
+  assert.match(setupPackage, /Source: "TraceUpdater\.ps1"/);
+  assert.match(updaterScript, /Protecao do volume MySQL ausente/);
+  assert.match(updaterScript, /tabela carregamentos nao foi confirmada[\s\S]*?nenhum volume novo foi criado/);
+});
+
+test("PC Windows agenda backup diário fora do volume MySQL e verifica arquivo e checksum", () => {
+  assert.match(updaterRegistration, /Dallogix Trace Backup Diario/);
+  assert.match(updaterRegistration, /New-ScheduledTaskTrigger -Daily -At '02:00'/);
+  assert.match(updaterRegistration, /New-ScheduledTaskPrincipal -UserId 'SYSTEM'/);
+  assert.match(updaterRegistration, /New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable/);
+  assert.match(updaterRegistration, /TraceDatabaseBackup\.ps1/);
+  assert.match(updaterScript, /function Ensure-TraceDatabaseBackupSchedule/);
+  assert.match(updaterScript, /Ensure-TraceDatabaseBackupSchedule/);
+  assert.match(databaseBackup, /Assert-TraceMySqlVolumeExists -InstallRoot \$InstallRoot -RequireMarker/);
+  assert.match(databaseBackup, /scripts\/backup_db\.sh/);
+  assert.match(databaseBackup, /Get-FileHash -LiteralPath \$backup\.FullName -Algorithm SHA256/);
+  assert.match(databaseBackup, /database-backup\.log/);
+  assert.match(masterHomologationUpdater, /New-ScheduledTaskTrigger -Daily -At '02:00'/);
 });

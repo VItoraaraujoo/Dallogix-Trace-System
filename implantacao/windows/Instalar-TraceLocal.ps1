@@ -2,12 +2,16 @@ param(
     [string]$PackageRoot = (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)),
     [string]$CentralUrl = '',
     [switch]$NoBrowser,
-    [switch]$ProductionMachine
+    [switch]$ProductionMachine,
+    [switch]$AllowFreshDatabaseCreation
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 $PackageRoot = (Resolve-Path -LiteralPath $PackageRoot).Path
+$DatabaseVolumeGuard = Join-Path $PSScriptRoot 'TraceDatabaseVolume.ps1'
+if (-not (Test-Path -LiteralPath $DatabaseVolumeGuard -PathType Leaf)) { throw "Protecao do volume MySQL ausente: $DatabaseVolumeGuard" }
+. $DatabaseVolumeGuard
 
 function Assert-Success([string]$Stage, [int]$Code) {
     if ($Code -ne 0) {
@@ -404,12 +408,19 @@ try {
     }
     & docker.exe compose config --quiet
     Assert-Success "Configuracao do Docker Compose" $LASTEXITCODE
+    $mysqlVolume = Initialize-TraceMySqlVolumeForInstall -InstallRoot $PackageRoot -AllowFreshDatabaseCreation:$AllowFreshDatabaseCreation
 
     Write-Host "[1/3] Iniciando banco e PHP..."
     & docker.exe compose up -d --build mysql php
     Assert-Success "Inicializacao do banco e PHP" $LASTEXITCODE
     Write-Host "Aguardando o MySQL concluir a inicializacao antes das migrations..."
     Wait-MySqlHealthy
+    if ($mysqlVolume.NeedsDatabaseValidation) {
+        if (-not (Test-TraceMySqlApplicationSchema -InstallRoot $PackageRoot)) {
+            throw "O volume MySQL existente nao confirmou a tabela carregamentos. Migrations bloqueadas para proteger os dados existentes."
+        }
+        Register-TraceMySqlVolumeAfterDatabaseCheck -InstallRoot $PackageRoot | Out-Null
+    }
 
     Write-Host "[2/3] Aplicando migracoes antes de iniciar os demais servicos..."
     & $gitBash "scripts/migrate.sh"

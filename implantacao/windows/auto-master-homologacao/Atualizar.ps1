@@ -2,6 +2,9 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $installRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..\..\..')).Path
+$databaseVolumeGuard = Join-Path $installRoot 'implantacao\windows\TraceDatabaseVolume.ps1'
+if (-not (Test-Path -LiteralPath $databaseVolumeGuard -PathType Leaf)) { throw "Protecao do volume MySQL ausente: $databaseVolumeGuard" }
+. $databaseVolumeGuard
 $logPath = Join-Path $PSScriptRoot 'atualizacao.log'
 $appliedPath = Join-Path $PSScriptRoot 'commit-aplicado.txt'
 $mutex = $null
@@ -20,6 +23,51 @@ function Find-Program([string[]]$Candidates, [string]$CommandName) {
 function Run-Checked([string]$Stage, [string]$Program, [string[]]$Arguments) {
     & $Program @Arguments
     if ($LASTEXITCODE -ne 0) { throw "$Stage falhou (codigo $LASTEXITCODE)." }
+}
+
+function Ensure-TraceDatabaseVolumeMarker {
+    Assert-TraceMySqlVolumeExists -InstallRoot $installRoot | Out-Null
+    if (Read-TraceMySqlVolumeMarker) {
+        Assert-TraceMySqlVolumeExists -InstallRoot $installRoot -RequireMarker | Out-Null
+        return
+    }
+    $startOutput = & docker.exe compose --project-directory $installRoot --profile industrial up -d mysql 2>&1
+    if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel iniciar MySQL no volume existente: $(($startOutput | Out-String).Trim())" }
+    $mysqlReady = $false
+    for ($attempt = 0; $attempt -lt 30; $attempt++) {
+        & docker.exe compose --project-directory $installRoot --profile industrial exec -T mysql sh -lc 'mysqladmin ping -u$MYSQL_USER -p$MYSQL_PASSWORD --silent' | Out-Null
+        if ($LASTEXITCODE -eq 0) { $mysqlReady = $true; break }
+        Start-Sleep -Seconds 2
+    }
+    if (-not $mysqlReady) { throw 'MySQL nao ficou pronto para validar o volume existente.' }
+    if (-not (Test-TraceMySqlApplicationSchema -InstallRoot $installRoot)) {
+        throw 'O volume MySQL existe, mas a tabela carregamentos nao foi confirmada; atualizacao bloqueada.'
+    }
+    Register-TraceMySqlVolumeAfterDatabaseCheck -InstallRoot $installRoot | Out-Null
+}
+
+function Ensure-TraceDatabaseBackupSchedule {
+    $taskName = 'Dallogix Trace Backup Diario'
+    $backupScript = Join-Path $installRoot 'implantacao\windows\TraceDatabaseBackup.ps1'
+    if (-not (Test-Path -LiteralPath $backupScript -PathType Leaf)) { throw "Script de backup diario ausente: $backupScript" }
+    $existing = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+    if ($existing) {
+        $actionText = ($existing.Actions | ForEach-Object { "$($_.Execute) $($_.Arguments)" }) -join ' '
+        if (-not $actionText.Contains($backupScript)) { throw "A tarefa $taskName ja existe com outro destino." }
+        $hasDailyAtTwo = @($existing.Triggers | Where-Object {
+            [string]$_.CimClass.CimClassName -eq 'MSFT_TaskDailyTrigger' -and
+                ([datetime]$_.StartBoundary).TimeOfDay -eq (New-TimeSpan -Hours 2)
+        }).Count -gt 0
+        $hasRetryPolicy = [int]$existing.Settings.RestartCount -ge 3 -and
+            $existing.Settings.RestartInterval -eq (New-TimeSpan -Minutes 10)
+        if ($hasDailyAtTwo -and $hasRetryPolicy) { return }
+    }
+
+    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$backupScript`" -InstallRoot `"$installRoot`""
+    $trigger = New-ScheduledTaskTrigger -Daily -At '02:00'
+    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+    $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 1) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 10)
+    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Cria e valida diariamente uma copia do banco fora do volume MySQL.' -Force | Out-Null
 }
 
 Start-Transcript -Path $logPath -Append | Out-Null
@@ -94,6 +142,8 @@ try {
         } catch {
             $localMatches = $false
         }
+        Ensure-TraceDatabaseVolumeMarker
+        Ensure-TraceDatabaseBackupSchedule
         if ($current -eq $target -and $applied -eq $target -and $localMatches) {
             Write-Host "[$(Get-Date -Format s)] Trace ja esta atualizado ($target)."
         } else {
@@ -103,10 +153,12 @@ try {
             }
 
             # Repete a mesma trava de seguranca do sincronizador antes do backup.
+            Assert-TraceMySqlVolumeExists -InstallRoot $installRoot | Out-Null
             $sql = "SELECT COUNT(*) FROM carregamentos WHERE state IN ('PREPARANDO','CARREGANDO','PAUSADO','FINALIZANDO','EMERGENCIA');"
             $mysqlCommand = 'mysql -N -B -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" "$MYSQL_DATABASE" -e "' + $sql + '"'
             $active = (& docker.exe compose exec -T mysql sh -lc $mysqlCommand | Out-String).Trim()
             if ($LASTEXITCODE -ne 0 -or $active -notmatch '^\d+$') { throw 'Nao foi possivel confirmar se ha carregamentos ativos. Atualizacao adiada.' }
+            Register-TraceMySqlVolumeAfterDatabaseCheck -InstallRoot $installRoot | Out-Null
             if ([int]$active -gt 0) {
                 Write-Host 'Atualizacao adiada: existe carregamento ativo ou em intervencao.'
             } else {

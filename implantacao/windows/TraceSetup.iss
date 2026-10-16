@@ -29,6 +29,8 @@ Source: "..\..\.env.example"; DestDir: "{app}"; DestName: ".env.example"; Flags:
 Source: "..\..\trace-build-version.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\..\trace-build-commit.txt"; DestDir: "{app}"; Flags: ignoreversion
 Source: "TraceLauncher.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
+Source: "TraceDatabaseVolume.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
+Source: "TraceDatabaseBackup.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
 Source: "TraceUpdater.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
 Source: "Register-TraceUpdater.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
 Source: "Instalar-TraceLocal.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
@@ -37,6 +39,7 @@ Source: "Build-TraceSetup.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ign
 Source: "..\..\desktop\DallogixTrace\bin\Release\net8.0-windows\win-x64\publish\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 Source: "TraceLauncher.cmd"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
 Source: "Install-TraceMachine.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
+Source: "Start-TraceDocker.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
 Source: "Setup-TraceMachine.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
 Source: "..\..\desktop\DallogixTrace\trace.ico"; DestDir: "{app}"; Flags: ignoreversion
 

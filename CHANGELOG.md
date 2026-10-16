@@ -1,5 +1,17 @@
 # Histórico de alterações
 
+## v1.0.156 — 16/10/2026
+
+- O instalador, o inicializador e o atualizador Windows identificam o volume
+  MySQL persistente e bloqueiam a inicialização se ele desaparecer ou for
+  substituído, evitando que o Compose use silenciosamente um banco vazio.
+- Instalações anteriores só registram a identidade do volume depois de
+  confirmar o esquema da aplicação; a consulta ao MySQL usa entrada padrão para
+  preservar o SQL no Windows PowerShell.
+- O PC industrial agenda um backup diário fora do volume Docker, valida o
+  arquivo e o SHA-256 e registra falhas em log local.
+- Adicionadas regressões para a proteção do volume e o agendamento do backup.
+
 ## v1.0.154 — 16/10/2026
 
 - A tela de Configurações separa dispositivos sem integração automática dos
