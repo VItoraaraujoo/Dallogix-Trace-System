@@ -121,9 +121,12 @@ test("status da Dala separa comunicação de observação de configuração", ()
   assert.match(markup, /Dala ociosa\.<br><small>Sem retorno de movimento configurado\.<\/small>/);
   assert.equal(renderStatusDala({ status: "OFFLINE", message: "Sem comunicação" }),
     '<span class="status-dot offline"></span>Sem comunicação');
-  assert.doesNotMatch(renderStatusDala({
-    status: "ONLINE", status_label: "Online", configuration_note: "<script>erro</script>",
-  }), /<script>/);
+  for (const tag of ["script", "SCRIPT"]) {
+    const escapedMarkup = renderStatusDala({
+      status: "ONLINE", status_label: "Online", configuration_note: `<${tag}>erro</${tag}>`,
+    });
+    assert.ok(escapedMarkup.includes(`&lt;${tag}&gt;erro&lt;/${tag}&gt;`));
+  }
 });
 
 test("lista e detalhe da Dala mostram a observação sem associá-la ao ponto verde", () => {
