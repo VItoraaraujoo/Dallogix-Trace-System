@@ -26,8 +26,7 @@ function syncManagedFlow(flowPath, seedPath) {
     && String(remainingNodes[0].name || '').startsWith(
       'WARNING: please check you have started this container with a volume that is mounted to /data\\n',
     )
-    && String(remainingNodes[0].name || '').includes('If you are using named volumes you can ignore this warning.')
-    && String(remainingNodes[0].info || '').includes('mounted to /data');
+    && String(remainingNodes[0].name || '').includes('If you are using named volumes you can ignore this warning.');
   const isEmptyPlaceholder = !hasManagedTab
     && tabs.length === 1
     && onlyTab.label === 'Flow 1'
