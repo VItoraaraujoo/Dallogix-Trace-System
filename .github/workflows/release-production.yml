@@ -159,6 +159,8 @@ jobs:
             ':(exclude)scripts/simulate_clp.sh' | tar -xf - -C dist/stage
           php scripts/version_assets.php "$COMMIT" dist/stage
           cp -a dist/windows-runtime/. dist/stage/
+          cp desktop/DallogixTrace/trace.ico dist/stage/trace.ico
+          test -s dist/stage/trace.ico
           printf '%s\n' "$VERSION" > dist/stage/trace-build-version.txt
           printf '%s\n' "$COMMIT" > dist/stage/trace-build-commit.txt
           tar -czf "dist/trace-${VERSION}.tar.gz" -C dist/stage .

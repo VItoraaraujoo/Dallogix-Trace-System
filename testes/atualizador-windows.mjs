@@ -4,6 +4,7 @@ import { readFileSync } from "node:fs";
 
 const updaterRegistration = readFileSync(new URL("../implantacao/windows/Register-TraceUpdater.ps1", import.meta.url), "utf8");
 const updaterScript = readFileSync(new URL("../implantacao/windows/TraceUpdater.ps1", import.meta.url), "utf8");
+const releaseWorkflow = readFileSync(new URL("../.github/workflows/release-production.yml", import.meta.url), "utf8");
 const machineInstaller = readFileSync(new URL("../implantacao/windows/Install-TraceMachine.ps1", import.meta.url), "utf8");
 const setupMachine = readFileSync(new URL("../implantacao/windows/Setup-TraceMachine.ps1", import.meta.url), "utf8");
 const dockerStarter = readFileSync(new URL("../implantacao/windows/Start-TraceDocker.ps1", import.meta.url), "utf8");
@@ -91,6 +92,19 @@ test("atualizador reinicia o quiosque na conta dona do processo mesmo em sessão
   assert.match(updaterScript, /\$script:desktopUser = \$uniqueDesktopUsers\[0\]/);
   assert.match(updaterScript, /New-ScheduledTaskPrincipal -UserId \$desktopUser -LogonType Interactive/);
   assert.doesNotMatch(updaterScript, /Get-CimInstance Win32_ComputerSystem[^\n]*UserName/);
+});
+
+test("pacote de release leva a logo à raiz usada pelos atalhos do Windows", () => {
+  assert.match(releaseWorkflow, /cp desktop\/DallogixTrace\/trace\.ico dist\/stage\/trace\.ico/);
+  assert.match(releaseWorkflow, /test -s dist\/stage\/trace\.ico/);
+});
+
+test("atualizador recria os atalhos com a logo correta após instalar os arquivos", () => {
+  assert.match(updaterScript, /function Ensure-TraceShortcuts/);
+  assert.match(updaterScript, /Join-Path \$env:PUBLIC 'Desktop'/);
+  assert.match(updaterScript, /Join-Path \$env:ProgramData 'Microsoft\\Windows\\Start Menu\\Programs'/);
+  assert.match(updaterScript, /\$shortcut\.IconLocation = "\$iconPath,0"/);
+  assert.match(updaterScript, /Copy-Item -Destination \$InstallRoot -Recurse -Force\r?\n\s+Ensure-TraceShortcuts/);
 });
 
 test("instalação registra o agente no início do Windows", () => {

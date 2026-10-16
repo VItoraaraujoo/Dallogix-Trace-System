@@ -135,6 +135,33 @@ function Schedule-TraceDesktopRestart {
     Append-UpdateLog $ComposeLogPath "Interface desktop agendada para reinicio na sessao $desktopUser."
 }
 
+function Ensure-TraceShortcuts {
+    $targetPath = Join-Path $InstallRoot 'DallogixTrace.exe'
+    $iconPath = Join-Path $InstallRoot 'trace.ico'
+    if (-not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
+        throw "Executavel do Trace ausente ao configurar atalhos: $targetPath"
+    }
+    if (-not (Test-Path -LiteralPath $iconPath -PathType Leaf)) {
+        throw "Logo do Trace ausente ao configurar atalhos: $iconPath"
+    }
+
+    $shortcutDirectories = @(
+        (Join-Path $env:PUBLIC 'Desktop'),
+        (Join-Path $env:ProgramData 'Microsoft\Windows\Start Menu\Programs')
+    ) | Select-Object -Unique
+    $shell = New-Object -ComObject WScript.Shell
+    foreach ($directory in $shortcutDirectories) {
+        New-Item -ItemType Directory -Force -Path $directory | Out-Null
+        $shortcutPath = Join-Path $directory 'Dallogix Trace.lnk'
+        $shortcut = $shell.CreateShortcut($shortcutPath)
+        $shortcut.TargetPath = $targetPath
+        $shortcut.WorkingDirectory = $InstallRoot
+        $shortcut.IconLocation = "$iconPath,0"
+        $shortcut.Description = 'Dallogix Trace'
+        $shortcut.Save()
+    }
+}
+
 function Write-AtomicTextFile([string]$Path, [string]$Content) {
     $temporaryPath = "$Path.tmp-$([guid]::NewGuid().ToString('N'))"
     $utf8 = New-Object System.Text.UTF8Encoding($false)
@@ -533,6 +560,7 @@ try {
     $rollbackRequired = $true
     Get-ChildItem -Path $InstallRoot -Force | Where-Object { $_.Name -notin $preservedNames } | Remove-Item -Recurse -Force
     Get-ChildItem $source -Force | Where-Object { $_.Name -notin $preservedNames } | Copy-Item -Destination $InstallRoot -Recurse -Force
+    Ensure-TraceShortcuts
     $releaseMetadata = @{ version = $manifest.version; commit = $releaseCommit } | ConvertTo-Json -Compress
     Write-AtomicTextFile (Join-Path $InstallRoot 'servidor\.release.json') ($releaseMetadata + "`n")
     $configExit = Invoke-DockerCompose ($ComposeProfile + @('config', '--quiet'))
