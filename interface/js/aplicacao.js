@@ -5,9 +5,9 @@ import { ClienteApi } from "./api/ClienteApi.js?v=202610140003";
 import { confirmarAcao, limparNotificacao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610160002";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610160002";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610160004";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
-import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio, operationStructureSignature } from "./controladores/operacao.js?v=202610160002";
+import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio, operationStructureSignature } from "./controladores/operacao.js?v=202610160004";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610140001";
 import { createPageRefreshController } from "./controladores/page-refresh.js?v=202610130001";
 import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
@@ -23,12 +23,12 @@ import {
   resumoStatusDispositivos,
   settings,
 } from "../telas/configuracoes/configuracoes.js?v=202610160002";
-import { dalas } from "../telas/dalas/dalas.js?v=202610150001";
+import { dalas } from "../telas/dalas/dalas.js?v=202610160004";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
-import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610130001";
+import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610160004";
 import { company } from "../telas/empresa/empresa.js?v=202610130001";
 import { companies } from "../telas/empresas/empresas.js?v=202610130001";
-import { errorLogs } from "../telas/logs-erros/logs-erros.js?v=202610130001";
+import { errorLogs } from "../telas/logs-erros/logs-erros.js?v=202610160004";
 import { masterHome } from "../telas/painel-dallogix/painel-dallogix.js?v=202610080002";
 import { alerts } from "../telas/alertas/alertas.js?v=202610130001";
 import { emergency } from "../telas/emergencia/emergencia.js?v=202610130001";
@@ -390,6 +390,13 @@ async function refreshLocalIndicator() {
 
 function installLocalIndicator() {
   if (localHealthTimer) return;
+  const restoreScannerFocus = () => {
+    if (currentPage === "work" && document.visibilityState === "visible") {
+      focusOperationScanner(el("#screen-root"));
+    }
+  };
+  window.addEventListener("focus", restoreScannerFocus);
+  document.addEventListener("visibilitychange", restoreScannerFocus);
   window.addEventListener("online", () => {
     refreshLocalIndicator();
     store.flushOfflineOperations().then(() => {
@@ -462,9 +469,9 @@ const SCREEN_STYLES = {
   work: "/telas/operacao/operacao.css?v=202610140001",
   import: "/telas/importar-romaneio/importar-romaneio.css?v=202610071845",
   settings: "/telas/configuracoes/configuracoes.css?v=202610160001",
-  dalas: "/telas/dalas/dalas.css?v=202610150002",
-  dala: "/telas/dalas/dalas.css?v=202610150002",
-  "dala-edit": "/telas/dalas/dalas.css?v=202610150002",
+  dalas: "/telas/dalas/dalas.css?v=202610160004",
+  dala: "/telas/dalas/dalas.css?v=202610160004",
+  "dala-edit": "/telas/dalas/dalas.css?v=202610160004",
   company: "/telas/empresa/empresa.css?v=202610020006",
 };
 
@@ -2369,12 +2376,17 @@ function bindForms() {
         };
         const message = result.queued
           ? "Leitura guardada para envio. A validação está pendente; não repita o código."
-          : messages[result.result] || "Leitura registrada.";
+          : result.refreshWarning
+            ? "Leitura registrada. A atualização falhou; confira o status antes de repetir."
+            : messages[result.result] || "Leitura registrada.";
+        if (result.refreshWarning) {
+          logFrontend.aviso("leitura.atualizacao", new Error(result.refreshWarning));
+        }
         barcodeInput.value = "";
         render();
         const currentForm = document.querySelector(".manual-operation-reading-form");
         if (currentForm) {
-          setFormFeedback(currentForm, message, result.queued || ["PRODUTO_INCORRETO", "SEM_LEITURA"].includes(result.result) ? "error" : "");
+          setFormFeedback(currentForm, message, result.queued || result.refreshWarning || ["PRODUTO_INCORRETO", "SEM_LEITURA"].includes(result.result) ? "error" : "");
           currentForm.querySelector('[name="barcode"]')?.focus();
         }
       } catch (error) {

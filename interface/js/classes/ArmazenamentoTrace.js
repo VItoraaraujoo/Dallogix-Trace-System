@@ -814,9 +814,16 @@ export class ArmazenamentoTrace {
     });
     const result = await this.jsonResponse(response, "Não foi possível registrar a leitura manual.");
     if (result.data?.queued) return result.data;
-    await this.loadActiveLoading(loadingId);
-    await this.loadPendingReadings();
-    return result.data;
+    let refreshWarning = "";
+    try {
+      await this.loadActiveLoading(loadingId);
+      await this.loadPendingReadings();
+    } catch (error) {
+      // O POST já foi confirmado pelo servidor. Retornar erro aqui permitiria
+      // que o operador repetisse um código que já foi registrado.
+      refreshWarning = error?.message || "Falha ao atualizar os dados da operação.";
+    }
+    return refreshWarning ? { ...result.data, refreshWarning } : result.data;
   }
   async confirmStopRemoval(loadingId = this.state.loadingId) {
     const id = Number(loadingId) || 0;
