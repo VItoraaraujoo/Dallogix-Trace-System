@@ -127,6 +127,16 @@
   text-align: left;
 }
 
+.dalas-screen-v2 .dala-grid-cell-v2 .dala-status {
+  flex-wrap: nowrap;
+  white-space: nowrap;
+}
+
+.dalas-screen-v2 .dala-grid-cell-v2 .dala-status-label {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
 .dala-actions-v2 {
   display: flex;
   width: 100%;
@@ -265,9 +275,12 @@
   text-align: center;
 }
 
-.dala-grid-cell-v2:nth-child(7),
-.dala-grid-head-v2>div:nth-child(7) {
+.dala-grid-cell-v2:nth-child(7) {
   text-align: right;
+}
+
+.dala-grid-head-v2>div:nth-child(7) {
+  text-align: center;
 }
 
 .dala-actions-v2 {

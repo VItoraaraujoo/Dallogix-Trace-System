@@ -1,6 +1,6 @@
 import { esc } from "../funcoes/html.js";
 import { produtosDisponiveisParaRomaneio } from "../funcoes/romaneio.js?v=202610020002";
-import { renderStatusDala } from "../funcoes/status-dala.js?v=202610160001";
+import { renderStatusDala } from "../funcoes/status-dala.js?v=202610160004";
 
 export function operationStructureSignature(state, clpAvailable) {
   const pending = (state.pendingReadings || []).map((reading) => reading.id).join(",");
@@ -64,9 +64,7 @@ export function renderDalaStatuses(store, error = null) {
   );
   cells.forEach((cell) => {
     const status = byEquipmentId.get(String(cell.dataset.equipmentId));
-    cell.innerHTML = error
-      ? renderStatusDala({ status: "DESCONHECIDO", status_label: error.message })
-      : renderStatusDala(status);
+    cell.innerHTML = renderStatusDala(status, error?.message || "");
   });
   const viewStatus = document.querySelector("#dala-view-status[data-equipment-id]");
   if (!viewStatus) return;
@@ -74,9 +72,7 @@ export function renderDalaStatuses(store, error = null) {
     (item) => String(item.equipment_id) === String(viewStatus.dataset.equipmentId),
   );
   if (status) {
-    viewStatus.innerHTML = error
-      ? renderStatusDala({ status: "DESCONHECIDO", status_label: error.message })
-      : renderStatusDala(status);
+    viewStatus.innerHTML = renderStatusDala(status, error?.message || "");
   }
 }
 
@@ -106,11 +102,15 @@ export function restoreOperationScanner(root, snapshot) {
 export function focusOperationScanner(root, activeElement = globalThis.document?.activeElement) {
   const input = root?.querySelector?.(".manual-operation-reading-form input[name=\"barcode\"]");
   if (!input || input.disabled) return false;
-  if (
-    activeElement !== input &&
-    root?.contains?.(activeElement) &&
-    activeElement?.matches?.("input, select, textarea, [contenteditable='true']")
-  ) return false;
+  if (activeElement !== input) {
+    const isEditable = activeElement?.matches?.(
+      "input, select, textarea, [contenteditable='true']",
+    );
+    const isDialogControl = Boolean(
+      activeElement?.closest?.("[role='dialog'], dialog, [aria-modal='true']"),
+    );
+    if (isEditable || isDialogControl) return false;
+  }
   if (activeElement !== input) input.focus({ preventScroll: true });
   return true;
 }

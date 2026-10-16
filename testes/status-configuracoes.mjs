@@ -142,7 +142,7 @@ test("conectividade do PC descreve o sinal recebido pelo Central", () => {
   }), ["unknown", "Sincronização central não configurada"]);
 });
 
-test("status da Dala separa comunicação de observação de configuração", () => {
+test("status da Dala mostra apenas comunicação e mantém detalhe fora do rótulo", () => {
   const markup = renderStatusDala({
     status: "ONLINE",
     message: "Dala ociosa; sem retorno de movimento configurado.",
@@ -150,18 +150,14 @@ test("status da Dala separa comunicação de observação de configuração", ()
     configuration_note: "Sem retorno de movimento configurado.",
   });
   assert.match(markup, /status-dot online/);
-  assert.match(markup, /Dala ociosa\.<br><small>Sem retorno de movimento configurado\.<\/small>/);
-  assert.equal(renderStatusDala({ status: "OFFLINE", message: "Sem comunicação" }),
-    '<span class="status-dot offline"></span>Sem comunicação');
-  for (const tag of ["script", "SCRIPT"]) {
-    const escapedMarkup = renderStatusDala({
-      status: "ONLINE", status_label: "Online", configuration_note: `<${tag}>erro</${tag}>`,
-    });
-    assert.ok(escapedMarkup.includes(`&lt;${tag}&gt;erro&lt;/${tag}&gt;`));
-  }
+  assert.match(markup, /aria-label="CLP online"[^>]*>ON<\/span>/);
+  assert.doesNotMatch(markup, /Dala ociosa|movimento configurado/);
+  assert.match(renderStatusDala({ status: "OFFLINE", message: "Sem comunicação" }), />OFF<\/span>/);
+  const escapedMarkup = renderStatusDala({ status: "DESCONHECIDO" }, "<script>erro</script>");
+  assert.ok(escapedMarkup.includes("&lt;script&gt;erro&lt;/script&gt;"));
 });
 
-test("lista e detalhe da Dala mostram a observação sem associá-la ao ponto verde", () => {
+test("lista e detalhe da Dala preservam o estado binário e não exibem observação técnica", () => {
   const originalDocument = globalThis.document;
   const listCell = { dataset: { equipmentId: "4" }, innerHTML: "" };
   const detailCell = { dataset: { equipmentId: "4" }, innerHTML: "" };
@@ -177,7 +173,8 @@ test("lista e detalhe da Dala mostram a observação sem associá-la ao ponto ve
       configuration_note: "Sem retorno de movimento configurado.",
     }] } });
     assert.match(listCell.innerHTML, /status-dot online/);
-    assert.match(listCell.innerHTML, /Dala ociosa\.<br><small>Sem retorno de movimento configurado\.<\/small>/);
+    assert.match(listCell.innerHTML, />ON<\/span>/);
+    assert.doesNotMatch(listCell.innerHTML, /Dala ociosa|movimento configurado/);
     assert.equal(detailCell.innerHTML, listCell.innerHTML);
     renderDalaStatuses({ state: { dalaStatuses: [] } }, new Error("Consulta indisponível"));
     assert.match(listCell.innerHTML, /status-dot unknown/);

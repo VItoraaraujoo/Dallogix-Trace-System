@@ -5,7 +5,7 @@ import { pageHeader, physicalStateBadge } from "../../js/funcoes/view.js?v=20261
 import { estadoCarregando, estadoErro } from "../../js/componentes/estados.js?v=202610060002";
 
 function dalaStatusCell(equipment) {
-  return `<div class="dala-status" data-equipment-id="${equipment.id}"><span class="status-dot"></span>Verificando…</div>`;
+  return `<div class="dala-status" data-equipment-id="${equipment.id}"><span class="status-dot unknown" aria-hidden="true"></span><span class="dala-status-label unknown" role="status" aria-label="Verificando comunicação do CLP" title="Verificando comunicação do CLP">—</span></div>`;
 }
 
 function dalaReferenceActions(equipment, canManage, canDelete) {

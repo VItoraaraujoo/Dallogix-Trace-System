@@ -63,3 +63,22 @@ test("resposta atrasada de pendências não troca a página ou a Dala atual", as
   assert.equal(armazenamento.state.pendingReadingsLoadingId, 8);
   assert.equal(armazenamento.state.pendingReadingsPage, 1);
 });
+
+test("falha na atualização posterior não transforma leitura confirmada em erro repetível", async () => {
+  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  armazenamento.state = { loadingId: 7 };
+  let posts = 0;
+  armazenamento.requestWithOfflineQueue = async () => {
+    posts += 1;
+    return new Response(JSON.stringify({ data: { id: 42, result: "VALIDO" } }), { status: 200 });
+  };
+  armazenamento.loadActiveLoading = async () => { throw new Error("Consulta GET indisponível."); };
+  armazenamento.loadPendingReadings = async () => assert.fail("não deve tentar recarregar pendências após a primeira falha");
+
+  const result = await armazenamento.registerManualReading("7890123");
+
+  assert.equal(result.id, 42);
+  assert.equal(result.result, "VALIDO");
+  assert.equal(result.refreshWarning, "Consulta GET indisponível.");
+  assert.equal(posts, 1);
+});

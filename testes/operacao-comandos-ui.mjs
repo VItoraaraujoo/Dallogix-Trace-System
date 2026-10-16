@@ -1085,6 +1085,10 @@ test("foco do leitor é restaurado sem roubar foco de outro campo de entrada", (
   };
 
   assert.equal(focusOperationScanner(root, correctionInput), false);
+  const externalInput = { matches: (selector) => selector.includes("input"), focus: () => assert.fail("não deve roubar foco fora do formulário") };
+  assert.equal(focusOperationScanner(root, externalInput), false);
+  const dialogButton = { matches: () => false, closest: () => ({}) };
+  assert.equal(focusOperationScanner(root, dialogButton), false);
   assert.equal(focusOperationScanner(root, button), true);
   assert.equal(focusCalls, 1);
 });
