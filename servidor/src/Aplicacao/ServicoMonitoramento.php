@@ -16,10 +16,16 @@ final class ServicoMonitoramento
     }
 
     /** @return array<string,mixed> */
-    public function obterInstantaneo(int $companyId, int $periodDays = 30, int $clpSignalLimit = 3): array
+    public function obterInstantaneo(
+        int $companyId,
+        int $periodDays = 30,
+        int $clpSignalLimit = 3,
+        int $cameraSignalLimit = 15,
+    ): array
     {
         $periodDays = max(1, min(3650, $periodDays));
         $clpSignalLimit = max(1, min(60, $clpSignalLimit));
+        $cameraSignalLimit = max(1, min(300, $cameraSignalLimit));
         $query = function (string $sql, array $params): array {
             $statement = $this->connection->prepare($sql);
             $statement->execute($params);
@@ -31,7 +37,34 @@ final class ServicoMonitoramento
         $occurrences = $query("SELECT o.id, o.type, o.quantity, o.description, o.created_at FROM ocorrencias o WHERE o.company_id = :company_id ORDER BY o.id DESC LIMIT 10", ["company_id" => $companyId]);
         $audit = $query("SELECT action, entity_type, entity_id, created_at FROM logs_auditoria WHERE company_id = :company_id ORDER BY id DESC LIMIT 10", ["company_id" => $companyId]);
         $pendingSync = $query("SELECT COUNT(*) AS total FROM fila_sincronizacao q WHERE q.company_id = :company_id AND q.status IN ('PENDENTE', 'ERRO', 'PROCESSANDO')", ["company_id" => $companyId]);
-        $devices = $query("SELECT d.equipment_id, d.device_type, CASE WHEN d.status = 'ONLINE' AND d.last_seen_at >= DATE_SUB(NOW(), INTERVAL {$clpSignalLimit} SECOND) THEN 'ONLINE' WHEN d.status = 'ERRO' THEN 'ERRO' ELSE 'OFFLINE' END AS status, d.last_seen_at, CASE WHEN d.last_seen_at IS NULL THEN NULL ELSE TIMESTAMPDIFF(SECOND, d.last_seen_at, NOW()) END AS segundos_sem_sinal, e.equipment_code FROM status_dispositivos d JOIN equipamentos e ON e.id = d.equipment_id WHERE e.company_id = :company_id ORDER BY e.equipment_code, d.device_type", ["company_id" => $companyId]);
+        $devices = $query(
+            "SELECT d.equipment_id, d.device_type, d.status, d.last_seen_at,
+                    CASE WHEN d.last_seen_at IS NULL THEN NULL
+                         ELSE TIMESTAMPDIFF(SECOND, d.last_seen_at, NOW(3))
+                    END AS segundos_sem_sinal,
+                    CASE WHEN d.last_seen_at IS NULL THEN NULL
+                         ELSE TIMESTAMPDIFF(MICROSECOND, d.last_seen_at, NOW(3))
+                    END AS micros_sem_sinal,
+                    e.equipment_code
+             FROM status_dispositivos d
+             JOIN equipamentos e ON e.id = d.equipment_id
+             WHERE e.company_id = :company_id
+             ORDER BY e.equipment_code, d.device_type",
+            ["company_id" => $companyId],
+        );
+        foreach ($devices as &$device) {
+            $limit = $device["device_type"] === "CAMERA" ? $cameraSignalLimit : $clpSignalLimit;
+            $ageMicros = $device["micros_sem_sinal"];
+            $reportedStatus = (string) $device["status"];
+            $device["status"] = $reportedStatus === "ERRO"
+                ? "ERRO"
+                : ($reportedStatus === "ONLINE" && $ageMicros !== null
+                    && (int) $ageMicros <= $limit * 1_000_000
+                    ? "ONLINE"
+                    : "OFFLINE");
+            unset($device["micros_sem_sinal"]);
+        }
+        unset($device);
         $maquinas = $query(
             "WITH carregamento_candidato AS (
                 SELECT c.id, c.equipment_id, c.state, c.romaneio_id, c.truck_id, c.leituras_validas,
@@ -112,6 +145,7 @@ final class ServicoMonitoramento
             "maquinas" => $maquinas,
             "periodo_dias" => $periodDays,
             "limite_sinal_clp_segundos" => $clpSignalLimit,
+            "limite_sinal_camera_segundos" => $cameraSignalLimit,
         ];
     }
 

@@ -8,6 +8,28 @@ require_once __DIR__ . '/../../servidor/api/v1/romaneios-write.php';
 
 final class ApiV1RomaneiosWriteTest extends TestCase
 {
+    public function testChaveDeIdempotenciaEhOpcionalMasExigeFormatoSeguro(): void
+    {
+        self::assertNull(api_v1_chave_idempotencia(null));
+        self::assertSame('erp-romaneio-20261016-01', api_v1_chave_idempotencia('erp-romaneio-20261016-01'));
+        $this->expectException(ApiV1PayloadException::class);
+        api_v1_chave_idempotencia('curta');
+    }
+
+    public function testReenvioPodeNormalizarDataQueSeTornouPassada(): void
+    {
+        $payload = [
+            'equipment_code' => 'DALA-01',
+            'number' => 'ROM-API-ANTIGO',
+            'scheduled_date' => '2025-01-01',
+            'plate' => 'ABC1D23',
+            'items' => [['product_code' => 'P-001', 'quantity' => 1]],
+        ];
+        self::assertSame('2025-01-01', api_v1_normalizar_payload_romaneio($payload, true)['scheduled_date']);
+        $this->expectException(ApiV1PayloadException::class);
+        api_v1_normalizar_payload_romaneio($payload);
+    }
+
     public function testNormalizaPayloadDeCriacaoSemEmpresaFornecidaPeloCliente(): void
     {
         $payload = api_v1_normalizar_payload_romaneio([

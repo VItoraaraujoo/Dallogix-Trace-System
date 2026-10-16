@@ -128,11 +128,11 @@ $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoLogo -
 # Além da janela diária, tente após o logon da conta técnica. O Docker
 # Desktop só disponibiliza o mecanismo Linux depois de iniciar na sessão
 # interativa; o atraso evita uma corrida entre as duas tarefas.
-$dailyTrigger = New-ScheduledTaskTrigger -Daily -At '03:30'
+$dailyTrigger = New-ScheduledTaskTrigger -Daily -At '03:00'
 $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -RandomDelay (New-TimeSpan -Minutes 10)
 $trigger = @($dailyTrigger, $logonTrigger)
 $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Instala somente releases assinadas sem carregamento ativo.' -Force | Out-Null
 $releaseMetadata = @{ version = $installedVersion; commit = $installedCommit } | ConvertTo-Json -Compress
 [IO.File]::WriteAllText((Join-Path $PackageRoot 'servidor\.release.json'), $releaseMetadata + "`n", (New-Object System.Text.UTF8Encoding($false)))
-Write-Host "Atualizacoes estaveis agendadas para 03:30 e apos o logon. Versao inicial: $installedVersion."
+Write-Host "Atualizacoes estaveis agendadas para 03:00 e apos o logon. Versao inicial: $installedVersion."

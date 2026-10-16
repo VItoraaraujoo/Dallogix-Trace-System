@@ -2,21 +2,22 @@ import {
   configurarSessaoPorAba,
 } from "./sessao.js?v=202609222100";
 import { ClienteApi } from "./api/ClienteApi.js?v=202610140003";
-import { confirmarAcao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610070024";
+import { confirmarAcao, limparNotificacao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610160002";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610140002";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610160002";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
-import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio, operationStructureSignature } from "./controladores/operacao.js?v=202610140002";
+import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio, operationStructureSignature } from "./controladores/operacao.js?v=202610160002";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610140001";
 import { createPageRefreshController } from "./controladores/page-refresh.js?v=202610130001";
 import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
 import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
+import { renderStatusDala } from "./funcoes/status-dala.js?v=202610160001";
 import { refreshCompanyStatusCards } from "./funcoes/view.js?v=202610130001";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js?v=202609240001";
-import { apresentacaoStatusDispositivo, settings } from "../telas/configuracoes/configuracoes.js?v=202610070203";
+import { apresentacaoConectividadePc, apresentacaoStatusDispositivo, settings } from "../telas/configuracoes/configuracoes.js?v=202610160001";
 import { dalas } from "../telas/dalas/dalas.js?v=202610150001";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
 import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610130001";
@@ -34,7 +35,7 @@ import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
 import { manifests } from "../telas/romaneios/romaneios.js?v=202610130006";
 import { manifestView } from "../telas/romaneio/romaneio.js?v=202610130006";
-import { alternarTecladoLeituraManual, work } from "../telas/operacao/operacao.js?v=202610140004";
+import { alternarTecladoLeituraManual, work } from "../telas/operacao/operacao.js?v=202610160002";
 import { dashboard } from "../telas/painel/painel.js?v=202610130001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610130001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
@@ -365,6 +366,12 @@ async function refreshLocalIndicator() {
     setLocalIndicator(state, result.checked_at || Date.now(), currentInstallationMode);
     if (currentPage === "work") refreshWorkLiveView();
     if (currentPage === "settings") refreshSettingsStatusView();
+    if (state === "online") {
+      const previousPending = store.state.offlineQueueSize;
+      store.flushOfflineOperations().then((queue) => {
+        if (currentPage === "work" && (queue.sent > 0 || queue.pending !== previousPending)) render();
+      }).catch((error) => logFrontend.aviso("fila.offline", error));
+    }
   } catch (error) {
     logFrontend.aviso("indicador.saude", error);
     store.state.serverStatus = "OFFLINE";
@@ -403,7 +410,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610140002").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610160002").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -630,6 +637,7 @@ function renderScreen() {
   screenRoot.innerHTML = screens[currentPage](store);
   if (scannerSnapshot) restoreOperationScanner(screenRoot, scannerSnapshot);
   else if (currentPage === "work") focusOperationScanner(screenRoot);
+  if (currentPage === "work") updateOperationScannerFocus(screenRoot);
   bindActions();
   bindForms();
   installRelativeTimeRefresh();
@@ -730,7 +738,7 @@ function refreshSettingsStatusView() {
     const value = type === "SERVER"
       ? (store.state.serverStatus || "DESCONHECIDO")
       : (device?.status || "NAO_REGISTRADO");
-    const presentation = apresentacaoStatusDispositivo(value);
+    const presentation = apresentacaoStatusDispositivo(value, type);
     presentations.push(presentation);
     card.className = `settings-device-status-card ${presentation.tone}`;
     const status = card.querySelector("[data-live-status]");
@@ -749,23 +757,9 @@ function refreshSettingsStatusView() {
   const attentionLabel = document.querySelector('[data-device-summary="attention-label"]');
   if (onlineSummary) onlineSummary.textContent = `${onlineCount}/${presentations.length}`;
   if (attentionSummary) attentionSummary.textContent = String(attentionCount);
-  if (attentionLabel) attentionLabel.textContent = "sem sinal";
+  if (attentionLabel) attentionLabel.textContent = "sem confirmação online";
 
-  const centralSync = store.state.syncStatus?.central_sync || {};
-  const pcStatus = String(centralSync.pc_status || (centralSync.pc_online ? "ONLINE" : "DESCONHECIDO")).toUpperCase();
-  const pcLabel = !store.state.syncStatus
-    ? "Status da sincronização indisponível"
-    : !centralSync.configured
-      ? "Sincronização central não configurada"
-      : !centralSync.installation_registered
-        ? "Instalação ainda não registrada"
-        : ({
-            ONLINE: "PC industrial online",
-            OFFLINE: "PC industrial sem comunicação",
-            ERRO: "PC industrial com erro",
-            DESCONHECIDO: "PC industrial sem sinal",
-          }[pcStatus] || "Status do PC industrial desconhecido");
-  const pcTone = pcStatus === "ONLINE" ? "online" : ["OFFLINE", "ERRO"].includes(pcStatus) ? "offline" : "unknown";
+  const [pcTone, pcLabel] = apresentacaoConectividadePc(store.state.syncStatus);
   const updateConnectivity = (key, tone, label) => {
     const row = document.querySelector(`[data-settings-connectivity="${key}"]`);
     const dot = row?.querySelector("[data-settings-connectivity-dot]");
@@ -799,9 +793,7 @@ function refreshSettingsStatusView() {
   const statusByEquipment = new Map(dalaStatuses.map((status) => [String(status.equipment_id), status]));
   document.querySelectorAll(".dala-status[data-equipment-id]").forEach((cell) => {
     const status = statusByEquipment.get(String(cell.dataset.equipmentId));
-    const raw = String(status?.status || "DESCONHECIDO").toUpperCase();
-    const tone = raw === "ONLINE" ? "online" : ["OFFLINE", "ERRO"].includes(raw) ? "offline" : "unknown";
-    cell.innerHTML = `<span class="status-dot ${tone}"></span>${esc(status?.message || (raw === "ONLINE" ? "Online" : raw === "OFFLINE" ? "Sem comunicação" : "Status indisponível."))}`;
+    cell.innerHTML = renderStatusDala(status);
   });
 }
 
@@ -1111,6 +1103,25 @@ function bindActions() {
       }
       if (action === "reload-page") {
         await renderPage();
+        return;
+      }
+      if (action === "pending-readings-page") {
+        if (node.dataset.busy === "1") return;
+        const page = Number(node.dataset.page);
+        if (!Number.isSafeInteger(page) || page < 1 || page > store.state.pendingReadingsPages) return;
+        node.dataset.busy = "1";
+        node.disabled = true;
+        try {
+          await store.loadPendingReadings(page);
+          if (currentPage === "work") render();
+        } catch (error) {
+          notificar(error.message || "Não foi possível carregar as leituras pendentes.", "erro");
+        } finally {
+          if (node.isConnected) {
+            node.dataset.busy = "0";
+            node.disabled = false;
+          }
+        }
         return;
       }
       if (action === "reload-monitoring") {
@@ -2346,6 +2357,10 @@ function bindForms() {
       event.preventDefault();
       if (typeof form.requestSubmit === "function") form.requestSubmit();
     });
+    barcodeInput?.addEventListener("focus", () => updateOperationScannerFocus(document.querySelector("#screen-root")));
+    barcodeInput?.addEventListener("blur", () => {
+      window.setTimeout(() => updateOperationScannerFocus(document.querySelector("#screen-root")), 0);
+    });
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (form.dataset.submitting === "1") return;
@@ -2361,15 +2376,17 @@ function bindForms() {
             ? "Código registrado e quantidade programada atingida."
             : "Código registrado e produto validado.",
           PRODUTO_INCORRETO: result.operator_alert || "Código não previsto para o carregamento; a operação foi pausada.",
-          EXCESSO: result.operator_alert || "Quantidade programada atingida; a operação foi pausada.",
+          EXCESSO: result.operator_alert || "Quantidade prevista para este produto atingida. Confira a leitura excedente.",
           SEM_LEITURA: "Leitura registrada sem código.",
         };
-        const message = messages[result.result] || "Leitura registrada.";
+        const message = result.queued
+          ? "Leitura guardada para envio. A validação está pendente; não repita o código."
+          : messages[result.result] || "Leitura registrada.";
         barcodeInput.value = "";
         render();
         const currentForm = document.querySelector(".manual-operation-reading-form");
         if (currentForm) {
-          setFormFeedback(currentForm, message, result.result === "VALIDO" ? "" : "error");
+          setFormFeedback(currentForm, message, result.queued || ["PRODUTO_INCORRETO", "SEM_LEITURA"].includes(result.result) ? "error" : "");
           currentForm.querySelector('[name="barcode"]')?.focus();
         }
       } catch (error) {
@@ -2668,6 +2685,7 @@ async function loadDalaView(id) {
 
 async function renderPage() {
   const root = el("#screen-root");
+  limparNotificacao();
   const requestId = ++renderRequestId;
   api.beginNavigation();
 

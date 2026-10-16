@@ -52,7 +52,13 @@ paths:
     post:
       operationId: criarRomaneio
       summary: Criar um romaneio e o caminhão associado
-      description: Requer o escopo romaneios:write. A empresa vem da chave; a API não aceita company_id. Informe a Dala de destino; o romaneio será sincronizado ao PC vinculado. A API grava dados de negócio e não altera o CLP.
+      description: Requer o escopo romaneios:write. A empresa vem da chave; a API não aceita company_id. Informe a Dala de destino; o romaneio será sincronizado ao PC vinculado. A API grava dados de negócio e não altera o CLP. Envie Idempotency-Key para repetir uma criação após perda de resposta sem duplicar o romaneio.
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          description: Chave única por tentativa de criação. O mesmo conteúdo retorna o romaneio original com HTTP 200 e Idempotent-Replayed; outro conteúdo retorna HTTP 409.
+          schema: { type: string, minLength: 16, maxLength: 128, pattern: '^[A-Za-z0-9._:-]+$' }
       requestBody:
         required: true
         content:
@@ -87,6 +93,7 @@ paths:
                           product_code: { type: string, minLength: 1, maxLength: 80 }
                           quantity: { type: integer, minimum: 1, maximum: 4294967295 }
       responses:
+        '200': { $ref: '#/components/responses/Record' }
         '201': { $ref: '#/components/responses/Record' }
         '400': { $ref: '#/components/responses/InvalidRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }

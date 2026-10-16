@@ -54,6 +54,8 @@ $statusDasDalas = array_map(
             $mensagem = $segundos === null
                 ? "Dala sem comunicação; estado físico desconhecido."
                 : "Dala sem comunicação há {$segundos} segundos; estado físico desconhecido.";
+            $rotuloStatus = $mensagem;
+            $observacaoConfiguracao = null;
         } else {
             $mensagem = match ($state) {
                 "EMERGENCIA" => "Emergência registrada; parada física aguardando confirmação do CLP.",
@@ -62,12 +64,24 @@ $statusDasDalas = array_map(
                 "PREPARANDO" => "Dala em preparação.",
                 default => "Dala ociosa; sem retorno de movimento configurado.",
             };
+            $rotuloStatus = match ($state) {
+                "CARREGANDO", "FINALIZANDO" => "Operação ativa.",
+                "" => "Dala ociosa.",
+                default => $mensagem,
+            };
+            $observacaoConfiguracao = match ($state) {
+                "CARREGANDO", "FINALIZANDO" => "Retorno físico da esteira não informado.",
+                "" => "Sem retorno de movimento configurado.",
+                default => null,
+            };
         }
         return [
             "equipment_id" => (int) $dala["equipment_id"],
             "status" => $status,
             "carregamento_state" => $state !== "" ? $state : null,
             "message" => $mensagem,
+            "status_label" => $rotuloStatus,
+            "configuration_note" => $observacaoConfiguracao,
             "last_seen_at" => $dala["last_seen_at"],
             "segundos_sem_sinal" => $segundos,
         ];

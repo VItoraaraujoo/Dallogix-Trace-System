@@ -10,7 +10,7 @@ import {
   work,
 } from "../interface/telas/operacao/operacao.js";
 import { resolverComandoAtual } from "../interface/js/funcoes/estado-comando.js";
-import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, changeOperationLoading, operationStructureSignature } from "../interface/js/controladores/operacao.js";
+import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, changeOperationLoading, operationStructureSignature } from "../interface/js/controladores/operacao.js";
 import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js";
 
 test("somente administrador da empresa e supervisor recebem a ação de vincular Dala", () => {
@@ -54,6 +54,59 @@ test("a confirmação de código envia o formulário e deixa espaço para feedba
   assert.match(markup, /data-action="identify-reading" type="submit"/);
   assert.match(markup, /inputmode="text"/);
   assert.match(markup, /class="form-feedback" data-form-feedback role="status"/);
+});
+
+test("pendências além da primeira página continuam visíveis e bloqueiam leitura paralela", () => {
+  const markup = work({ state: {
+    selectedLoadingId: 7,
+    loadingId: 7,
+    activeLoadings: [{ id: 7, state: "CARREGANDO", equipment_id: 3 }],
+    loadingItems: [],
+    operationalState: "CARREGANDO",
+    userRole: "USUARIO",
+    pendingReadings: [{ id: 21 }],
+    pendingReadingsTotal: 25,
+    pendingReadingsPage: 2,
+    pendingReadingsPages: 2,
+  } });
+  assert.match(markup, /25 pendentes · página 2 de 2/);
+  assert.match(markup, /data-action="pending-readings-page" data-page="1"/);
+  assert.match(markup, /data-action="pending-readings-page" data-page="3" disabled/);
+  assert.match(markup, /Corrija a leitura pendente abaixo/);
+});
+
+test("envio offline pendente bloqueia nova leitura e avisa o operador", () => {
+  const markup = work({ state: {
+    selectedLoadingId: 7,
+    loadingId: 7,
+    activeLoadings: [{ id: 7, state: "CARREGANDO", equipment_id: 3 }],
+    loadingItems: [],
+    operationalState: "CARREGANDO",
+    userRole: "USUARIO",
+    pendingReadings: [],
+    offlineQueueSize: 1,
+  } });
+  assert.match(markup, /1 operação aguardando envio/);
+  assert.match(markup, /Aguardando envio de operações locais….*disabled/);
+});
+
+test("indicador do scanner distingue foco, perda de foco e bloqueio", () => {
+  const status = {
+    textContent: "",
+    classList: { toggle(name, value) { this[name] = value; } },
+  };
+  const input = { disabled: false };
+  const root = {
+    querySelector: (selector) => selector === "[data-scanner-focus]" ? status : input,
+  };
+  assert.equal(updateOperationScannerFocus(root, input), true);
+  assert.match(status.textContent, /Leitor pronto/);
+  assert.equal(status.classList["is-error"], false);
+  assert.equal(updateOperationScannerFocus(root, {}), false);
+  assert.match(status.textContent, /Leitor sem foco/);
+  input.disabled = true;
+  assert.equal(updateOperationScannerFocus(root, input), false);
+  assert.match(status.textContent, /Leitor indisponível/);
 });
 
 test("a leitura principal oferece entrada pelo teclado touch sem perder o leitor", () => {
@@ -136,10 +189,11 @@ test("parada fica disponível atrás de início já reservado pelo gateway", () 
   );
 });
 
-test("liberação de emergência fica disponível para os perfis operacionais", () => {
-  for (const role of ["ADMIN_EMPRESA", "SUPERVISOR", "USUARIO"]) {
+test("liberação de emergência fica disponível somente para supervisão", () => {
+  for (const role of ["ADMIN_EMPRESA", "SUPERVISOR"]) {
     assert.equal(podeLiberarEmergencia({ role, loadingId: 42 }), true);
   }
+  assert.equal(podeLiberarEmergencia({ role: "USUARIO", loadingId: 42 }), false);
 });
 
 test("liberação de emergência não aparece sem carregamento selecionado", () => {

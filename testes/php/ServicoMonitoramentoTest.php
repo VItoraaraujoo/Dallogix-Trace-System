@@ -48,4 +48,74 @@ final class ServicoMonitoramentoTest extends TestCase
         self::assertCount(1, $rows);
         self::assertSame(2, (int) $rows[0]['detected_bags']);
     }
+
+    public function testCameraMantemStatusOnlineEntreHeartbeatsSemAtrasarDeteccaoDoClp(): void
+    {
+        $device = static fn (int $id, string $type, string $status, ?int $ageMicros): array => [
+            "equipment_id" => $id,
+            "device_type" => $type,
+            "status" => $status,
+            "last_seen_at" => $ageMicros === null ? null : "2026-10-16 12:00:00",
+            "segundos_sem_sinal" => $ageMicros === null ? null : intdiv($ageMicros, 1_000_000),
+            "micros_sem_sinal" => $ageMicros,
+            "equipment_code" => "DALA-{$id}",
+        ];
+        $service = new ServicoMonitoramento(new MonitoramentoPdoFake([
+            $device(1, "CLP", "ONLINE", 4_000_000),
+            $device(2, "CAMERA", "ONLINE", 8_000_000),
+            $device(3, "CAMERA", "ONLINE", 15_000_001),
+            $device(4, "CAMERA", "ERRO", 20_000_000),
+            $device(5, "CAMERA", "ONLINE", null),
+            $device(6, "SENSOR", "ONLINE", 8_000_000),
+        ]));
+
+        $snapshot = $service->obterInstantaneo(5, 30, 3, 15);
+
+        self::assertSame([
+            1 => "OFFLINE",
+            2 => "ONLINE",
+            3 => "OFFLINE",
+            4 => "ERRO",
+            5 => "OFFLINE",
+            6 => "OFFLINE",
+        ], array_column($snapshot["dispositivos"], "status", "equipment_id"));
+        self::assertSame(15, $snapshot["limite_sinal_camera_segundos"]);
+        self::assertArrayNotHasKey("micros_sem_sinal", $snapshot["dispositivos"][0]);
+
+        $shorterLimit = $service->obterInstantaneo(5, 30, 3, 6);
+        self::assertSame("OFFLINE", $shorterLimit["dispositivos"][1]["status"]);
+    }
+}
+
+final class MonitoramentoPdoFake extends PDO
+{
+    /** @param list<array<string,mixed>> $devices */
+    public function __construct(private readonly array $devices)
+    {
+    }
+
+    public function prepare(string $query, array $options = []): PDOStatement|false
+    {
+        return new MonitoramentoStatementFake(
+            str_contains($query, "FROM status_dispositivos d") ? $this->devices : [],
+        );
+    }
+}
+
+final class MonitoramentoStatementFake extends PDOStatement
+{
+    /** @param list<array<string,mixed>> $rows */
+    public function __construct(private readonly array $rows)
+    {
+    }
+
+    public function execute(?array $params = null): bool
+    {
+        return true;
+    }
+
+    public function fetchAll(int $mode = PDO::FETCH_DEFAULT, mixed ...$args): array
+    {
+        return $this->rows;
+    }
 }

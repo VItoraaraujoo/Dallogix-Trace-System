@@ -56,3 +56,7 @@ foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $image) {
     $removed++;
 }
 echo "Removed {$removed} intermediate capture evidence file(s) older than {$days} days; {$failed} file(s) retained after a deletion error.\n";
+if ($failed > 0) {
+    fwrite(STDERR, "Falha ao remover {$failed} arquivo(s) de evidência; retenção incompleta.\n");
+    exit(1);
+}

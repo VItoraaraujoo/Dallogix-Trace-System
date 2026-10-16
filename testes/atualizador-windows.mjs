@@ -27,7 +27,7 @@ assert.match(desktopProgram, /CoreWebView2WebErrorStatus\.OperationCanceled/);
 
 test("atualizador estável fica agendado diariamente com a conta SYSTEM", () => {
   assert.match(updaterRegistration, /\$taskName = 'Dallogix Trace Atualizacao Estavel'/);
-  assert.match(updaterRegistration, /New-ScheduledTaskTrigger -Daily -At '03:30'/);
+  assert.match(updaterRegistration, /New-ScheduledTaskTrigger -Daily -At '03:00'/);
   assert.match(updaterRegistration, /New-ScheduledTaskTrigger -AtLogOn -RandomDelay \(New-TimeSpan -Minutes 10\)/);
   assert.match(updaterRegistration, /\$trigger = @\(\$dailyTrigger, \$logonTrigger\)/);
   assert.match(updaterRegistration, /New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest/);
@@ -71,6 +71,9 @@ test("pré-verificação do Docker não fica presa quando o motor ainda está in
 test("atualizador repara o gatilho de logon depois de uma atualização", () => {
   assert.match(updaterScript, /function Ensure-TraceUpdaterSchedule/);
   assert.match(updaterScript, /MSFT_TaskDailyTrigger/);
+  assert.match(updaterScript, /\(\[datetime\]\$trigger\.StartBoundary\)\.TimeOfDay -eq \(New-TimeSpan -Hours 3\)/);
+  assert.match(updaterScript, /if \(\$hasDailyAtThree -and \$hasLogon\) \{ return \}/);
+  assert.match(updaterScript, /New-ScheduledTaskTrigger -Daily -At '03:00'/);
   assert.match(updaterScript, /MSFT_TaskLogonTrigger/);
   assert.match(updaterScript, /Register-ScheduledTask -TaskName \$taskName -Action \$action -Trigger @\(\$dailyTrigger, \$logonTrigger\)/);
   assert.match(updaterScript, /Ensure-TraceUpdaterSchedule/);

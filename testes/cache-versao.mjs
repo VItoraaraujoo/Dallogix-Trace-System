@@ -4,12 +4,12 @@ import { join } from "node:path";
 import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
-const versaoAplicacao = "202610150002";
-const versaoAplicacaoImportacao = "202610150002";
-const versaoServiceWorker = "202610140002";
-const versaoTela = "202610140002";
+const versaoAplicacao = "202610160002";
+const versaoAplicacaoImportacao = "202610160002";
+const versaoServiceWorker = "202610160002";
+const versaoTela = "202610160002";
 const versaoTelaImportacao = "202610130005";
-const versaoTelaOperacao = "202610140004";
+const versaoTelaOperacao = "202610160002";
 const versaoEstilo = "202610070203";
 const versaoEstiloDalas = "202610150002";
 const versaoEstiloOperacao = "202610140001";
@@ -18,13 +18,17 @@ const versaoEstiloImportacao = "202610071845";
 test("o shell invalida cache quando a aplicação muda", () => {
   const serviceWorker = readFileSync(join(raiz, "service-worker.js"), "utf8");
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
-  assert.match(serviceWorker, /trace-shell-20261014-02/);
+  assert.match(serviceWorker, /trace-shell-20261016-02/);
+  assert.match(aplicacao, /notificacoes\.js\?v=202610160002/);
   assert.match(aplicacao, new RegExp(`/service-worker\\.js\\?v=${versaoServiceWorker}`));
   assert.match(aplicacao, new RegExp(`ArmazenamentoTrace\\.js\\?v=${versaoTela}`));
   assert.match(aplicacao, new RegExp(`operacao\\.js\\?v=${versaoTelaOperacao}`));
   assert.match(aplicacao, new RegExp(`importar-romaneio\\.js\\?v=${versaoTelaImportacao}`));
   assert.match(aplicacao, /page-refresh\.js\?v=202610130001/);
   assert.match(aplicacao, /tempo-real\.js\?v=202610140001/);
+  assert.match(aplicacao, /configuracoes\.js\?v=202610160001/);
+  assert.match(aplicacao, /controladores\/operacao\.js\?v=202610160002/);
+  assert.match(aplicacao, /funcoes\/status-dala\.js\?v=202610160001/);
 });
 
 test("arquivos estáticos versionados reaproveitam o cache e respostas compactadas", () => {
@@ -136,6 +140,7 @@ test("notificações flutuantes estão desativadas globalmente", () => {
   const notificacoes = readFileSync(join(raiz, "js", "componentes", "notificacoes.js"), "utf8");
   assert.match(aplicacao, /if \(currentPage === "work"\) return;/);
   assert.doesNotMatch(aplicacao, /timedCommandConfirmation|command-confirm-overlay/);
-  assert.match(notificacoes, /export function notificar\(\)\s*\{\s*return null;\s*\}/);
+  assert.match(notificacoes, /export function notificar\(mensagem, tipo/);
+  assert.match(notificacoes, /container\.prepend\(notice\)/);
   assert.doesNotMatch(operacaoCss, /#trace-notificacoes/);
 });
