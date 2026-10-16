@@ -97,7 +97,7 @@ $interactiveUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
 $dockerTaskPrincipal = New-ScheduledTaskPrincipal -UserId $interactiveUser -LogonType Interactive -RunLevel Limited
 $dockerTaskAction = New-ScheduledTaskAction -Execute "PowerShell.exe" -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$dockerStartScript`" -InstallRoot `"$PackageRoot`"" -WorkingDirectory $PackageRoot
 $dockerTaskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $interactiveUser
-$dockerTaskSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+$dockerTaskSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2) -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 5)
 Register-ScheduledTask -TaskName "Trace-Docker-Start" -Action $dockerTaskAction -Trigger $dockerTaskTrigger -Principal $dockerTaskPrincipal -Settings $dockerTaskSettings -Description "Inicia o Docker Desktop do Trace após o login da conta técnica." -Force | Out-Null
 
 & docker.exe compose --profile industrial up -d

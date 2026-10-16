@@ -90,6 +90,7 @@ test("instalação registra o Docker Desktop no logon da conta técnica", () => 
   assert.match(machineInstaller, /Start-TraceDocker\.ps1/);
   assert.match(machineInstaller, /New-ScheduledTaskTrigger -AtLogOn -User \$interactiveUser/);
   assert.match(machineInstaller, /New-ScheduledTaskPrincipal -UserId \$interactiveUser -LogonType Interactive -RunLevel Limited/);
+  assert.match(machineInstaller, /New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit \(New-TimeSpan -Hours 2\) -RestartCount 5 -RestartInterval \(New-TimeSpan -Minutes 5\)/);
   assert.match(machineInstaller, /Register-ScheduledTask -TaskName "Trace-Docker-Start"/);
 });
 
