@@ -221,7 +221,7 @@ services:
       - node_red_data:/data
       - ./integracoes/node-red:/seed:ro
     healthcheck:
-      test: ["CMD", "node", "-e", "const net=require('node:net');const socket=net.connect(1880,'127.0.0.1',()=>{socket.end();process.exit(0)});socket.setTimeout(3000,()=>process.exit(1));socket.on('error',()=>process.exit(1));"]
+      test: ["CMD", "node", "/seed/healthcheck.mjs"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -262,7 +262,7 @@ services:
           "CMD",
           "node",
           "-e",
-          "fetch('http://127.0.0.1:8090/health').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))",
+          "fetch('http://127.0.0.1:8090/health').then(async (response) => { const health = response.ok ? await response.json() : null; process.exit(health?.stream_ready === true ? 0 : 1); }).catch(() => process.exit(1))",
         ]
       interval: 15s
       timeout: 3s
@@ -326,7 +326,7 @@ services:
       [
         "sh",
         "-c",
-        "while true; do php /var/www/scripts/prune_images.php; php /var/www/scripts/prune_operational_data.php; php /var/www/scripts/write_heartbeat.php /tmp/trace-retention-heartbeat; sleep 86400; done",
+        "while true; do if php /var/www/scripts/prune_images.php && php /var/www/scripts/prune_operational_data.php; then php /var/www/scripts/write_heartbeat.php /tmp/trace-retention-heartbeat || echo 'Falha ao gravar heartbeat da retenção' >&2; else echo 'Falha na execução da retenção; heartbeat não atualizado' >&2; fi; sleep 86400; done",
       ]
     healthcheck:
       test:
@@ -385,7 +385,7 @@ services:
       [
         "sh",
         "-c",
-        "while true; do php /var/www/scripts/sync_worker.php; php /var/www/scripts/write_heartbeat.php /tmp/trace-sync-worker-heartbeat; sleep \"$${SYNC_POLL_INTERVAL_SECONDS:-1}\"; done",
+        "while true; do if php /var/www/scripts/sync_worker.php; then php /var/www/scripts/write_heartbeat.php /tmp/trace-sync-worker-heartbeat || echo 'Falha ao gravar heartbeat da sincronização' >&2; else echo 'Falha na sincronização; heartbeat não atualizado' >&2; fi; sleep \"$${SYNC_POLL_INTERVAL_SECONDS:-1}\"; done",
       ]
     healthcheck:
       test:

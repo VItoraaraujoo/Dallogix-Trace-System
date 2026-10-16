@@ -51,12 +51,14 @@ node --test testes/cliente-api.mjs testes/operacoes-offline.mjs testes/servico-e
 node --test testes/armazenamento-resposta.mjs
 node --test testes/comandos-concorrencia.mjs
 node --test testes/operacao-comandos-ui.mjs
+node --test testes/notificacoes.mjs
+node --test testes/healthchecks-workers.mjs
 node --test testes/dialogo-acessibilidade.mjs
 node --test testes/log-frontend.mjs
 node --test testes/tempo-real.mjs
 node --test testes/security-scan.mjs
 node --test testes/auditoria-controle-acesso.mjs
-node --test testes/gateway-clp.mjs testes/node-red-flow-sync.mjs testes/node-red-modbus-tcp.mjs
+node --test testes/gateway-clp.mjs testes/node-red-flow-sync.mjs testes/node-red-modbus-tcp.mjs testes/node-red-healthcheck.mjs
 bash -n scripts/check_production_env.sh
 bash -n scripts/check_physical_deployment.sh scripts/launch_kiosk.sh
 sh -n integracoes/node-red/entrypoint.sh

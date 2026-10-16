@@ -327,25 +327,28 @@ function Ensure-TraceUpdaterSchedule {
     # de um caminho em Downloads ou de uma ação manual no PC.
     $taskName = 'Dallogix Trace Atualizacao Estavel'
     $existing = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
-    $hasDaily = $false
+    $hasDailyAtThree = $false
     $hasLogon = $false
     if ($existing) {
         foreach ($trigger in @($existing.Triggers)) {
             $className = [string]$trigger.CimClass.CimClassName
-            if ($className -eq 'MSFT_TaskDailyTrigger') { $hasDaily = $true }
+            if ($className -eq 'MSFT_TaskDailyTrigger' -and
+                ([datetime]$trigger.StartBoundary).TimeOfDay -eq (New-TimeSpan -Hours 3)) {
+                $hasDailyAtThree = $true
+            }
             if ($className -eq 'MSFT_TaskLogonTrigger') { $hasLogon = $true }
         }
     }
-    if ($hasDaily -and $hasLogon) { return }
+    if ($hasDailyAtThree -and $hasLogon) { return }
 
     $scriptPath = $script:UpdaterScriptPath
     $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
-    $dailyTrigger = New-ScheduledTaskTrigger -Daily -At '03:30'
+    $dailyTrigger = New-ScheduledTaskTrigger -Daily -At '03:00'
     $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -RandomDelay (New-TimeSpan -Minutes 10)
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
     $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($dailyTrigger, $logonTrigger) -Principal $principal -Settings $settings -Description 'Instala somente releases assinadas sem carregamento ativo.' -Force | Out-Null
-    Append-UpdateLog $ComposeLogPath 'Agendamento reparado: atualização estável configurada para 03:30 e após o logon.'
+    Append-UpdateLog $ComposeLogPath 'Agendamento reparado: atualização estável configurada para 03:00 e após o logon.'
 }
 
 try { $hasLock = $Lock.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $hasLock = $true }

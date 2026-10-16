@@ -14,12 +14,15 @@ if ($usuarioAtor["company_id"] === null) {
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $loadingId = filter_var($_GET["carregamento_id"] ?? null, FILTER_VALIDATE_INT);
     if (!$loadingId) responder_json(["error" => "Carregamento obrigatório."], 422);
+    $page = filter_var($_GET["page"] ?? 1, FILTER_VALIDATE_INT);
+    $page = $page === false ? 1 : max(1, (int) $page);
     session_write_close();
     $pendencias = (new ServicoLeituras(obter_conexao_banco()))->listarPendentes(
         (int) $usuarioAtor["company_id"],
         (int) $loadingId,
+        $page,
     );
-    responder_json(["data" => $pendencias]);
+    responder_json($pendencias);
 }
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     responder_json(["error" => "Método não permitido."], 405);
@@ -37,6 +40,10 @@ $sensorEventId = filter_var(
     FILTER_VALIDATE_INT,
 );
 $barcode = trim((string) ($payload["barcode"] ?? ""));
+$offlineEventId = trim((string) ($_SERVER["HTTP_X_TRACE_OFFLINE_ID"] ?? ""));
+if ($offlineEventId !== "" && preg_match('/^[a-f0-9-]{16,36}$/i', $offlineEventId) !== 1) {
+    responder_json(["error" => "Identificador da leitura inválido."], 422);
+}
 $attemptNumber = filter_var(
     $payload["attempt_number"] ?? 1,
     FILTER_VALIDATE_INT,
@@ -77,6 +84,52 @@ if (!$loading) {
         ["error" => "Carregamento não encontrado para esta empresa."],
         404,
     );
+}
+if ($offlineEventId !== "") {
+    $previous = $pdo->prepare(
+        "SELECT entity_id, metadata FROM logs_auditoria
+         WHERE company_id = :company_id AND event_uuid = :event_uuid
+           AND action = 'LEITURA_REGISTRADA' LIMIT 1",
+    );
+    $previous->execute([
+        "company_id" => $usuarioAtor["company_id"],
+        "event_uuid" => $offlineEventId,
+    ]);
+    $registered = $previous->fetch();
+    if ($registered) {
+        $original = json_decode((string) $registered["metadata"], true);
+        if (
+            !is_array($original) ||
+            (int) ($original["carregamento_id"] ?? 0) !== (int) $loadingId ||
+            (string) ($original["barcode"] ?? "") !== $barcode
+        ) {
+            $pdo->rollBack();
+            responder_json(["error" => "Identificador já usado em outra leitura."], 409);
+        }
+        $originalReading = $pdo->prepare(
+            "SELECT id, result FROM leituras
+             WHERE id = :id AND company_id = :company_id AND carregamento_id = :carregamento_id LIMIT 1",
+        );
+        $originalReading->execute([
+            "id" => $registered["entity_id"],
+            "company_id" => $usuarioAtor["company_id"],
+            "carregamento_id" => $loadingId,
+        ]);
+        $reading = $originalReading->fetch();
+        $pdo->rollBack();
+        if (!$reading) {
+            responder_json(["error" => "Leitura original não está mais disponível para reenvio."], 409);
+        }
+        responder_json([
+            "data" => [
+                "id" => (int) $reading["id"],
+                "result" => $reading["result"],
+                "duplicate" => true,
+                "load_status" => in_array($loading["state"], ["FINALIZANDO", "FINALIZADO"], true)
+                    ? "COMPLETO" : "EM_ANDAMENTO",
+            ],
+        ], 200);
+    }
 }
 if ($loading["state"] === "EMERGENCIA") {
     $pdo->rollBack();
@@ -300,6 +353,7 @@ record_operational_event(
         "result" => $result,
         "barcode" => $barcode,
         "attempt_number" => $attemptNumber,
+        ...($offlineEventId !== "" ? ["event_uuid" => $offlineEventId] : []),
     ],
 );
 $occurrenceId = null;
@@ -348,31 +402,18 @@ if ($result === "PRODUTO_INCORRETO") {
     $cameraStatus = "CAPTURA_PENDENTE_INCIDENTE";
 }
 if ($result === "EXCESSO") {
-    $occurrence = $pdo->prepare(
-        'INSERT INTO ocorrencias (company_id, carregamento_id, product_id, type, quantity, description, created_by) VALUES (:company_id, :carregamento_id, :product_id, \'EXCESSO\', 1, :description, :created_by)',
-    );
-    $occurrence->execute([
-        "company_id" => $usuarioAtor["company_id"],
-        "carregamento_id" => $loadingId,
-        "product_id" => $productId,
-        "description" => "Unidade excedente detectada após atingir a quantidade planejada.",
-        "created_by" => $usuarioAtor["id"],
-    ]);
-    $occurrenceId = (int) $pdo->lastInsertId();
     record_operational_event(
         $pdo,
         $usuarioAtor,
         "EXCESSO_DETECTADO",
-        "ocorrencia",
-        $occurrenceId,
-        ["carregamento_id" => (int) $loadingId, "leitura_id" => $readingId],
+        "leitura",
+        $readingId,
+        ["carregamento_id" => (int) $loadingId, "product_id" => $productId],
     );
 }
-if (in_array($result, ["PRODUTO_INCORRETO", "EXCESSO"], true)) {
-    $stopReason = $result === "EXCESSO" ? "EXCESSO" : "PRODUTO_INCORRETO";
-    $stopAlert = $result === "EXCESSO"
-        ? "Quantidade planejada atingida. Remova a unidade excedente e confirme para continuar."
-        : "Produto incorreto detectado. Remova a unidade e confirme para continuar.";
+if ($result === "PRODUTO_INCORRETO") {
+    $stopReason = "PRODUTO_INCORRETO";
+    $stopAlert = "Produto incorreto detectado. Remova a unidade e confirme para continuar.";
     $stop = $pdo->prepare(
         "UPDATE carregamentos SET state = 'PAUSADO', stop_reason = :stop_reason, operator_alert = :operator_alert WHERE id = :id AND company_id = :company_id AND state = 'CARREGANDO'",
     );
@@ -422,7 +463,7 @@ if (in_array($result, ["PRODUTO_INCORRETO", "EXCESSO"], true)) {
     );
 }
 if (
-    in_array($result, ["SEM_LEITURA", "PRODUTO_INCORRETO", "EXCESSO"], true) &&
+    in_array($result, ["SEM_LEITURA", "PRODUTO_INCORRETO"], true) &&
     $sensorEventId
 ) {
     $cameraRequest = $pdo->prepare(
@@ -533,10 +574,10 @@ responder_json(
             "camera_status" => $cameraStatus,
             "load_status" => $loadStatus,
             "excesso" => $result === "EXCESSO",
-            "stop_reason" => in_array($result, ["PRODUTO_INCORRETO", "EXCESSO"], true) ? $result : null,
-            "operator_alert" => in_array($result, ["PRODUTO_INCORRETO", "EXCESSO"], true)
-                ? ($stopAlert ?? null)
-                : $endProductAlert,
+            "stop_reason" => $result === "PRODUTO_INCORRETO" ? $result : null,
+            "operator_alert" => $result === "EXCESSO"
+                ? "Quantidade prevista para este produto atingida. Confira a leitura excedente."
+                : ($stopAlert ?? $endProductAlert),
             "pause_command_request_id" => $pauseCommandRequestId ?? null,
             "end_product_alert" => $endProductAlert,
         ],

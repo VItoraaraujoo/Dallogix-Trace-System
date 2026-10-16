@@ -2874,6 +2874,25 @@ textarea {
   color: var(--red);
 }
 
+.trace-inline-feedback {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+  padding: 12px 16px;
+  border: 1px solid var(--blue);
+  border-radius: 8px;
+  background: #eef8fc;
+  color: var(--ink);
+  line-height: 1.4;
+}
+
+.trace-inline-feedback.is-error {
+  border-color: var(--red);
+  background: #fff1f1;
+}
+
 .users-create-panel #user-create-form .user-create-fields {
   grid-template-columns:
     minmax(0, 1fr)

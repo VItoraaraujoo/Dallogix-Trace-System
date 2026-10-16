@@ -68,6 +68,26 @@ test("uma resposta perdida conserva o mesmo identificador no envio original e no
   }
 });
 
+test("leitura manual guarda um único envio com identificador estável quando a API cai", async () => {
+  const store = new ArmazenamentoTrace();
+  store.setUser({ id: 3, company_id: 7, role: "USUARIO" });
+  store.setCsrfToken("atual");
+  store.state.loadingId = 12;
+  let sentId;
+  store.api.fetch = async (_url, options) => {
+    sentId = options.headers["X-Trace-Offline-Id"];
+    throw new Error("servidor indisponível");
+  };
+  const result = await store.registerManualReading("7898250782592");
+  const pending = await store.offlineBuffer.all();
+  assert.equal(result.queued, true);
+  assert.equal(pending.length, 1);
+  assert.equal(pending[0].url, "/api/leituras.php");
+  assert.equal(pending[0].eventId, sentId);
+  assert.equal(JSON.parse(pending[0].body).carregamento_id, 12);
+  assert.equal(store.state.offlineQueueSize, 1);
+});
+
 test("o fallback usa bytes criptográficos quando randomUUID não existe", () => {
   const originalCrypto = Object.getOwnPropertyDescriptor(globalThis, "crypto");
   let calls = 0;

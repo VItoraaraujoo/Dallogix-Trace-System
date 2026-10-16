@@ -1,8 +1,30 @@
 import { prepararDialogoAcessivel } from "../funcoes/dialogo.js?v=202610061820";
 
-// Mantém a API para as telas legadas sem exibir avisos flutuantes.
-export function notificar() {
-  return null;
+// Exibe feedback no fluxo da página, sem sobrepor controles do quiosque.
+export function limparNotificacao() {
+  document.getElementById("trace-inline-feedback")?.remove();
+}
+
+export function notificar(mensagem, tipo = "info") {
+  const container = document.querySelector(".content") || document.querySelector("main");
+  if (!container) return null;
+  limparNotificacao();
+  const notice = document.createElement("div");
+  notice.id = "trace-inline-feedback";
+  notice.className = "trace-inline-feedback";
+  if (tipo === "erro") notice.classList.add("is-error");
+  notice.setAttribute("role", tipo === "erro" ? "alert" : "status");
+  const content = document.createElement("span");
+  content.textContent = String(mensagem ?? "");
+  const dismiss = document.createElement("button");
+  dismiss.type = "button";
+  dismiss.className = "button ghost small";
+  dismiss.textContent = "Fechar aviso";
+  dismiss.setAttribute("aria-label", "Fechar aviso");
+  dismiss.addEventListener("click", () => notice.remove());
+  notice.append(content, dismiss);
+  container.prepend(notice);
+  return notice;
 }
 
 export function confirmarAcao(mensagem, { titulo = "Confirmação necessária", confirmar = "Confirmar", cancelar = "Cancelar" } = {}) {

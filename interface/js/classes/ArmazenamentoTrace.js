@@ -84,6 +84,10 @@ export class ArmazenamentoTrace {
       productSearch: "",
       loadErrors: [],
       pendingReadings: [],
+      pendingReadingsPage: 1,
+      pendingReadingsPages: 1,
+      pendingReadingsTotal: 0,
+      pendingReadingsLoadingId: null,
       offlineQueueSize: 0,
     };
     this.csrfToken = "";
@@ -95,6 +99,7 @@ export class ArmazenamentoTrace {
     // A fila garante que uma resposta antiga não sobrescreva a mais recente.
     this.activeLoadingRefresh = Promise.resolve();
     this.commandStatusRefresh = Promise.resolve();
+    this.pendingReadingsRequestId = 0;
   }
   navigate(page) {
     this.state.page = page;
@@ -127,7 +132,7 @@ export class ArmazenamentoTrace {
   canQueueOffline(url, options = {}) {
     const method = String(options.method || "GET").toUpperCase();
     return ["POST", "PUT", "PATCH"].includes(method) &&
-      ["/api/identificar_leitura.php", "/api/retornos.php"].some((path) => url.startsWith(path)) &&
+      ["/api/identificar_leitura.php", "/api/retornos.php", "/api/leituras.php"].some((path) => url.startsWith(path)) &&
       typeof options.body === "string";
   }
   async requestWithOfflineQueue(url, options = {}) {
@@ -773,14 +778,28 @@ export class ArmazenamentoTrace {
       this.loadEquipments({ force: true }),
     ]);
   }
-  async loadPendingReadings() {
+  async loadPendingReadings(page = this.state.pendingReadingsPage) {
+    const requestId = ++this.pendingReadingsRequestId;
     if (!this.state.loadingId) {
       this.state.pendingReadings = [];
+      this.state.pendingReadingsPage = 1;
+      this.state.pendingReadingsPages = 1;
+      this.state.pendingReadingsTotal = 0;
+      this.state.pendingReadingsLoadingId = null;
       return [];
     }
-    const response = await this.api.fetch(`/api/leituras.php?carregamento_id=${encodeURIComponent(this.state.loadingId)}`);
+    const loadingId = Number(this.state.loadingId);
+    const requestedPage = this.state.pendingReadingsLoadingId === loadingId ? page : 1;
+    const response = await this.api.fetch(`/api/leituras.php?carregamento_id=${encodeURIComponent(loadingId)}&page=${encodeURIComponent(requestedPage)}`);
     const result = await this.jsonResponse(response, "Não foi possível carregar leituras pendentes.");
+    if (requestId !== this.pendingReadingsRequestId || Number(this.state.loadingId) !== loadingId) {
+      return this.state.pendingReadings;
+    }
     this.state.pendingReadings = result.data || [];
+    this.state.pendingReadingsPage = Number(result.pagination?.page) || 1;
+    this.state.pendingReadingsPages = Number(result.pagination?.pages) || 1;
+    this.state.pendingReadingsTotal = Number(result.pagination?.total) || this.state.pendingReadings.length;
+    this.state.pendingReadingsLoadingId = loadingId;
     return this.state.pendingReadings;
   }
   async registerManualReading(barcode) {
@@ -788,12 +807,13 @@ export class ArmazenamentoTrace {
     const code = String(barcode || "").trim();
     if (!loadingId) throw new Error("Nenhum carregamento selecionado.");
     if (!code) throw new Error("Informe o código de barras.");
-    const response = await this.api.fetch("/api/leituras.php", {
+    const response = await this.requestWithOfflineQueue("/api/leituras.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify({ carregamento_id: loadingId, barcode: code, attempt_number: 1 }),
     });
     const result = await this.jsonResponse(response, "Não foi possível registrar a leitura manual.");
+    if (result.data?.queued) return result.data;
     await this.loadActiveLoading(loadingId);
     await this.loadPendingReadings();
     return result.data;

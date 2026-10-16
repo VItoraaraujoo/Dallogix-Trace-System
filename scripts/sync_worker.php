@@ -41,3 +41,6 @@ if (($remoteSummary["enabled"] ?? false) && ($remoteSummary["synced"] ?? false))
         ));
     }
 }
+if ($summary["failed"] > 0 || (($remoteSummary["enabled"] ?? false) && !($remoteSummary["synced"] ?? false))) {
+    exit(1);
+}

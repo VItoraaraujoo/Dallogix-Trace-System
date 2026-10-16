@@ -12,6 +12,6 @@ roles="$(trace_test_mysql_query app "SHOW COLUMNS FROM usuarios LIKE 'role'" 2>/
 grep -q "'ADMIN_DALLOGIX','ADMIN_EMPRESA','SUPERVISOR','USUARIO'" <<< "$roles" || fail "enum de perfis não foi consolidado"
 grep -q 'OPERADOR\|MANUTENCAO' <<< "$roles" && fail "perfil antigo ainda está presente no banco"
 grep -q 'USUARIO: \[' "$root/interface/js/configuracaoAplicacao.js" || fail "navegação do usuário não configurada"
-grep -q 'require_role(\["ADMIN_EMPRESA", "SUPERVISOR", "USUARIO"\])' "$root/servidor/api/operacoes/desbloquear_maquina.php" || fail "desbloqueio não está restrito aos perfis operacionais autorizados"
+grep -q 'require_role(\["ADMIN_EMPRESA", "SUPERVISOR"\])' "$root/servidor/api/operacoes/desbloquear_maquina.php" || fail "desbloqueio não está restrito à supervisão"
 
 echo "OK: quatro perfis oficiais e permissões críticas consolidados."

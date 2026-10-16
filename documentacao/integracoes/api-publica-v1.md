@@ -40,15 +40,22 @@ As consultas usam escopos de leitura. A primeira gravação pública cria romane
 | `GET /empresa` | `empresa:read` |
 | `GET /romaneios` e `GET /romaneios/{id}` | `romaneios:read` |
 | `POST /romaneios` (cria romaneio, caminhão e itens) | `romaneios:write` |
+
 | `GET /carregamentos` e `GET /carregamentos/{id}` | `carregamentos:read` |
 | `GET /carregamentos/{id}/leituras` | `leituras:read` |
 | `GET /equipamentos` (inclui estado da comunicação do CLP) | `equipamentos:read` |
 | `GET /ocorrencias` | `ocorrencias:read` |
 | `GET /romaneios/{id}/relatorio.pdf` | `relatorios:read` |
 
+Para criar romaneios, envie uma `Idempotency-Key` única (16 a 128 caracteres
+alfanuméricos, `._:-`) e reutilize a mesma chave caso a resposta se perca.
+O reenvio com o mesmo corpo retorna o romaneio original com HTTP 200 e
+`Idempotent-Replayed: true`; uma chave reutilizada com outro corpo retorna 409.
+Sem esse cabeçalho, o comportamento anterior de conflito por número permanece.
+
 A raiz `/api/v1/` informa a versão e `/api/v1/openapi.yaml` entrega a especificação OpenAPI.
 
-Para criar um romaneio, envie `equipment_code`, `number`, `scheduled_date` (`AAAA-MM-DD`), `plate` e de 1 a 100 `items`. `equipment_code` deve identificar uma Dala vinculada a um PC industrial com sincronização configurada. Cada item informa `product_id` ou `product_code` e `quantity`. `expedidor` e `driver_name` são opcionais. A empresa é sempre derivada da chave; `company_id` e campos desconhecidos são recusados. O romaneio é atribuído ao PC daquela Dala e aparece na fila operacional após a sincronização. Um número repetido para a mesma Dala retorna `409 duplicate_romaneio`, sem duplicar dados. Use `GET /romaneios?number=...` para consultar um número após uma resposta perdida ou duplicada. O endpoint grava os dados de negócio e um registro de auditoria em uma transação. Não cria comandos, não altera configuração nem escreve no CLP.
+Para criar um romaneio, envie `equipment_code`, `number`, `scheduled_date` (`AAAA-MM-DD`), `plate` e de 1 a 100 `items`. `equipment_code` deve identificar uma Dala vinculada a um PC industrial com sincronização configurada. Cada item informa `product_id` ou `product_code` e `quantity`. `expedidor` e `driver_name` são opcionais. A empresa é sempre derivada da chave; `company_id` e campos desconhecidos são recusados. O romaneio é atribuído ao PC daquela Dala e aparece na fila operacional após a sincronização. Um número repetido para a mesma Dala retorna `409 duplicate_romaneio`, sem duplicar dados. Use a mesma `Idempotency-Key` após perda da resposta, ou `GET /romaneios?number=...` quando a requisição original não tinha a chave. O endpoint grava os dados de negócio e um registro de auditoria em uma transação. Não cria comandos, não altera configuração nem escreve no CLP.
 
 Exemplo de consulta:
 

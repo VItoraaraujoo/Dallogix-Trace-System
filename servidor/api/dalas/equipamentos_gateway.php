@@ -10,9 +10,16 @@ if ($_SERVER["REQUEST_METHOD"] !== "GET") {
 }
 $device = require_device_token(["CLP"]);
 
+$signalLimit = limite_sinal_clp_segundos();
 $statement = db()->prepare(
-    "SELECT id, equipment_code, name, plc_ip, plc_port, plc_protocol
-     FROM equipamentos WHERE id = :equipment_id AND company_id = :company_id LIMIT 1",
+    "SELECT e.id, e.equipment_code, e.name, e.plc_ip, e.plc_port, e.plc_protocol,
+            CASE WHEN d.status = 'ONLINE'
+                       AND d.last_seen_at >= DATE_SUB(NOW(3), INTERVAL {$signalLimit} SECOND)
+                 THEN 1 ELSE 0 END AS modbus_recently_confirmed
+     FROM equipamentos e
+     LEFT JOIN status_dispositivos d
+       ON d.equipment_id = e.id AND d.device_type = 'CLP'
+     WHERE e.id = :equipment_id AND e.company_id = :company_id LIMIT 1",
 );
 $statement->execute([
     "equipment_id" => $device["equipment_id"],

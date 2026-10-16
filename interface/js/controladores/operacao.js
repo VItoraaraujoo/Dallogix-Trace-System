@@ -115,6 +115,20 @@ export function focusOperationScanner(root, activeElement = globalThis.document?
   return true;
 }
 
+export function updateOperationScannerFocus(root, activeElement = globalThis.document?.activeElement) {
+  const status = root?.querySelector?.("[data-scanner-focus]");
+  const input = root?.querySelector?.(".manual-operation-reading-form input[name=\"barcode\"]");
+  if (!status || !input) return false;
+  const ready = !input.disabled && activeElement === input;
+  status.textContent = input.disabled
+    ? "Leitor indisponível enquanto a leitura estiver bloqueada."
+    : ready
+      ? "Leitor pronto para receber o código."
+      : "Leitor sem foco. Toque no campo Código de barras antes de ler.";
+  status.classList.toggle("is-error", !ready);
+  return ready;
+}
+
 export async function changeOperationLoading(store, render) {
   store.state.commandFeedback = "";
   let changed = true;

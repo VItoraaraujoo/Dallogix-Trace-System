@@ -82,7 +82,7 @@ export function paradaPodeSerEnfileiradaAposInicio({ state, pendingStatus, pendi
 }
 
 export function podeLiberarEmergencia({ role, loadingId }) {
-  return Boolean(loadingId) && ["ADMIN_EMPRESA", "SUPERVISOR", "USUARIO"].includes(
+  return Boolean(loadingId) && ["ADMIN_EMPRESA", "SUPERVISOR"].includes(
     String(role || "").toUpperCase(),
   );
 }
@@ -222,21 +222,27 @@ function workControls(store) {
   const pendingCommand = currentCommand?.command;
   const pausePending = pendingCommand === "PAUSAR_CARREGAMENTO" && ["PENDENTE", "PROCESSANDO"].includes(pendingStatus);
   const pendingReadings = store.state.pendingReadings || [];
-  const manualReadingBlocked = pendingReadings.length > 0 || pausePending;
+  const pendingReadingsTotal = Math.max(pendingReadings.length, Number(store.state.pendingReadingsTotal) || 0);
+  const pendingReadingsPage = Math.max(1, Number(store.state.pendingReadingsPage) || 1);
+  const pendingReadingsPages = Math.max(1, Number(store.state.pendingReadingsPages) || 1);
+  const offlineOperations = Math.max(0, Number(store.state.offlineQueueSize) || 0);
+  const manualReadingBlocked = pendingReadingsTotal > 0 || pausePending || offlineOperations > 0;
   const manualReadingUnavailable = store.state.operationalState !== "CARREGANDO";
   const manualReadingDisabled = manualReadingBlocked || manualReadingUnavailable;
   const manualReadingPlaceholder = manualReadingBlocked
-    ? pendingReadings.length
+    ? pendingReadingsTotal
       ? "Corrija a leitura pendente abaixo"
-      : "Aguardando confirmação da parada pelo gateway…"
+      : offlineOperations > 0
+        ? "Aguardando envio de operações locais…"
+        : "Aguardando confirmação da parada pelo gateway…"
     : manualReadingUnavailable
       ? "Aguardando início da esteira…"
       : "Aguardando leitura…";
   const manualOperationReading = store.state.loadingId
-    ? `<div class="work-manual-reading"><div class="work-manual-reading-heading"><span class="kicker">Leitura automática</span></div><form class="manual-operation-reading-form"><label for="manual-operation-barcode">Código de barras<input id="manual-operation-barcode" name="barcode" type="text" required maxlength="128" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="none" placeholder="${manualReadingPlaceholder}"${manualReadingDisabled ? " disabled" : " autofocus"} /></label><button class="button ghost small manual-reading-keyboard-toggle" type="button" aria-pressed="false"${manualReadingDisabled ? " disabled" : ""}>Digitar código</button><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form></div>`
+    ? `<div class="work-manual-reading"><div class="work-manual-reading-heading"><span class="kicker">Leitura automática</span></div>${offlineOperations > 0 ? `<p class="form-feedback is-error" role="alert">${numero(offlineOperations)} operação${offlineOperations === 1 ? "" : "ões"} aguardando envio. Não faça novas leituras até confirmar a sincronização.</p>` : ""}<form class="manual-operation-reading-form"><label for="manual-operation-barcode">Código de barras<input id="manual-operation-barcode" name="barcode" type="text" required maxlength="128" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="none" placeholder="${manualReadingPlaceholder}"${manualReadingDisabled ? " disabled" : " autofocus"} /></label><button class="button ghost small manual-reading-keyboard-toggle" type="button" aria-pressed="false"${manualReadingDisabled ? " disabled" : ""}>Digitar código</button><p class="form-feedback is-error" data-scanner-focus role="status" aria-live="polite">Leitor sem foco. Toque no campo Código de barras antes de ler.</p><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form></div>`
     : "";
-  const manualIdentification = pendingReadings.length
-    ? `<section class="work-scanner-corrections" aria-labelledby="work-scanner-corrections-title"><div class="work-scanner-corrections-heading"><div><span class="kicker">Conferência pendente</span><h3 id="work-scanner-corrections-title">Leituras sem código</h3></div><p>Passe o leitor de código de barras ou digite o código conferido.</p></div><div class="work-scanner-corrections-list">${pendingReadings.map((reading, index) => `<form class="manual-reading-form" data-reading-id="${reading.id}"><label>Leitura #${reading.id}<input name="barcode" type="text" required maxlength="128" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" placeholder="Leia o código do produto" aria-label="Código de barras da leitura ${reading.id}"${index === 0 ? " autofocus" : ""} /></label>${button("Confirmar código", "identify-reading", "secondary")}<p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form>`).join("")}</div></section>`
+  const manualIdentification = pendingReadingsTotal
+    ? `<section class="work-scanner-corrections" aria-labelledby="work-scanner-corrections-title"><div class="work-scanner-corrections-heading"><div><span class="kicker">Conferência pendente</span><h3 id="work-scanner-corrections-title">Leituras sem código</h3><p>${pendingReadingsTotal} pendente${pendingReadingsTotal === 1 ? "" : "s"} · página ${pendingReadingsPage} de ${pendingReadingsPages}</p></div><p>Passe o leitor de código de barras ou digite o código conferido.</p></div><div class="work-scanner-corrections-list">${pendingReadings.map((reading, index) => `<form class="manual-reading-form" data-reading-id="${reading.id}"><label>Leitura #${reading.id}<input name="barcode" type="text" required maxlength="128" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" placeholder="Leia o código do produto" aria-label="Código de barras da leitura ${reading.id}"${index === 0 ? " autofocus" : ""} /></label>${button("Confirmar código", "identify-reading", "secondary")}<p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form>`).join("")}</div>${pendingReadingsPages > 1 ? `<div class="actions"><button class="button ghost small" type="button" data-action="pending-readings-page" data-page="${pendingReadingsPage - 1}"${pendingReadingsPage <= 1 ? " disabled" : ""}>Anterior</button><button class="button ghost small" type="button" data-action="pending-readings-page" data-page="${pendingReadingsPage + 1}"${pendingReadingsPage >= pendingReadingsPages ? " disabled" : ""}>Próxima</button></div>` : ""}</section>`
     : "";
   const lockReasons = [...new Set(Object.values(commandLocks).filter(Boolean))];
   const lockNotice = lockReasons.length
