@@ -1,13 +1,11 @@
 import { button, esc } from "../../js/funcoes/html.js";
-import { renderStatusDala } from "../../js/funcoes/status-dala.js?v=202610160001";
-import { pageHeader } from "../../js/funcoes/view.js?v=202610061745";
 
 const DEVICE_TYPES = [
   ["SENSOR", "Sensor", "Detecção de sacos"],
   ["SCANNER", "Scanner", "Leitura de código"],
   ["CLP", "CLP", "Controle da esteira"],
   ["CAMERA", "Câmera", "Registro visual"],
-  ["SERVER", "Servidor", "Serviço central"],
+  ["SERVER", "Servidor", "API desta instalação"],
 ];
 
 export function apresentacaoStatusDispositivo(value, type = "") {
@@ -16,10 +14,11 @@ export function apresentacaoStatusDispositivo(value, type = "") {
     ["SENSOR", "SCANNER"].includes(String(type).toUpperCase());
   if (unmonitored) {
     return {
+      monitored: false,
       online: false,
       tone: "unknown",
-      label: "NÃO MONITORADO",
-      detail: "Sem monitoramento automático",
+      label: "SEM STATUS",
+      detail: "Integração automática pendente",
     };
   }
   const online = ["ONLINE", "LOCAL", "OK"].includes(normalized);
@@ -28,7 +27,29 @@ export function apresentacaoStatusDispositivo(value, type = "") {
   const tone = online ? "online" : error ? "error" : unknown ? "unknown" : "offline";
   const label = online ? "ON" : error ? "ERRO" : unknown ? "SEM SINAL" : "OFF";
   const detail = online ? "Sinal recebido" : error ? "Falha de comunicação" : unknown ? "Aguardando sinal" : "Sem sinal";
-  return { online, tone, label, detail };
+  return { monitored: true, online, tone, label, detail };
+}
+
+export function apresentacaoStatusDala(status) {
+  const raw = String(status?.status || "DESCONHECIDO").toUpperCase();
+  if (raw === "ONLINE") return { label: "ON", tone: "online", detail: "CLP comunicando" };
+  if (raw === "OFFLINE") return { label: "OFF", tone: "offline", detail: "CLP sem comunicação" };
+  if (raw === "ERRO") return { label: "OFF", tone: "offline", detail: "Falha de comunicação com o CLP" };
+  return { label: "—", tone: "unknown", detail: "Status do CLP sem confirmação" };
+}
+
+export function resumoStatusDispositivos(presentations) {
+  return presentations.reduce((summary, status) => {
+    if (!status.monitored) summary.unmonitored += 1;
+    else if (status.online) summary.online += 1;
+    else summary.attention += 1;
+    return summary;
+  }, { online: 0, attention: 0, unmonitored: 0 });
+}
+
+export function renderStatusDalaBinario(status) {
+  const presentation = apresentacaoStatusDala(status);
+  return `<span class="settings-dala-status ${presentation.tone}" role="status" aria-label="${esc(presentation.detail)}" title="${esc(presentation.detail)}">${presentation.label}</span>`;
 }
 
 export function apresentacaoConectividadePc(syncStatus) {
@@ -64,13 +85,13 @@ function deviceStatusPanel(store) {
       ? matches.map((device) => ({ type, label, description, value: device.status, device }))
       : [{ type, label, description, value: "NAO_REGISTRADO", device: null }];
   });
-  const onlineCount = records.filter((record) => apresentacaoStatusDispositivo(record.value, record.type).online).length;
-  const attentionCount = records.length - onlineCount;
+  const presentations = records.map((record) => apresentacaoStatusDispositivo(record.value, record.type));
+  const { online: onlineCount, attention: attentionCount, unmonitored: unmonitoredCount } = resumoStatusDispositivos(presentations);
   const cards = records.map(({ type, label, description, value, device }) => {
     const status = apresentacaoStatusDispositivo(value, type);
     const equipmentLabel = device?.equipment_id
       ? equipments.get(Number(device.equipment_id)) || `Dala ${device.equipment_id}`
-      : "Visão central";
+      : type === "SERVER" ? "Instalação atual" : "Vínculo ainda não registrado";
     const equipmentAttribute = device?.equipment_id
       ? ` data-live-status-equipment="${Number(device.equipment_id)}"`
       : "";
@@ -79,12 +100,11 @@ function deviceStatusPanel(store) {
       <div class="settings-device-status-result"><b class="status-value status-${status.tone}" data-live-status="${type}" data-live-status-mode="binary">${status.label}</b><span class="settings-device-status-detail" data-live-status-detail="${type}">${esc(status.detail)}</span></div>
     </article>`;
   }).join("");
-  const attentionText = "sem confirmação online";
   return `<section class="panel settings-device-status-panel" aria-label="Status dos dispositivos">
-    <div class="settings-device-status-heading"><div><span class="kicker">Status da máquina</span><h3>Dispositivos e serviços</h3><p>Um cartão por dispositivo, com o estado atual e a Dala associada.</p></div><div class="settings-device-status-actions">${button("Recarregar estados", "reload-monitoring", "secondary")}</div></div>
-    <div class="settings-device-status-summary"><div><strong data-device-summary="online-count">${onlineCount}/${records.length}</strong><span>online</span></div><i aria-hidden="true"></i><div><strong data-device-summary="attention-count">${attentionCount}</strong><span data-device-summary="attention-label">${esc(attentionText)}</span></div></div>
+    <div class="settings-device-status-heading"><div><span class="kicker">Status da máquina</span><h3>Dispositivos e serviços</h3><p>Atualização automática enquanto esta tela estiver aberta.</p></div></div>
+    <div class="settings-device-status-summary"><div><strong data-device-summary="online-count">${onlineCount}</strong><span>online</span></div><div><strong data-device-summary="attention-count">${attentionCount}</strong><span data-device-summary="attention-label">sem sinal ou com falha</span></div><div><strong data-device-summary="unmonitored-count">${unmonitoredCount}</strong><span>sem status automático</span></div></div>
     <div class="settings-device-status-grid">${cards}</div>
-    <p class="settings-device-status-note">Os estados são informativos e não alteram os comandos da Dala.</p>
+    <p class="settings-device-status-note">Sensor e Scanner ainda não enviam status automático ao Trace. Os estados exibidos são informativos e não alteram os comandos da Dala.</p>
   </section><br>`;
 }
 
@@ -129,7 +149,7 @@ export function settings(store) {
     ? config.dalas
         .map((dala) => {
           const status = dalaStatuses.find((entry) => Number(entry.equipment_id) === Number(dala.id));
-          return `<tr><td>${esc(dala.name)}</td><td><code>${esc(dala.equipment_code)}</code></td><td>${esc(dala.plc_ip || "—")}</td><td>${dala.plc_port || "—"}</td><td class="dala-status" data-equipment-id="${dala.id}">${renderStatusDala(status)}</td></tr>`;
+          return `<tr><td>${esc(dala.name)}</td><td><code>${esc(dala.equipment_code)}</code></td><td>${esc(dala.plc_ip || "—")}</td><td>${dala.plc_port || "—"}</td><td class="dala-status" data-equipment-id="${dala.id}">${renderStatusDalaBinario(status)}</td></tr>`;
         })
         .join("")
     : '<tr><td colspan="5" class="empty-cell">Nenhuma Dala cadastrada.</td></tr>';
@@ -141,10 +161,10 @@ ${canManageUsers ? `<section class="panel settings-access-panel"><div class="pan
 <section class="panel"><h3>Comunicação industrial</h3><p>O PC industrial acessa o CLP pela rede local e inicia a sincronização HTTPS com o servidor central. Não é necessário abrir porta pública ou configurar redirecionamento no roteador.</p></section><br>
 <section class="panel"><h3>Conectividade</h3><div class="sync-status-row" data-settings-connectivity="pc"><span class="status-dot ${syncTone}" data-settings-connectivity-dot></span><strong data-settings-connectivity-label>${syncLabel}</strong></div><br><div class="sync-status-row" data-settings-connectivity="dalas"><span class="status-dot ${dalaTone}" data-settings-connectivity-dot></span><strong data-settings-connectivity-label>${dalaLabel}</strong></div></section><br>
 ${deviceStatusPanel(store)}
-<section class="panel"><div class="panel-heading"><h3>Dalas</h3><div class="actions">${button("Recarregar", "reload-dalas", "secondary")}${button("Gerenciar Dalas", "goto-dalas")}</div></div>
+<section class="panel"><div class="panel-heading"><h3>Dalas</h3><div class="actions">${button("Gerenciar Dalas", "goto-dalas")}</div></div>
 <p>Visão consolidada das Dalas cadastradas e do último sinal Modbus recebido do PC industrial. Para cadastrar ou editar, use Gerenciar Dalas.</p>
 <p><strong>Identificador:</strong> código único da Dala. <strong>IP do CLP:</strong> endereço na rede local da fábrica. <strong>Porta do CLP:</strong> porta TCP Modbus informada pelo fabricante.</p>
-<div class="table-wrap settings-dalas-table-wrap"><table class="settings-dalas-table"><thead><tr><th>Nome da Dala</th><th>Identificador da Dala</th><th>IP do CLP</th><th>Porta do CLP</th><th>Status</th></tr></thead><tbody>${dalaRows}</tbody></table></div></section><br>
+<div class="table-wrap settings-dalas-table-wrap"><table class="settings-dalas-table"><thead><tr><th>Nome da Dala</th><th>Identificador da Dala</th><th>IP do CLP</th><th>Porta do CLP</th><th>Comunicação</th></tr></thead><tbody>${dalaRows}</tbody></table></div></section><br>
 <section class="panel pdf-import-panel"><div class="panel-heading pdf-import-heading"><div><h3>Importação de romaneios (PDF)</h3><p class="compact-help">Informe apenas os nomes dos campos que existem no PDF. <b class="required">*</b> Obrigatório.</p></div></div>
 <form id="pdf-settings-form"><div class="pdf-import-fields">
 ${fields.map(([key, label, required]) => `<label>${label}${required ? ' <b class="required">*</b>' : ""}<input name="pdf_${key}" value="${esc(mapping[key] || "")}" placeholder="Nome do campo no PDF" /></label>`).join("")}

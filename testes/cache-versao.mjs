@@ -4,13 +4,13 @@ import { join } from "node:path";
 import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
-const versaoAplicacao = "202610160002";
-const versaoAplicacaoImportacao = "202610160002";
+const versaoAplicacao = "202610160003";
+const versaoAplicacaoImportacao = "202610160003";
 const versaoServiceWorker = "202610160002";
 const versaoTela = "202610160002";
 const versaoTelaImportacao = "202610130005";
 const versaoTelaOperacao = "202610160002";
-const versaoEstilo = "202610070203";
+const versaoEstiloConfiguracoes = "202610160001";
 const versaoEstiloDalas = "202610150002";
 const versaoEstiloOperacao = "202610140001";
 const versaoEstiloImportacao = "202610071845";
@@ -26,9 +26,9 @@ test("o shell invalida cache quando a aplicação muda", () => {
   assert.match(aplicacao, new RegExp(`importar-romaneio\\.js\\?v=${versaoTelaImportacao}`));
   assert.match(aplicacao, /page-refresh\.js\?v=202610130001/);
   assert.match(aplicacao, /tempo-real\.js\?v=202610140001/);
-  assert.match(aplicacao, /configuracoes\.js\?v=202610160001/);
+  assert.match(aplicacao, /configuracoes\.js\?v=202610160002/);
   assert.match(aplicacao, /controladores\/operacao\.js\?v=202610160002/);
-  assert.match(aplicacao, /funcoes\/status-dala\.js\?v=202610160001/);
+  assert.match(aplicacao, /renderStatusDalaBinario/);
 });
 
 test("arquivos estáticos versionados reaproveitam o cache e respostas compactadas", () => {
@@ -78,7 +78,7 @@ test("a navegação interna carrega os estilos exclusivos das telas alteradas", 
     `/telas/dalas/dalas.css?v=${versaoEstiloDalas}`,
     `/telas/operacao/operacao.css?v=${versaoEstiloOperacao}`,
     `/telas/importar-romaneio/importar-romaneio.css?v=${versaoEstiloImportacao}`,
-    `/telas/configuracoes/configuracoes.css?v=${versaoEstilo}`,
+    `/telas/configuracoes/configuracoes.css?v=${versaoEstiloConfiguracoes}`,
   ]) assert.ok(aplicacao.includes(path), `estilo não registrado no roteador: ${path}`);
   assert.match(aplicacao, /await ensureScreenStyles\(currentPage\)/);
 });
