@@ -4,6 +4,10 @@ param(
 )
 $ErrorActionPreference = "Stop"
 
+$databaseVolumeGuard = Join-Path $PSScriptRoot 'TraceDatabaseVolume.ps1'
+if (-not (Test-Path -LiteralPath $databaseVolumeGuard -PathType Leaf)) { throw "Protecao do volume MySQL ausente: $databaseVolumeGuard" }
+. $databaseVolumeGuard
+
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw "Execute a preparação inicial com uma conta técnica administradora."
 }
@@ -100,6 +104,7 @@ $dockerTaskTrigger = New-ScheduledTaskTrigger -AtLogOn -User $interactiveUser
 $dockerTaskSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -MultipleInstances IgnoreNew -ExecutionTimeLimit (New-TimeSpan -Hours 2) -RestartCount 5 -RestartInterval (New-TimeSpan -Minutes 5)
 Register-ScheduledTask -TaskName "Trace-Docker-Start" -Action $dockerTaskAction -Trigger $dockerTaskTrigger -Principal $dockerTaskPrincipal -Settings $dockerTaskSettings -Description "Inicia o Docker Desktop do Trace após o login da conta técnica." -Force | Out-Null
 
+Assert-TraceMySqlVolumeExists -InstallRoot $PackageRoot -RequireMarker | Out-Null
 & docker.exe compose --profile industrial up -d
 if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel iniciar os containers do Trace." }
 

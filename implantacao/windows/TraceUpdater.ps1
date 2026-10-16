@@ -6,6 +6,9 @@ Set-StrictMode -Version Latest
 # Atualizador nativo do PC Windows. Deve rodar por tarefa técnica, nunca pela
 # conta restrita do operador.
 $InstallRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path))
+$DatabaseVolumeGuard = Join-Path $PSScriptRoot 'TraceDatabaseVolume.ps1'
+if (-not (Test-Path -LiteralPath $DatabaseVolumeGuard -PathType Leaf)) { throw "Protecao do volume MySQL ausente: $DatabaseVolumeGuard" }
+. $DatabaseVolumeGuard
 $script:UpdaterScriptPath = Join-Path $PSScriptRoot 'TraceUpdater.ps1'
 $ComposeProfile = @('--profile', 'industrial')
 # O PC industrial tem memória limitada. O Compose padrão constrói várias
@@ -344,11 +347,78 @@ function Invoke-GitBash([string[]]$Arguments) {
 }
 
 function Invoke-DockerCompose([string[]]$Arguments) {
+    if ($Arguments -contains 'up') {
+        Assert-TraceMySqlVolumeExists -InstallRoot $InstallRoot -RequireMarker | Out-Null
+    }
     $result = Invoke-External 'docker.exe' (@('compose') + $Arguments) $null
     Append-UpdateLog $ComposeLogPath ("$(Get-Date -Format o) docker compose " + ($Arguments -join ' '))
     if ($result.Stdout) { Append-UpdateLog $ComposeLogPath $result.Stdout }
     if ($result.Stderr) { Append-UpdateLog $ComposeLogPath $result.Stderr }
     return $result.ExitCode
+}
+
+function Ensure-TraceDatabaseVolumeGuard {
+    if (Test-Path -LiteralPath $MaintenanceFile) {
+        throw 'A instalacao esta marcada para manutencao; nao e seguro registrar a identidade do volume agora.'
+    }
+    $snapshot = Assert-TraceMySqlVolumeExists -InstallRoot $InstallRoot
+    if (Read-TraceMySqlVolumeMarker) {
+        Assert-TraceMySqlVolumeExists -InstallRoot $InstallRoot -RequireMarker | Out-Null
+        return
+    }
+
+    # Uma instalacao anterior a esta protecao pode ainda nao ter o marcador.
+    # A existencia do volume e verificada antes de permitir que o Compose o use.
+    $startResult = Invoke-External 'docker.exe' (@('compose') + $ComposeProfile + @('up', '-d', 'mysql')) $null
+    Append-UpdateLog $ComposeLogPath ("$(Get-Date -Format o) inicializacao controlada do MySQL para validar volume existente $($snapshot.Name)")
+    if ($startResult.Stdout) { Append-UpdateLog $ComposeLogPath $startResult.Stdout }
+    if ($startResult.Stderr) { Append-UpdateLog $ComposeLogPath $startResult.Stderr }
+    if ($startResult.ExitCode -ne 0) { throw "Nao foi possivel iniciar o MySQL no volume existente (codigo $($startResult.ExitCode))." }
+
+    $mysqlReady = $false
+    for ($attempt = 0; $attempt -lt 30; $attempt++) {
+        $ping = Invoke-External 'docker.exe' (@('compose') + $ComposeProfile + @('exec', '-T', 'mysql', 'sh', '-lc', 'mysqladmin ping -u$MYSQL_USER -p$MYSQL_PASSWORD --silent')) $null
+        if ($ping.ExitCode -eq 0) { $mysqlReady = $true; break }
+        Start-Sleep -Seconds 2
+    }
+    if (-not $mysqlReady) { throw 'MySQL nao ficou pronto para validar o esquema existente; marcador nao foi gravado.' }
+    if (-not (Test-TraceMySqlApplicationSchema -InstallRoot $InstallRoot)) {
+        throw 'O volume existe, mas a tabela carregamentos nao foi confirmada. Atualizacao e inicializacao do sistema bloqueadas; nenhum volume novo foi criado.'
+    }
+
+    Register-TraceMySqlVolumeAfterDatabaseCheck -InstallRoot $InstallRoot | Out-Null
+    Append-UpdateLog $ComposeLogPath ("$(Get-Date -Format o) identidade do volume MySQL registrada apos confirmar o esquema da aplicacao: $($snapshot.Name)")
+}
+
+function Ensure-TraceDatabaseBackupSchedule {
+    $taskName = 'Dallogix Trace Backup Diario'
+    $backupScript = Join-Path $InstallRoot 'implantacao\windows\TraceDatabaseBackup.ps1'
+    if (-not (Test-Path -LiteralPath $backupScript -PathType Leaf)) { throw "Script de backup diario ausente: $backupScript" }
+    $existing = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+    $hasExpectedAction = $false
+    $hasDailyAtTwo = $false
+    $hasRetryPolicy = $false
+    if ($existing) {
+        $actionText = ($existing.Actions | ForEach-Object { "$($_.Execute) $($_.Arguments)" }) -join ' '
+        $hasExpectedAction = $actionText.Contains($backupScript)
+        if (-not $hasExpectedAction) { throw "A tarefa $taskName ja existe com outro destino." }
+        $hasRetryPolicy = [int]$existing.Settings.RestartCount -ge 3 -and
+            $existing.Settings.RestartInterval -eq (New-TimeSpan -Minutes 10)
+        foreach ($trigger in @($existing.Triggers)) {
+            if ([string]$trigger.CimClass.CimClassName -eq 'MSFT_TaskDailyTrigger' -and
+                ([datetime]$trigger.StartBoundary).TimeOfDay -eq (New-TimeSpan -Hours 2)) {
+                $hasDailyAtTwo = $true
+            }
+        }
+    }
+    if ($hasExpectedAction -and $hasDailyAtTwo -and $hasRetryPolicy) { return }
+
+    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$backupScript`" -InstallRoot `"$InstallRoot`""
+    $trigger = New-ScheduledTaskTrigger -Daily -At '02:00'
+    $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
+    $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 1) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 10)
+    Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Cria e valida diariamente uma copia do banco fora do volume MySQL.' -Force | Out-Null
+    Append-UpdateLog $ComposeLogPath 'Agendamento reparado: backup do banco configurado para 02:00, com ate 3 tentativas a cada 10 minutos.'
 }
 
 function Start-TraceStack([switch]$Build) {
@@ -455,15 +525,17 @@ try {
     }
     $installedVersion = (Get-Content -LiteralPath $current -Raw).Trim()
     if ($installedVersion -notmatch '^v\d+\.\d+\.\d+$') { throw "Versao instalada invalida." }
-    # A retenção também roda quando o manifesto ainda não tem uma versão nova.
-    # Assim, instalações antigas limpam sobras na próxima execução agendada,
-    # sem depender da publicação de outra versão apenas para liberar espaço.
-    Invoke-TraceStoragePruning $installedVersion
     if ($Preflight) {
         [IO.File]::WriteAllText((Join-Path $StateRoot 'preflight-ok.txt'), (Get-Date -Format o))
         Write-Host 'Preflight: Docker Linux, chave publica, Git Bash e versao local acessiveis pela tarefa agendada.'
         return
     }
+    Set-Location -LiteralPath $InstallRoot
+    Ensure-TraceDatabaseVolumeGuard
+    Ensure-TraceDatabaseBackupSchedule
+    # A retenção também roda quando não há release nova, mas só depois de
+    # confirmar que o banco esperado existe e que seus backups estão preservados.
+    Invoke-TraceStoragePruning $installedVersion
     if ([version]($manifest.version.Substring(1)) -le [version]($installedVersion.Substring(1))) {
         Write-Output "Sem release nova: instalada $installedVersion; publicada $($manifest.version)."
         return
@@ -473,6 +545,7 @@ try {
 
     Set-Location $InstallRoot
     if (Test-Path -LiteralPath $MaintenanceFile) { throw "O sistema ja esta em manutencao. Atualizacao adiada." }
+    Assert-TraceMySqlVolumeExists -InstallRoot $InstallRoot -RequireMarker | Out-Null
     New-Item -ItemType File -Force -Path $MaintenanceFile | Out-Null
     $createdMaintenance = $true
     $sql = "SELECT COUNT(*) FROM carregamentos WHERE state IN ('PREPARANDO','CARREGANDO','PAUSADO','FINALIZANDO','EMERGENCIA');"

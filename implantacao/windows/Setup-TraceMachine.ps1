@@ -158,7 +158,7 @@ if (-not (Test-WebView2Runtime)) {
         throw "O WebView2 Runtime nao foi instalado corretamente (codigo $($webViewInstall.ExitCode))."
     }
 }
-& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PackageRoot "implantacao\windows\Instalar-TraceLocal.ps1") -PackageRoot $PackageRoot -CentralUrl $centralUrl -NoBrowser -ProductionMachine
+& powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PackageRoot "implantacao\windows\Instalar-TraceLocal.ps1") -PackageRoot $PackageRoot -CentralUrl $centralUrl -NoBrowser -ProductionMachine -AllowFreshDatabaseCreation
 if ($LASTEXITCODE -ne 0) { throw "A instalacao local falhou; a maquina nao foi vinculada." }
 
 # Let the installer create and validate a complete .env before adding updater settings.

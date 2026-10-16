@@ -133,6 +133,19 @@ $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -RandomDelay (New-TimeSpan -Mi
 $trigger = @($dailyTrigger, $logonTrigger)
 $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2) -RestartCount 12 -RestartInterval (New-TimeSpan -Minutes 5)
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Instala somente releases assinadas sem carregamento ativo.' -Force | Out-Null
+$backupScript = Join-Path $PackageRoot 'implantacao\windows\TraceDatabaseBackup.ps1'
+if (-not (Test-Path -LiteralPath $backupScript -PathType Leaf)) { throw 'TraceDatabaseBackup.ps1 nao foi encontrado.' }
+$backupTaskName = 'Dallogix Trace Backup Diario'
+$existingBackupTask = Get-ScheduledTask -TaskName $backupTaskName -ErrorAction SilentlyContinue
+if ($existingBackupTask) {
+    $existingBackupAction = ($existingBackupTask.Actions | ForEach-Object { "$($_.Execute) $($_.Arguments)" }) -join ' '
+    if (-not $existingBackupAction.Contains($backupScript)) { throw "A tarefa $backupTaskName ja existe com outro destino." }
+}
+$backupAction = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$backupScript`" -InstallRoot `"$PackageRoot`""
+$backupTrigger = New-ScheduledTaskTrigger -Daily -At '02:00'
+$backupSettings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 1) -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 10)
+Register-ScheduledTask -TaskName $backupTaskName -Action $backupAction -Trigger $backupTrigger -Principal $principal -Settings $backupSettings -Description 'Cria e valida diariamente uma copia do banco fora do volume MySQL.' -Force | Out-Null
 $releaseMetadata = @{ version = $installedVersion; commit = $installedCommit } | ConvertTo-Json -Compress
 [IO.File]::WriteAllText((Join-Path $PackageRoot 'servidor\.release.json'), $releaseMetadata + "`n", (New-Object System.Text.UTF8Encoding($false)))
 Write-Host "Atualizacoes estaveis agendadas para 03:00 e apos o logon, com ate 12 novas tentativas a cada 5 minutos quando uma execucao falhar. Versao inicial: $installedVersion."
+Write-Host 'Backup local do banco agendado diariamente para 02:00, com validacao SHA-256 e retencao configurada.'

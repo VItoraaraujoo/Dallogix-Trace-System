@@ -1,6 +1,9 @@
 $ErrorActionPreference = "Stop"
 
 $InstallRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Path)
+$DatabaseVolumeGuard = Join-Path $PSScriptRoot 'TraceDatabaseVolume.ps1'
+if (-not (Test-Path -LiteralPath $DatabaseVolumeGuard -PathType Leaf)) { throw "Protecao do volume MySQL ausente: $DatabaseVolumeGuard" }
+. $DatabaseVolumeGuard
 $ComposeFile = Join-Path $InstallRoot "docker-compose.yml"
 $EnvFile = Join-Path $InstallRoot ".env"
 $TraceUrl = if ($env:TRACE_KIOSK_URL) { $env:TRACE_KIOSK_URL } else { "http://127.0.0.1:8080" }
@@ -23,6 +26,7 @@ if (-not (Test-Path $EnvFile)) { throw "Crie o arquivo .env em $InstallRoot ante
 if (-not (Get-Command docker.exe -ErrorAction SilentlyContinue)) { throw "Docker Desktop não está instalado ou não está no PATH." }
 
 Set-Location $InstallRoot
+Assert-TraceMySqlVolumeExists -InstallRoot $InstallRoot -RequireMarker | Out-Null
 & docker compose --profile industrial up -d
 
 $healthy = $false

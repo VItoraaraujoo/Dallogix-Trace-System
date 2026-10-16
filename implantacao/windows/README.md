@@ -43,6 +43,14 @@ O launcher inicia explicitamente o perfil industrial do Compose, que mantém o g
 - Não exponha MySQL, Node-RED ou Modbus; o Compose já os mantém em `127.0.0.1` por padrão.
 - Não habilite escrita física no CLP sem mapa de I/O, intertravamentos e teste de bancada homologados.
 
+### Proteção do banco local
+
+Antes de iniciar os serviços, os scripts Windows resolvem o nome real do volume MySQL do Compose e confirmam que ele existe. A identidade (nome e data de criação) fica registrada fora do Docker em `%ProgramData%\DallogixTrace\state\mysql-volume.json`. Se o volume sumir ou for substituído, a inicialização e a atualização param antes de o Compose criar outro banco vazio.
+
+Na primeira instalação, o instalador só cria o volume quando não encontra versão instalada, metadados de release, manutenção pendente ou backup anterior. Para instalações antigas sem o registro, o atualizador e o instalador validam a tabela `carregamentos` antes de registrar a identidade. Se houver evidência de uma instalação anterior e o volume estiver ausente, restaure o backup em vez de iniciar ou migrar um banco vazio.
+
+O instalador e o atualizador registram a tarefa `Dallogix Trace Backup Diario`, executada às 02:00 pelo Windows Task Scheduler. Ela usa `mysqldump --single-transaction`, valida o arquivo e o SHA-256 e mantém os arquivos pelo período `TRACE_BACKUP_RETENTION_DAYS` (30 dias por padrão) em `armazenamento\backups`, no disco do PC e fora do volume MySQL. Essa cópia protege contra a remoção acidental do volume Docker; para cobrir falha do PC ou do disco, copie os backups regularmente para outro armazenamento.
+
 ## Diagnóstico
 
 ```powershell
