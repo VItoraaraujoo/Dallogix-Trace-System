@@ -93,7 +93,7 @@ test("semeia o fluxo Trace sobre o aviso padrão da imagem Node-RED", () => {
         type: "comment",
         z: "placeholder-tab",
         name: "WARNING: please check you have started this container with a volume that is mounted to /data\\n otherwise any flow changes are lost when you redeploy or upgrade the container\\n (e.g. upgrade to a more recent node-red docker image).\\n  If you are using named volumes you can ignore this warning.\\n Double click or see info side panel to learn how to start Node-RED in Docker to save your work",
-        info: "The default Node-RED Docker volume warning mentions a volume mounted to /data.",
+        info: "",
       },
     ];
     writeFileSync(flowPath, JSON.stringify(placeholder));
