@@ -7,16 +7,17 @@ import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=20261006000
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
 import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610140002";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
-import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio, operationStructureSignature } from "./controladores/operacao.js?v=202610140002";
+import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio, operationStructureSignature } from "./controladores/operacao.js?v=202610160001";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610140001";
 import { createPageRefreshController } from "./controladores/page-refresh.js?v=202610130001";
 import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
 import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
+import { renderStatusDala } from "./funcoes/status-dala.js?v=202610160001";
 import { refreshCompanyStatusCards } from "./funcoes/view.js?v=202610130001";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js?v=202609240001";
-import { apresentacaoStatusDispositivo, settings } from "../telas/configuracoes/configuracoes.js?v=202610070203";
+import { apresentacaoConectividadePc, apresentacaoStatusDispositivo, settings } from "../telas/configuracoes/configuracoes.js?v=202610160001";
 import { dalas } from "../telas/dalas/dalas.js?v=202610150001";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
 import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610130001";
@@ -403,7 +404,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610140002").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610160001").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -730,7 +731,7 @@ function refreshSettingsStatusView() {
     const value = type === "SERVER"
       ? (store.state.serverStatus || "DESCONHECIDO")
       : (device?.status || "NAO_REGISTRADO");
-    const presentation = apresentacaoStatusDispositivo(value);
+    const presentation = apresentacaoStatusDispositivo(value, type);
     presentations.push(presentation);
     card.className = `settings-device-status-card ${presentation.tone}`;
     const status = card.querySelector("[data-live-status]");
@@ -749,23 +750,9 @@ function refreshSettingsStatusView() {
   const attentionLabel = document.querySelector('[data-device-summary="attention-label"]');
   if (onlineSummary) onlineSummary.textContent = `${onlineCount}/${presentations.length}`;
   if (attentionSummary) attentionSummary.textContent = String(attentionCount);
-  if (attentionLabel) attentionLabel.textContent = "sem sinal";
+  if (attentionLabel) attentionLabel.textContent = "sem confirmação online";
 
-  const centralSync = store.state.syncStatus?.central_sync || {};
-  const pcStatus = String(centralSync.pc_status || (centralSync.pc_online ? "ONLINE" : "DESCONHECIDO")).toUpperCase();
-  const pcLabel = !store.state.syncStatus
-    ? "Status da sincronização indisponível"
-    : !centralSync.configured
-      ? "Sincronização central não configurada"
-      : !centralSync.installation_registered
-        ? "Instalação ainda não registrada"
-        : ({
-            ONLINE: "PC industrial online",
-            OFFLINE: "PC industrial sem comunicação",
-            ERRO: "PC industrial com erro",
-            DESCONHECIDO: "PC industrial sem sinal",
-          }[pcStatus] || "Status do PC industrial desconhecido");
-  const pcTone = pcStatus === "ONLINE" ? "online" : ["OFFLINE", "ERRO"].includes(pcStatus) ? "offline" : "unknown";
+  const [pcTone, pcLabel] = apresentacaoConectividadePc(store.state.syncStatus);
   const updateConnectivity = (key, tone, label) => {
     const row = document.querySelector(`[data-settings-connectivity="${key}"]`);
     const dot = row?.querySelector("[data-settings-connectivity-dot]");
@@ -799,9 +786,7 @@ function refreshSettingsStatusView() {
   const statusByEquipment = new Map(dalaStatuses.map((status) => [String(status.equipment_id), status]));
   document.querySelectorAll(".dala-status[data-equipment-id]").forEach((cell) => {
     const status = statusByEquipment.get(String(cell.dataset.equipmentId));
-    const raw = String(status?.status || "DESCONHECIDO").toUpperCase();
-    const tone = raw === "ONLINE" ? "online" : ["OFFLINE", "ERRO"].includes(raw) ? "offline" : "unknown";
-    cell.innerHTML = `<span class="status-dot ${tone}"></span>${esc(status?.message || (raw === "ONLINE" ? "Online" : raw === "OFFLINE" ? "Sem comunicação" : "Status indisponível."))}`;
+    cell.innerHTML = renderStatusDala(status);
   });
 }
 

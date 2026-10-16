@@ -160,6 +160,15 @@ function limite_sinal_clp_segundos(): int
     return max(1, min(60, $configurado === false ? 3 : (int) $configurado));
 }
 
+function limite_sinal_camera_segundos(): int
+{
+    $configurado = filter_var(
+        getenv("CAMERA_SIGNAL_LIMIT_SECONDS") ?: 15,
+        FILTER_VALIDATE_INT,
+    );
+    return max(1, min(300, $configurado === false ? 15 : (int) $configurado));
+}
+
 /**
  * Confirma que o último sinal recebido representa uma leitura Modbus real
  * para o mesmo destino atualmente cadastrado. Uma conexão TCP aberta, por si

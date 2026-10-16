@@ -30,7 +30,7 @@ $periodDays = filter_var($_GET["period_days"] ?? 30, FILTER_VALIDATE_INT);
 $periodDays = $periodDays === false ? 30 : max(1, min(3650, (int) $periodDays));
 $limit = limite_sinal_clp_segundos();
 $payload = [
-    "monitoring" => $service->obterInstantaneo($companyId, $periodDays, $limit),
+    "monitoring" => $service->obterInstantaneo($companyId, $periodDays, $limit, limite_sinal_camera_segundos()),
     "active_loadings" => $service->carregamentosAtivos($companyId),
     "sent_at" => gmdate("c"),
 ];

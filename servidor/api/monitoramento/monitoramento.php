@@ -22,5 +22,6 @@ $snapshot = (new ServicoMonitoramento(obter_conexao_banco()))->obterInstantaneo(
     (int) $usuario["company_id"],
     (int) $periodDays,
     $limiteSemSinal,
+    limite_sinal_camera_segundos(),
 );
 responder_json(["data" => $snapshot]);

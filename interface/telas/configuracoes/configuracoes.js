@@ -1,4 +1,5 @@
 import { button, esc } from "../../js/funcoes/html.js";
+import { renderStatusDala } from "../../js/funcoes/status-dala.js?v=202610160001";
 import { pageHeader } from "../../js/funcoes/view.js?v=202610061745";
 
 const DEVICE_TYPES = [
@@ -9,8 +10,18 @@ const DEVICE_TYPES = [
   ["SERVER", "Servidor", "Serviço central"],
 ];
 
-export function apresentacaoStatusDispositivo(value) {
+export function apresentacaoStatusDispositivo(value, type = "") {
   const normalized = String(value || "NAO_REGISTRADO").trim().toUpperCase();
+  const unmonitored = normalized === "NAO_REGISTRADO" &&
+    ["SENSOR", "SCANNER"].includes(String(type).toUpperCase());
+  if (unmonitored) {
+    return {
+      online: false,
+      tone: "unknown",
+      label: "NÃO MONITORADO",
+      detail: "Sem monitoramento automático",
+    };
+  }
   const online = ["ONLINE", "LOCAL", "OK"].includes(normalized);
   const error = normalized === "ERRO";
   const unknown = ["", "DESCONHECIDO", "NAO_REGISTRADO", "NÃO REGISTRADO"].includes(normalized);
@@ -18,6 +29,22 @@ export function apresentacaoStatusDispositivo(value) {
   const label = online ? "ON" : error ? "ERRO" : unknown ? "SEM SINAL" : "OFF";
   const detail = online ? "Sinal recebido" : error ? "Falha de comunicação" : unknown ? "Aguardando sinal" : "Sem sinal";
   return { online, tone, label, detail };
+}
+
+export function apresentacaoConectividadePc(syncStatus) {
+  if (!syncStatus) return ["unknown", "Status da sincronização indisponível"];
+  const centralSync = syncStatus.central_sync || {};
+  if (!centralSync.configured) return ["unknown", "Sincronização central não configurada"];
+  if (!centralSync.installation_registered) return ["unknown", "Instalação ainda não registrada"];
+  const status = String(
+    centralSync.pc_status || (centralSync.pc_online ? "ONLINE" : "DESCONHECIDO"),
+  ).toUpperCase();
+  return {
+    ONLINE: ["online", "PC industrial comunicando com o Central"],
+    OFFLINE: ["offline", "Central sem comunicação recente com o PC"],
+    ERRO: ["offline", "Falha na comunicação do PC com o Central"],
+    DESCONHECIDO: ["unknown", "Central sem dados recentes do PC"],
+  }[status] || ["unknown", "Status do PC industrial desconhecido"];
 }
 
 function deviceStatusPanel(store) {
@@ -37,10 +64,10 @@ function deviceStatusPanel(store) {
       ? matches.map((device) => ({ type, label, description, value: device.status, device }))
       : [{ type, label, description, value: "NAO_REGISTRADO", device: null }];
   });
-  const onlineCount = records.filter((record) => apresentacaoStatusDispositivo(record.value).online).length;
+  const onlineCount = records.filter((record) => apresentacaoStatusDispositivo(record.value, record.type).online).length;
   const attentionCount = records.length - onlineCount;
   const cards = records.map(({ type, label, description, value, device }) => {
-    const status = apresentacaoStatusDispositivo(value);
+    const status = apresentacaoStatusDispositivo(value, type);
     const equipmentLabel = device?.equipment_id
       ? equipments.get(Number(device.equipment_id)) || `Dala ${device.equipment_id}`
       : "Visão central";
@@ -52,7 +79,7 @@ function deviceStatusPanel(store) {
       <div class="settings-device-status-result"><b class="status-value status-${status.tone}" data-live-status="${type}" data-live-status-mode="binary">${status.label}</b><span class="settings-device-status-detail" data-live-status-detail="${type}">${esc(status.detail)}</span></div>
     </article>`;
   }).join("");
-  const attentionText = "sem sinal";
+  const attentionText = "sem confirmação online";
   return `<section class="panel settings-device-status-panel" aria-label="Status dos dispositivos">
     <div class="settings-device-status-heading"><div><span class="kicker">Status da máquina</span><h3>Dispositivos e serviços</h3><p>Um cartão por dispositivo, com o estado atual e a Dala associada.</p></div><div class="settings-device-status-actions">${button("Recarregar estados", "reload-monitoring", "secondary")}</div></div>
     <div class="settings-device-status-summary"><div><strong data-device-summary="online-count">${onlineCount}/${records.length}</strong><span>online</span></div><i aria-hidden="true"></i><div><strong data-device-summary="attention-count">${attentionCount}</strong><span data-device-summary="attention-label">${esc(attentionText)}</span></div></div>
@@ -65,24 +92,7 @@ function deviceStatusPanel(store) {
 export function settings(store) {
   const config = store.state.configuration || { settings: {}, dalas: [] };
   const saved = config.settings || {};
-  const sync = store.state.syncStatus || {};
-  const centralSync = sync.central_sync || {};
-  const pcStatus = String(
-    centralSync.pc_status || (centralSync.pc_online ? "ONLINE" : "DESCONHECIDO"),
-  ).toUpperCase();
-  const pcPresentation = !store.state.syncStatus
-    ? ["unknown", "Status da sincronização indisponível"]
-    : !centralSync.configured
-      ? ["unknown", "Sincronização central não configurada"]
-      : !centralSync.installation_registered
-        ? ["unknown", "Instalação ainda não registrada"]
-        : {
-            ONLINE: ["online", "PC industrial online"],
-            OFFLINE: ["offline", "PC industrial sem comunicação"],
-            ERRO: ["offline", "PC industrial com erro"],
-            DESCONHECIDO: ["unknown", "PC industrial sem sinal"],
-          }[pcStatus] || ["unknown", "Status do PC industrial desconhecido"];
-  const [syncTone, syncLabel] = pcPresentation;
+  const [syncTone, syncLabel] = apresentacaoConectividadePc(store.state.syncStatus);
   const dalaStatuses = Array.isArray(store.state.dalaStatuses)
     ? store.state.dalaStatuses
     : [];
@@ -119,22 +129,7 @@ export function settings(store) {
     ? config.dalas
         .map((dala) => {
           const status = dalaStatuses.find((entry) => Number(entry.equipment_id) === Number(dala.id));
-          const rawStatus = String(status?.status || "").toUpperCase();
-          const tone = rawStatus === "ONLINE"
-            ? "online"
-            : ["OFFLINE", "ERRO"].includes(rawStatus)
-              ? "offline"
-              : "unknown";
-          const statusLabel = status?.message || (
-            rawStatus === "ONLINE"
-              ? "Online"
-              : rawStatus === "OFFLINE"
-                ? "Sem comunicação"
-                : rawStatus === "ERRO"
-                  ? "Falha de comunicação"
-                  : "Aguardando sinal"
-          );
-          return `<tr><td>${esc(dala.name)}</td><td><code>${esc(dala.equipment_code)}</code></td><td>${esc(dala.plc_ip || "—")}</td><td>${dala.plc_port || "—"}</td><td class="dala-status" data-equipment-id="${dala.id}"><span class="status-dot ${tone}"></span>${esc(statusLabel)}</td></tr>`;
+          return `<tr><td>${esc(dala.name)}</td><td><code>${esc(dala.equipment_code)}</code></td><td>${esc(dala.plc_ip || "—")}</td><td>${dala.plc_port || "—"}</td><td class="dala-status" data-equipment-id="${dala.id}">${renderStatusDala(status)}</td></tr>`;
         })
         .join("")
     : '<tr><td colspan="5" class="empty-cell">Nenhuma Dala cadastrada.</td></tr>';
