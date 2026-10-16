@@ -3,7 +3,13 @@ import test from "node:test";
 import { createPageRefreshController } from "../interface/js/controladores/page-refresh.js";
 import { renderDalaStatuses } from "../interface/js/controladores/operacao.js";
 import { renderStatusDala } from "../interface/js/funcoes/status-dala.js";
-import { apresentacaoConectividadePc, apresentacaoStatusDispositivo, settings } from "../interface/telas/configuracoes/configuracoes.js";
+import {
+  apresentacaoConectividadePc,
+  apresentacaoStatusDala,
+  apresentacaoStatusDispositivo,
+  resumoStatusDispositivos,
+  settings,
+} from "../interface/telas/configuracoes/configuracoes.js";
 
 function criarAmbiente() {
   const originalWindow = globalThis.window;
@@ -54,15 +60,15 @@ function createSettingsController({ load, refresh, getPage = () => "settings" })
 
 test("status têm apresentação clara para online, offline, erro e ausência de sinal", () => {
   assert.deepEqual(apresentacaoStatusDispositivo("ONLINE"), {
-    online: true, tone: "online", label: "ON", detail: "Sinal recebido",
+    monitored: true, online: true, tone: "online", label: "ON", detail: "Sinal recebido",
   });
   assert.equal(apresentacaoStatusDispositivo("OFFLINE").label, "OFF");
   assert.equal(apresentacaoStatusDispositivo("ERRO").tone, "error");
   assert.equal(apresentacaoStatusDispositivo("DESCONHECIDO").tone, "unknown");
   assert.deepEqual(apresentacaoStatusDispositivo("NAO_REGISTRADO", "SENSOR"), {
-    online: false, tone: "unknown", label: "NÃO MONITORADO", detail: "Sem monitoramento automático",
+    monitored: false, online: false, tone: "unknown", label: "SEM STATUS", detail: "Integração automática pendente",
   });
-  assert.equal(apresentacaoStatusDispositivo("NAO_REGISTRADO", "SCANNER").label, "NÃO MONITORADO");
+  assert.equal(apresentacaoStatusDispositivo("NAO_REGISTRADO", "SCANNER").label, "SEM STATUS");
   assert.equal(apresentacaoStatusDispositivo("NAO_REGISTRADO", "CAMERA").label, "SEM SINAL");
 });
 
@@ -79,14 +85,17 @@ test("Configurações mostra cartões próprios e status vinculados à Dala", ()
   assert.match(markup, /settings-device-status-card online/);
   assert.match(markup, /data-device-status-card="SENSOR" data-live-status-equipment="4"/);
   assert.match(markup, /EST-04/);
-  assert.match(markup, /data-device-summary="online-count"/);
-  assert.match(markup, /data-device-summary="attention-count">3<\/strong><span data-device-summary="attention-label">sem confirmação online/);
-  assert.match(markup, /class="dala-status" data-equipment-id="4"><span class="status-dot online"><\/span>Online/);
+  assert.match(markup, /data-device-summary="online-count">2<\/strong>/);
+  assert.match(markup, /data-device-summary="attention-count">2<\/strong><span data-device-summary="attention-label">sem sinal ou com falha/);
+  assert.match(markup, /data-device-summary="unmonitored-count">1<\/strong><span>sem status automático/);
+  assert.match(markup, /class="dala-status" data-equipment-id="4"><span class="settings-dala-status online"[^>]*>ON<\/span>/);
+  assert.doesNotMatch(markup, /data-action="reload-monitoring"|data-action="reload-dalas"/);
+  assert.match(markup, /Atualização automática enquanto esta tela estiver aberta/);
   assert.doesNotMatch(markup, /Verificando…/);
   assert.doesNotMatch(markup, /Atualizado em|Atualizado \d/);
 });
 
-test("sensor e scanner sem produtor aparecem como não monitorados", () => {
+test("sensor e scanner sem produtor não entram na contagem online e explicam a falta de status", () => {
   const markup = settings({ state: {
     configuration: { settings: {}, dalas: [] },
     monitoring: { dispositivos: [] },
@@ -96,9 +105,32 @@ test("sensor e scanner sem produtor aparecem como não monitorados", () => {
     serverStatus: "DESCONHECIDO",
     userRole: "USUARIO",
   } });
-  assert.match(markup, /data-device-status-card="SENSOR"[\s\S]*?NÃO MONITORADO/);
-  assert.match(markup, /data-device-status-card="SCANNER"[\s\S]*?NÃO MONITORADO/);
+  assert.match(markup, /data-device-status-card="SENSOR"[\s\S]*?SEM STATUS[\s\S]*?Integração automática pendente/);
+  assert.match(markup, /data-device-status-card="SCANNER"[\s\S]*?SEM STATUS[\s\S]*?Integração automática pendente/);
+  assert.match(markup, /data-device-summary="unmonitored-count">2<\/strong>/);
+  assert.match(markup, /data-device-summary="online-count">0<\/strong>/);
   assert.match(markup, /data-device-status-card="CAMERA"[\s\S]*?SEM SINAL/);
+  assert.match(markup, /Instalação atual/);
+});
+
+test("a tabela mostra comunicação do CLP em ON/OFF e preserva estado desconhecido", () => {
+  assert.deepEqual(apresentacaoStatusDala({ status: "ONLINE", status_label: "Dala ociosa" }), {
+    label: "ON", tone: "online", detail: "CLP comunicando",
+  });
+  assert.deepEqual(apresentacaoStatusDala({ status: "OFFLINE" }), {
+    label: "OFF", tone: "offline", detail: "CLP sem comunicação",
+  });
+  assert.deepEqual(apresentacaoStatusDala({ status: "DESCONHECIDO" }), {
+    label: "—", tone: "unknown", detail: "Status do CLP sem confirmação",
+  });
+});
+
+test("resumo separa dispositivos online, com atenção e sem integração de status", () => {
+  assert.deepEqual(resumoStatusDispositivos([
+    apresentacaoStatusDispositivo("ONLINE", "CLP"),
+    apresentacaoStatusDispositivo("OFFLINE", "CAMERA"),
+    apresentacaoStatusDispositivo("NAO_REGISTRADO", "SENSOR"),
+  ]), { online: 1, attention: 1, unmonitored: 1 });
 });
 
 test("conectividade do PC descreve o sinal recebido pelo Central", () => {

@@ -13,11 +13,16 @@ import { createPageRefreshController } from "./controladores/page-refresh.js?v=2
 import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
 import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
 import { el, esc } from "./funcoes/html.js";
-import { renderStatusDala } from "./funcoes/status-dala.js?v=202610160001";
 import { refreshCompanyStatusCards } from "./funcoes/view.js?v=202610130001";
 import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js?v=202609240001";
-import { apresentacaoConectividadePc, apresentacaoStatusDispositivo, settings } from "../telas/configuracoes/configuracoes.js?v=202610160001";
+import {
+  apresentacaoConectividadePc,
+  apresentacaoStatusDispositivo,
+  renderStatusDalaBinario,
+  resumoStatusDispositivos,
+  settings,
+} from "../telas/configuracoes/configuracoes.js?v=202610160002";
 import { dalas } from "../telas/dalas/dalas.js?v=202610150001";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
 import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610130001";
@@ -456,7 +461,7 @@ function waitForDocumentStyles() {
 const SCREEN_STYLES = {
   work: "/telas/operacao/operacao.css?v=202610140001",
   import: "/telas/importar-romaneio/importar-romaneio.css?v=202610071845",
-  settings: "/telas/configuracoes/configuracoes.css?v=202610070203",
+  settings: "/telas/configuracoes/configuracoes.css?v=202610160001",
   dalas: "/telas/dalas/dalas.css?v=202610150002",
   dala: "/telas/dalas/dalas.css?v=202610150002",
   "dala-edit": "/telas/dalas/dalas.css?v=202610150002",
@@ -750,14 +755,16 @@ function refreshSettingsStatusView() {
     if (detail) detail.textContent = presentation.detail;
   });
 
-  const onlineCount = presentations.filter((status) => status.online).length;
-  const attentionCount = Math.max(0, presentations.length - onlineCount);
+  const { online: onlineCount, attention: attentionCount, unmonitored: unmonitoredCount } =
+    resumoStatusDispositivos(presentations);
   const onlineSummary = document.querySelector('[data-device-summary="online-count"]');
   const attentionSummary = document.querySelector('[data-device-summary="attention-count"]');
+  const unmonitoredSummary = document.querySelector('[data-device-summary="unmonitored-count"]');
   const attentionLabel = document.querySelector('[data-device-summary="attention-label"]');
-  if (onlineSummary) onlineSummary.textContent = `${onlineCount}/${presentations.length}`;
+  if (onlineSummary) onlineSummary.textContent = String(onlineCount);
   if (attentionSummary) attentionSummary.textContent = String(attentionCount);
-  if (attentionLabel) attentionLabel.textContent = "sem confirmação online";
+  if (unmonitoredSummary) unmonitoredSummary.textContent = String(unmonitoredCount);
+  if (attentionLabel) attentionLabel.textContent = "sem sinal ou com falha";
 
   const [pcTone, pcLabel] = apresentacaoConectividadePc(store.state.syncStatus);
   const updateConnectivity = (key, tone, label) => {
@@ -793,7 +800,7 @@ function refreshSettingsStatusView() {
   const statusByEquipment = new Map(dalaStatuses.map((status) => [String(status.equipment_id), status]));
   document.querySelectorAll(".dala-status[data-equipment-id]").forEach((cell) => {
     const status = statusByEquipment.get(String(cell.dataset.equipmentId));
-    cell.innerHTML = renderStatusDala(status);
+    cell.innerHTML = renderStatusDalaBinario(status);
   });
 }
 
@@ -1121,25 +1128,6 @@ function bindActions() {
             node.dataset.busy = "0";
             node.disabled = false;
           }
-        }
-        return;
-      }
-      if (action === "reload-monitoring") {
-        if (node.dataset.busy === "1") return;
-        node.dataset.busy = "1";
-        node.disabled = true;
-        try {
-          await Promise.all([
-            store.loadMonitoring(),
-            store.loadSyncStatus(),
-            store.loadDalaStatuses(),
-          ]);
-          refreshSettingsStatusView();
-        } catch (error) {
-          notificar(error.message || "Não foi possível atualizar os estados.");
-        } finally {
-          node.disabled = false;
-          node.dataset.busy = "0";
         }
         return;
       }

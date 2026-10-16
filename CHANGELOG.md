@@ -1,5 +1,14 @@
 # Histórico de alterações
 
+## v1.0.154 — 16/10/2026
+
+- A tela de Configurações separa dispositivos sem integração automática dos
+  dispositivos com falha, mostra a comunicação do CLP em ON/OFF e atualiza os
+  estados automaticamente.
+- O pacote de atualização inclui a logo na raiz, e o atualizador recria os
+  atalhos do desktop e do menu Iniciar apontando para ela.
+- Adicionadas regressões para a apresentação dos status e para os atalhos do PC.
+
 ## v1.0.153 — 16/10/2026
 
 - A tarefa de atualização estável agora faz até 12 novas tentativas após falhas,
