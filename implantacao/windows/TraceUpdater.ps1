@@ -342,7 +342,10 @@ function Ensure-TraceUpdaterSchedule {
     $existing = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
     $hasDailyAtThree = $false
     $hasLogon = $false
+    $hasRetryPolicy = $false
     if ($existing) {
+        $hasRetryPolicy = [int]$existing.Settings.RestartCount -ge 12 -and
+            $existing.Settings.RestartInterval -eq (New-TimeSpan -Minutes 5)
         foreach ($trigger in @($existing.Triggers)) {
             $className = [string]$trigger.CimClass.CimClassName
             if ($className -eq 'MSFT_TaskDailyTrigger' -and
@@ -352,16 +355,16 @@ function Ensure-TraceUpdaterSchedule {
             if ($className -eq 'MSFT_TaskLogonTrigger') { $hasLogon = $true }
         }
     }
-    if ($hasDailyAtThree -and $hasLogon) { return }
+    if ($hasDailyAtThree -and $hasLogon -and $hasRetryPolicy) { return }
 
     $scriptPath = $script:UpdaterScriptPath
     $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoLogo -NoProfile -ExecutionPolicy Bypass -File `"$scriptPath`""
     $dailyTrigger = New-ScheduledTaskTrigger -Daily -At '03:00'
     $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -RandomDelay (New-TimeSpan -Minutes 10)
     $principal = New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest
-    $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+    $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2) -RestartCount 12 -RestartInterval (New-TimeSpan -Minutes 5)
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger @($dailyTrigger, $logonTrigger) -Principal $principal -Settings $settings -Description 'Instala somente releases assinadas sem carregamento ativo.' -Force | Out-Null
-    Append-UpdateLog $ComposeLogPath 'Agendamento reparado: atualização estável configurada para 03:00 e após o logon.'
+    Append-UpdateLog $ComposeLogPath 'Agendamento reparado: atualização estável configurada para 03:00, após o logon e com 12 tentativas a cada 5 minutos quando uma execução falhar.'
 }
 
 try { $hasLock = $Lock.WaitOne(0) } catch [System.Threading.AbandonedMutexException] { $hasLock = $true }
