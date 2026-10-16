@@ -79,6 +79,7 @@ $rollbackRequired = $false
 $stackStopped = $false
 $desktopStopped = $false
 $desktopRestartScheduled = $false
+$desktopUser = $null
 $previousArchive = $null
 $databaseBackup = $null
 $work = $null
@@ -86,6 +87,19 @@ $work = $null
 function Stop-TraceDesktop {
     $processes = @(Get-Process -Name 'DallogixTrace' -ErrorAction SilentlyContinue)
     if ($processes.Count -eq 0) { return }
+    $desktopUsers = foreach ($process in $processes) {
+        $desktopProcess = Get-CimInstance Win32_Process -Filter "ProcessId = $($process.Id)"
+        $owner = Invoke-CimMethod -InputObject $desktopProcess -MethodName GetOwner
+        if ($owner.ReturnValue -ne 0 -or [string]::IsNullOrWhiteSpace($owner.User)) {
+            throw 'Nao foi possivel identificar a conta da interface; atualizacao adiada para manter o quiosque aberto.'
+        }
+        if ([string]::IsNullOrWhiteSpace($owner.Domain)) { $owner.User } else { "$($owner.Domain)\$($owner.User)" }
+    }
+    $uniqueDesktopUsers = @($desktopUsers | Sort-Object -Unique)
+    if ($uniqueDesktopUsers.Count -ne 1) {
+        throw 'A interface esta aberta por mais de uma conta; atualizacao adiada para nao deixar sessoes sem quiosque.'
+    }
+    $script:desktopUser = $uniqueDesktopUsers[0]
     foreach ($process in $processes) {
         Stop-Process -Id $process.Id -Force -ErrorAction Stop
     }
@@ -101,8 +115,7 @@ function Stop-TraceDesktop {
 
 function Schedule-TraceDesktopRestart {
     if (-not $desktopStopped -or $desktopRestartScheduled) { return }
-    $interactiveUser = [string](Get-CimInstance Win32_ComputerSystem -ErrorAction SilentlyContinue | Select-Object -ExpandProperty UserName -ErrorAction SilentlyContinue)
-    if ([string]::IsNullOrWhiteSpace($interactiveUser)) {
+    if ([string]::IsNullOrWhiteSpace($desktopUser)) {
         Append-UpdateLog $ErrorLogPath 'Interface desktop nao reiniciada: nenhuma sessao interativa encontrada.'
         return
     }
@@ -114,12 +127,12 @@ function Schedule-TraceDesktopRestart {
     $taskName = 'Dallogix Trace Reiniciar Interface'
     $action = New-ScheduledTaskAction -Execute $desktop -WorkingDirectory $InstallRoot
     $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(15)
-    $principal = New-ScheduledTaskPrincipal -UserId $interactiveUser -LogonType Interactive -RunLevel Limited
+    $principal = New-ScheduledTaskPrincipal -UserId $desktopUser -LogonType Interactive -RunLevel Limited
     $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
     Start-ScheduledTask -TaskName $taskName
     $script:desktopRestartScheduled = $true
-    Append-UpdateLog $ComposeLogPath "Interface desktop agendada para reinicio na sessao $interactiveUser."
+    Append-UpdateLog $ComposeLogPath "Interface desktop agendada para reinicio na sessao $desktopUser."
 }
 
 function Write-AtomicTextFile([string]$Path, [string]$Content) {

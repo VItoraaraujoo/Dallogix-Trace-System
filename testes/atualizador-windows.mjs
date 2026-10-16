@@ -79,6 +79,15 @@ test("atualizador repara o gatilho de logon depois de uma atualização", () => 
   assert.match(updaterScript, /Ensure-TraceUpdaterSchedule/);
 });
 
+test("atualizador reinicia o quiosque na conta dona do processo mesmo em sessão RDP", () => {
+  assert.match(updaterScript, /Get-CimInstance Win32_Process -Filter "ProcessId = \$\(\$process\.Id\)"/);
+  assert.match(updaterScript, /Invoke-CimMethod -InputObject \$desktopProcess -MethodName GetOwner/);
+  assert.match(updaterScript, /\$uniqueDesktopUsers\.Count -ne 1/);
+  assert.match(updaterScript, /\$script:desktopUser = \$uniqueDesktopUsers\[0\]/);
+  assert.match(updaterScript, /New-ScheduledTaskPrincipal -UserId \$desktopUser -LogonType Interactive/);
+  assert.doesNotMatch(updaterScript, /Get-CimInstance Win32_ComputerSystem[^\n]*UserName/);
+});
+
 test("instalação registra o agente no início do Windows", () => {
   assert.match(machineInstaller, /New-ScheduledTaskTrigger -AtStartup/);
   assert.match(machineInstaller, /Dallogix Trace Agent/);

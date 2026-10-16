@@ -1,5 +1,14 @@
 # Histórico de alterações
 
+## v1.0.152 — 16/10/2026
+
+- O atualizador identifica a conta que executa o quiosque pelo processo antes
+  de interrompê-lo e agenda a reabertura na mesma sessão interativa, inclusive
+  quando `Win32_ComputerSystem.UserName` não está preenchido em uma sessão RDP.
+- A atualização é adiada se não for possível identificar uma única conta dona
+  da interface, evitando deixar o quiosque fechado após a manutenção.
+- Adicionada regressão automatizada para o reinício da interface em sessões RDP.
+
 ## v1.0.139 — 13/10/2026
 
 - O formulário de novo romaneio mostra validações e erros da API na própria tela,
