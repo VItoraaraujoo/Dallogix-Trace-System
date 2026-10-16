@@ -31,7 +31,8 @@ test("atualizador estável fica agendado diariamente com a conta SYSTEM", () => 
   assert.match(updaterRegistration, /New-ScheduledTaskTrigger -AtLogOn -RandomDelay \(New-TimeSpan -Minutes 10\)/);
   assert.match(updaterRegistration, /\$trigger = @\(\$dailyTrigger, \$logonTrigger\)/);
   assert.match(updaterRegistration, /New-ScheduledTaskPrincipal -UserId 'SYSTEM' -LogonType ServiceAccount -RunLevel Highest/);
-  assert.match(updaterRegistration, /New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable/);
+  assert.match(updaterRegistration, /New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit \(New-TimeSpan -Hours 2\) -RestartCount 12 -RestartInterval \(New-TimeSpan -Minutes 5\)/);
+  assert.match(updaterRegistration, /12 novas tentativas a cada 5 minutos/);
 });
 
 test("registro valida Docker pela conta da tarefa antes de agendar atualização", () => {
@@ -72,9 +73,13 @@ test("atualizador repara o gatilho de logon depois de uma atualização", () => 
   assert.match(updaterScript, /function Ensure-TraceUpdaterSchedule/);
   assert.match(updaterScript, /MSFT_TaskDailyTrigger/);
   assert.match(updaterScript, /\(\[datetime\]\$trigger\.StartBoundary\)\.TimeOfDay -eq \(New-TimeSpan -Hours 3\)/);
-  assert.match(updaterScript, /if \(\$hasDailyAtThree -and \$hasLogon\) \{ return \}/);
+  assert.match(updaterScript, /if \(\$hasDailyAtThree -and \$hasLogon -and \$hasRetryPolicy\) \{ return \}/);
   assert.match(updaterScript, /New-ScheduledTaskTrigger -Daily -At '03:00'/);
   assert.match(updaterScript, /MSFT_TaskLogonTrigger/);
+  assert.match(updaterScript, /\$hasRetryPolicy = \[int\]\$existing\.Settings\.RestartCount -ge 12/);
+  assert.match(updaterScript, /\$existing\.Settings\.RestartInterval -eq \(New-TimeSpan -Minutes 5\)/);
+  assert.match(updaterScript, /if \(\$hasDailyAtThree -and \$hasLogon -and \$hasRetryPolicy\) \{ return \}/);
+  assert.match(updaterScript, /New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit \(New-TimeSpan -Hours 2\) -RestartCount 12 -RestartInterval \(New-TimeSpan -Minutes 5\)/);
   assert.match(updaterScript, /Register-ScheduledTask -TaskName \$taskName -Action \$action -Trigger @\(\$dailyTrigger, \$logonTrigger\)/);
   assert.match(updaterScript, /Ensure-TraceUpdaterSchedule/);
 });

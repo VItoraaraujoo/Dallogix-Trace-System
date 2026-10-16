@@ -131,8 +131,8 @@ $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument "-NoLogo -
 $dailyTrigger = New-ScheduledTaskTrigger -Daily -At '03:00'
 $logonTrigger = New-ScheduledTaskTrigger -AtLogOn -RandomDelay (New-TimeSpan -Minutes 10)
 $trigger = @($dailyTrigger, $logonTrigger)
-$settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2)
+$settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 2) -RestartCount 12 -RestartInterval (New-TimeSpan -Minutes 5)
 Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Description 'Instala somente releases assinadas sem carregamento ativo.' -Force | Out-Null
 $releaseMetadata = @{ version = $installedVersion; commit = $installedCommit } | ConvertTo-Json -Compress
 [IO.File]::WriteAllText((Join-Path $PackageRoot 'servidor\.release.json'), $releaseMetadata + "`n", (New-Object System.Text.UTF8Encoding($false)))
-Write-Host "Atualizacoes estaveis agendadas para 03:00 e apos o logon. Versao inicial: $installedVersion."
+Write-Host "Atualizacoes estaveis agendadas para 03:00 e apos o logon, com ate 12 novas tentativas a cada 5 minutos quando uma execucao falhar. Versao inicial: $installedVersion."

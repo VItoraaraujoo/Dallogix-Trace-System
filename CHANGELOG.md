@@ -1,5 +1,13 @@
 # Histórico de alterações
 
+## v1.0.153 — 16/10/2026
+
+- A tarefa de atualização estável agora faz até 12 novas tentativas após falhas,
+  com intervalo de 5 minutos, para aguardar o Docker Desktop após o logon do Windows.
+- O atualizador repara a agenda existente também quando a política de novas
+  tentativas está ausente, sem depender de reinstalar o programa.
+- Adicionadas regressões automatizadas para o limite e o intervalo de tentativas.
+
 ## v1.0.152 — 16/10/2026
 
 - O atualizador identifica a conta que executa o quiosque pelo processo antes
