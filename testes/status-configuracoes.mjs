@@ -68,7 +68,13 @@ test("status têm apresentação clara para online, offline, erro e ausência de
   assert.deepEqual(apresentacaoStatusDispositivo("NAO_REGISTRADO", "SENSOR"), {
     monitored: false, online: false, tone: "unknown", label: "SEM STATUS", detail: "Integração automática pendente",
   });
-  assert.equal(apresentacaoStatusDispositivo("NAO_REGISTRADO", "SCANNER").label, "SEM STATUS");
+  assert.deepEqual(apresentacaoStatusDispositivo("NAO_REGISTRADO", "SCANNER"), {
+    monitored: false,
+    online: false,
+    tone: "unknown",
+    label: "AGUARDANDO",
+    detail: "Sem leitura; conexão USB não verificável.",
+  });
   assert.equal(apresentacaoStatusDispositivo("NAO_REGISTRADO", "CAMERA").label, "SEM SINAL");
 });
 
@@ -106,7 +112,9 @@ test("sensor e scanner sem produtor não entram na contagem online e explicam a 
     userRole: "USUARIO",
   } });
   assert.match(markup, /data-device-status-card="SENSOR"[\s\S]*?SEM STATUS[\s\S]*?Integração automática pendente/);
-  assert.match(markup, /data-device-status-card="SCANNER"[\s\S]*?SEM STATUS[\s\S]*?Integração automática pendente/);
+  assert.match(markup, /data-device-status-card="SCANNER"[\s\S]*?AGUARDANDO[\s\S]*?Sem leitura; conexão USB não verificável\./);
+  assert.match(markup, /Elgin EL8600 · USB HID/);
+  assert.match(markup, /não detecta conexão em repouso/);
   assert.match(markup, /data-device-summary="unmonitored-count">2<\/strong>/);
   assert.match(markup, /data-device-summary="online-count">0<\/strong>/);
   assert.match(markup, /data-device-status-card="CAMERA"[\s\S]*?SEM SINAL/);

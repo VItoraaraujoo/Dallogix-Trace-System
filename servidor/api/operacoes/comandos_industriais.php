@@ -13,11 +13,39 @@ if ($user["company_id"] === null) {
 session_write_close();
 
 $loadingId = filter_var($_GET["carregamento_id"] ?? null, FILTER_VALIDATE_INT);
- $equipmentId = filter_var($_GET["equipment_id"] ?? null, FILTER_VALIDATE_INT);
+$equipmentId = filter_var($_GET["equipment_id"] ?? null, FILTER_VALIDATE_INT);
 if ($equipmentId) {
-    $statement = db()->prepare("SELECT r.id, r.carregamento_id, r.command, r.status, r.requested_at, r.claimed_at, r.completed_at, r.response_message, m.number AS romaneio_number FROM solicitacoes_comandos_clp r LEFT JOIN carregamentos c ON c.id = r.carregamento_id LEFT JOIN romaneios m ON m.id = c.romaneio_id WHERE r.equipment_id = :equipment_id AND r.company_id = :company_id ORDER BY r.id DESC LIMIT 30");
-    $statement->execute(["equipment_id" => $equipmentId, "company_id" => $user["company_id"]]);
-    json_response(["data" => $statement->fetchAll()]);
+    $perPage = 30;
+    $requestedPage = filter_var($_GET["page"] ?? 1, FILTER_VALIDATE_INT);
+    $requestedPage = $requestedPage === false || $requestedPage < 1 ? 1 : (int) $requestedPage;
+    $count = db()->prepare(
+        "SELECT COUNT(*) FROM solicitacoes_comandos_clp
+         WHERE equipment_id = :equipment_id AND company_id = :company_id",
+    );
+    $count->execute(["equipment_id" => $equipmentId, "company_id" => $user["company_id"]]);
+    $total = (int) $count->fetchColumn();
+    $pages = max(1, (int) ceil($total / $perPage));
+    $page = min($requestedPage, $pages);
+    $offset = ($page - 1) * $perPage;
+    $statement = db()->prepare(
+        "SELECT r.id, r.carregamento_id, r.command, r.status, r.requested_at,
+                r.claimed_at, r.completed_at, r.response_message,
+                m.number AS romaneio_number
+         FROM solicitacoes_comandos_clp r
+         LEFT JOIN carregamentos c ON c.id = r.carregamento_id
+         LEFT JOIN romaneios m ON m.id = c.romaneio_id
+         WHERE r.equipment_id = :equipment_id AND r.company_id = :company_id
+         ORDER BY r.id DESC LIMIT :per_page OFFSET :offset",
+    );
+    $statement->bindValue(":equipment_id", (int) $equipmentId, PDO::PARAM_INT);
+    $statement->bindValue(":company_id", (int) $user["company_id"], PDO::PARAM_INT);
+    $statement->bindValue(":per_page", $perPage, PDO::PARAM_INT);
+    $statement->bindValue(":offset", $offset, PDO::PARAM_INT);
+    $statement->execute();
+    json_response([
+        "data" => $statement->fetchAll(),
+        "pagination" => ["page" => $page, "per_page" => $perPage, "total" => $total, "pages" => $pages],
+    ]);
 }
 if (!$loadingId) {
     json_response(["error" => "equipment_id ou carregamento_id é obrigatório."], 422);

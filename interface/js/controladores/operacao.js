@@ -123,10 +123,29 @@ export function updateOperationScannerFocus(root, activeElement = globalThis.doc
   status.textContent = input.disabled
     ? "Leitor indisponível enquanto a leitura estiver bloqueada."
     : ready
-      ? "Leitor pronto para receber o código."
-      : "Leitor sem foco. Toque no campo Código de barras antes de ler.";
+      ? "Elgin EL8600 pronto para leitura."
+      : "Aguardando foco do leitor USB Elgin EL8600.";
   status.classList.toggle("is-error", !ready);
   return ready;
+}
+
+export function instalarRecuperacaoFocoLeitor(root) {
+  if (!root?.addEventListener || root.dataset?.scannerFocusRecovery === "installed") return false;
+  if (root.dataset) root.dataset.scannerFocusRecovery = "installed";
+  root.addEventListener("pointerup", (event) => {
+    const target = event.target;
+    if (target?.closest?.("input, select, textarea, [contenteditable='true'], .manual-reading-keyboard-toggle, [role='dialog'], dialog, [aria-modal='true']")) return;
+    globalThis.setTimeout?.(() => {
+      if (!root.isConnected) return;
+      const input = root.querySelector?.(".manual-operation-reading-form input[name=\"barcode\"]");
+      if (!input || input.disabled) return;
+      const activeElement = globalThis.document?.activeElement;
+      if (activeElement?.closest?.("[role='dialog'], dialog, [aria-modal='true']")) return;
+      focusOperationScanner(root, activeElement);
+      updateOperationScannerFocus(root, globalThis.document?.activeElement);
+    }, 0);
+  });
+  return true;
 }
 
 export async function changeOperationLoading(store, render) {

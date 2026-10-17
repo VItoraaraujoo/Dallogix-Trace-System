@@ -44,30 +44,51 @@ test("atualização ao vivo mantém o status compacto na lista de Dalas", () => 
 
 test("cabeçalho Ações permanece centralizado sem mover os botões", () => {
   const css = readFileSync(new URL("../interface/css/dalas-screen.css", import.meta.url), "utf8");
-  assert.match(css, /\.dala-grid-cell-v2:nth-child\(7\)\s*\{\s*text-align:\s*right;/);
-  assert.match(css, /\.dala-grid-head-v2>div:nth-child\(7\)\s*\{\s*text-align:\s*center;/);
+  assert.match(css, /\.dalas-screen-v2 \.dala-grid-head-v2 > div:last-child\s*\{\s*text-align:\s*center;/);
+  assert.match(css, /\.dalas-screen-v2 \.dala-actions-v2 > \.dala-action-v2/);
 });
 
-test("diagnóstico de Dala informa que a consulta mostra até 30 comandos e não pagina", () => {
+test("diagnóstico da Dala pagina o histórico e explica a retenção", () => {
   const markup = dalaView({ state: {
     equipmentDetail: { id: 7, name: "Esteira", equipment_code: "esteira_1", plc_ip: "192.168.1.10", plc_port: 502 },
     monitoring: { maquinas: [] },
     dalaCommands: [{ id: 1, command: "ESTEIRA_LIGAR", status: "APLICADO", requested_at: "2026-10-16 10:00:00" }],
+    dalaCommandsPagination: { page: 2, per_page: 30, total: 61, pages: 3 },
   } });
-  assert.match(markup, /no máximo 30 comandos recentes/);
-  assert.match(markup, /não pagina o histórico/);
+  assert.match(markup, /rotina diária não apaga estes comandos/);
+  assert.match(markup, /zerar a empresa remove o histórico dela/);
+  assert.match(markup, /páginas de 30/);
+  assert.match(markup, /dala-command-page/);
+  assert.match(markup, /data-page="3"/);
 });
 
-test("painel técnico informa o limite e as fontes de log ausentes", () => {
+test("painel técnico informa fontes centralizadas, limites e lacunas dos logs", () => {
   const markup = errorLogs({ state: {
     errorLogs: [],
+    errorLogsPagination: { page: 1, per_page: 100, total: 0, pages: 1 },
+    errorLogRetentionDays: 365,
     technicalDiagnostics: { queue: {}, disk: {}, devices: [], commands: [] },
     deadLetters: [],
   } });
-  assert.match(markup, /no máximo 10 comandos recentes/);
-  assert.match(markup, /até 100 registros de logs_erros/);
-  assert.match(markup, /Logs brutos do PHP, Docker, Node-RED e camera-worker não são agregados/);
+  assert.match(markup, /resumo mostra os 10 mais recentes/);
+  assert.match(markup, /até 100 registros|100 registro/);
+  assert.match(markup, /falhas do navegador, exceções PHP registradas e transições OFFLINE\/ERRO dos dispositivos/);
+  assert.match(markup, /logs brutos do Docker, Nginx, MySQL/);
+  assert.match(markup, /retenção automática: 365 dias/);
   assert.match(markup, /Nenhum registro encontrado neste histórico/);
+});
+
+test("logs antigos ficam acessíveis por páginas", () => {
+  const markup = errorLogs({ state: {
+    errorLogs: [{ id: 101, origem: "frontend.aviso", mensagem: "Falha", criado_em: "2026-10-16 10:00:00" }],
+    errorLogsPagination: { page: 2, per_page: 100, total: 250, pages: 3 },
+    errorLogRetentionDays: 365,
+    technicalDiagnostics: {},
+    deadLetters: [],
+  } });
+  assert.match(markup, /error-logs-page/);
+  assert.match(markup, /250 registro\(s\) · página 2 de 3/);
+  assert.match(markup, /data-page="3"/);
 });
 
 test("o status inicial da lista não tenta exibir explicação longa", () => {

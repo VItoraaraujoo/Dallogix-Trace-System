@@ -87,6 +87,47 @@ try {
                 "equipment_code" => $equipmentMeta["equipment_code"] ?? null,
             ],
         );
+
+        if (in_array($status, ["OFFLINE", "ERRO"], true)) {
+            $deviceLabels = [
+                "CLP" => "CLP",
+                "CAMERA" => "Câmera",
+                "SENSOR" => "Sensor",
+                "SCANNER" => "Scanner",
+                "SERVER" => "Servidor",
+            ];
+            $reasonCode = is_array($payload["details"] ?? null)
+                ? preg_replace('/[^a-zA-Z0-9_.:-]/', "", (string) ($payload["details"]["reason_code"] ?? ""))
+                : "";
+            $reasonLabels = [
+                "camera_config_missing" => "configuração da câmera incompleta",
+                "stream_unavailable" => "imagem da câmera indisponível",
+            ];
+            $deviceLabel = $deviceLabels[$device["device_type"]] ?? "Dispositivo";
+            $message = $status === "ERRO"
+                ? "{$deviceLabel} reportou falha de comunicação."
+                : "{$deviceLabel} sem comunicação com a Dala.";
+            if (isset($reasonLabels[$reasonCode])) {
+                $message = $deviceLabel . ": " . $reasonLabels[$reasonCode] . ".";
+            }
+            $context = json_encode([
+                "device_type" => $device["device_type"],
+                "device_id" => $device["id"],
+                "equipment_id" => $device["equipment_id"],
+                "previous_status" => $previous["status"] ?? null,
+                "status" => $status,
+                "reason_code" => $reasonCode !== "" ? $reasonCode : null,
+            ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+            $errorLog = $pdo->prepare(
+                "INSERT INTO logs_erros (company_id, user_id, origem, mensagem, contexto)
+                 VALUES (:company_id, NULL, 'heartbeat.dispositivo', :mensagem, :contexto)",
+            );
+            $errorLog->execute([
+                "company_id" => $device["company_id"],
+                "mensagem" => $message,
+                "contexto" => $context,
+            ]);
+        }
     }
     $pdo->commit();
 } catch (Throwable $exception) {

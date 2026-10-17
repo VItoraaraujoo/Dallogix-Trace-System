@@ -640,3 +640,8 @@ body .dalas-screen-v2 .dala-action-v2 {
     animation: none;
   }
 }
+
+/* As regras de alinhamento em breakpoints antigos não devem mover o título. */
+.dalas-screen-v2 .dala-grid-head-v2 > div:last-child {
+  text-align: center;
+}

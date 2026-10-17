@@ -2,7 +2,7 @@ import { button, esc } from "../../js/funcoes/html.js";
 
 const DEVICE_TYPES = [
   ["SENSOR", "Sensor", "Detecção de sacos"],
-  ["SCANNER", "Scanner", "Leitura de código"],
+  ["SCANNER", "Scanner", "Elgin EL8600 · USB HID"],
   ["CLP", "CLP", "Controle da esteira"],
   ["CAMERA", "Câmera", "Registro visual"],
   ["SERVER", "Servidor", "API desta instalação"],
@@ -10,8 +10,17 @@ const DEVICE_TYPES = [
 
 export function apresentacaoStatusDispositivo(value, type = "") {
   const normalized = String(value || "NAO_REGISTRADO").trim().toUpperCase();
-  const unmonitored = normalized === "NAO_REGISTRADO" &&
-    ["SENSOR", "SCANNER"].includes(String(type).toUpperCase());
+  const deviceType = String(type).toUpperCase();
+  if (normalized === "NAO_REGISTRADO" && deviceType === "SCANNER") {
+    return {
+      monitored: false,
+      online: false,
+      tone: "unknown",
+      label: "AGUARDANDO",
+      detail: "Sem leitura; conexão USB não verificável.",
+    };
+  }
+  const unmonitored = normalized === "NAO_REGISTRADO" && deviceType === "SENSOR";
   if (unmonitored) {
     return {
       monitored: false,
@@ -104,7 +113,7 @@ function deviceStatusPanel(store) {
     <div class="settings-device-status-heading"><div><span class="kicker">Status da máquina</span><h3>Dispositivos e serviços</h3><p>Atualização automática enquanto esta tela estiver aberta.</p></div></div>
     <div class="settings-device-status-summary"><div><strong data-device-summary="online-count">${onlineCount}</strong><span>online</span></div><div><strong data-device-summary="attention-count">${attentionCount}</strong><span data-device-summary="attention-label">sem sinal ou com falha</span></div><div><strong data-device-summary="unmonitored-count">${unmonitoredCount}</strong><span>sem status automático</span></div></div>
     <div class="settings-device-status-grid">${cards}</div>
-    <p class="settings-device-status-note">Sensor e Scanner ainda não enviam status automático ao Trace. Os estados exibidos são informativos e não alteram os comandos da Dala.</p>
+    <p class="settings-device-status-note">O Elgin EL8600 funciona como teclado USB HID: o Trace só confirma atividade quando recebe uma leitura; não detecta conexão em repouso. O sensor de passagem continua sem validação nesta bancada. Esses estados não alteram os comandos da Dala.</p>
   </section><br>`;
 }
 
