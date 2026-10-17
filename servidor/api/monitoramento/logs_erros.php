@@ -28,7 +28,7 @@ if ($method === "POST") {
     $message = preg_replace('/Bearer\s+[^\s,;]+/i', "Bearer [omitido]", $message) ?: $message;
     $message = preg_replace('/([?&](?:token|senha|password|secret|authorization|csrf)=)[^&\s]+/i', '$1[omitido]', $message) ?: $message;
     $message = preg_replace('#(https?://)[^/@\s]+@#i', '$1[credenciais]@', $message) ?: $message;
-    $message = mb_substr($message !== "" ? $message : "Falha reportada no navegador.", 0, 1000);
+    $message = mb_substr($message, 0, 1000);
     $context = json_encode([
         "nivel" => $level,
         "contexto" => mb_substr($sourceContext, 0, 100),
