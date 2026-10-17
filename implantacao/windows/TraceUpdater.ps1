@@ -131,7 +131,9 @@ function Schedule-TraceDesktopRestart {
     $action = New-ScheduledTaskAction -Execute $desktop -WorkingDirectory $InstallRoot
     $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddSeconds(15)
     $principal = New-ScheduledTaskPrincipal -UserId $desktopUser -LogonType Interactive -RunLevel Limited
-    $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
+    # O executavel e a interface do quiosque permanecem ativos. Limite zero
+    # evita que o Agendador encerre a tela cinco minutos apos uma atualizacao.
+    $settings = New-ScheduledTaskSettingsSet -ExecutionTimeLimit (New-TimeSpan -Seconds 0)
     Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal -Settings $settings -Force | Out-Null
     Start-ScheduledTask -TaskName $taskName
     $script:desktopRestartScheduled = $true

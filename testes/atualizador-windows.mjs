@@ -97,6 +97,7 @@ test("atualizador reinicia o quiosque na conta dona do processo mesmo em sessão
   assert.match(updaterScript, /\$uniqueDesktopUsers\.Count -ne 1/);
   assert.match(updaterScript, /\$script:desktopUser = \$uniqueDesktopUsers\[0\]/);
   assert.match(updaterScript, /New-ScheduledTaskPrincipal -UserId \$desktopUser -LogonType Interactive/);
+  assert.match(updaterScript, /New-ScheduledTaskSettingsSet -ExecutionTimeLimit \(New-TimeSpan -Seconds 0\)/);
   assert.doesNotMatch(updaterScript, /Get-CimInstance Win32_ComputerSystem[^\n]*UserName/);
 });
 
