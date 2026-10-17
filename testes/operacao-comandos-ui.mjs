@@ -10,7 +10,7 @@ import {
   work,
 } from "../interface/telas/operacao/operacao.js";
 import { resolverComandoAtual } from "../interface/js/funcoes/estado-comando.js";
-import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, changeOperationLoading, operationStructureSignature } from "../interface/js/controladores/operacao.js";
+import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, instalarRecuperacaoFocoLeitor, changeOperationLoading, operationStructureSignature } from "../interface/js/controladores/operacao.js";
 import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js";
 
 test("somente administrador da empresa e supervisor recebem a ação de vincular Dala", () => {
@@ -100,13 +100,51 @@ test("indicador do scanner distingue foco, perda de foco e bloqueio", () => {
     querySelector: (selector) => selector === "[data-scanner-focus]" ? status : input,
   };
   assert.equal(updateOperationScannerFocus(root, input), true);
-  assert.match(status.textContent, /Leitor pronto/);
+  assert.match(status.textContent, /Elgin EL8600 pronto/);
   assert.equal(status.classList["is-error"], false);
   assert.equal(updateOperationScannerFocus(root, {}), false);
-  assert.match(status.textContent, /Leitor sem foco/);
+  assert.match(status.textContent, /Aguardando foco do leitor USB Elgin EL8600/);
   input.disabled = true;
   assert.equal(updateOperationScannerFocus(root, input), false);
   assert.match(status.textContent, /Leitor indisponível/);
+});
+
+test("leitor Elgin recupera o foco depois de toques fora de campos e respeita campos editáveis", () => {
+  const originalDocument = globalThis.document;
+  const originalSetTimeout = globalThis.setTimeout;
+  let activeElement = { matches: () => false, closest: () => null };
+  let pointerUp;
+  let focusCalls = 0;
+  const status = { textContent: "", classList: { toggle() {} } };
+  const input = {
+    disabled: false,
+    matches: (selector) => selector.includes("manual-operation-reading-form"),
+    focus() { focusCalls += 1; activeElement = this; },
+  };
+  const root = {
+    dataset: {},
+    isConnected: true,
+    addEventListener: (eventName, callback) => { if (eventName === "pointerup") pointerUp = callback; },
+    querySelector: (selector) => selector === "[data-scanner-focus]" ? status : input,
+  };
+  globalThis.document = { get activeElement() { return activeElement; } };
+  globalThis.setTimeout = (callback) => { callback(); return 1; };
+  try {
+    assert.equal(instalarRecuperacaoFocoLeitor(root), true);
+    assert.equal(instalarRecuperacaoFocoLeitor(root), false);
+    pointerUp({ target: { closest: () => null } });
+    assert.equal(focusCalls, 1);
+    assert.match(status.textContent, /Elgin EL8600 pronto/);
+    pointerUp({ target: { closest: (selector) => selector.includes("manual-reading-keyboard-toggle") ? {} : null } });
+    assert.equal(focusCalls, 1, "o botão do teclado virtual não deve devolver o foco ao leitor");
+    activeElement = { matches: () => true, closest: () => null };
+    pointerUp({ target: { closest: () => ({}) } });
+    assert.equal(focusCalls, 1);
+  } finally {
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
+    globalThis.setTimeout = originalSetTimeout;
+  }
 });
 
 test("a leitura principal oferece entrada pelo teclado touch sem perder o leitor", () => {
@@ -229,7 +267,8 @@ test("comandos permanecem visíveis e direção fica bloqueada em emergência ou
     assert.match(markup, /data-action="reverse-on"[^>]*disabled/);
     assert.match(markup, /data-action="emergency"(?![^>]*disabled)/);
     assert.doesNotMatch(markup, /Última comunicação/);
-    assert.doesNotMatch(markup, /Sensor|Scanner|Câmera|Servidor/);
+    assert.match(markup, /Scanner USB · Elgin EL8600/);
+    assert.doesNotMatch(markup, /Sensor|Câmera|Servidor/);
   }
 });
 

@@ -2,6 +2,7 @@ const LIMITE_REGISTROS = 100;
 const INTERVALOS_SUPRESSAO = { aviso: 15000, erro: 5000, info: 0 };
 const registros = [];
 const ultimosRegistros = new Map();
+let transporteRemoto = null;
 
 const CHAVES_SENSIVEIS = /token|senha|password|authorization|cookie|secret|credential|csrf/i;
 
@@ -20,15 +21,35 @@ function valorSeguro(valor, vistos = new WeakSet()) {
   );
 }
 
+function mensagemSegura(valor) {
+  return String(valor || "")
+    .replace(/Bearer\s+[^\s,;]+/gi, "Bearer [omitido]")
+    .replace(/([?&](?:token|senha|password|secret|authorization|csrf)=)[^&\s]+/gi, "$1[omitido]")
+    .replace(/(https?:\/\/)[^/@\s]+@/gi, "$1[credenciais]@");
+}
+
 function erroSeguro(erro) {
   if (!erro) return null;
-  if (typeof erro === "string") return { mensagem: erro };
+  if (typeof erro === "string") return { mensagem: mensagemSegura(erro) };
   return {
     nome: String(erro.name || "Erro"),
-    mensagem: String(erro.message || erro),
+    mensagem: mensagemSegura(erro.message || erro),
     ...(erro.code ? { codigo: String(erro.code) } : {}),
     ...(Number.isFinite(Number(erro.status)) ? { status: Number(erro.status) } : {}),
   };
+}
+
+export function configurarTransporteLogs(transporte) {
+  transporteRemoto = typeof transporte === "function" ? transporte : null;
+}
+
+function enviarLogRemoto(registro) {
+  if (!transporteRemoto || registro.nivel === "info") return;
+  Promise.resolve()
+    .then(() => transporteRemoto(registro))
+    .catch((error) => {
+      globalThis.console?.warn?.("[Trace] Não foi possível persistir o log do navegador.", error);
+    });
 }
 
 /** Registra falhas técnicas sem guardar credenciais ou payloads sensíveis. */
@@ -52,6 +73,7 @@ export function registrarLogFrontend(nivel, contexto, erro = null, detalhes = {}
 
   const metodo = globalThis.console?.[tipo === "aviso" ? "warn" : tipo] || globalThis.console?.log;
   metodo?.call(globalThis.console, `[Trace] ${registro.contexto}`, registro);
+  enviarLogRemoto(registro);
   return registro;
 }
 

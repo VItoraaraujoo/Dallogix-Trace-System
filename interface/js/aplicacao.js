@@ -5,9 +5,9 @@ import { ClienteApi } from "./api/ClienteApi.js?v=202610140003";
 import { confirmarAcao, limparNotificacao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610160002";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610160004";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610160005";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
-import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio, operationStructureSignature } from "./controladores/operacao.js?v=202610160004";
+import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, instalarRecuperacaoFocoLeitor, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio, operationStructureSignature } from "./controladores/operacao.js?v=202610160005";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610140001";
 import { createPageRefreshController } from "./controladores/page-refresh.js?v=202610130001";
 import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
@@ -22,13 +22,13 @@ import {
   renderStatusDalaBinario,
   resumoStatusDispositivos,
   settings,
-} from "../telas/configuracoes/configuracoes.js?v=202610160002";
-import { dalas } from "../telas/dalas/dalas.js?v=202610160004";
+} from "../telas/configuracoes/configuracoes.js?v=202610160005";
+import { dalas } from "../telas/dalas/dalas.js?v=202610160005";
 import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
-import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610160004";
+import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610160005";
 import { company } from "../telas/empresa/empresa.js?v=202610130001";
 import { companies } from "../telas/empresas/empresas.js?v=202610130001";
-import { errorLogs } from "../telas/logs-erros/logs-erros.js?v=202610160004";
+import { errorLogs } from "../telas/logs-erros/logs-erros.js?v=202610160005";
 import { masterHome } from "../telas/painel-dallogix/painel-dallogix.js?v=202610080002";
 import { alerts } from "../telas/alertas/alertas.js?v=202610130001";
 import { emergency } from "../telas/emergencia/emergencia.js?v=202610130001";
@@ -40,12 +40,12 @@ import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=
 import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610010001";
 import { manifests } from "../telas/romaneios/romaneios.js?v=202610130006";
 import { manifestView } from "../telas/romaneio/romaneio.js?v=202610130006";
-import { alternarTecladoLeituraManual, work } from "../telas/operacao/operacao.js?v=202610160002";
+import { alternarTecladoLeituraManual, work } from "../telas/operacao/operacao.js?v=202610160005";
 import { dashboard } from "../telas/painel/painel.js?v=202610130001";
 import { users } from "../telas/usuarios/usuarios.js?v=202610130001";
 import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
 import { validarCadastroRomaneio } from "./funcoes/romaneio.js?v=202610130005";
-import { logFrontend } from "./utilitarios/LogFrontend.js?v=202610060006";
+import { logFrontend, configurarTransporteLogs } from "./utilitarios/LogFrontend.js?v=202610160005";
 import { estadoErro } from "./componentes/estados.js?v=202610060002";
 import {
   LEGACY_PAGE_IDS,
@@ -422,7 +422,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610160002").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610160003").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;
@@ -469,9 +469,9 @@ const SCREEN_STYLES = {
   work: "/telas/operacao/operacao.css?v=202610140001",
   import: "/telas/importar-romaneio/importar-romaneio.css?v=202610071845",
   settings: "/telas/configuracoes/configuracoes.css?v=202610160001",
-  dalas: "/telas/dalas/dalas.css?v=202610160004",
-  dala: "/telas/dalas/dalas.css?v=202610160004",
-  "dala-edit": "/telas/dalas/dalas.css?v=202610160004",
+  dalas: "/telas/dalas/dalas.css?v=202610160005",
+  dala: "/telas/dalas/dalas.css?v=202610160005",
+  "dala-edit": "/telas/dalas/dalas.css?v=202610160005",
   company: "/telas/empresa/empresa.css?v=202610020006",
 };
 
@@ -649,7 +649,10 @@ function renderScreen() {
   screenRoot.innerHTML = screens[currentPage](store);
   if (scannerSnapshot) restoreOperationScanner(screenRoot, scannerSnapshot);
   else if (currentPage === "work") focusOperationScanner(screenRoot);
-  if (currentPage === "work") updateOperationScannerFocus(screenRoot);
+  if (currentPage === "work") {
+    instalarRecuperacaoFocoLeitor(screenRoot);
+    updateOperationScannerFocus(screenRoot);
+  }
   bindActions();
   bindForms();
   installRelativeTimeRefresh();
@@ -1686,9 +1689,27 @@ function bindActions() {
         }
         return;
       }
+      if (action === "dala-command-page") {
+        try {
+          await store.loadDalaCommandHistory(node.dataset.id, node.dataset.page);
+          render();
+        } catch (error) {
+          notificar(error.message);
+        }
+        return;
+      }
+      if (action === "error-logs-page") {
+        try {
+          await store.loadErrorLogs(node.dataset.page);
+          render();
+        } catch (error) {
+          notificar(error.message);
+        }
+        return;
+      }
       if (action === "reload-error-logs") {
         try {
-          await Promise.all([store.loadErrorLogs(), store.loadTechnicalDiagnostics(), store.loadDeadLetters()]);
+          await Promise.all([store.loadErrorLogs(1), store.loadTechnicalDiagnostics(), store.loadDeadLetters()]);
           render();
         } catch (error) {
           notificar(error.message);
@@ -1907,6 +1928,7 @@ function bindLoginForm() {
       authenticatedUser = result.user;
       store.setUser(authenticatedUser);
       store.setCsrfToken(result.csrf_token);
+      configurarTransporteLogs((registro) => store.persistFrontendLog(registro));
       window.location.replace(pagePath(defaultPage()));
     } catch (error) {
       logFrontend.aviso("login.conexao", error);
@@ -2780,6 +2802,7 @@ async function bootstrap() {
   authenticatedUser = result.user;
   store.setUser(authenticatedUser);
   store.setCsrfToken(result.csrf_token);
+  configurarTransporteLogs((registro) => store.persistFrontendLog(registro));
   const requestedPage = resolveAuthorizedPage(currentPage, defaultPage());
   if (requestedPage !== currentPage) {
     currentPage = requestedPage;

@@ -4,7 +4,9 @@ Esta pasta descreve o contrato entre o PC industrial, o scanner Elgin EL8600 e o
 
 ## Responsabilidades
 
-- O scanner USB funciona como teclado HID e digita no campo de leitura focado da tela de Operação.
+- O único modelo previsto para produção é o Elgin EL8600 por USB HID (teclado). A tela de Operação recupera o foco do campo de leitura depois de toques fora de campos e quando a janela volta ao primeiro plano.
+- Configure o scanner para enviar Enter ao final do código. O navegador recebe as teclas como um teclado comum; por isso, o Trace confirma uma leitura recebida, mas não consegue verificar a conexão USB enquanto o leitor está ocioso.
+- O leitor USB genérico usado para testes de leitura não substitui a homologação do Elgin EL8600 no PC industrial.
 - Cada leitura é enviada pelo formulário da tela; ainda falta associá-la ao evento de passagem do sensor do CLP.
 - O sinal `sack_sensor` do CLP deve abrir a janela para associar a leitura ao saco; o fluxo Node-RED publicado ainda não emite esse evento.
 - Código válido ou incorreto é enviado para `/api/leituras.php`.

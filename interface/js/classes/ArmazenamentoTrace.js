@@ -68,8 +68,14 @@ export class ArmazenamentoTrace {
       companyActivation: null,
       localActivation: null,
       dalaCommands: [],
+      dalaCommandsPagination: { page: 1, per_page: 30, total: 0, pages: 1 },
+      dalaCommandHistoryEquipmentId: null,
+      dalaCommandHistoryRequestedPage: 1,
       dalaActionConfig: { acoes: [], gatilhos: [], can_manage: false },
       errorLogs: [],
+      errorLogsPagination: { page: 1, per_page: 100, total: 0, pages: 1 },
+      errorLogsRequestedPage: 1,
+      errorLogRetentionDays: 365,
       technicalDiagnostics: null,
       deadLetters: [],
       plcCommand: null,
@@ -100,6 +106,10 @@ export class ArmazenamentoTrace {
     this.activeLoadingRefresh = Promise.resolve();
     this.commandStatusRefresh = Promise.resolve();
     this.pendingReadingsRequestId = 0;
+    this.dalaCommandHistoryRequestId = 0;
+    this.dalaCommandHistoryPending = null;
+    this.errorLogsRequestId = 0;
+    this.errorLogsPending = null;
   }
   navigate(page) {
     this.state.page = page;
@@ -339,11 +349,42 @@ export class ArmazenamentoTrace {
     this.state.dalaStatuses = Array.isArray(result.data) ? result.data : [];
     return this.state.dalaStatuses;
   }
-  async loadDalaCommandHistory(id) {
-    const response = await this.api.fetch(`/api/comandos_industriais.php?equipment_id=${encodeURIComponent(id)}`);
-    const result = await this.jsonResponse(response, "Não foi possível carregar o diagnóstico do CLP.");
-    this.state.dalaCommands = Array.isArray(result.data) ? result.data : [];
-    return this.state.dalaCommands;
+  async loadDalaCommandHistory(id, page = null) {
+    const equipmentKey = String(id);
+    const currentPage = this.state.dalaCommandHistoryEquipmentId === equipmentKey
+      ? this.state.dalaCommandHistoryRequestedPage || this.state.dalaCommandsPagination?.page || 1
+      : 1;
+    const normalizedPage = Math.max(1, Number.parseInt(page ?? currentPage, 10) || 1);
+    if (this.dalaCommandHistoryPending?.equipmentKey === equipmentKey && this.dalaCommandHistoryPending.page === normalizedPage) {
+      return this.dalaCommandHistoryPending.promise;
+    }
+    const previousEquipmentId = this.state.dalaCommandHistoryEquipmentId;
+    const requestId = ++this.dalaCommandHistoryRequestId;
+    this.state.dalaCommandHistoryEquipmentId = equipmentKey;
+    this.state.dalaCommandHistoryRequestedPage = normalizedPage;
+    const promise = Promise.resolve().then(async () => {
+      try {
+        const response = await this.api.fetch(`/api/comandos_industriais.php?equipment_id=${encodeURIComponent(id)}&page=${normalizedPage}`);
+        const result = await this.jsonResponse(response, "Não foi possível carregar o diagnóstico do CLP.");
+        if (requestId !== this.dalaCommandHistoryRequestId) return this.state.dalaCommands;
+        this.state.dalaCommands = Array.isArray(result.data) ? result.data : [];
+        this.state.dalaCommandsPagination = result.pagination || { page: normalizedPage, per_page: 30, total: this.state.dalaCommands.length, pages: 1 };
+        this.state.dalaCommandHistoryRequestedPage = this.state.dalaCommandsPagination.page;
+        return this.state.dalaCommands;
+      } catch (error) {
+        if (requestId === this.dalaCommandHistoryRequestId) {
+          this.state.dalaCommandHistoryEquipmentId = previousEquipmentId;
+          this.state.dalaCommandHistoryRequestedPage = previousEquipmentId === equipmentKey
+            ? this.state.dalaCommandsPagination?.page || 1
+            : 1;
+        }
+        throw error;
+      } finally {
+        if (this.dalaCommandHistoryPending?.requestId === requestId) this.dalaCommandHistoryPending = null;
+      }
+    });
+    this.dalaCommandHistoryPending = { equipmentKey, page: normalizedPage, requestId, promise };
+    return promise;
   }
   async loadDalaActionConfig(id) {
     const response = await this.api.fetch(`/api/acoes_dala.php?equipment_id=${encodeURIComponent(id)}`);
@@ -382,11 +423,47 @@ export class ArmazenamentoTrace {
     const result = await this.jsonResponse(response, "Não foi possível salvar o gatilho.");
     return this.loadDalaActionConfig(equipmentId);
   }
-  async loadErrorLogs() {
-    const response = await this.api.fetch("/api/logs_erros.php");
-    const result = await this.jsonResponse(response, "Não foi possível carregar os logs de erro.");
-    this.state.errorLogs = result.data || [];
-    return this.state.errorLogs;
+  async loadErrorLogs(page = null) {
+    const currentPage = page ?? this.state.errorLogsRequestedPage ?? this.state.errorLogsPagination?.page ?? 1;
+    const normalizedRequestedPage = Math.max(1, Number.parseInt(currentPage, 10) || 1);
+    if (this.errorLogsPending?.page === normalizedRequestedPage) return this.errorLogsPending.promise;
+    const requestId = ++this.errorLogsRequestId;
+    this.state.errorLogsRequestedPage = normalizedRequestedPage;
+    const promise = Promise.resolve().then(async () => {
+      try {
+        const response = await this.api.fetch(`/api/logs_erros.php?page=${normalizedRequestedPage}`);
+        const result = await this.jsonResponse(response, "Não foi possível carregar os logs de erro.");
+        if (requestId !== this.errorLogsRequestId) return this.state.errorLogs;
+        this.state.errorLogs = result.data || [];
+        this.state.errorLogsPagination = result.pagination || { page: normalizedRequestedPage, per_page: 100, total: this.state.errorLogs.length, pages: 1 };
+        this.state.errorLogsRequestedPage = this.state.errorLogsPagination.page;
+        this.state.errorLogRetentionDays = Number.isInteger(Number(result.retention_days))
+          ? Math.max(0, Number(result.retention_days))
+          : 365;
+        return this.state.errorLogs;
+      } catch (error) {
+        if (requestId === this.errorLogsRequestId) {
+          this.state.errorLogsRequestedPage = this.state.errorLogsPagination?.page || 1;
+        }
+        throw error;
+      } finally {
+        if (this.errorLogsPending?.requestId === requestId) this.errorLogsPending = null;
+      }
+    });
+    this.errorLogsPending = { page: normalizedRequestedPage, requestId, promise };
+    return promise;
+  }
+  async persistFrontendLog(record) {
+    const response = await this.api.fetch("/api/logs_erros.php", {
+      method: "POST",
+      headers: this.jsonHeaders(),
+      body: JSON.stringify(record),
+    });
+    if (!response.ok) {
+      const error = await erroRespostaHttp(response, "Não foi possível persistir o log do navegador.");
+      throw error || new Error("Não foi possível persistir o log do navegador.");
+    }
+    return response;
   }
   async loadTechnicalDiagnostics() {
     const response = await this.api.fetch("/api/diagnostico.php");
