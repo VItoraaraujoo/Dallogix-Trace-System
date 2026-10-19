@@ -450,7 +450,7 @@ if (
         $cameraRequestId,
         ["sensor_event_id" => $sensorEventId, "reason" => $result],
     );
-    $cameraStatus = $sensorEventId ? "CAPTURA_PENDENTE_INCIDENTE" : "NAO_SOLICITADA";
+    $cameraStatus = "CAPTURA_PENDENTE_INCIDENTE";
 }
 $loadStatus = "EM_ANDAMENTO";
 if (
