@@ -85,7 +85,6 @@ function api_v1_normalizar_payload_romaneio(array $payload, bool $permitirDataPa
     }
 
     $normalizedItems = [];
-    $uniqueItems = [];
     foreach ($items as $index => $item) {
         if (!is_array($item) || array_is_list($item)) {
             throw new ApiV1PayloadException("O item " . ($index + 1) . " deve ser um objeto.");
@@ -120,19 +119,13 @@ function api_v1_normalizar_payload_romaneio(array $payload, bool $permitirDataPa
             if ($productId === false) {
                 throw new ApiV1PayloadException("product_id do item " . ($index + 1) . " deve ser um inteiro positivo.");
             }
-            $uniqueKey = "id:" . $productId;
         } else {
             $productCode = is_string($item["product_code"]) ? trim($item["product_code"]) : "";
             if ($productCode === "" || mb_strlen($productCode, "UTF-8") > 80
                 || preg_match('/[\x00-\x1F\x7F]/u', $productCode) === 1) {
                 throw new ApiV1PayloadException("product_code do item " . ($index + 1) . " é inválido.");
             }
-            $uniqueKey = "code:" . mb_strtolower($productCode, "UTF-8");
         }
-        if (isset($uniqueItems[$uniqueKey])) {
-            throw new ApiV1PayloadException("O romaneio contém produto duplicado.");
-        }
-        $uniqueItems[$uniqueKey] = true;
         $normalizedItems[] = [
             "product_id" => $productId,
             "product_code" => $productCode,
@@ -250,7 +243,7 @@ function api_v1_criar_romaneio(PDO $pdo, array $client): never
         $productByCode = $pdo->prepare(
             "SELECT id, code, name FROM produtos WHERE company_id = :company_id AND code = :code AND active = 1 LIMIT 1",
         );
-        $resolvedByProduct = [];
+        $resolvedItems = [];
         foreach ($payload["items"] as $item) {
             if ($item["product_id"] !== null) {
                 $productById->execute(["id" => $item["product_id"], "company_id" => $client["company_id"]]);
@@ -262,12 +255,7 @@ function api_v1_criar_romaneio(PDO $pdo, array $client): never
                 $pdo->rollBack();
                 api_v1_responder_erro("product_not_found", "Produto inexistente, inativo ou fora da empresa da chave.", 422);
             }
-            $productId = (int) $product["id"];
-            if (isset($resolvedByProduct[$productId])) {
-                $pdo->rollBack();
-                api_v1_responder_erro("duplicate_product", "O romaneio contém produto duplicado.", 422);
-            }
-            $resolvedByProduct[$productId] = ["product_id" => $productId, "quantity" => $item["quantity"]];
+            $resolvedItems[] = ["product_id" => (int) $product["id"], "quantity" => $item["quantity"]];
         }
 
         $romaneio = $pdo->prepare(
@@ -299,7 +287,7 @@ function api_v1_criar_romaneio(PDO $pdo, array $client): never
             "INSERT INTO romaneio_itens (company_id, romaneio_id, product_id, truck_id, planned_quantity)
              VALUES (:company_id, :romaneio_id, :product_id, :truck_id, :planned_quantity)",
         );
-        foreach (array_values($resolvedByProduct) as $item) {
+        foreach ($resolvedItems as $item) {
             $romaneioItem->execute([
                 "company_id" => (int) $client["company_id"],
                 "romaneio_id" => $romaneioId,
@@ -312,7 +300,7 @@ function api_v1_criar_romaneio(PDO $pdo, array $client): never
         $metadata = json_encode([
             "integration_id" => $client["id"],
             "request_id" => trace_correlation_id(),
-            "items" => count($resolvedByProduct),
+            "items" => count($resolvedItems),
             "truck_id" => $truckId,
             "installation_id" => $installationId,
             "equipment_code" => $payload["equipment_code"],

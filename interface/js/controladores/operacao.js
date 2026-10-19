@@ -1,5 +1,5 @@
 import { esc } from "../funcoes/html.js";
-import { produtosDisponiveisParaRomaneio } from "../funcoes/romaneio.js?v=202610020002";
+import { produtosDisponiveisParaRomaneio } from "../funcoes/romaneio.js?v=202610190001";
 import { renderStatusDala } from "../funcoes/status-dala.js?v=202610160004";
 
 export function operationStructureSignature(state, clpAvailable) {

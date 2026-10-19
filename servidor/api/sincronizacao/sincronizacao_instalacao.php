@@ -270,15 +270,14 @@ $availableTruckIds = array_keys($availableManifestTruckIds);
 if ($availableTruckIds !== []) {
     $placeholders = implode(",", array_fill(0, count($availableTruckIds), "?"));
     $availableItems = $pdo->prepare(
-        "SELECT ri.romaneio_id, ri.truck_id, p.code, p.name, SUM(ri.planned_quantity) AS planned_quantity
+        "SELECT ri.romaneio_id, ri.truck_id, p.code, p.name, ri.planned_quantity
          FROM romaneio_itens ri
          JOIN produtos p ON p.id = ri.product_id
          WHERE ri.truck_id IN ({$placeholders})
             OR (ri.truck_id IS NULL AND ri.romaneio_id IN (
                 SELECT t.romaneio_id FROM romaneio_caminhoes t WHERE t.id IN ({$placeholders})
             ))
-         GROUP BY ri.truck_id, ri.romaneio_id, p.code, p.name
-         ORDER BY ri.romaneio_id, ri.truck_id, p.code",
+         ORDER BY ri.romaneio_id, ri.truck_id, ri.id",
     );
     $availableItems->execute([...$availableTruckIds, ...$availableTruckIds]);
     foreach ($availableItems->fetchAll() as $item) {

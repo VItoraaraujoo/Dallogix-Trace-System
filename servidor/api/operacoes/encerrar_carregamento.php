@@ -61,10 +61,11 @@ if ((int) $pending->fetchColumn() > 0) {
         409,
     );
 }
-$divergences = $pdo->prepare("SELECT ri.product_id, ri.planned_quantity,
+$divergences = $pdo->prepare("SELECT ri.product_id, SUM(ri.planned_quantity) AS planned_quantity,
     COALESCE((SELECT COUNT(*) FROM leituras l WHERE l.carregamento_id = :loading_id AND l.product_id = ri.product_id AND l.result = 'VALIDO'), 0) AS moved_quantity,
     p.name FROM romaneio_itens ri JOIN produtos p ON p.id = ri.product_id
-    WHERE ri.romaneio_id = :romaneio_id AND (ri.truck_id = :truck_id OR ri.truck_id IS NULL)");
+    WHERE ri.romaneio_id = :romaneio_id AND (ri.truck_id = :truck_id OR ri.truck_id IS NULL)
+    GROUP BY ri.product_id, p.name");
 $divergences->execute([
     "loading_id" => $loadingId,
     "romaneio_id" => $loading["romaneio_id"],

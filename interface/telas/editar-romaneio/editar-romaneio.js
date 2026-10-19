@@ -9,7 +9,7 @@ import {
   statuses,
 } from "../../js/funcoes/view.js?v=202610061745";
 
-import { itemRow, industrialPcDate } from "../../js/funcoes/romaneio.js?v=202610020002";
+import { itemRow, industrialPcDate } from "../../js/funcoes/romaneio.js?v=202610190001";
 export function manifestEdit(store) {
   const manifest = store.state.manifestDetail;
   if (!manifest) return `${pageHeader("Operação / romaneios", "Editar romaneio", "Carregando…")}`;
