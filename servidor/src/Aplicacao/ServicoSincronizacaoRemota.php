@@ -1065,10 +1065,7 @@ final class ServicoSincronizacaoRemota
             if ($code === "") {
                 continue;
             }
-            // Um snapshot remoto representa cada produto uma única vez. Se
-            // uma versão antiga já enviou a mesma linha duas vezes, a primeira
-            // ocorrência continua sendo a quantidade original do romaneio.
-            $itemsByCode[$code] ??= $item;
+            $itemsByCode[mb_strtolower($code, "UTF-8")][] = $item;
         }
 
         $product = $this->connection->prepare(
@@ -1078,8 +1075,7 @@ final class ServicoSincronizacaoRemota
             "SELECT id, truck_id FROM romaneio_itens
              WHERE romaneio_id = :romaneio_id AND product_id = :product_id
                AND (truck_id = :truck_id_match OR truck_id IS NULL)
-             ORDER BY CASE WHEN truck_id = :truck_id_order THEN 0 ELSE 1 END, id
-             LIMIT 50",
+             ORDER BY CASE WHEN truck_id = :truck_id_order THEN 0 ELSE 1 END, id",
         );
         $update = $this->connection->prepare(
             "UPDATE romaneio_itens SET truck_id = :truck_id, planned_quantity = :quantity
@@ -1094,8 +1090,11 @@ final class ServicoSincronizacaoRemota
              VALUES (:company_id, :romaneio_id, :product_id, :truck_id, :quantity)",
         );
 
-        foreach ($itemsByCode as $item) {
-            $code = trim((string) ($item["code"] ?? ""));
+        foreach ($itemsByCode as $codeItems) {
+            $code = trim((string) ($codeItems[0]["code"] ?? ""));
+            if ($code === "") {
+                continue;
+            }
             $product->execute(["company_id" => $companyId, "code" => $code]);
             $productId = (int) ($product->fetchColumn() ?: 0);
             if (!$productId) {
@@ -1105,7 +1104,7 @@ final class ServicoSincronizacaoRemota
                 $insertProduct->execute([
                     "company_id" => $companyId,
                     "code" => $code,
-                    "name" => trim((string) ($item["name"] ?? $code)),
+                    "name" => trim((string) ($codeItems[0]["name"] ?? $code)),
                 ]);
                 $productId = (int) $this->connection->lastInsertId();
             }
@@ -1116,36 +1115,29 @@ final class ServicoSincronizacaoRemota
                 "truck_id_order" => $truckId > 0 ? $truckId : 0,
             ]);
             $existingRows = $existing->fetchAll();
-            if ($existingRows !== []) {
-                $itemId = (int) $existingRows[0]["id"];
-                $preferredTruckFound = $truckId > 0
-                    && (int) ($existingRows[0]["truck_id"] ?? 0) === $truckId;
-                // Remove somente as linhas concorrentes do mesmo caminhão ou
-                // sem caminhão. Linhas do mesmo produto em outro caminhão são
-                // preservadas para não quebrar uma divisão legítima de carga.
-                foreach (array_slice($existingRows, 1) as $duplicate) {
-                    $duplicateTruckId = $duplicate["truck_id"] === null
-                        ? null : (int) $duplicate["truck_id"];
-                    if ($preferredTruckFound || $duplicateTruckId === null) {
-                        $deleteDuplicate->execute([
-                            "id" => (int) $duplicate["id"],
-                            "romaneio_id" => $romaneioId,
-                        ]);
-                    }
+            foreach ($codeItems as $index => $item) {
+                $quantity = max(1, (int) ($item["planned_quantity"] ?? 1));
+                if (isset($existingRows[$index])) {
+                    $update->execute([
+                        "truck_id" => $truckId > 0 ? $truckId : null,
+                        "quantity" => $quantity,
+                        "id" => (int) $existingRows[$index]["id"],
+                        "romaneio_id" => $romaneioId,
+                    ]);
+                } else {
+                    $insert->execute([
+                        "company_id" => $companyId,
+                        "romaneio_id" => $romaneioId,
+                        "product_id" => $productId,
+                        "truck_id" => $truckId > 0 ? $truckId : null,
+                        "quantity" => $quantity,
+                    ]);
                 }
-                $update->execute([
-                    "truck_id" => $truckId > 0 ? $truckId : null,
-                    "quantity" => max(1, (int) ($item["planned_quantity"] ?? 1)),
-                    "id" => $itemId,
+            }
+            foreach (array_slice($existingRows, count($codeItems)) as $staleItem) {
+                $deleteDuplicate->execute([
+                    "id" => (int) $staleItem["id"],
                     "romaneio_id" => $romaneioId,
-                ]);
-            } else {
-                $insert->execute([
-                    "company_id" => $companyId,
-                    "romaneio_id" => $romaneioId,
-                    "product_id" => $productId,
-                    "truck_id" => $truckId > 0 ? $truckId : null,
-                    "quantity" => max(1, (int) ($item["planned_quantity"] ?? 1)),
                 ]);
             }
         }

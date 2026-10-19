@@ -2,8 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js?v=202610180001";
-import { validarCadastroRomaneio } from "../interface/js/funcoes/romaneio.js?v=202610130005";
-import { importScreen } from "../interface/telas/importar-romaneio/importar-romaneio.js?v=202610130005";
+import { validarCadastroRomaneio } from "../interface/js/funcoes/romaneio.js?v=202610190001";
+import { importScreen } from "../interface/telas/importar-romaneio/importar-romaneio.js?v=202610190001";
 import { manifestView } from "../interface/telas/romaneio/romaneio.js?v=202610130006";
 import { manifests } from "../interface/telas/romaneios/romaneios.js?v=202610130006";
 
@@ -40,14 +40,14 @@ test("cadastro não ignora linhas de item incompletas", () => {
   );
 });
 
-test("cadastro rejeita produtos repetidos e aceita itens completos", () => {
-  assert.match(
+test("cadastro aceita linhas separadas do mesmo produto", () => {
+  assert.equal(
     validarCadastroRomaneio({
       scheduledDate: todayString,
       todayString,
       items: [...validItems, { product_id: "7", quantity: "2" }],
     }),
-    /cada produto apenas uma vez/i,
+    "",
   );
   assert.equal(
     validarCadastroRomaneio({ scheduledDate: todayString, todayString, items: validItems }),

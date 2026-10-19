@@ -540,15 +540,10 @@ $replaceManifestItems = static function (PDO $connection, int $companyId, int $m
             throw new RuntimeException("Quantidade de item recebida pela sincronização é inválida.");
         }
         $productId = $productWriter($connection, $companyId, $item);
-        // O snapshot é a fonte de verdade e cada produto deve ocupar uma só
-        // linha. Mantemos a primeira ocorrência para não dobrar a quantidade
-        // quando uma instalação antiga enviar o mesmo item repetido.
-        if (!isset($normalizedItems[$productId])) {
-            $normalizedItems[$productId] = [
-                "product_id" => $productId,
-                "quantity" => (int) $quantity,
-            ];
-        }
+        $normalizedItems[] = [
+            "product_id" => $productId,
+            "quantity" => (int) $quantity,
+        ];
     }
 
     $connection->prepare("DELETE FROM romaneio_itens WHERE romaneio_id = :romaneio_id")

@@ -89,11 +89,9 @@ final class ApiV1RomaneiosWriteTest extends TestCase
         ]);
     }
 
-    public function testRecusaProdutoDuplicadoMesmoComVariacaoDeCaixa(): void
+    public function testPreservaLinhasSeparadasDoMesmoProduto(): void
     {
-        $this->expectException(ApiV1PayloadException::class);
-        $this->expectExceptionMessage('produto duplicado');
-        api_v1_normalizar_payload_romaneio([
+        $payload = api_v1_normalizar_payload_romaneio([
             'equipment_code' => 'DALA-01',
             'number' => 'ROM-API-103',
             'scheduled_date' => (new DateTimeImmutable('today'))->format('Y-m-d'),
@@ -103,6 +101,10 @@ final class ApiV1RomaneiosWriteTest extends TestCase
                 ['product_code' => 'p-001', 'quantity' => 2],
             ],
         ]);
+
+        self::assertCount(2, $payload['items']);
+        self::assertSame(1, $payload['items'][0]['quantity']);
+        self::assertSame(2, $payload['items'][1]['quantity']);
     }
 
     public function testQuantidadePrecisaSerInteiroPositivo(): void

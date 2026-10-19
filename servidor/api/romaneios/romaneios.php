@@ -297,10 +297,7 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
             if (!$productId || $quantity === false || $quantity < 1) {
                 responder_json(["error" => "Item " . ($index + 1) . " inválido."], 422);
             }
-            if (isset($normalizedItems[$productId])) {
-                responder_json(["error" => "Produto duplicado nos itens do romaneio."], 422);
-            }
-            $normalizedItems[$productId] = $quantity;
+            $normalizedItems[] = ["product_id" => $productId, "quantity" => $quantity];
         }
 
         try {
@@ -323,8 +320,8 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
             $productStatement = $pdo->prepare(
                 "SELECT id FROM produtos WHERE id = :id AND company_id = :company_id AND active = 1 LIMIT 1",
             );
-            foreach (array_keys($normalizedItems) as $productId) {
-                $productStatement->execute(["id" => $productId, "company_id" => $companyId]);
+            foreach ($normalizedItems as $item) {
+                $productStatement->execute(["id" => $item["product_id"], "company_id" => $companyId]);
                 if (!$productStatement->fetch()) {
                     $pdo->rollBack();
                     responder_json(["error" => "Produto não encontrado ou inativo."], 422);
@@ -365,13 +362,13 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
             $itemStatement = $pdo->prepare(
                 "INSERT INTO romaneio_itens (company_id, romaneio_id, product_id, truck_id, planned_quantity) VALUES (:company_id, :romaneio_id, :product_id, :truck_id, :planned_quantity)",
             );
-            foreach ($normalizedItems as $productId => $quantity) {
+            foreach ($normalizedItems as $item) {
                 $itemStatement->execute([
                     "company_id" => $companyId,
                     "romaneio_id" => $romaneioId,
-                    "product_id" => $productId,
+                    "product_id" => $item["product_id"],
                     "truck_id" => $truck["id"],
-                    "planned_quantity" => $quantity,
+                    "planned_quantity" => $item["quantity"],
                 ]);
             }
 
@@ -457,11 +454,7 @@ foreach (array_values($items) as $index => $item) {
     }
 
     $productKey = $productId ? "id:" . $productId : "code:" . $rawCode;
-    if (isset($normalizedItems[$productKey])) {
-        responder_json(["error" => "Produto duplicado nos itens do romaneio."], 422);
-    }
-
-    $normalizedItems[$productKey] = [
+    $normalizedItems[] = [
         "product_id" => $productId,
         "key" => $productKey,
         "quantity" => $quantity,
@@ -471,7 +464,7 @@ foreach (array_values($items) as $index => $item) {
 try {
     $pdo->beginTransaction();
 
-    $resolvedByProduct = [];
+    $resolvedItems = [];
     $productById = $pdo->prepare(
         "SELECT id, code, name FROM produtos WHERE id = :id AND company_id = :company_id AND active = 1 LIMIT 1",
     );
@@ -504,17 +497,11 @@ try {
             );
         }
 
-        $resolvedProductId = (int) $product["id"];
-        if (isset($resolvedByProduct[$resolvedProductId])) {
-            $pdo->rollBack();
-            responder_json(["error" => "Produto duplicado nos itens do romaneio."], 422);
-        }
-        $resolvedByProduct[$resolvedProductId] = [
+        $resolvedItems[] = [
             "product" => $product,
             "quantity" => $item["quantity"],
         ];
     }
-    $resolved = array_values($resolvedByProduct);
 
     $romaneioStatement = $pdo->prepare(
         'INSERT INTO romaneios (company_id, number, scheduled_date, status, expedidor) VALUES (:company_id, :number, :scheduled_date, \'AGUARDANDO\', :expedidor)',
@@ -540,7 +527,7 @@ try {
     $itemStatement = $pdo->prepare(
         "INSERT INTO romaneio_itens (company_id, romaneio_id, product_id, truck_id, planned_quantity) VALUES (:company_id, :romaneio_id, :product_id, :truck_id, :planned_quantity)",
     );
-    foreach ($resolved as $entry) {
+    foreach ($resolvedItems as $entry) {
         $itemStatement->execute([
             "company_id" => $companyId,
             "romaneio_id" => $romaneioId,
@@ -559,7 +546,7 @@ try {
         [
             "number" => $number,
             "truck_id" => $truckId,
-            "items" => count($resolved),
+                "items" => count($resolvedItems),
         ],
     );
     $pdo->commit();
@@ -570,7 +557,7 @@ try {
                 "id" => $romaneioId,
                 "number" => $number,
                 "truck_id" => $truckId,
-                "items" => count($resolved),
+                "items" => count($resolvedItems),
                 "status" => "AGUARDANDO",
             ],
         ],

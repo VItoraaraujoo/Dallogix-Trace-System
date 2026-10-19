@@ -25,9 +25,6 @@ export function validarCadastroRomaneio({ scheduledDate, todayString, items }) {
     }
   }
 
-  if (new Set(items.map((item) => String(item.product_id))).size !== items.length) {
-    return "Selecione cada produto apenas uma vez no romaneio.";
-  }
   return "";
 }
 
