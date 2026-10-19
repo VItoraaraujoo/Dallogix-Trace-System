@@ -19,7 +19,9 @@ class SensorStatement extends PDOStatement {
         return true;
     }
     public function fetch(int $mode = PDO::FETCH_DEFAULT, int $orientation = PDO::FETCH_ORI_NEXT, int $offset = 0): mixed {
-        return str_contains($this->sql, 'FROM carregamentos c') ? ['id' => 4] : false;
+        return str_contains($this->sql, 'FROM carregamentos c')
+            ? ['id' => 4, 'state' => 'CARREGANDO', 'started_at' => null, 'finished_at' => null]
+            : false;
     }
     public function fetchColumn(int $column = 0): mixed {
         if (str_contains($this->sql, 'FROM eventos_sensor s')) {
