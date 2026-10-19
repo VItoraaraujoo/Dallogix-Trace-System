@@ -15,6 +15,8 @@ function api_v1_responder_erro(string $code, string $message, int $status): neve
     ], $status);
 }
 
+require_once __DIR__ . "/_rate_limit.php";
+
 set_exception_handler(static function (Throwable $exception): void {
     registrar_log_erro($exception, "api_v1_error");
     if (!headers_sent()) {
@@ -74,6 +76,13 @@ function api_v1_exigir_cliente(array $requiredScopes): array
     if ($license->fetchColumn() !== "ATIVA") {
         api_v1_responder_erro("license_inactive", "A licença da empresa está inativa.", 402);
     }
+
+    api_v1_aplicar_limite_requisicoes(
+        $pdo,
+        (int) $key["id"],
+        (int) $key["company_id"],
+        in_array("romaneios:write", $requiredScopes, true),
+    );
 
     $touch = $pdo->prepare(
         "UPDATE chaves_api_integracao SET last_used_at = UTC_TIMESTAMP(3)

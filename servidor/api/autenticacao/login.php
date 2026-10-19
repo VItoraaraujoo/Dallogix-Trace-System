@@ -21,6 +21,10 @@ if (str_contains($contentType, "application/json")) {
 $email = strtolower(trim((string) ($payload["email"] ?? "")));
 $password = (string) ($payload["password"] ?? "");
 
+// Toda tentativa, inclusive corpo incompleto ou email inválido, entra no
+// limitador por IP e identidade antes de qualquer retorno antecipado.
+verificar_taxa_de_login(mb_substr($email, 0, 254));
+
 if ($email === "" || $password === "") {
     usleep(150000);
     responder_json(["error" => "Credenciais inválidas."], 401);
@@ -35,8 +39,6 @@ if (mb_strlen($password) < 6 || mb_strlen($password) > 128) {
     usleep(150000);
     responder_json(["error" => "Credenciais inválidas."], 401);
 }
-
-verificar_taxa_de_login($email);
 
 $statement = obter_conexao_banco()->prepare(
     "SELECT u.id, u.company_id, u.name, u.email, u.password_hash, u.role, u.active, u.must_change_password, u.auth_version,

@@ -47,11 +47,19 @@ As consultas usam escopos de leitura. A primeira gravação pública cria romane
 | `GET /ocorrencias` | `ocorrencias:read` |
 | `GET /romaneios/{id}/relatorio.pdf` | `relatorios:read` |
 
-Para criar romaneios, envie uma `Idempotency-Key` única (16 a 128 caracteres
+Para criar romaneios, envie obrigatoriamente uma `Idempotency-Key` única (16 a 128 caracteres
 alfanuméricos, `._:-`) e reutilize a mesma chave caso a resposta se perca.
 O reenvio com o mesmo corpo retorna o romaneio original com HTTP 200 e
 `Idempotent-Replayed: true`; uma chave reutilizada com outro corpo retorna 409.
-Sem esse cabeçalho, o comportamento anterior de conflito por número permanece.
+As respostas de idempotência ficam disponíveis por 730 dias. Após esse prazo,
+consulte o romaneio pelo número antes de repetir uma criação antiga.
+
+A API limita requisições por chave e por empresa em janelas de um minuto. Os
+padrões são 120 leituras por chave, 600 leituras por empresa, 20 gravações por
+chave e 120 gravações por empresa. O Central pode ajustar os valores com
+`API_V1_READ_LIMIT_PER_KEY`, `API_V1_READ_LIMIT_PER_COMPANY`,
+`API_V1_WRITE_LIMIT_PER_KEY` e `API_V1_WRITE_LIMIT_PER_COMPANY`. Ao exceder a
+cota, a API responde HTTP 429 com `Retry-After`.
 
 A raiz `/api/v1/` informa a versão e `/api/v1/openapi.yaml` entrega a especificação OpenAPI.
 
@@ -100,6 +108,11 @@ Erros incluem um código estável e um identificador de requisição:
   }
 }
 ```
+
+O identificador `request_id` é gerado pelo servidor e também retornado nos cabeçalhos
+`X-Request-ID` e `X-Correlation-ID`. Se a integração enviar `X-Correlation-ID`, o Trace
+preserva esse valor como identificador de origem (`upstream_correlation_id`) nos eventos
+operacionais; ele não substitui o identificador gerado pelo servidor.
 
 Status usados: `401` chave ausente/inválida, `403` escopo insuficiente, `404` registro fora do escopo ou inexistente, `402` licença inativa, `405` método não permitido, `409` relatório ainda indisponível, `422` filtro/paginação inválidos, `429` limite de chamadas, `500` erro inesperado e `503` armazenamento/relatório indisponível.
 

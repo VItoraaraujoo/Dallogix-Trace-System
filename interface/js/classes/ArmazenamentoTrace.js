@@ -139,6 +139,41 @@ export class ArmazenamentoTrace {
     }
     return response.json().catch(() => ({}));
   }
+  async fetchAllPages(path, { signal = undefined, cursorParam = "cursor" } = {}) {
+    const url = new URL(path, "http://trace.local");
+    const rows = [];
+    let cursor = 0;
+    const pageSize = 100;
+    const maxPages = 100;
+
+    for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
+      url.searchParams.set("limit", String(pageSize));
+      url.searchParams.set(cursorParam, String(cursor));
+      const response = await this.api.fetch(`${url.pathname}${url.search}`, { signal });
+      const result = await this.jsonResponse(response, "Não foi possível carregar os registros.");
+      if (!Array.isArray(result.data) || typeof result.pagination?.has_more !== "boolean") {
+        throw new Error("O servidor retornou uma página sem os dados esperados.");
+      }
+      rows.push(...result.data);
+      const nextCursor = this.validarCursorPaginacao(result.pagination, cursor);
+      if (nextCursor === null) return rows;
+      cursor = nextCursor;
+    }
+
+    throw new Error("A lista ultrapassa 10.000 registros; use os filtros para reduzir a consulta.");
+  }
+  validarCursorPaginacao(pagination, cursorAtual) {
+    if (!pagination || typeof pagination.has_more !== "boolean") {
+      throw new Error("O servidor retornou metadados de paginação inválidos.");
+    }
+    if (!pagination.has_more) return null;
+
+    const nextCursor = Number(pagination.next_cursor);
+    if (!Number.isSafeInteger(nextCursor) || nextCursor <= cursorAtual) {
+      throw new Error("O servidor retornou um cursor de paginação inválido.");
+    }
+    return nextCursor;
+  }
   canQueueOffline(url, options = {}) {
     const method = String(options.method || "GET").toUpperCase();
     return ["POST", "PUT", "PATCH"].includes(method) &&
@@ -959,10 +994,10 @@ export class ArmazenamentoTrace {
     if (this.productsRequest) return this.productsRequest;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 10000);
-    this.productsRequest = this.api.fetch("/api/produtos.php", { signal: controller.signal })
-      .then(async (response) => {
-        const result = await this.jsonResponse(response, "Não foi possível carregar os produtos.");
-        this.state.products = Array.isArray(result.data) ? result.data : [];
+    this.productsRequest = this.fetchAllPages("/api/produtos.php", { signal: controller.signal })
+      .then((products) => {
+        products.sort((left, right) => String(left.name).localeCompare(String(right.name), "pt-BR"));
+        this.state.products = products;
         this.state.productsLoaded = true;
         return this.state.products;
       })
@@ -989,9 +1024,22 @@ export class ArmazenamentoTrace {
     this.state.equipmentsLoading = true;
     this.state.equipmentsError = "";
     try {
-      const response = await this.api.fetch("/api/equipamentos.php");
-      const result = await this.jsonResponse(response, "Não foi possível carregar as Dalas.");
-      this.state.equipments = Array.isArray(result.data) ? result.data : [];
+      this.state.equipments = await this.fetchAllPages("/api/equipamentos.php");
+      const hasIndustrialPcData = this.state.equipments.some((equipment) =>
+        Object.hasOwn(equipment, "industrial_pc_name"),
+      );
+      this.state.equipments.sort((left, right) => {
+        if (hasIndustrialPcData) {
+          const pcOrder = String(left.industrial_pc_name || "").localeCompare(
+            String(right.industrial_pc_name || ""),
+            "pt-BR",
+          );
+          if (pcOrder !== 0) return pcOrder;
+          const nameOrder = String(left.name || "").localeCompare(String(right.name || ""), "pt-BR");
+          if (nameOrder !== 0) return nameOrder;
+        }
+        return String(left.equipment_code || "").localeCompare(String(right.equipment_code || ""), "pt-BR");
+      });
       return this.state.equipments;
     } catch (error) {
       this.state.equipmentsError =
@@ -1004,22 +1052,24 @@ export class ArmazenamentoTrace {
   }
   async loadCompanies() {
     const query = this.state.userRole === "ADMIN_DALLOGIX" ? "?include_archived=1" : "";
-    const response = await this.api.fetch(`/api/empresas.php${query}`);
-    const result = await this.jsonResponse(response, "Não foi possível carregar as empresas.");
-    this.state.companies = result.data;
+    this.state.companies = await this.fetchAllPages(`/api/empresas.php${query}`);
+    this.state.companies.sort((left, right) => String(left.name).localeCompare(String(right.name), "pt-BR"));
   }
   async loadUsers() {
     const companyId = this.state.selectedCompanyId;
     const query = companyId
       ? `?company_id=${encodeURIComponent(companyId)}`
       : "";
-    const response = await this.api.fetch(`/api/usuarios.php${query}`);
-    if (response.status === 422 && this.state.userRole === "ADMIN_DALLOGIX") {
-      this.state.users = [];
-      return;
+    try {
+      this.state.users = await this.fetchAllPages(`/api/usuarios.php${query}`);
+      this.state.users.sort((left, right) => String(left.name).localeCompare(String(right.name), "pt-BR"));
+    } catch (error) {
+      if (error.status === 422 && this.state.userRole === "ADMIN_DALLOGIX") {
+        this.state.users = [];
+        return;
+      }
+      throw error;
     }
-    const result = await this.jsonResponse(response, "Não foi possível carregar os logins.");
-    this.state.users = result.data || [];
   }
   async createUser(payload) {
     const requestPayload = { ...(payload || {}) };
@@ -1147,14 +1197,54 @@ export class ArmazenamentoTrace {
   async loadIndustrialInstallations() {
     if (!this.state.selectedCompanyId)
       throw new Error("Nenhuma empresa selecionada.");
-    const response = await this.api.fetch(
-      `/api/instalacoes_industriais.php?company_id=${this.state.selectedCompanyId}&include_archived=1`,
-      { cache: "no-store" },
-    );
-    const result = await this.jsonResponse(response, "Não foi possível carregar os PCs industriais.");
-    this.state.industrialInstallations = result.data?.installations || [];
-    this.state.industrialEquipmentOptions = result.data?.equipment_options || [];
-    return result.data;
+    const url = new URL("/api/instalacoes_industriais.php", "http://trace.local");
+    url.searchParams.set("company_id", String(this.state.selectedCompanyId));
+    url.searchParams.set("include_archived", "1");
+    const installations = [];
+    const equipmentOptions = [];
+    let cursor = 0;
+    let equipmentCursor = 0;
+    let hasMoreInstallations = true;
+    let hasMoreEquipment = true;
+    const maxPages = 100;
+    for (let pageIndex = 0; pageIndex < maxPages; pageIndex += 1) {
+      url.searchParams.set("limit", "100");
+      url.searchParams.set("cursor", String(cursor));
+      url.searchParams.set("equipment_limit", "100");
+      url.searchParams.set("equipment_cursor", String(equipmentCursor));
+      const response = await this.api.fetch(`${url.pathname}${url.search}`, { cache: "no-store" });
+      const result = await this.jsonResponse(response, "Não foi possível carregar os PCs industriais.");
+      const data = result.data || {};
+      if (!Array.isArray(data.installations) || !Array.isArray(data.equipment_options)) {
+        throw new Error("O servidor retornou uma lista incompleta de PCs industriais.");
+      }
+      if (hasMoreInstallations) installations.push(...data.installations);
+      if (hasMoreEquipment) equipmentOptions.push(...data.equipment_options);
+      const installationPage = result.pagination;
+      const equipmentPage = result.equipment_pagination;
+      const nextInstallationCursor = this.validarCursorPaginacao(installationPage, cursor);
+      const nextEquipmentCursor = this.validarCursorPaginacao(equipmentPage, equipmentCursor);
+      hasMoreInstallations = nextInstallationCursor !== null;
+      hasMoreEquipment = nextEquipmentCursor !== null;
+      if (!hasMoreInstallations && !hasMoreEquipment) {
+        installations.sort((left, right) => String(left.name).localeCompare(String(right.name), "pt-BR"));
+        equipmentOptions.sort((left, right) => String(left.name).localeCompare(String(right.name), "pt-BR"));
+        this.state.industrialInstallations = installations;
+        this.state.industrialEquipmentOptions = equipmentOptions;
+        return { installations, equipment_options: equipmentOptions };
+      }
+      if (hasMoreInstallations) {
+        cursor = nextInstallationCursor;
+      } else {
+        cursor = Number.MAX_SAFE_INTEGER;
+      }
+      if (hasMoreEquipment) {
+        equipmentCursor = nextEquipmentCursor;
+      } else {
+        equipmentCursor = Number.MAX_SAFE_INTEGER;
+      }
+    }
+    throw new Error("A lista de PCs industriais ultrapassa 10.000 registros.");
   }
   async createIndustrialInstallation(name) {
     const response = await this.api.fetch("/api/instalacoes_industriais.php", {

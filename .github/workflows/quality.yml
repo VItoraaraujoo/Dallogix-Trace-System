@@ -73,6 +73,7 @@ jobs:
           TRACE_TEST_HTTPS_PORT: '18443'
         run: |
           python3 scripts/production_test.py
+          python3 testes/production_integrity.py
           python3 testes/production_smoke.py
           while IFS= read -r line; do
             if [[ -z "$line" || "${line:0:1}" == "#" ]]; then continue; fi

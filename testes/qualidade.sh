@@ -55,6 +55,7 @@ node --test testes/notificacoes.mjs
 node --test testes/healthchecks-workers.mjs
 node --test testes/dialogo-acessibilidade.mjs
 node --test testes/log-frontend.mjs
+node --test testes/revisao-integridade-limites.mjs
 node --test testes/tempo-real.mjs
 node --test testes/security-scan.mjs
 node --test testes/auditoria-controle-acesso.mjs

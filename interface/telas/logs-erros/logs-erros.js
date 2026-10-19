@@ -15,6 +15,15 @@ export function errorLogs(store) {
     ? Math.max(0, Number(store.state.errorLogRetentionDays))
     : 365;
   const format = (value) => value ? dataHora(value) : "—";
+  const rastreamento = (value) => {
+    try {
+      const context = JSON.parse(String(value || "{}"));
+      const ids = [context.correlation_id, context.upstream_correlation_id].filter(Boolean);
+      return ids.length ? ids.map((id) => `<code>${esc(id)}</code>`).join("<br>") : "—";
+    } catch {
+      return "—";
+    }
+  };
   const bytes = (value) => {
     const amount = Number(value);
     if (!Number.isFinite(amount) || amount < 0) return "—";
@@ -40,5 +49,5 @@ export function errorLogs(store) {
   <section class="panel reference-table-panel" data-status-region="technical-commands"><h3>Últimos comandos ao gateway</h3><p class="muted">Este resumo mostra os 10 mais recentes. O histórico completo, paginado e preservado pela rotina de retenção, fica no diagnóstico da Dala.</p><div class="table-wrap"><table><thead><tr><th>Solicitado</th><th>Comando</th><th>Status</th><th>Retorno</th></tr></thead><tbody>${commandRows}</tbody></table></div></section><br>
   <section class="panel reference-table-panel" data-status-region="technical-dead-letters"><div class="panel-heading"><div><h3>Fila morta de sincronização</h3><p class="muted">Reenfileire somente depois de corrigir a causa do erro. Toda ação fica registrada na auditoria.</p></div></div><div class="table-wrap"><table><thead><tr><th>Evento</th><th>Tipo</th><th>Tentativas</th><th>Último erro</th><th>Ação</th></tr></thead><tbody>${deadLetterRows}</tbody></table></div></section><br>
   <section class="panel compact-help"><strong>Proteção de dados</strong><p>Senhas, tokens, sessões e conteúdo de formulários não são armazenados neste histórico.</p></section><br>
-  <section class="panel reference-table-panel" data-status-region="technical-errors"><div class="panel-heading"><div><h3>Erros registrados nesta instalação</h3><p class="muted">Inclui falhas do navegador, exceções PHP registradas e transições OFFLINE/ERRO dos dispositivos. Os logs brutos do Docker, Nginx, MySQL e falhas ocorridas antes da resposta do Trace continuam nos próprios serviços.</p></div></div>${errorLogLimit}${errorPagination}<div class="table-wrap"><table class="error-logs-table"><thead><tr><th>Data</th><th>Origem</th><th>Mensagem</th><th>Empresa</th><th>Usuário</th></tr></thead><tbody>${rows.length ? rows.map((item) => `<tr><td>${esc(format(item.criado_em))}</td><td><code>${esc(item.origem)}</code></td><td class="error-message-cell">${esc(item.mensagem)}</td><td>${esc(item.empresa || "Sistema")}</td><td>${esc(item.usuario || "—")}</td></tr>`).join("") : '<tr><td colspan="5" class="empty-cell">Nenhum registro encontrado neste histórico.</td></tr>'}</tbody></table></div></section>`;
+  <section class="panel reference-table-panel" data-status-region="technical-errors"><div class="panel-heading"><div><h3>Erros registrados nesta instalação</h3><p class="muted">Inclui falhas do navegador, exceções PHP registradas e transições OFFLINE/ERRO dos dispositivos. Os logs brutos do Docker, Nginx, MySQL e falhas ocorridas antes da resposta do Trace continuam nos próprios serviços.</p></div></div>${errorLogLimit}${errorPagination}<div class="table-wrap"><table class="error-logs-table"><thead><tr><th>Data</th><th>Origem</th><th>Rastreamento</th><th>Mensagem</th><th>Empresa</th><th>Usuário</th></tr></thead><tbody>${rows.length ? rows.map((item) => `<tr><td>${esc(format(item.criado_em))}</td><td><code>${esc(item.origem)}</code></td><td>${rastreamento(item.contexto)}</td><td class="error-message-cell">${esc(item.mensagem)}</td><td>${esc(item.empresa || "Sistema")}</td><td>${esc(item.usuario || "—")}</td></tr>`).join("") : '<tr><td colspan="6" class="empty-cell">Nenhum registro encontrado neste histórico.</td></tr>'}</tbody></table></div></section>`;
 }

@@ -63,9 +63,15 @@ $syncBarcode = static function (PDO $pdo, int $companyId, int $productId, string
 };
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
+    $pagination = parametros_paginacao_lista($_GET);
     $search = trim((string) ($_GET["search"] ?? ""));
     $conditions = ["p.company_id = :company_id"];
-    $params = ["company_id" => $usuarioAtor["company_id"]];
+    $params = [
+        "company_id" => (int) $usuarioAtor["company_id"],
+        "cursor" => $pagination["cursor"],
+        "fetch_limit" => $pagination["limit"] + 1,
+    ];
+    $conditions[] = "p.id > :cursor";
     if ($search !== "") {
         $conditions[] =
             "(p.name LIKE :search OR p.code LIKE :search OR p.category LIKE :search OR EXISTS (SELECT 1 FROM codigos_produtos pc WHERE pc.product_id = p.id AND pc.barcode LIKE :search))";
@@ -77,12 +83,21 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
          WHERE ' .
             implode(" AND ", $conditions) .
             '
-         GROUP BY p.id ORDER BY p.name',
+             GROUP BY p.id ORDER BY p.id LIMIT :fetch_limit',
     );
-    $statement->execute($params);
-    json_response([
-        "data" => array_map($productResponse, $statement->fetchAll()),
-    ]);
+    foreach ($params as $name => $value) {
+        $statement->bindValue(
+            ":{$name}",
+            $value,
+            is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR,
+        );
+    }
+    $statement->execute();
+    $page = pagina_lista_por_id(
+        array_map($productResponse, $statement->fetchAll(PDO::FETCH_ASSOC)),
+        $pagination["limit"],
+    );
+    json_response($page);
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {

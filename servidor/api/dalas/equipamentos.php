@@ -134,12 +134,15 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
         }
         json_response(["data" => $dala]);
     }
+    $pagination = parametros_paginacao_lista($_GET);
     $pcSignalLimitSeconds = max(5, min(300, (int) (getenv("HEALTH_DEVICE_STALE_SECONDS") ?: 30)));
     $query = trace_e_instalacao_local()
         ? $pdo->prepare(
             "SELECT id, equipment_code, name, plc_ip, plc_port, external_port, plc_protocol,
                     created_at, updated_at
-             FROM equipamentos WHERE company_id = :company_id ORDER BY equipment_code",
+             FROM equipamentos
+             WHERE company_id = :company_id AND id > :cursor
+             ORDER BY id LIMIT :fetch_limit",
         )
         : $pdo->prepare(
             "SELECT e.id, e.equipment_code, e.name, e.plc_ip, e.plc_port, e.external_port,
@@ -152,11 +155,14 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
              FROM equipamentos e
              LEFT JOIN instalacoes_industriais p
                ON p.equipment_id = e.id AND p.company_id = e.company_id
-             WHERE e.company_id = :company_id
-             ORDER BY COALESCE(p.name, ''), e.name, e.equipment_code",
+             WHERE e.company_id = :company_id AND e.id > :cursor
+             ORDER BY e.id LIMIT :fetch_limit",
         );
-    $query->execute(["company_id" => $user["company_id"]]);
-    json_response(["data" => $query->fetchAll()]);
+    $query->bindValue(":company_id", (int) $user["company_id"], PDO::PARAM_INT);
+    $query->bindValue(":cursor", $pagination["cursor"], PDO::PARAM_INT);
+    $query->bindValue(":fetch_limit", $pagination["limit"] + 1, PDO::PARAM_INT);
+    $query->execute();
+    json_response(pagina_lista_por_id($query->fetchAll(PDO::FETCH_ASSOC), $pagination["limit"]));
 }
 
 $validatePayload = static function (array $payload) use (

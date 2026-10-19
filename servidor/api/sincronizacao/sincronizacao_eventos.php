@@ -554,11 +554,12 @@ $replaceManifestItems = static function (PDO $connection, int $companyId, int $m
     $connection->prepare("DELETE FROM romaneio_itens WHERE romaneio_id = :romaneio_id")
         ->execute(["romaneio_id" => $manifestId]);
     $insert = $connection->prepare(
-        "INSERT INTO romaneio_itens (romaneio_id, product_id, truck_id, planned_quantity)
-         VALUES (:romaneio_id, :product_id, :truck_id, :quantity)",
+        "INSERT INTO romaneio_itens (company_id, romaneio_id, product_id, truck_id, planned_quantity)
+         VALUES (:company_id, :romaneio_id, :product_id, :truck_id, :quantity)",
     );
     foreach ($normalizedItems as $normalizedItem) {
         $insert->execute([
+            "company_id" => $companyId,
             "romaneio_id" => $manifestId,
             "product_id" => $normalizedItem["product_id"],
             "truck_id" => $truckId > 0 ? $truckId : null,

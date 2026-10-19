@@ -682,6 +682,7 @@ if ($requestedCompanyId !== null) {
 }
 
 $includeArchived = $isAdminDallogix && ($_GET["include_archived"] ?? "") === "1";
+$pagination = parametros_paginacao_lista($_GET);
 $empresas = $pdo->prepare(
     "SELECT c.id, c.name, c.login_domain, c.activation_code_preview, c.activation_code_created_at,
             c.activation_code_expires_at, c.activation_code_used_at,
@@ -714,10 +715,14 @@ $empresas = $pdo->prepare(
      LEFT JOIN equipamentos e ON e.company_id = c.id
      LEFT JOIN status_dispositivos d ON d.equipment_id = e.id AND d.device_type = 'CLP'
      WHERE (:include_archived = 1 OR c.archived_at IS NULL)
+       AND c.id > :cursor
      GROUP BY c.id, c.name, c.login_domain, c.created_at, c.archived_at
-     ORDER BY c.name",
+     ORDER BY c.id LIMIT :fetch_limit",
 );
-$empresas->execute(["include_archived" => $includeArchived ? 1 : 0]);
+$empresas->bindValue(":include_archived", $includeArchived ? 1 : 0, PDO::PARAM_INT);
+$empresas->bindValue(":cursor", $pagination["cursor"], PDO::PARAM_INT);
+$empresas->bindValue(":fetch_limit", $pagination["limit"] + 1, PDO::PARAM_INT);
+$empresas->execute();
 $rows = array_map(static function (array $row) use ($industrialPcStatus): array {
     $total = (int) $row["total_machines"];
     $online = (int) $row["machines_online"];
@@ -747,6 +752,7 @@ $rows = array_map(static function (array $row) use ($industrialPcStatus): array 
         "license_status" => $licenseStatus,
         "license_reason" => $row["license_reason"],
     ];
-}, $empresas->fetchAll());
+}, $empresas->fetchAll(PDO::FETCH_ASSOC));
 
-json_response(["data" => $rows]);
+$page = pagina_lista_por_id($rows, $pagination["limit"]);
+json_response($page);

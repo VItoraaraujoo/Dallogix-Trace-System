@@ -19,6 +19,7 @@ test("registra erro técnico sem expor credenciais", () => {
   assert.equal(registro.erro.codigo, "HTTP_500");
   assert.equal(registro.erro.status, 500);
   assert.equal(registro.detalhes.token, "[omitido]");
+  assert.match(registro.correlation_id, /^[a-f0-9-]{32,36}$/);
   assert.equal(listarLogsFrontend().length, 1);
 });
 

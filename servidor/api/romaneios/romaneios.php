@@ -363,10 +363,11 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
                 ->execute(["romaneio_id" => $romaneioId]);
 
             $itemStatement = $pdo->prepare(
-                "INSERT INTO romaneio_itens (romaneio_id, product_id, truck_id, planned_quantity) VALUES (:romaneio_id, :product_id, :truck_id, :planned_quantity)",
+                "INSERT INTO romaneio_itens (company_id, romaneio_id, product_id, truck_id, planned_quantity) VALUES (:company_id, :romaneio_id, :product_id, :truck_id, :planned_quantity)",
             );
             foreach ($normalizedItems as $productId => $quantity) {
                 $itemStatement->execute([
+                    "company_id" => $companyId,
                     "romaneio_id" => $romaneioId,
                     "product_id" => $productId,
                     "truck_id" => $truck["id"],
@@ -537,10 +538,11 @@ try {
     $truckId = (int) $pdo->lastInsertId();
 
     $itemStatement = $pdo->prepare(
-        "INSERT INTO romaneio_itens (romaneio_id, product_id, truck_id, planned_quantity) VALUES (:romaneio_id, :product_id, :truck_id, :planned_quantity)",
+        "INSERT INTO romaneio_itens (company_id, romaneio_id, product_id, truck_id, planned_quantity) VALUES (:company_id, :romaneio_id, :product_id, :truck_id, :planned_quantity)",
     );
     foreach ($resolved as $entry) {
         $itemStatement->execute([
+            "company_id" => $companyId,
             "romaneio_id" => $romaneioId,
             "product_id" => $entry["product"]["id"],
             "truck_id" => $truckId,

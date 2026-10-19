@@ -9,9 +9,14 @@ final class ApiV1PayloadException extends RuntimeException
     }
 }
 
-function api_v1_chave_idempotencia(?string $value): ?string
+function api_v1_chave_idempotencia(?string $value): string
 {
-    if ($value === null || $value === "") return null;
+    if ($value === null || $value === "") {
+        throw new ApiV1PayloadException(
+            "Envie uma Idempotency-Key única para proteger a criação contra reenvio duplicado.",
+            "idempotency_key_required",
+        );
+    }
     if (preg_match('/\A[A-Za-z0-9._:-]{16,128}\z/', $value) !== 1) {
         throw new ApiV1PayloadException(
             "Idempotency-Key deve ter entre 16 e 128 caracteres seguros.",
@@ -174,46 +179,44 @@ function api_v1_criar_romaneio(PDO $pdo, array $client): never
         $idempotencyKey = api_v1_chave_idempotencia(
             isset($_SERVER["HTTP_IDEMPOTENCY_KEY"]) ? (string) $_SERVER["HTTP_IDEMPOTENCY_KEY"] : null,
         );
-        $payload = api_v1_normalizar_payload_romaneio($decodedPayload, $idempotencyKey !== null);
+        $payload = api_v1_normalizar_payload_romaneio($decodedPayload, true);
     } catch (ApiV1PayloadException $exception) {
         api_v1_responder_erro($exception->errorCode, $exception->getMessage(), 422);
     }
 
     try {
         $pdo->beginTransaction();
-        if ($idempotencyKey !== null) {
-            $keyHash = hash("sha256", $idempotencyKey);
-            $payloadHash = hash("sha256", json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
-            $reserve = $pdo->prepare(
-                "INSERT INTO api_romaneios_idempotencia
-                 (api_key_id, company_id, key_hash, payload_hash)
-                 VALUES (:api_key_id, :company_id, :key_hash, :payload_hash)
-                 ON DUPLICATE KEY UPDATE id = id",
-            );
-            $reserve->execute([
-                "api_key_id" => $client["id"],
-                "company_id" => $client["company_id"],
-                "key_hash" => $keyHash,
-                "payload_hash" => $payloadHash,
-            ]);
-            $reserved = $pdo->prepare(
-                "SELECT id, payload_hash, response_json
-                 FROM api_romaneios_idempotencia
-                 WHERE api_key_id = :api_key_id AND key_hash = :key_hash FOR UPDATE",
-            );
-            $reserved->execute(["api_key_id" => $client["id"], "key_hash" => $keyHash]);
-            $reservation = $reserved->fetch(PDO::FETCH_ASSOC);
-            if (!is_array($reservation) || !hash_equals((string) $reservation["payload_hash"], $payloadHash)) {
-                $pdo->rollBack();
-                api_v1_responder_erro("idempotency_conflict", "Idempotency-Key já foi usado com outro conteúdo.", 409);
-            }
-            if ($reservation["response_json"] !== null) {
-                $original = json_decode((string) $reservation["response_json"], true, 32, JSON_THROW_ON_ERROR);
-                $pdo->commit();
-                header("Idempotent-Replayed: true");
-                header("Content-Type: application/json; charset=utf-8");
-                responder_json(["data" => $original], 200);
-            }
+        $keyHash = hash("sha256", $idempotencyKey);
+        $payloadHash = hash("sha256", json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR));
+        $reserve = $pdo->prepare(
+            "INSERT INTO api_romaneios_idempotencia
+             (api_key_id, company_id, key_hash, payload_hash)
+             VALUES (:api_key_id, :company_id, :key_hash, :payload_hash)
+             ON DUPLICATE KEY UPDATE id = id",
+        );
+        $reserve->execute([
+            "api_key_id" => $client["id"],
+            "company_id" => $client["company_id"],
+            "key_hash" => $keyHash,
+            "payload_hash" => $payloadHash,
+        ]);
+        $reserved = $pdo->prepare(
+            "SELECT id, payload_hash, response_json
+             FROM api_romaneios_idempotencia
+             WHERE api_key_id = :api_key_id AND key_hash = :key_hash FOR UPDATE",
+        );
+        $reserved->execute(["api_key_id" => $client["id"], "key_hash" => $keyHash]);
+        $reservation = $reserved->fetch(PDO::FETCH_ASSOC);
+        if (!is_array($reservation) || !hash_equals((string) $reservation["payload_hash"], $payloadHash)) {
+            $pdo->rollBack();
+            api_v1_responder_erro("idempotency_conflict", "Idempotency-Key já foi usado com outro conteúdo.", 409);
+        }
+        if ($reservation["response_json"] !== null) {
+            $original = json_decode((string) $reservation["response_json"], true, 32, JSON_THROW_ON_ERROR);
+            $pdo->commit();
+            header("Idempotent-Replayed: true");
+            header("Content-Type: application/json; charset=utf-8");
+            responder_json(["data" => $original], 200);
         }
         if ($payload["scheduled_date"] < date("Y-m-d")) {
             $pdo->rollBack();
@@ -269,8 +272,8 @@ function api_v1_criar_romaneio(PDO $pdo, array $client): never
 
         $romaneio = $pdo->prepare(
             "INSERT INTO romaneios
-             (company_id, assigned_installation_id, number, scheduled_date, expedidor, status)
-             VALUES (:company_id, :installation_id, :number, :scheduled_date, :expedidor, 'AGUARDANDO')",
+             (company_id, assigned_installation_id, assigned_installation_company_id, number, scheduled_date, expedidor, status)
+             VALUES (:company_id, :installation_id, :company_id, :number, :scheduled_date, :expedidor, 'AGUARDANDO')",
         );
         $romaneio->execute([
             "company_id" => $client["company_id"],
@@ -293,11 +296,12 @@ function api_v1_criar_romaneio(PDO $pdo, array $client): never
         $truckId = (int) $pdo->lastInsertId();
 
         $romaneioItem = $pdo->prepare(
-            "INSERT INTO romaneio_itens (romaneio_id, product_id, truck_id, planned_quantity)
-             VALUES (:romaneio_id, :product_id, :truck_id, :planned_quantity)",
+            "INSERT INTO romaneio_itens (company_id, romaneio_id, product_id, truck_id, planned_quantity)
+             VALUES (:company_id, :romaneio_id, :product_id, :truck_id, :planned_quantity)",
         );
         foreach (array_values($resolvedByProduct) as $item) {
             $romaneioItem->execute([
+                "company_id" => (int) $client["company_id"],
                 "romaneio_id" => $romaneioId,
                 "product_id" => $item["product_id"],
                 "truck_id" => $truckId,
@@ -332,19 +336,17 @@ function api_v1_criar_romaneio(PDO $pdo, array $client): never
             "truck_id" => $truckId,
             "status" => "AGUARDANDO",
         ];
-        if ($idempotencyKey !== null) {
-            $complete = $pdo->prepare(
-                "UPDATE api_romaneios_idempotencia
-                 SET romaneio_id = :romaneio_id, response_json = :response_json
-                 WHERE id = :id AND api_key_id = :api_key_id",
-            );
-            $complete->execute([
-                "romaneio_id" => $romaneioId,
-                "response_json" => json_encode($responseData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
-                "id" => $reservation["id"],
-                "api_key_id" => $client["id"],
-            ]);
-        }
+        $complete = $pdo->prepare(
+            "UPDATE api_romaneios_idempotencia
+             SET romaneio_id = :romaneio_id, response_json = :response_json
+             WHERE id = :id AND api_key_id = :api_key_id",
+        );
+        $complete->execute([
+            "romaneio_id" => $romaneioId,
+            "response_json" => json_encode($responseData, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR),
+            "id" => $reservation["id"],
+            "api_key_id" => $client["id"],
+        ]);
         $pdo->commit();
     } catch (PDOException $exception) {
         if ($pdo->inTransaction()) {

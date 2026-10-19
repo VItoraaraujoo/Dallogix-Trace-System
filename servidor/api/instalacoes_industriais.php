@@ -34,6 +34,11 @@ if ($method === "GET") {
     $rawCompanyId = $_GET["company_id"] ?? null;
     $companyId = $resolveCompanyId($rawCompanyId, $isMaster, $actor);
     $includeArchived = $isMaster && (($_GET["include_archived"] ?? "") === "1");
+    $pagination = parametros_paginacao_lista($_GET);
+    $equipmentPagination = parametros_paginacao_lista([
+        "limit" => $_GET["equipment_limit"] ?? 100,
+        "cursor" => $_GET["equipment_cursor"] ?? 0,
+    ]);
     $pcSignalLimitSeconds = max(5, min(300, (int) (getenv("HEALTH_DEVICE_STALE_SECONDS") ?: 30)));
     $statement = $pdo->prepare(
         "SELECT p.id, p.company_id, p.equipment_id, p.name,
@@ -53,11 +58,16 @@ if ($method === "GET") {
                 p.details AS pc_details, e.name AS equipment_name, e.equipment_code
          FROM instalacoes_industriais p
          LEFT JOIN equipamentos e ON e.id = p.equipment_id AND e.company_id = p.company_id
-         WHERE p.company_id = :company_id" . ($includeArchived ? "" : " AND p.archived_at IS NULL") . "
-         ORDER BY p.archived_at IS NOT NULL, p.id"
+         WHERE p.company_id = :company_id AND p.id > :cursor" . ($includeArchived ? "" : " AND p.archived_at IS NULL") . "
+         ORDER BY p.id LIMIT :fetch_limit"
     );
-    $statement->execute(["company_id" => $companyId]);
-    $installations = $statement->fetchAll();
+    $statement->bindValue(":company_id", $companyId, PDO::PARAM_INT);
+    $statement->bindValue(":cursor", $pagination["cursor"], PDO::PARAM_INT);
+    $statement->bindValue(":fetch_limit", $pagination["limit"] + 1, PDO::PARAM_INT);
+    $statement->execute();
+    $installations = $statement->fetchAll(PDO::FETCH_ASSOC);
+    $installationPage = pagina_lista_por_id($installations, $pagination["limit"]);
+    $installations = $installationPage["data"];
     foreach ($installations as &$installation) {
         $installation["id"] = (int) $installation["id"];
         $installation["company_id"] = (int) $installation["company_id"];
@@ -96,10 +106,13 @@ if ($method === "GET") {
                 p.name AS industrial_pc_name
          FROM equipamentos e
          LEFT JOIN instalacoes_industriais p ON p.equipment_id = e.id AND p.company_id = e.company_id
-         WHERE e.company_id = :company_id
-         ORDER BY e.name, e.equipment_code"
+         WHERE e.company_id = :company_id AND e.id > :cursor
+         ORDER BY e.id LIMIT :fetch_limit"
     );
-    $equipmentStatement->execute(["company_id" => $companyId]);
+    $equipmentStatement->bindValue(":company_id", $companyId, PDO::PARAM_INT);
+    $equipmentStatement->bindValue(":cursor", $equipmentPagination["cursor"], PDO::PARAM_INT);
+    $equipmentStatement->bindValue(":fetch_limit", $equipmentPagination["limit"] + 1, PDO::PARAM_INT);
+    $equipmentStatement->execute();
     $equipmentOptions = array_map(static function (array $row): array {
         return [
             "id" => (int) $row["id"],
@@ -110,12 +123,15 @@ if ($method === "GET") {
                 : (int) $row["industrial_pc_id"],
             "industrial_pc_name" => $row["industrial_pc_name"],
         ];
-    }, $equipmentStatement->fetchAll());
+    }, $equipmentStatement->fetchAll(PDO::FETCH_ASSOC));
+    $equipmentPage = pagina_lista_por_id($equipmentOptions, $equipmentPagination["limit"]);
 
     json_response(["data" => [
-        "installations" => $installations,
-        "equipment_options" => $equipmentOptions,
-    ]]);
+        "installations" => $installationPage["data"],
+        "equipment_options" => $equipmentPage["data"],
+    ], "pagination" => $installationPage["pagination"],
+        "equipment_pagination" => $equipmentPage["pagination"],
+    ]);
 }
 
 if ($method !== "POST") {

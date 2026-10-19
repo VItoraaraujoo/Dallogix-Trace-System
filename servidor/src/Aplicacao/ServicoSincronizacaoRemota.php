@@ -1090,8 +1090,8 @@ final class ServicoSincronizacaoRemota
              WHERE id = :id AND romaneio_id = :romaneio_id",
         );
         $insert = $this->connection->prepare(
-            "INSERT INTO romaneio_itens (romaneio_id, product_id, truck_id, planned_quantity)
-             VALUES (:romaneio_id, :product_id, :truck_id, :quantity)",
+            "INSERT INTO romaneio_itens (company_id, romaneio_id, product_id, truck_id, planned_quantity)
+             VALUES (:company_id, :romaneio_id, :product_id, :truck_id, :quantity)",
         );
 
         foreach ($itemsByCode as $item) {
@@ -1141,6 +1141,7 @@ final class ServicoSincronizacaoRemota
                 ]);
             } else {
                 $insert->execute([
+                    "company_id" => $companyId,
                     "romaneio_id" => $romaneioId,
                     "product_id" => $productId,
                     "truck_id" => $truckId > 0 ? $truckId : null,

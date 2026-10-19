@@ -57,12 +57,19 @@ $exigirEmpresaAtiva = static function (int $empresaId) use ($pdo): array {
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $empresaId = $resolverIdEmpresa($_GET);
     $exigirEmpresaAtiva($empresaId);
+    $pagination = parametros_paginacao_lista($_GET);
 
     $statement = $pdo->prepare(
-        "SELECT id, name, email, role, active, created_at, updated_at FROM usuarios WHERE company_id = :company_id ORDER BY name",
+        "SELECT id, name, email, role, active, created_at, updated_at
+         FROM usuarios
+         WHERE company_id = :company_id AND id > :cursor
+         ORDER BY id LIMIT :fetch_limit",
     );
-    $statement->execute(["company_id" => $empresaId]);
-    json_response(["data" => $statement->fetchAll()]);
+    $statement->bindValue(":company_id", $empresaId, PDO::PARAM_INT);
+    $statement->bindValue(":cursor", $pagination["cursor"], PDO::PARAM_INT);
+    $statement->bindValue(":fetch_limit", $pagination["limit"] + 1, PDO::PARAM_INT);
+    $statement->execute();
+    json_response(pagina_lista_por_id($statement->fetchAll(PDO::FETCH_ASSOC), $pagination["limit"]));
 }
 
 if ($_SERVER["REQUEST_METHOD"] === "PUT") {
