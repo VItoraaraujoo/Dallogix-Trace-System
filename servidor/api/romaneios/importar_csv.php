@@ -15,6 +15,7 @@ require_csrf();
 if ($user["company_id"] === null) {
     json_response(["error" => "Usuário sem empresa vinculada."], 403);
 }
+$companyId = (int) $user["company_id"];
 if (!in_array($user["role"], ["ADMIN_EMPRESA", "SUPERVISOR"], true)) {
     json_response(["error" => "Perfil sem permissão para importar romaneio."], 403);
 }
@@ -187,9 +188,10 @@ try {
             )->execute(["quantity" => $quantity, "id" => $itemIds[$itemKey]]);
         } else {
             $itemStatement = $pdo->prepare(
-                "INSERT INTO romaneio_itens (romaneio_id, product_id, truck_id, planned_quantity) VALUES (:romaneio_id, :product_id, :truck_id, :quantity)",
+                "INSERT INTO romaneio_itens (company_id, romaneio_id, product_id, truck_id, planned_quantity) VALUES (:company_id, :romaneio_id, :product_id, :truck_id, :quantity)",
             );
             $itemStatement->execute([
+                "company_id" => $companyId,
                 "romaneio_id" => $romaneioId,
                 "product_id" => $product["id"],
                 "truck_id" => $truckIds[$truckKey],

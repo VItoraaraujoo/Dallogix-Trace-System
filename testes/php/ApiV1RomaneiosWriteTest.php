@@ -8,9 +8,14 @@ require_once __DIR__ . '/../../servidor/api/v1/romaneios-write.php';
 
 final class ApiV1RomaneiosWriteTest extends TestCase
 {
-    public function testChaveDeIdempotenciaEhOpcionalMasExigeFormatoSeguro(): void
+    public function testChaveDeIdempotenciaEhObrigatoriaEExigeFormatoSeguro(): void
     {
-        self::assertNull(api_v1_chave_idempotencia(null));
+        try {
+            api_v1_chave_idempotencia(null);
+            self::fail('A ausência da chave deve ser recusada.');
+        } catch (ApiV1PayloadException $exception) {
+            self::assertSame('idempotency_key_required', $exception->errorCode);
+        }
         self::assertSame('erp-romaneio-20261016-01', api_v1_chave_idempotencia('erp-romaneio-20261016-01'));
         $this->expectException(ApiV1PayloadException::class);
         api_v1_chave_idempotencia('curta');

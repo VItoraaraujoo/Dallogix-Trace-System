@@ -133,6 +133,41 @@ if ($errorDays > 0) {
     } while ($count === $batch);
 }
 
+$idempotencyDays = $days("API_IDEMPOTENCY_RETENTION_DAYS", 730);
+if ($idempotencyDays > 0) {
+    $cutoff = (new DateTimeImmutable("-{$idempotencyDays} days"))->format("Y-m-d H:i:s");
+    do {
+        $statement = $pdo->prepare(
+            "DELETE FROM api_romaneios_idempotencia
+             WHERE response_json IS NOT NULL AND created_at < :cutoff
+             ORDER BY created_at LIMIT {$batch}",
+        );
+        $statement->execute(["cutoff" => $cutoff]);
+        $count = $statement->rowCount();
+        $removed["api_romaneios_idempotencia"] = ($removed["api_romaneios_idempotencia"] ?? 0) + $count;
+    } while ($count === $batch);
+}
+
+foreach (["limites_api_v1_chave", "limites_api_v1_empresa"] as $table) {
+    do {
+        $statement = $pdo->prepare(
+            "DELETE FROM {$table} WHERE last_seen_at < DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 48 HOUR) LIMIT {$batch}",
+        );
+        $statement->execute();
+        $count = $statement->rowCount();
+        $removed[$table] = ($removed[$table] ?? 0) + $count;
+    } while ($count === $batch);
+}
+
+do {
+    $statement = $pdo->prepare(
+        "DELETE FROM limites_logs_frontend WHERE last_seen_at < DATE_SUB(UTC_TIMESTAMP(3), INTERVAL 48 HOUR) LIMIT {$batch}",
+    );
+    $statement->execute();
+    $count = $statement->rowCount();
+    $removed["limites_logs_frontend"] = ($removed["limites_logs_frontend"] ?? 0) + $count;
+} while ($count === $batch);
+
 do {
     $statement = $pdo->prepare(
         "DELETE FROM limites_login
@@ -146,7 +181,7 @@ do {
 } while ($count === $batch);
 
 $parts = [];
-foreach (["leituras", "eventos_sensor", "fila_sincronizacao", "logs_auditoria", "logs_erros", "limites_login"] as $table) {
+foreach (["leituras", "eventos_sensor", "fila_sincronizacao", "logs_auditoria", "logs_erros", "limites_login", "api_romaneios_idempotencia", "limites_api_v1_chave", "limites_api_v1_empresa", "limites_logs_frontend"] as $table) {
     $parts[] = $table . "=" . (int) ($removed[$table] ?? 0);
 }
 echo "Retenção operacional: " . implode(" ", $parts) . ".\n";

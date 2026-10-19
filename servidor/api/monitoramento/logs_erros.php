@@ -25,13 +25,15 @@ if ($method === "POST") {
     $error = is_array($payload["erro"] ?? null) ? $payload["erro"] : [];
     $message = trim((string) ($error["mensagem"] ?? "Falha reportada no navegador."));
     $message = preg_replace('/[\x00-\x1F\x7F]+/u', " ", $message) ?: "Falha reportada no navegador.";
-    $message = preg_replace('/Bearer\s+[^\s,;]+/i', "Bearer [omitido]", $message) ?: $message;
-    $message = preg_replace('/([?&](?:token|senha|password|secret|authorization|csrf)=)[^&\s]+/i', '$1[omitido]', $message) ?: $message;
-    $message = preg_replace('#(https?://)[^/@\s]+@#i', '$1[credenciais]@', $message) ?: $message;
+    $message = trace_redigir_segredos($message);
     $message = mb_substr($message, 0, 1000);
     $context = json_encode([
         "nivel" => $level,
         "contexto" => mb_substr($sourceContext, 0, 100),
+        "correlation_id" => trace_correlation_id(),
+        "upstream_correlation_id" => trace_correlacao_externa(
+            isset($payload["correlation_id"]) ? (string) $payload["correlation_id"] : null,
+        ) ?? trace_correlacao_externa(),
         "tipo_erro" => mb_substr((string) ($error["nome"] ?? ""), 0, 80),
         "codigo" => mb_substr((string) ($error["codigo"] ?? ""), 0, 80),
         "status_http" => filter_var($error["status"] ?? null, FILTER_VALIDATE_INT) ?: null,
@@ -50,6 +52,28 @@ if ($method === "POST") {
            AND criado_em >= DATE_SUB(NOW(), INTERVAL 15 SECOND)
          LIMIT 1",
     );
+    $windowKey = intdiv(time(), 60);
+    $limiterKey = hash("sha256", ($companyId ?? 0) . ":" . (int) $user["id"]);
+    $rateLimit = $pdo->prepare(
+        "INSERT INTO limites_logs_frontend (limiter_key, window_key, request_count, last_seen_at)
+         VALUES (:limiter_key, :window_key, 1, UTC_TIMESTAMP(3))
+         ON DUPLICATE KEY UPDATE
+           request_count = IF(window_key = VALUES(window_key), LEAST(request_count + 1, 31), 1),
+           window_key = VALUES(window_key),
+           last_seen_at = VALUES(last_seen_at)",
+    );
+    $rateLimit->execute([
+        "limiter_key" => $limiterKey,
+        "window_key" => $windowKey,
+    ]);
+    $rateLimitStatus = $pdo->prepare(
+        "SELECT request_count FROM limites_logs_frontend WHERE limiter_key = :limiter_key",
+    );
+    $rateLimitStatus->execute(["limiter_key" => $limiterKey]);
+    if ((int) $rateLimitStatus->fetchColumn() > 30) {
+        json_response(["data" => ["recorded" => false, "reason" => "rate_limited"]], 202);
+    }
+
     $duplicate->execute([
         ...$actorParams,
         "origem" => $origin,
@@ -57,17 +81,6 @@ if ($method === "POST") {
     ]);
     if ($duplicate->fetchColumn()) {
         json_response(["data" => ["recorded" => false, "reason" => "duplicate"]], 202);
-    }
-
-    $rateLimit = $pdo->prepare(
-        "SELECT COUNT(*) FROM logs_erros
-         WHERE {$companyFilter} AND user_id = :user_id
-           AND origem LIKE 'frontend.%'
-           AND criado_em >= DATE_SUB(NOW(), INTERVAL 1 MINUTE)",
-    );
-    $rateLimit->execute($actorParams);
-    if ((int) $rateLimit->fetchColumn() >= 30) {
-        json_response(["data" => ["recorded" => false, "reason" => "rate_limited"]], 202);
     }
 
     $insert = $pdo->prepare(

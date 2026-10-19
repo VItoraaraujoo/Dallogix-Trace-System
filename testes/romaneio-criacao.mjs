@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js?v=202610130006";
+import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js?v=202610180001";
 import { validarCadastroRomaneio } from "../interface/js/funcoes/romaneio.js?v=202610130005";
 import { importScreen } from "../interface/telas/importar-romaneio/importar-romaneio.js?v=202610130005";
 import { manifestView } from "../interface/telas/romaneio/romaneio.js?v=202610130006";

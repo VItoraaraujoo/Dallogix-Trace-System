@@ -36,7 +36,7 @@ final class SincronizacaoSnapshotPendenteTest extends TestCase
             plate TEXT, driver_name TEXT
         )');
         $pdo->exec('CREATE TABLE romaneio_itens (
-            id INTEGER PRIMARY KEY AUTOINCREMENT, romaneio_id INTEGER, product_id INTEGER,
+            id INTEGER PRIMARY KEY AUTOINCREMENT, company_id INTEGER, romaneio_id INTEGER, product_id INTEGER,
             truck_id INTEGER, planned_quantity INTEGER
         )');
         $pdo->exec("INSERT INTO produtos (company_id, code, name, active) VALUES (1, 'SKU-1', 'Produto 1', 1)");
@@ -173,6 +173,7 @@ final class SincronizacaoSnapshotPendenteTest extends TestCase
         self::assertSame(1, (int) $pdo->query('SELECT COUNT(*) FROM romaneio_caminhoes')->fetchColumn());
         self::assertSame(1, (int) $pdo->query('SELECT COUNT(*) FROM romaneio_itens')->fetchColumn());
         self::assertSame(70, (int) $pdo->query('SELECT remote_romaneio_id FROM romaneios')->fetchColumn());
+        self::assertSame(1, (int) $pdo->query('SELECT company_id FROM romaneio_itens')->fetchColumn());
         self::assertSame(12, (int) $pdo->query('SELECT planned_quantity FROM romaneio_itens')->fetchColumn());
     }
 

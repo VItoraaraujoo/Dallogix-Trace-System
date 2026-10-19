@@ -5,7 +5,7 @@ import { ClienteApi } from "./api/ClienteApi.js?v=202610140003";
 import { confirmarAcao, limparNotificacao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610160002";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610160005";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610180001";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, instalarRecuperacaoFocoLeitor, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio, operationStructureSignature } from "./controladores/operacao.js?v=202610160005";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610140001";
@@ -422,7 +422,7 @@ function installOfflineShell() {
     reloadAfterUpdate = false;
     window.location.reload();
   });
-  navigator.serviceWorker.register("/service-worker.js?v=202610160003").then((registration) => {
+  navigator.serviceWorker.register("/service-worker.js?v=202610180001").then((registration) => {
     const ativarAtualizacaoSilenciosamente = () => {
       if (!registration.waiting || !navigator.serviceWorker.controller) return;
       reloadAfterUpdate = true;

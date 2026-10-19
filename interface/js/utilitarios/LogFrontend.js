@@ -39,6 +39,16 @@ function erroSeguro(erro) {
   };
 }
 
+function novoIdentificadorCorrelacao() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  const valores = new Uint8Array(16);
+  globalThis.crypto?.getRandomValues?.(valores);
+  if (valores.some((valor) => valor !== 0)) {
+    return [...valores].map((valor) => valor.toString(16).padStart(2, "0")).join("");
+  }
+  return `${Date.now().toString(16)}${Math.random().toString(16).slice(2).padEnd(16, "0")}`.slice(0, 32);
+}
+
 export function configurarTransporteLogs(transporte) {
   transporteRemoto = typeof transporte === "function" ? transporte : null;
 }
@@ -62,6 +72,7 @@ export function registrarLogFrontend(nivel, contexto, erro = null, detalhes = {}
   ultimosRegistros.set(chave, agora);
 
   const registro = {
+    correlation_id: novoIdentificadorCorrelacao(),
     momento: new Date(agora).toISOString(),
     nivel: tipo,
     contexto: String(contexto || "geral"),

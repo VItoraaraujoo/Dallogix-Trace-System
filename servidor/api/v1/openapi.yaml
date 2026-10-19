@@ -26,6 +26,7 @@ paths:
                       id: { type: integer }
                       name: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '429': { $ref: '#/components/responses/RateLimited' }
   /romaneios:
     get:
       operationId: listarRomaneios
@@ -49,15 +50,16 @@ paths:
         '200': { $ref: '#/components/responses/Paginated' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
     post:
       operationId: criarRomaneio
       summary: Criar um romaneio e o caminhão associado
-      description: Requer o escopo romaneios:write. A empresa vem da chave; a API não aceita company_id. Informe a Dala de destino; o romaneio será sincronizado ao PC vinculado. A API grava dados de negócio e não altera o CLP. Envie Idempotency-Key para repetir uma criação após perda de resposta sem duplicar o romaneio.
+      description: Requer o escopo romaneios:write. A empresa vem da chave; a API não aceita company_id. Informe a Dala de destino; o romaneio será sincronizado ao PC vinculado. A API grava dados de negócio e não altera o CLP. A Idempotency-Key é obrigatória e permite repetir uma criação após perda de resposta sem duplicar o romaneio. Os limites são aplicados por chave e por empresa; respostas limitadas usam HTTP 429 e Retry-After.
       parameters:
         - name: Idempotency-Key
           in: header
-          required: false
-          description: Chave única por tentativa de criação. O mesmo conteúdo retorna o romaneio original com HTTP 200 e Idempotent-Replayed; outro conteúdo retorna HTTP 409.
+          required: true
+          description: Chave única por tentativa de criação. O mesmo conteúdo retorna o romaneio original com HTTP 200 e Idempotent-Replayed; outro conteúdo retorna HTTP 409. A resposta pode ser repetida por 730 dias.
           schema: { type: string, minLength: 16, maxLength: 128, pattern: '^[A-Za-z0-9._:-]+$' }
       requestBody:
         required: true
@@ -102,6 +104,7 @@ paths:
         '413': { $ref: '#/components/responses/InvalidRequest' }
         '415': { $ref: '#/components/responses/InvalidRequest' }
         '422': { $ref: '#/components/responses/InvalidRequest' }
+        '429': { $ref: '#/components/responses/RateLimited' }
   /romaneios/{id}:
     get:
       operationId: obterRomaneio
@@ -111,6 +114,7 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Record' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
   /romaneios/{id}/relatorio.pdf:
     get:
       operationId: baixarRelatorioRomaneio
@@ -125,6 +129,7 @@ paths:
               schema: { type: string, format: binary }
         '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '429': { $ref: '#/components/responses/RateLimited' }
   /carregamentos:
     get:
       operationId: listarCarregamentos
@@ -137,6 +142,7 @@ paths:
           schema: { type: string, enum: [AGUARDANDO, PREPARANDO, CARREGANDO, PAUSADO, FINALIZANDO, FINALIZADO, EMERGENCIA] }
       responses:
         '200': { $ref: '#/components/responses/Paginated' }
+        '429': { $ref: '#/components/responses/RateLimited' }
   /carregamentos/{id}:
     get:
       operationId: obterCarregamento
@@ -146,6 +152,7 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Record' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
   /carregamentos/{id}/leituras:
     get:
       operationId: listarLeituras
@@ -157,6 +164,7 @@ paths:
       responses:
         '200': { $ref: '#/components/responses/Paginated' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
   /equipamentos:
     get:
       operationId: listarEquipamentos
@@ -167,6 +175,7 @@ paths:
         - { $ref: '#/components/parameters/Cursor' }
       responses:
         '200': { $ref: '#/components/responses/Paginated' }
+        '429': { $ref: '#/components/responses/RateLimited' }
   /ocorrencias:
     get:
       operationId: listarOcorrencias
@@ -176,6 +185,7 @@ paths:
         - { $ref: '#/components/parameters/Cursor' }
       responses:
         '200': { $ref: '#/components/responses/Paginated' }
+        '429': { $ref: '#/components/responses/RateLimited' }
 components:
   securitySchemes:
     bearerAuth:
@@ -229,3 +239,20 @@ components:
       description: O número do romaneio já existe para a empresa ou o relatório ainda não está disponível
     InvalidRequest:
       description: Corpo, tipo ou tamanho da requisição inválido
+    RateLimited:
+      description: Limite por chave ou empresa excedido; aguarde o intervalo informado em Retry-After
+      headers:
+        Retry-After:
+          description: Segundos até poder tentar novamente
+          schema: { type: integer, minimum: 1 }
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: object
+                properties:
+                  code: { type: string, const: rate_limited }
+                  message: { type: string }
+                  request_id: { type: string }

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . "/observabilidade.php";
+require_once __DIR__ . "/paginacao.php";
 
 function ambiente_atual(): string
 {
@@ -1184,7 +1185,9 @@ function record_operational_event(
 function registrar_log_erro(Throwable $exception, string $origem = "api"): void
 {
     $usuario = obter_usuario_sessao();
-    $mensagem = mb_substr(trim($exception->getMessage()) ?: "Falha inesperada.", 0, 1000);
+    $mensagem = trim($exception->getMessage()) ?: "Falha inesperada.";
+    $mensagem = trace_redigir_segredos($mensagem);
+    $mensagem = mb_substr($mensagem, 0, 1000);
     error_log("Dallogix Trace [{$origem}]: {$mensagem}");
 
     try {
@@ -1213,8 +1216,9 @@ function registrar_log_erro(Throwable $exception, string $origem = "api"): void
             "mensagem" => $mensagem,
             "contexto" => $contexto,
         ]);
-    } catch (Throwable $ignored) {
-        error_log("Dallogix Trace: não foi possível persistir o log de erro.");
+    } catch (Throwable $loggingException) {
+        $loggingMessage = trace_redigir_segredos($loggingException->getMessage());
+        error_log("Dallogix Trace: falha ao persistir log [" . mb_substr($loggingMessage, 0, 500) . "].");
     }
 }
 
