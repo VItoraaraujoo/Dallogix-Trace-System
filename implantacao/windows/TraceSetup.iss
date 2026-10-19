@@ -35,6 +35,7 @@ Source: "TraceUpdater.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignorev
 Source: "Register-TraceUpdater.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
 Source: "Instalar-TraceLocal.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
 Source: "TraceAgent.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
+Source: "Configure-TraceScanner.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
 Source: "Build-TraceSetup.ps1"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion
 Source: "..\..\desktop\DallogixTrace\bin\Release\net8.0-windows\win-x64\publish\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 Source: "TraceLauncher.cmd"; DestDir: "{app}\implantacao\windows"; Flags: ignoreversion

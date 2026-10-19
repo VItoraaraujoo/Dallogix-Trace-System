@@ -123,6 +123,34 @@ final class ServicoMonitoramentoTest extends TestCase
         self::assertStringNotContainsString("logs_auditoria", $pdo->queries[0]);
     }
 
+    public function testScannerUsaLimiteDeHeartbeatProprioEStatusDesconhecidoQuandoAgenteAtrasa(): void
+    {
+        $device = static fn (int $id, string $status, int $ageMicros): array => [
+            "equipment_id" => $id,
+            "device_type" => "SCANNER",
+            "status" => $status,
+            "last_seen_at" => "2026-10-19 12:00:00",
+            "segundos_sem_sinal" => intdiv($ageMicros, 1_000_000),
+            "micros_sem_sinal" => $ageMicros,
+            "equipment_code" => "DALA-{$id}",
+        ];
+        $pdo = new MonitoramentoPdoFake([
+            $device(1, "ONLINE", 20_000_000),
+            $device(2, "OFFLINE", 20_000_000),
+            $device(3, "ONLINE", 90_000_001),
+            $device(4, "ERRO", 20_000_000),
+        ]);
+
+        $devices = (new ServicoMonitoramento($pdo))->obterStatusDispositivos(5, 3, 15, 90);
+
+        self::assertSame([
+            1 => "ONLINE",
+            2 => "OFFLINE",
+            3 => "DESCONHECIDO",
+            4 => "ERRO",
+        ], array_column($devices, "status", "equipment_id"));
+    }
+
     public function testObterMaquinasCalculaEstadosFisicoEOperacionalSemCarregarSnapshot(): void
     {
         $pdo = new MonitoramentoPdoFake([], [[

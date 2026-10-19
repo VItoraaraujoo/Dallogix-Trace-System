@@ -90,7 +90,7 @@ const registroTelas = criarRegistroTelas({
   emergency: () =>
     import("../telas/emergencia/emergencia.js?v=202610190046").then(({ emergency }) => emergency),
   settings: () =>
-    import("../telas/configuracoes/configuracoes.js?v=202610190046").then(({ settings }) => settings),
+    import("../telas/configuracoes/configuracoes.js?v=202610190062").then(({ settings }) => settings),
   dalas: () =>
     import("../telas/dalas/dalas.js?v=202610190046").then(({ dalas }) => dalas),
   dala: () =>
@@ -382,7 +382,7 @@ const conectividadeLocal = createLocalConnectivityController({
   focusScanner: (root) => focusOperationScanner(root),
   getScreenRoot: () => el("#screen-root"),
   logWarning: (...args) => logFrontend.aviso(...args),
-  serviceWorkerUrl: "/service-worker.js?v=202610190061",
+  serviceWorkerUrl: "/service-worker.js?v=202610190062",
 });
 
 function waitForDocumentStyles() {

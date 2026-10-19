@@ -13,6 +13,8 @@ const databaseBackup = readFileSync(new URL("../implantacao/windows/TraceDatabas
 const setupPackage = readFileSync(new URL("../implantacao/windows/TraceSetup.iss", import.meta.url), "utf8");
 const masterHomologationUpdater = readFileSync(new URL("../implantacao/windows/auto-master-homologacao/Atualizar.ps1", import.meta.url), "utf8");
 const setupMachine = readFileSync(new URL("../implantacao/windows/Setup-TraceMachine.ps1", import.meta.url), "utf8");
+const traceAgent = readFileSync(new URL("../implantacao/windows/TraceAgent.ps1", import.meta.url), "utf8");
+const scannerConfigurator = readFileSync(new URL("../implantacao/windows/Configure-TraceScanner.ps1", import.meta.url), "utf8");
 const dockerStarter = readFileSync(new URL("../implantacao/windows/Start-TraceDocker.ps1", import.meta.url), "utf8");
 const desktopProgram = readFileSync(new URL("../desktop/DallogixTrace/Program.cs", import.meta.url), "utf8");
 
@@ -67,6 +69,21 @@ test("instalação valida Central, manifesto e pacote HTTPS antes de configurar 
   assert.match(setupMachine, /\$updateManifestUrl = Get-TraceEnvValue 'UPDATE_MANIFEST_URL'/);
   assert.match(setupMachine, /UPDATE_MANIFEST_URL = \$updateManifestUrl/);
   assert.ok(setupMachine.indexOf("Test-TraceReleaseAccess $updateManifestUrl") < setupMachine.indexOf("Instalar-TraceLocal.ps1"));
+});
+
+test("assistente configura o leitor USB e o agente relata presença Plug and Play", () => {
+  assert.match(setupMachine, /Get-PnpDevice -PresentOnly -ErrorAction Stop/);
+  assert.match(setupMachine, /Número do Elgin EL8600/);
+  assert.match(setupMachine, /scanner_usb_pattern = \$scannerUsbPattern/);
+  assert.match(traceAgent, /function Get-ScannerPresenceStatus/);
+  assert.match(traceAgent, /Get-PnpDevice -PresentOnly -ErrorAction Stop/);
+  assert.match(traceAgent, /StartsWith\(\$pattern, \[StringComparison\]::OrdinalIgnoreCase\)/);
+  assert.match(traceAgent, /Send-DeviceHeartbeat "SCANNER" \$scannerStatus/);
+  assert.match(traceAgent, /WINDOWS_PNP_USB_HID/);
+  assert.match(traceAgent, /Start-Sleep -Seconds 2/);
+  assert.match(scannerConfigurator, /Copy-Item -LiteralPath \$ConfigPath -Destination \$backupPath/);
+  assert.match(scannerConfigurator, /Start-ScheduledTask -TaskName "Dallogix Trace Agent"/);
+  assert.match(setupPackage, /Source: "Configure-TraceScanner\.ps1"/);
 });
 
 test("pré-verificação do Docker não fica presa quando o motor ainda está iniciando", () => {
