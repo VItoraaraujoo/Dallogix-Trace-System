@@ -66,7 +66,7 @@ function dashboardEquipmentPriority(equipment, machines) {
 // Dashboard no padrão da referência TracePlatform: somente informações das Dalas.
 export function dashboard(store) {
   const equipments = store.state.equipments || [];
-  const machines = store.state.monitoring?.maquinas || [];
+  const machines = store.state.dalaStatuses || [];
   const canManageDalas = store.state.userRole === "ADMIN_EMPRESA";
   const loading = !store.state.equipmentsLoaded;
   const sortedEquipments = [...equipments].sort(

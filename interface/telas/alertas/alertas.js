@@ -3,7 +3,7 @@ import { dataHora, numero, relativo } from "../../js/funcoes/formato.js?v=202609
 import { deviceBadge, pageHeader, physicalStateBadge } from "../../js/funcoes/view.js?v=202610061745";
 import { rotuloEstado, rotuloStatusSincronizacao } from "../../js/funcoes/rotulos.js";
 export function alerts(store) {
-  const data = store.state.monitoring || {
+  const data = store.state.alertMonitoring || {
     leituras: {},
     sync_pendente: 0,
     dispositivos: [],

@@ -30,8 +30,10 @@ login_html="$(cat "$trace_test_tmp_dir/dx-etapa24-login.html")"
 grep -q 'id="login-form"' <<< "$login_html" || fail "index.html sem formulário de login"
 grep -Eq '<form id="login-form" method="post"' <<< "$login_html" || fail "formulário de login sem method=post"
 login_js="$(curl -sS "$base_url/js/login.js")"
-grep -q 'api.fetch("/api/login.php"' <<< "$login_js" || fail "login.js não envia credenciais para /api/login.php"
-grep -q 'method: "POST"' <<< "$login_js" || fail "login.js não usa POST"
+login_controller="$(curl -sS "$base_url/telas/acesso/acesso.js")"
+grep -q 'bindLoginForm' <<< "$login_js" || fail "login.js não inicializa o controlador de autenticação"
+grep -q 'api.fetch("/api/login.php"' <<< "$login_controller" || fail "controlador não envia credenciais para /api/login.php"
+grep -q 'method: "POST"' <<< "$login_controller" || fail "controlador de login não usa POST"
 grep -q "replaceState" <<< "$login_js" || fail "login.js sem higiene de URL (replaceState)"
 if grep -q 'password=' <<< "$login_js"; then fail "login.js monta query string com password"; fi
 if grep -q 'password=' <<< "$login_html"; then fail "index.html contém password na URL/marcação"; fi

@@ -33,11 +33,73 @@ test("reprocessa evento e preserva headers de sessão", async () => {
 
 test("envia pendências para a fila offline sem duplicar regras", async () => {
   let received;
+  let quantidadePendente;
   const buffer = { async flush(headers) { received = headers; return { sent: 2, pending: 1 }; } };
-  const service = new ServicoSincronizacao({ api: { fetch: async () => response({}) }, offlineBuffer: buffer });
+  const service = new ServicoSincronizacao({
+    api: { fetch: async () => response({}) },
+    offlineBuffer: buffer,
+    onOfflineQueueChanged: (count) => { quantidadePendente = count; },
+  });
   const result = await service.enviarPendencias({ "X-CSRF-Token": "token" });
   assert.deepEqual(result, { sent: 2, pending: 1 });
   assert.deepEqual(received, { "X-CSRF-Token": "token" });
+  assert.equal(quantidadePendente, 1);
+});
+
+test("requisição operacional queueable preserva idempotência e atualiza a contagem", async () => {
+  const chamadas = [];
+  let operacaoEnfileirada;
+  let quantidadePendente;
+  const offlineBuffer = {
+    async enqueue(operation) { operacaoEnfileirada = operation; return 42; },
+    async all() { return [{ id: 42 }]; },
+    async flush() { return { pending: 0 }; },
+  };
+  const api = {
+    async fetch(url, options) {
+      chamadas.push({ url, options });
+      throw new Error("rede indisponível");
+    },
+  };
+  const service = new ServicoSincronizacao({
+    api,
+    offlineBuffer,
+    createEventId: () => "event-id-42",
+    onOfflineQueueChanged: (count) => { quantidadePendente = count; },
+  });
+
+  const requestOptions = {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "X-CSRF-Token": "csrf" },
+    body: JSON.stringify({ carregamento_id: 12, barcode: "789" }),
+  };
+  const queuedResponse = await service.requestWithOfflineQueue("/api/leituras.php", requestOptions);
+  const payload = await queuedResponse.json();
+
+  assert.equal(service.canQueueOffline("/api/leituras.php", requestOptions), true);
+  assert.equal(queuedResponse.status, 202);
+  assert.deepEqual(payload.data, { queued: true, offline_id: 42 });
+  assert.equal(chamadas.length, 1);
+  assert.equal(chamadas[0].options.headers["X-Trace-Offline-Id"], "event-id-42");
+  assert.equal(operacaoEnfileirada.eventId, chamadas[0].options.headers["X-Trace-Offline-Id"]);
+  assert.deepEqual(operacaoEnfileirada.headers, requestOptions.headers);
+  assert.equal(operacaoEnfileirada.body, requestOptions.body);
+  assert.equal(quantidadePendente, 1);
+});
+
+test("fila offline não intercepta consultas nem endpoints fora da lista permitida", async () => {
+  const service = new ServicoSincronizacao({
+    api: { async fetch() { throw new Error("offline"); } },
+    offlineBuffer: { async flush() { return { pending: 0 }; } },
+    createEventId: () => "event-id-43",
+  });
+  assert.equal(service.canQueueOffline("/api/leituras.php", { method: "GET" }), false);
+  assert.equal(service.canQueueOffline("/api/health.php", { method: "POST", body: "{}" }), false);
+  assert.equal(service.canQueueOffline("/api/retornos.php", { method: "POST", body: {} }), false);
+  await assert.rejects(
+    service.requestWithOfflineQueue("/api/health.php", { method: "POST", body: "{}" }),
+    /offline/,
+  );
 });
 
 test("processa evento SSE dividido em quadros e no fim do stream", async () => {

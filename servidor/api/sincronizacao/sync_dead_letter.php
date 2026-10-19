@@ -10,6 +10,9 @@ if (!in_array($usuario["role"], ["ADMIN_DALLOGIX", "ADMIN_EMPRESA", "SUPERVISOR"
     responder_json(["error" => "Perfil sem permissão para consultar a fila morta."], 403);
 }
 
+if ($_SERVER["REQUEST_METHOD"] === "GET") {
+    session_write_close();
+}
 $pdo = obter_conexao_banco();
 $companyId = filter_var($_GET["company_id"] ?? null, FILTER_VALIDATE_INT);
 if ($usuario["role"] !== "ADMIN_DALLOGIX") {

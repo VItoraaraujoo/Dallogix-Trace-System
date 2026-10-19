@@ -17,7 +17,7 @@ if ($action === "CLAIM") {
     try {
         $statement = $pdo->prepare(
             "SELECT r.id, r.sensor_event_id, r.carregamento_id, r.equipment_id, r.reason,
-                    r.evidence_pdf_path, c.company_id
+                    r.requested_at, r.evidence_pdf_path, c.company_id
              FROM solicitacoes_captura_camera r
              JOIN carregamentos c ON c.id = r.carregamento_id
              WHERE r.equipment_id = :equipment_id
@@ -82,6 +82,47 @@ if ($action === "CLAIM") {
         }
         throw $exception;
     }
+}
+
+if ($action === "DOWNLOAD") {
+    $requestId = filter_var($payload["request_id"] ?? null, FILTER_VALIDATE_INT);
+    if (!$requestId || $requestId < 1) {
+        json_response(["error" => "request_id inválido."], 422);
+    }
+    $statement = $pdo->prepare(
+        "SELECT r.id, r.equipment_id, r.evidence_pdf_path, c.company_id
+         FROM solicitacoes_captura_camera r
+         JOIN carregamentos c ON c.id = r.carregamento_id
+         WHERE r.id = :request_id AND r.equipment_id = :equipment_id
+           AND c.company_id = :company_id AND r.claimed_by_device_id = :device_id
+           AND r.status = 'CAPTURANDO' AND r.evidence_pdf_path IS NOT NULL
+         LIMIT 1",
+    );
+    $statement->execute([
+        "request_id" => (int) $requestId,
+        "equipment_id" => $device["equipment_id"],
+        "company_id" => $device["company_id"],
+        "device_id" => $device["id"],
+    ]);
+    $capture = $statement->fetch();
+    if (!$capture) {
+        json_response(["error" => "PDF da captura não encontrado para esta reserva."], 404);
+    }
+    $pdfPath = trace_camera_evidence_pdf_path(
+        __DIR__ . "/../../../armazenamento",
+        (int) $capture["company_id"],
+        (int) $capture["equipment_id"],
+        (int) $capture["id"],
+        (string) $capture["evidence_pdf_path"],
+    );
+    if ($pdfPath === null) {
+        json_response(["error" => "PDF da captura ausente ou inválido."], 409);
+    }
+    header("Content-Type: application/pdf");
+    header("Content-Length: " . filesize($pdfPath));
+    header("Cache-Control: no-store");
+    readfile($pdfPath);
+    exit();
 }
 
 if ($action !== "COMPLETE") {

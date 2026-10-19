@@ -2,8 +2,30 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js";
+import { ServicoInstalacoesIndustriais } from "../interface/js/servicos/ServicoInstalacoesIndustriais.js";
 
 const read = (path) => readFileSync(path, "utf8");
+
+function criarStoreInstalacoes(pages) {
+  const store = Object.create(ArmazenamentoTrace.prototype);
+  store.state = {
+    selectedCompanyId: 4,
+    industrialInstallations: [],
+    industrialEquipmentOptions: [],
+  };
+  store.api = {
+    fetch: async () => new Response(JSON.stringify(pages.shift()), { status: 200 }),
+  };
+  store.servicoInstalacoesIndustriais = new ServicoInstalacoesIndustriais({
+    api: store.api,
+    state: store.state,
+    jsonHeaders: () => ({}),
+    jsonResponse: (...args) => ArmazenamentoTrace.prototype.jsonResponse.call(store, ...args),
+    validarCursorPaginacao: (...args) =>
+      ArmazenamentoTrace.prototype.validarCursorPaginacao.call(store, ...args),
+  });
+  return store;
+}
 
 test("o cliente percorre todas as páginas sem perder filtros da URL", async () => {
   const store = Object.create(ArmazenamentoTrace.prototype);
@@ -41,13 +63,7 @@ test("o cliente recusa cursor de página repetido ou inválido", async () => {
 });
 
 test("a paginação não duplica uma lista que terminou antes da outra", async () => {
-  const store = Object.create(ArmazenamentoTrace.prototype);
-  store.state = {
-    selectedCompanyId: 4,
-    industrialInstallations: [],
-    industrialEquipmentOptions: [],
-  };
-  const pages = [
+  const store = criarStoreInstalacoes([
     {
       data: {
         installations: [{ id: 1, name: "PC 1" }],
@@ -64,10 +80,7 @@ test("a paginação não duplica uma lista que terminou antes da outra", async (
       pagination: { has_more: false, next_cursor: null },
       equipment_pagination: { has_more: false, next_cursor: null },
     },
-  ];
-  store.api = {
-    fetch: async () => new Response(JSON.stringify(pages.shift()), { status: 200 }),
-  };
+  ]);
 
   await store.loadIndustrialInstallations();
 
@@ -79,18 +92,10 @@ test("a paginação não duplica uma lista que terminou antes da outra", async (
 });
 
 test("a paginação de instalações falha com metadados ausentes em vez de truncar", async () => {
-  const store = Object.create(ArmazenamentoTrace.prototype);
-  store.state = {
-    selectedCompanyId: 4,
-    industrialInstallations: [],
-    industrialEquipmentOptions: [],
-  };
-  store.api = {
-    fetch: async () => new Response(JSON.stringify({
-      data: { installations: [{ id: 1 }], equipment_options: [{ id: 10 }] },
-      pagination: { has_more: false, next_cursor: null },
-    }), { status: 200 }),
-  };
+  const store = criarStoreInstalacoes([{
+    data: { installations: [{ id: 1 }], equipment_options: [{ id: 10 }] },
+    pagination: { has_more: false, next_cursor: null },
+  }]);
 
   await assert.rejects(store.loadIndustrialInstallations(), /metadados de paginação inválidos/);
 });
@@ -122,11 +127,28 @@ test("listas internas usam cursor e o cliente percorre páginas sem truncar sile
     assert.match(source, /LIMIT :fetch_limit/, path);
   }
   const client = read("interface/js/classes/ArmazenamentoTrace.js");
+  const installationsService = read("interface/js/servicos/ServicoInstalacoesIndustriais.js");
+  const accountsService = read("interface/js/servicos/ServicoAdministracaoContas.js");
+  const manifestsService = read("interface/js/servicos/ServicoRomaneios.js");
   assert.match(client, /async fetchAllPages\(/);
-  assert.match(client, /result\.pagination\?\.has_more/);
-  assert.match(client, /next_cursor/);
-  assert.match(client, /ultrapassa 10\.000 registros/);
-  assert.match(client, /industrialEquipmentOptions = equipmentOptions/);
+  assert.match(client, /loadIndustrialInstallations\(\)\s*\{\s*return this\.delegarParaServico\(this\.obterServicoInstalacoesIndustriais, "loadIndustrialInstallations"\)/);
+  assert.match(client, /loadCompanies\(\)\s*\{\s*return this\.delegarParaServico\(this\.obterServicoAdministracaoContas, "loadCompanies"\)/);
+  assert.match(client, /loadUsers\(\)\s*\{\s*return this\.delegarParaServico\(this\.obterServicoAdministracaoContas, "loadUsers"\)/);
+  assert.match(installationsService, /result\.pagination/);
+  assert.match(installationsService, /nextInstallationCursor/);
+  assert.match(installationsService, /LIMITE_REGISTROS = TAMANHO_PAGINA \* LIMITE_PAGINAS/);
+  assert.match(installationsService, /ultrapassa \$\{LIMITE_REGISTROS\.toLocaleString\("pt-BR"\)\} registros/);
+  assert.match(installationsService, /industrialEquipmentOptions = equipmentOptions/);
+  assert.match(accountsService, /async createUser\(payload\)/);
+  assert.match(accountsService, /async updateLicense\(payload\)/);
+  assert.match(accountsService, /async deleteCompany\(/);
+  assert.match(accountsService, /async loadCompanyDetail\(\)/);
+  assert.match(accountsService, /company_id=\$\{this\.state\.selectedCompanyId\}/);
+  assert.match(client, /loadManifests\(\)\s*\{\s*return this\.delegarParaServico\(this\.obterServicoRomaneios, "loadManifests"\)/);
+  assert.match(client, /updateManifest\(payload\)\s*\{\s*return this\.delegarParaServico\(this\.obterServicoRomaneios, "updateManifest", payload\)/);
+  assert.match(manifestsService, /params\.set\("per_page", "50"\)/);
+  assert.match(manifestsService, /JSON\.stringify\(\{ action: "update", \.\.\.payload \}\)/);
+  assert.match(manifestsService, /"X-CSRF-Token": csrfToken/);
 });
 
 test("a migration recusa vínculos entre empresas e roda sem criar triggers", () => {
@@ -160,27 +182,86 @@ test("a exclusão do PC limpa a atribuição composta antes de remover a instala
 });
 
 test("todos os caminhos de inclusão de itens gravam a empresa no próprio registro", () => {
-  const sources = [
+  const itemRepository = read("servidor/src/Persistencia/RepositorioItensRomaneio.php");
+  const insert = itemRepository.match(/INSERT INTO romaneio_itens\s*\(([^)]*)\)\s*VALUES/);
+  assert.ok(insert, "o repositório compartilhado deve inserir linhas de romaneio");
+  assert.match(insert[1], /\bcompany_id\b/);
+  assert.match(itemRepository, /array_chunk\(\$normalizedItems, self::MAX_LINHAS_POR_LOTE\)/);
+
+  for (const path of [
     "servidor/api/romaneios/romaneios.php",
     "servidor/api/romaneios/importar_csv.php",
-    "servidor/api/sincronizacao/sincronizacao_eventos.php",
     "servidor/api/v1/romaneios-write.php",
-    "servidor/src/Aplicacao/ServicoSincronizacaoRemota.php",
-  ];
-  let insertCount = 0;
-  for (const path of sources) {
+    "servidor/src/Persistencia/RepositorioItensRomaneioSincronizacao.php",
+  ]) {
+    assert.match(read(path), /RepositorioItensRomaneio[\s\S]{0,500}?inserirLinhas\(/, path);
+  }
+  const csvItemGrouper = read("servidor/src/Aplicacao/AgrupadorItensImportacaoRomaneio.php");
+  assert.match(csvItemGrouper, /romaneio_id[\s\S]+truck_id[\s\S]+product_id/);
+  for (const path of [
+    "servidor/src/Persistencia/RepositorioRomaneiosRemotos.php",
+  ]) {
     const source = read(path);
     const inserts = [...source.matchAll(/INSERT INTO romaneio_itens\s*\(([^)]*)\)\s*VALUES\s*\(([^)]*)\)/gs)];
     assert.ok(inserts.length > 0, `nenhuma inclusão encontrada em ${path}`);
     for (const [, columns, values] of inserts) {
-      insertCount += 1;
       assert.match(columns, /\bcompany_id\b/, path);
       assert.match(values, /:company_id/, path);
     }
   }
-  assert.ok(insertCount >= 6, `esperava os caminhos de criação e importação; encontrei ${insertCount}`);
+  const synchronizationEndpoint = read("servidor/api/sincronizacao/sincronizacao_eventos.php");
+  assert.match(synchronizationEndpoint, /new RepositorioItensRomaneioSincronizacao\(\$pdo\)/);
+  assert.match(synchronizationEndpoint, /\$manifestItemsRepository->substituirItens\(/);
   const publicWrite = read("servidor/api/v1/romaneios-write.php");
   assert.match(publicWrite, /assigned_installation_company_id/);
+});
+
+test("buscas de código de barras usam o escopo e o índice da empresa", () => {
+  const scanner = read("servidor/src/Persistencia/RepositorioLeituras.php");
+  const manualLookup = read("servidor/api/operacoes/identificar_leitura.php");
+  const products = read("servidor/api/produtos/produtos.php");
+  const syncPayload = read("servidor/src/Persistencia/RepositorioPayloadSincronizacao.php");
+  const manifestProducts = read("servidor/src/Persistencia/RepositorioProdutosRomaneio.php");
+  const pdfImport = read("servidor/api/romaneios/importar_pdf.php");
+  const manifests = read("servidor/api/romaneios/romaneios.php");
+  const auditReport = read("servidor/api/relatorios/relatorio_auditoria.php");
+  const barcodeIndex = read("banco-de-dados/migrations/023_codigo_barras_por_empresa.sql");
+
+  assert.match(scanner, /WHERE pc\.company_id = :company_id\s+AND pc\.barcode = :barcode/);
+  assert.match(read("servidor/api/operacoes/leituras.php"), /->buscarProdutoAtivoPorCodigo\(/);
+  assert.match(manualLookup, /WHERE pc\.company_id = :company_id AND pc\.barcode = :barcode/);
+  assert.match(products, /LEFT JOIN codigos_produtos pc\s+ON pc\.company_id = p\.company_id AND pc\.product_id = p\.id/);
+  assert.match(products, /pc\.company_id = p\.company_id AND pc\.product_id = p\.id AND pc\.barcode LIKE :search/);
+  assert.match(syncPayload, /cp\.product_id = p\.id AND cp\.company_id = p\.company_id/);
+  assert.match(manifestProducts, /WHERE pc\.company_id = :company_id AND p\.active = 1\s+AND pc\.barcode IN/);
+  assert.match(pdfImport, /WHERE pc\.company_id = :company_id\s+AND pc\.barcode = :identifier/);
+  assert.match(manifests, /WHERE pc\.company_id = p\.company_id AND pc\.product_id = p\.id/);
+  assert.match(auditReport, /pc\.product_id = p\.id AND pc\.company_id = p\.company_id/);
+  assert.match(barcodeIndex, /UNIQUE KEY uq_company_product_barcode \(company_id, barcode\)/);
+});
+
+test("relatório preserva PDFs de captura no servidor até a rotina de retenção", () => {
+  const auditReport = read("servidor/api/relatorios/relatorio_auditoria.php");
+  const cleanupStart = auditReport.indexOf("function trace_cleanup_report_evidence");
+  const cleanupEnd = auditReport.indexOf("\n$apiClient", cleanupStart);
+  const cleanup = auditReport.slice(cleanupStart, cleanupEnd);
+
+  assert.equal(cleanup.includes('str_ends_with(strtolower($relativePath), ".pdf")'), true);
+  assert.equal(cleanup.includes("AND (LOWER(i.path) LIKE '%.jpg' OR LOWER(i.path) LIKE '%.png')"), true);
+  assert.doesNotMatch(cleanup, /SET r\.evidence_pdf_path = NULL/);
+});
+
+test("listagem de romaneios limita agregações à empresa antes de agrupar", () => {
+  const source = read("servidor/src/Persistencia/RepositorioRomaneiosLista.php");
+
+  assert.match(source, /WITH romaneios_paginados AS/);
+  assert.match(source, /LIMIT :limit OFFSET :offset/);
+  for (const relation of ["romaneio_itens", "leituras", "ocorrencias"]) {
+    assert.match(source, new RegExp(`JOIN romaneios_paginados rp ON rp.id =`), relation);
+  }
+  assert.match(source, /r\.company_id = :company_id/);
+  assert.match(source, /function contar\(/);
+  assert.match(source, /function listar\(/);
 });
 
 test("limites da API são atômicos por chave e empresa, com resposta 429 documentada", () => {

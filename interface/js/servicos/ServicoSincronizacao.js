@@ -3,6 +3,11 @@ import { logFrontend } from "../utilitarios/LogFrontend.js?v=202610060007";
 
 const LIMITE_QUADRO_EVENTO = 256 * 1024;
 const LIMITE_DADOS_EVENTO = 128 * 1024;
+const ENDPOINTS_COM_FILA_OFFLINE = [
+  "/api/identificar_leitura.php",
+  "/api/retornos.php",
+  "/api/leituras.php",
+];
 
 /**
  * Coordena comunicação contínua, fila offline e estado de sincronização.
@@ -10,7 +15,12 @@ const LIMITE_DADOS_EVENTO = 128 * 1024;
  * o que permite testar rede, reconexão e eventos sem abrir o aplicativo.
  */
 export class ServicoSincronizacao {
-  constructor({ api, offlineBuffer }) {
+  constructor({
+    api,
+    offlineBuffer,
+    createEventId,
+    onOfflineQueueChanged,
+  }) {
     if (!api || typeof api.fetch !== "function") {
       throw new TypeError("ClienteApi é obrigatório para sincronizar.");
     }
@@ -19,6 +29,44 @@ export class ServicoSincronizacao {
     }
     this.api = api;
     this.offlineBuffer = offlineBuffer;
+    this.createEventId = createEventId;
+    this.onOfflineQueueChanged = onOfflineQueueChanged;
+  }
+
+  canQueueOffline(url, options = {}) {
+    const method = String(options.method || "GET").toUpperCase();
+    return ["POST", "PUT", "PATCH"].includes(method) &&
+      ENDPOINTS_COM_FILA_OFFLINE.some((path) => url.startsWith(path)) &&
+      typeof options.body === "string";
+  }
+
+  async requestWithOfflineQueue(url, options = {}) {
+    const queueable = this.canQueueOffline(url, options);
+    if (queueable && typeof this.createEventId !== "function") {
+      throw new Error("Gerador seguro de identificadores indisponível.");
+    }
+    // O mesmo ID no envio e na fila permite ao servidor deduplicar uma resposta perdida.
+    const eventId = queueable ? this.createEventId() : null;
+    const requestOptions = queueable
+      ? { ...options, headers: { ...(options.headers || {}), "X-Trace-Offline-Id": eventId } }
+      : options;
+    try {
+      return await this.api.fetch(url, requestOptions);
+    } catch (error) {
+      if (!queueable) throw error;
+      const id = await this.offlineBuffer.enqueue({
+        url,
+        method: options.method || "POST",
+        headers: options.headers || {},
+        body: options.body,
+        eventId,
+      });
+      this.onOfflineQueueChanged?.((await this.offlineBuffer.all()).length);
+      return new Response(JSON.stringify({
+        data: { queued: true, offline_id: id },
+        message: "Operação guardada e será enviada quando a conexão voltar.",
+      }), { status: 202, headers: { "Content-Type": "application/json" } });
+    }
   }
 
   async monitoramento() {
@@ -48,7 +96,9 @@ export class ServicoSincronizacao {
   }
 
   async enviarPendencias(headers = {}) {
-    return this.offlineBuffer.flush(headers);
+    const result = await this.offlineBuffer.flush(headers);
+    this.onOfflineQueueChanged?.(result.pending);
+    return result;
   }
 
   assinarEventos({ onData, onError } = {}) {

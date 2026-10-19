@@ -4,6 +4,7 @@ import { validarCodigoBarras, validarDala, validarPortaTcp, validarProduto } fro
 
 test("valida uma Dala completa", () => {
   assert.equal(validarDala({ name: "Esteira 1", equipment_code: "esteira_1", plc_ip: "192.168.1.10", plc_port: "502" }), "");
+  assert.equal(validarDala({ name: "Esteira 1", equipment_code: "EST-001", plc_ip: "192.168.1.10", plc_port: "502" }), "");
   assert.match(validarDala({ name: "", equipment_code: "esteira_1", plc_ip: "192.168.1.10", plc_port: "502" }), /nome.*obrigatório/i);
   assert.match(validarDala({ name: "Esteira", equipment_code: "Esteira 1", plc_ip: "192.168.1.10", plc_port: "502" }), /identificador/i);
 });

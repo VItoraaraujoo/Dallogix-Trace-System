@@ -78,7 +78,7 @@ export function apresentacaoConectividadePc(syncStatus) {
 }
 
 function deviceStatusPanel(store) {
-  const devices = store.state.monitoring?.dispositivos || [];
+  const devices = store.state.deviceStatuses || [];
   const equipments = new Map(
     (store.state.equipments || []).map((equipment) => [
       Number(equipment.id),

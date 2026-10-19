@@ -81,7 +81,7 @@ export function createOperationalRealtimeController({
     try {
       const requests = [
         store.loadActiveLoading(store.state.selectedLoadingId),
-        store.loadMonitoring(),
+        store.loadDeviceStatuses(),
       ];
       if (page === "work") requests.push(store.loadPendingReadings());
       const results = await Promise.allSettled(requests);

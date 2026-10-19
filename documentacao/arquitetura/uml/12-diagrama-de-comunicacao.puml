@@ -17,8 +17,8 @@ Gateway --> API : 2: solicitar captura autenticada
 API --> DB : 3: gravar solicitação
 Worker --> API : 4: CLAIM da fila
 API --> DB : 5: reservar solicitação
-Worker --> Camera : 6: obter quadro recente
-Camera --> Worker : 7: devolver JPEG
+Worker --> Camera : 6: abrir RTSP e solicitar 1 JPEG
+Camera --> Worker : 7: devolver JPEG e encerrar sessão
 Worker --> API : 8: upload da evidência
 API --> PDF : 9: converter e compor PDF
 PDF --> Storage : 10: persistir arquivo

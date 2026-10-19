@@ -53,6 +53,9 @@ TRACE_DEVICE_TOKEN=token-da-dala-deste-pc
 TRACE_MODBUS_UNIT_ID=1
 TRACE_MODBUS_HEARTBEAT_FUNCTION=1
 TRACE_MODBUS_HEARTBEAT_REGISTER=2052
+TRACE_MODBUS_SENSOR_REGISTER=2052
+TRACE_SENSOR_ACTIVE_LEVEL=1
+TRACE_SENSOR_SIGNAL_MODE=rising_edge
 TRACE_PHYSICAL_CLP_ENABLED=0
 TRACE_IO_MAP_STATUS=APPROVED
 TRACE_MODBUS_MAP_EQUIPMENT_ID=0
@@ -62,7 +65,7 @@ TRACE_MODBUS_COIL_EMERGENCY=2051
 TRACE_MODBUS_COIL_EMERGENCY_FEEDBACK=17
 ```
 
-Esse mapa aprovado é o do INVT TS621 enviado pelo usuário: M2049 liga o motor, M2050 liga o reverso, M2051 aciona a emergência, M17 devolve o estado da emergência e M2052 é um bit do sensor. O gateway lê M2052 por FC1 para confirmar comunicação e expõe seu valor 0/1 no heartbeat. O [manual oficial de programação TS600](https://www.invt.com/uploads/file1/20250421/TS600%20Series%20PLC%20Programming%20and%20Applicaiton%20Manual_V1.2.pdf) descreve variáveis BOOL na área M e variáveis WORD na área D. Ainda falta observar no Ladder se esse bit pulsa ou fica travado por passagem; por isso, o gateway ainda não cria eventos de saco a partir dele e a leitura USB não fica correlacionada automaticamente.
+Esse mapa aprovado é o do INVT TS621 enviado pelo usuário: M2049 liga o motor, M2050 liga o reverso, M2051 aciona a emergência, M17 devolve o estado da emergência e M2052 é o bit do sensor. O gateway consulta M2052 por FC1 a cada 200 ms, publica o status `SENSOR` após uma resposta Modbus válida e, por padrão, registra uma passagem na borda de subida. A primeira amostra após reiniciar só estabelece a linha de base, evitando contar um saco falso. `TRACE_SENSOR_ACTIVE_LEVEL` aceita `1` ou `0`; `TRACE_SENSOR_SIGNAL_MODE` aceita `rising_edge`, `falling_edge` ou `toggle`. A semântica real do Ladder ainda precisa de homologação física; pulsos menores que 200 ms podem não ser observados.
 
 Cada PC industrial é dedicado a uma Dala e usa os tokens dos seus próprios gateways. A API devolve somente a Dala vinculada a esse dispositivo e fornece um destino IPv4 privado validado. O endereço da API deve apontar para a instalação local, nunca para a URL pública. Ao cadastrar ou sincronizar a Dala local, o Trace provisiona automaticamente os tokens CLP e CAMERA do `.env`; o comando `php scripts/provision_device.php` fica reservado para recuperação administrativa de uma instalação existente. O heartbeat usa unidade, função e endereço configurados no ambiente. O gateway só publica ONLINE depois de uma resposta Modbus válida; IP e porta continuam vindo do cadastro da Dala.
 
@@ -89,11 +92,11 @@ O [contrato provisório de simulação](../industrial/contrato-provisorio-simula
 
 O CLP informado para a bancada é o INVT TS621, ligado por Modbus TCP. O mapa de comandos foi aprovado; o documento histórico `mapa-io-candidato.md` descreve outro equipamento e não deve orientar a configuração desta Dala.
 
-O Elgin EL8600 está definido como USB HID (teclado) e envia o código ao campo focado na tela de Operação. O endpoint aceita `sensor_event_id`, mas o gateway ainda não publica eventos a partir de M2052 e o formulário não liga automaticamente um código ao evento pendente. `SEM_LEITURA` registra a ocorrência e solicita foto sem pausar o carregamento. Essa captura só pode ser homologada ponta a ponta depois de associar a passagem do sensor à leitura e testar o leitor e a câmera conectados.
+O Elgin EL8600 é USB HID (teclado): a tela de Operação mantém o campo do leitor focado e o servidor associa cada código à passagem pendente mais recente da mesma Dala. Essa associação também cobre a pequena diferença de tempo em que o código chega antes do evento Modbus. Um código recebido depois da passagem é associado ao evento pendente mais recente, dentro de `TRACE_SCANNER_NO_READ_TIMEOUT_MS` (padrão 1500 ms); assim, uma leitura posterior não ocupa uma passagem que já venceu. Se não chegar código nesse prazo, o gateway finaliza a passagem como `SEM_LEITURA`, registra a ocorrência e solicita uma foto; o carregamento não é pausado por essa falha. A API serializa a leitura e o timeout por carregamento, para que o mesmo evento não gere dois resultados. O POST do evento repete até três vezes com o mesmo identificador quando há falha temporária, sem duplicar registros. A comunicação do teclado USB só é comprovada quando uma leitura é recebida; a ausência de leituras não significa que o scanner esteja desconectado.
 
 ## Heartbeat dos dispositivos
 
-O gateway deve testar a leitura Modbus e publicar a cada **1 segundo** em `/api/device_heartbeat.php`, usando o token da Dala deste PC: `X-Device-Token: ${TRACE_DEVICE_TOKEN}`. Se não houver resposta válida por mais de 3,5 segundos, o fluxo publica `OFFLINE`; a API bloqueia novos comandos operacionais após o limite de sinal configurado. O fluxo tenta restabelecer a comunicação a cada ciclo de 1 segundo. Isso alimenta o monitoramento local; não habilita comandos físicos por si só.
+O gateway verifica e publica o heartbeat do CLP a cada **1 segundo**. A leitura do sensor M2052 ocorre a cada **200 ms**; o status `SENSOR` só fica ONLINE após uma resposta Modbus válida e passa a OFFLINE quando a comunicação falha. Eventos de passagem usam somente leitura FC1 e não enviam escrita ao CLP. O timeout de leitura consulta o servidor local uma vez por segundo enquanto há carregamento ativo, para retomar passagens pendentes após reinício do Node-RED.
 
 ## Sincronização remota
 
@@ -106,14 +109,14 @@ local-first. O endpoint de lote recebe `{"events":[...]}` e só deve responder
 
 ## Captura imediata
 
-Para a Hikvision DS-2CD2121G0-I, a interface física é RJ45/Ethernet e o protocolo de mídia usado aqui é RTSP sobre TCP. O fluxo direto não depende de ONVIF ou ISAPI. No PC industrial, o serviço `camera-worker` mantém uma conexão RTSP com a câmera. O FFmpeg decodifica o fluxo em memória e o worker conserva o JPEG mais recente. Quando chega uma solicitação, esse quadro é enviado ao Trace; o JPEG fica somente em memória/tmpfs durante o processamento e não é retido. A API gera e mantém apenas o PDF de evidência. Nenhum arquivo de vídeo é criado.
+Para a Hikvision DS-2CD2121G0-I, a interface física é RJ45/Ethernet e o protocolo de mídia é RTSP sobre TCP. O worker não mantém o stream aberto nem decodifica imagens em segundo plano. Quando existe um pedido de captura, inicia uma conexão RTSP, solicita um único quadro JPEG, encerra o FFmpeg, monta o PDF no PC industrial e grava esse PDF no armazenamento local antes do envio. A API local recebe e guarda os mesmos bytes do PDF; nenhum JPEG é gravado como arquivo. Sem pedido de captura, nenhuma imagem é processada.
 
 O ciclo automático usa o token do dispositivo CAMERA provisionado para a Dala:
 
 1. Consulta `/api/camera_worker.php` a cada 200 ms e reserva a solicitação pendente mais antiga da própria Dala.
-2. Envia um JPEG de até 4 MiB para `/api/camera_upload.php`; a API valida a captura, gera o PDF e devolve `evidence_pdf_path`.
-3. Confirma a conclusão em `/api/camera_worker.php`. Se o processo reiniciar entre o upload e a confirmação, a reserva expira em 30 segundos e o worker conclui usando o PDF já guardado, sem criar outra foto.
-4. Publica o estado da câmera a cada 5 segundos. A indisponibilidade do fluxo RTSP aparece como OFFLINE; a reconexão é automática, com espera crescente limitada a 30 segundos.
+2. Monta e salva um PDF de até 10 MiB em `CAMERA_EVIDENCE_DIR` no PC industrial, incluindo a captura JPEG como imagem e como dado de origem recuperável. Envia o PDF para `/api/camera_upload.php`; a API valida e armazena o PDF recebido sem convertê-lo novamente e devolve `evidence_pdf_path` e seu SHA-256.
+3. Confirma a conclusão em `/api/camera_worker.php`. Se o processo reiniciar entre o upload e a confirmação, a reserva expira em 30 segundos: o worker reutiliza o PDF local e, se ele não existir, baixa o PDF armazenado pelo servidor antes de confirmar, sem tirar outra foto.
+4. Publica o estado a cada 5 segundos usando uma verificação TCP leve da porta RTSP. Isso confirma que a porta responde, mas as credenciais e a entrega de imagem só ficam confirmadas em uma captura solicitada. Uma falha de captura mantém o pedido na fila para recuperação depois de 30 segundos.
 
 ### Preparação única da câmera
 
@@ -121,11 +124,19 @@ O ciclo automático usa o token do dispositivo CAMERA provisionado para a Dala:
 2. Ligue a porta RJ45 da câmera a uma interface Ethernet dedicada do PC, de preferência o adaptador USB-Ethernet separado do enlace do CLP. Mantenha a rede da câmera em uma sub-rede privada própria, sem gateway ou acesso à internet; não reutilize o endereço do CLP.
 3. Defina um endereço IP privado fixo para câmera e adaptador, na mesma sub-rede. Habilite RTSP, configure o fluxo principal em H.264 a 15 fps e crie um usuário de visualização dedicado com senha forte. Não use a senha administrativa da câmera no sistema.
 4. Preencha no `.env` local `CAMERA_RTSP_HOST`, `CAMERA_RTSP_PORT`, `CAMERA_RTSP_CHANNEL`, `CAMERA_RTSP_USERNAME` e `CAMERA_RTSP_PASSWORD`. O canal `101` seleciona o fluxo principal; `102`, o secundário. A porta padrão configurada no Trace é `554`; ajuste-a se a câmera estiver configurada com outra porta.
-5. Inicie o PC pelo `TraceLauncher.cmd` ou execute o Compose com o perfil `industrial`. O serviço inicia junto do Trace e tenta recuperar o fluxo sem intervenção.
+5. Inicie o PC pelo `TraceLauncher.cmd` ou execute o Compose com o perfil `industrial`. O worker inicia junto do Trace, monitora a porta RTSP sem processar imagens e só abre o stream quando recebe um pedido de foto.
+
+`CAMERA_CAPTURE_TIMEOUT_MS` limita quanto tempo uma captura pontual pode esperar por um quadro (10 s por padrão, máximo de 20 s). `CAMERA_JOB_POLL_MS` controla a fila de solicitações; se não houver foto pendente, o worker não chama o FFmpeg nem abre o RTSP.
+
+O usuário e a senha RTSP são passados ao FFmpeg como parte da URL de entrada e podem ficar visíveis a administradores do PC que consultem os argumentos do processo. Use uma conta dedicada apenas para visualização e restrinja o acesso administrativo ao PC. O `stderr` do FFmpeg não é encaminhado aos logs, pois mensagens de falha podem incluir a URL de conexão; os erros operacionais do worker são registrados sem incluir essa URL.
+
+`CAMERA_JOB_POLL_MS` controla a frequência das consultas da fila (200 ms por padrão, até cinco consultas por segundo quando o worker está ocioso). Aumentar esse intervalo reduz chamadas ao PHP/MySQL, mas pode atrasar a foto do saco; só altere depois de medir a latência de captura com o equipamento instalado.
+
+Se uma consulta à API falhar, o worker aumenta progressivamente a espera até 2 s, respeitando o intervalo configurado como mínimo. O mesmo erro é registrado no máximo uma vez a cada 30 s; após uma resposta bem-sucedida, as consultas voltam ao intervalo configurado.
 
 Se a interface da câmera não tiver sido inicializada, faça essa configuração uma vez com a ferramenta SADP da Hikvision ou pela interface web da câmera, antes de iniciar a operação. A rede precisa permitir que o worker em Docker alcance o endereço configurado; confirme esse caminho na bancada do PC que receberá o adaptador.
 
-Quando o relatório final do romaneio é solicitado, o Trace incorpora as evidências ao relatório PDF, salva esse PDF em `armazenamento/company_<id>/reports/` e remove os PDFs intermediários e referências temporárias. O PDF final permanece no servidor e é reutilizado nos próximos downloads. A retenção de evidências intermediárias segue `IMAGE_RETENTION_DAYS` caso o relatório ainda não tenha sido solicitado.
+Quando o relatório final do romaneio é solicitado, o Trace incorpora as evidências ao relatório PDF e salva esse arquivo em `armazenamento/company_<id>/reports/`. A captura original em PDF permanece no PC industrial e no servidor local até `IMAGE_RETENTION_DAYS`; a rotina de retenção apaga as duas cópias antigas e seus vínculos. O PDF final do relatório permanece no servidor e é reutilizado nos próximos downloads. A sincronização remota de eventos não replica arquivos de evidência para outro Central; neste fluxo, “servidor” significa o servidor local que recebe o PDF da câmera.
 
 O fluxo contínuo evita abrir uma conexão RTSP nova a cada solicitação e reduz a espera inicial. Não existe captura sem atraso: a latência final depende da exposição, codificação da câmera, rede, processamento do PC e geração do PDF. Meça esse tempo com a câmera, adaptador e PC definitivos antes de fixar um limite de aceitação.
 

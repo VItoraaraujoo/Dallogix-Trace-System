@@ -1,13 +1,46 @@
-import "../telas/acesso/acesso.js";
-import {
-  configurarSessaoPorAba,
-} from "./sessao.js?v=202609222100";
-import { ClienteApi } from "./api/ClienteApi.js?v=202610140003";
+import { configurarSessaoPorAba } from "./sessao.js?v=202609222100";
+import { ClienteApi, erroRespostaHttp } from "./api/ClienteApi.js?v=202610140003";
 import { notificar } from "./componentes/notificacoes.js?v=202610070024";
+import { logFrontend, configurarTransporteLogs } from "./utilitarios/LogFrontend.js?v=202610160005";
+import { ServicoAtivacaoLocal } from "./servicos/ServicoAtivacaoLocal.js?v=202610190001";
+import { ServicoObservabilidade } from "./servicos/ServicoObservabilidade.js?v=202610190001";
+import {
+  bindLoginForm,
+  bindLocalActivationForm,
+  renderLogin,
+  renderLocalActivation,
+} from "../telas/acesso/acesso.js?v=202610190036";
 
 configurarSessaoPorAba();
-const api = new ClienteApi({ retry: 1 });
 
+const api = new ClienteApi({ retry: 1 });
+const estado = { localActivation: null };
+const sessao = { csrfToken: "", user: null };
+const jsonHeaders = () => ({
+  "Content-Type": "application/json",
+  Accept: "application/json",
+  ...(sessao.csrfToken ? { "X-CSRF-Token": sessao.csrfToken } : {}),
+});
+async function jsonResponse(response, fallback) {
+  if (!response.ok) {
+    const error = await erroRespostaHttp(response, fallback);
+    throw error || new Error(fallback);
+  }
+  return response.json().catch(() => ({}));
+}
+
+const servicoAtivacao = new ServicoAtivacaoLocal({
+  api,
+  state: estado,
+  jsonHeaders,
+  jsonResponse,
+});
+const servicoObservabilidade = new ServicoObservabilidade({
+  api,
+  state: estado,
+  jsonHeaders,
+  jsonResponse,
+});
 const DEFAULT_PAGE_BY_ROLE = Object.freeze({
   ADMIN_DALLOGIX: "/telas/painel-dallogix/painel-dallogix.html",
   ADMIN_EMPRESA: "/telas/painel/painel.html",
@@ -15,187 +48,62 @@ const DEFAULT_PAGE_BY_ROLE = Object.freeze({
   USUARIO: "/telas/painel/painel.html",
 });
 
-function renderLogin(message = "") {
-  const box = document.querySelector("#login-error");
-  if (!box) return;
-  box.replaceChildren();
-  box.setAttribute("role", "alert");
-  box.setAttribute("aria-live", "assertive");
-  if (!message) return;
-  const error = document.createElement("div");
-  error.className = "login-error";
-  error.textContent = message;
-  box.append(error);
-  box.focus();
-}
-
-function renderLocalActivation(data = { active: false }, message = "") {
-  const status = document.querySelector("#local-license-status");
-  const panel = document.querySelector("#local-activation");
-  const error = document.querySelector("#local-activation-error");
-  const enabled = Boolean(data?.enabled);
-  const licenseStatus = String(data?.license_status || (data?.active ? "ATIVA" : ""));
-  const active = enabled && Boolean(data?.active) && licenseStatus === "ATIVA";
-  const blocked = enabled && Boolean(data?.active) && licenseStatus !== "ATIVA";
-
-  if (status) {
-    status.replaceChildren();
-    status.hidden = !active && !blocked;
-    status.classList.toggle("is-blocked", blocked);
-    if (active || blocked) {
-      const title = document.createElement("strong");
-      title.textContent = active ? "Licença ativa" : "Licença bloqueada";
-      const detail = document.createElement("small");
-      detail.textContent = active
-        ? `${data.company_name || "Empresa configurada"} · @${data.login_domain || "—"}`
-        : data.license_reason || "A empresa precisa ser liberada no servidor central.";
-      status.append(title, detail);
-    }
-  }
-  if (panel) panel.hidden = !enabled || active || blocked;
-  if (error) {
-    error.textContent = message;
-    error.hidden = !message;
-  }
-}
-
-async function loadLocalActivation() {
-  const response = await api.fetch("/api/ativacao_local.php", { cache: "no-store" });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || "Não foi possível consultar a ativação local.");
-  return result.data || { active: false };
-}
-
-async function activateLocalInstallation(payload) {
-  const response = await api.fetch("/api/ativar_empresa.php", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(payload),
-  });
-  const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || "Não foi possível ativar esta instalação.");
-  return result.data || { active: false };
-}
-
-function bindLocalActivationForm() {
-  const form = document.querySelector("#local-activation-form");
-  if (!form || form.dataset.bound === "1") return;
-  form.dataset.bound = "1";
-  const activationCode = form.elements.namedItem("activation_code");
-  activationCode?.addEventListener("input", () => {
-    const start = activationCode.selectionStart;
-    const end = activationCode.selectionEnd;
-    activationCode.value = activationCode.value.toUpperCase();
-    if (start !== null && end !== null) activationCode.setSelectionRange(start, end);
-  });
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (form.dataset.submitting === "1") return;
-    form.dataset.submitting = "1";
-    const submit = form.querySelector('button[type="submit"]');
-    if (submit) {
-      submit.disabled = true;
-      submit.textContent = "Ativando…";
-    }
-    renderLocalActivation({ enabled: true, active: false });
-    try {
-      const data = Object.fromEntries(new FormData(form));
-      const activation = await activateLocalInstallation(data);
-      renderLocalActivation(activation);
-      const login = document.querySelector('#login-form [name="email"]');
-      if (login) login.value = data.email || "";
-      form.reset();
-      notificar(`Instalação ativada para ${activation.company_name}.`);
-    } catch (error) {
-      renderLocalActivation(
-        { enabled: true, active: false },
-        error.message || "Não foi possível ativar esta instalação.",
-      );
-    } finally {
-      form.dataset.submitting = "0";
-      if (submit) {
-        submit.disabled = false;
-        submit.textContent = "Ativar este PC";
-      }
-    }
-  });
-}
-
 function defaultPageForUser(user) {
-  return DEFAULT_PAGE_BY_ROLE[String(user?.role || "").toUpperCase()] || "/telas/romaneios/romaneios.html";
-}
-
-function bindLoginForm() {
-  const form = document.querySelector("#login-form");
-  if (!form || form.dataset.bound === "1") return;
-  form.dataset.bound = "1";
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const submit = form.querySelector('button[type="submit"]');
-    const originalLabel = submit?.textContent || "Entrar no sistema";
-    if (submit) {
-      submit.disabled = true;
-      submit.textContent = "Entrando…";
-    }
-    renderLogin("");
-    try {
-      const response = await api.fetch("/api/login.php", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(Object.fromEntries(new FormData(form))),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.authenticated !== true) {
-        renderLogin(result.error || "Login ou senha inválidos.");
-        return;
-      }
-      window.location.replace(defaultPageForUser(result.user));
-    } catch (error) {
-      renderLogin(
-        "Não foi possível conectar ao servidor local. Verifique se o sistema está em execução.",
-      );
-    } finally {
-      if (submit) {
-        submit.disabled = false;
-        submit.textContent = originalLabel;
-      }
-    }
-  });
+  return DEFAULT_PAGE_BY_ROLE[String(user?.role || "").toUpperCase()]
+    || "/telas/romaneios/romaneios.html";
 }
 
 async function bootstrapLogin() {
   if (window.location.search) {
     window.history.replaceState(null, "", window.location.pathname);
   }
+
   let loginMessage = "";
   try {
     loginMessage = sessionStorage.getItem("trace-login-message") || "";
     sessionStorage.removeItem("trace-login-message");
-  } catch (storageError) {
-    /* armazenamento indisponível */
+  } catch (error) {
+    logFrontend.aviso("sessao.login.mensagem_indisponivel", error);
   }
+
   let activation = { active: false };
   let activationLookupError = "";
   try {
-    activation = await loadLocalActivation();
+    activation = await servicoAtivacao.loadLocalActivation();
   } catch (error) {
     activationLookupError = error.message || "Não foi possível consultar a ativação local.";
+    logFrontend.aviso("ativacao.local.carregamento", error);
   }
-  const isLoopback = ["localhost", "127.0.0.1", "[::1]"].includes(window.location.hostname);
-  if (activationLookupError && isLoopback) {
-    renderLocalActivation(
-      { enabled: true, active: false },
-      `Não foi possível confirmar a ativação deste PC. Confira se o Trace terminou de iniciar e tente novamente. Detalhe: ${activationLookupError}`,
-    );
-  } else {
-    renderLocalActivation(activation);
-  }
+
+  const loopbackHosts = ["localhost", "127.0.0.1", "[::1]"];
+  const isLoopback = loopbackHosts.includes(window.location.hostname);
+  const activationMessage = activationLookupError && isLoopback
+    ? `Não foi possível confirmar a ativação deste PC. Confira se o Trace terminou de iniciar e tente novamente. Detalhe: ${activationLookupError}`
+    : "";
+  renderLocalActivation(activation, activationMessage);
   renderLogin(loginMessage);
-  bindLocalActivationForm();
-  bindLoginForm();
+
+  bindLocalActivationForm({
+    form: document.querySelector("#local-activation-form"),
+    activate: (payload) => servicoAtivacao.activateLocalInstallation(payload),
+    render: renderLocalActivation,
+    notify: notificar,
+    documentRef: document,
+    logWarning: (...args) => logFrontend.aviso(...args),
+  });
+
+  bindLoginForm({
+    form: document.querySelector("#login-form"),
+    api,
+    onAuthenticated: (user, csrfToken) => {
+      sessao.user = user;
+      sessao.csrfToken = csrfToken || "";
+    },
+    persistLog: (record) => servicoObservabilidade.persistFrontendLog(record),
+    configureLogTransport: configurarTransporteLogs,
+    redirectAfterLogin: () => defaultPageForUser(sessao.user),
+    logWarning: (...args) => logFrontend.aviso(...args),
+  });
 }
 
 bootstrapLogin();

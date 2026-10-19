@@ -47,3 +47,12 @@ test("painel, monitoramento e detalhe da Dala usam o mesmo sinal físico", () =>
     assert.doesNotMatch(screen, /Estado físico[^\n]{0,160}operationalBadge\(/, path);
   }
 });
+
+test("Dashboard e detalhe da Dala usam o endpoint leve de status", () => {
+  const dashboard = readFileSync(new URL("../interface/telas/painel/painel.js", import.meta.url), "utf8");
+  const dala = readFileSync(new URL("../interface/telas/visualizar-dala/visualizar-dala.js", import.meta.url), "utf8");
+  assert.match(dashboard, /store\.state\.dalaStatuses \|\| \[\]/);
+  assert.match(dala, /store\.state\.dalaStatuses \|\| \[\]/);
+  assert.doesNotMatch(dashboard, /store\.state\.monitoring\?\.maquinas/);
+  assert.doesNotMatch(dala, /store\.state\.monitoring\?\.maquinas/);
+});

@@ -13,6 +13,35 @@ import { resolverComandoAtual } from "../interface/js/funcoes/estado-comando.js"
 import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, instalarRecuperacaoFocoLeitor, changeOperationLoading, operationStructureSignature } from "../interface/js/controladores/operacao.js";
 import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js";
 
+function criarArmazenamento() {
+  const armazenamento = new ArmazenamentoTrace();
+  const estadoInicial = armazenamento.state;
+  const apiInicial = armazenamento.api;
+  const servicosComEstado = Object.values(armazenamento)
+    .filter((valor) => valor && valor.state === estadoInicial);
+  const servicosComApi = Object.values(armazenamento)
+    .filter((valor) => valor && valor.api === apiInicial);
+  let estado = estadoInicial;
+  Object.defineProperty(armazenamento, "state", {
+    configurable: true,
+    get: () => estado,
+    set: (proximo) => {
+      estado = proximo;
+      servicosComEstado.forEach((servico) => { servico.state = proximo; });
+    },
+  });
+  let api = apiInicial;
+  Object.defineProperty(armazenamento, "api", {
+    configurable: true,
+    get: () => api,
+    set: (proxima) => {
+      api = proxima;
+      servicosComApi.forEach((servico) => { servico.api = proxima; });
+    },
+  });
+  return armazenamento;
+}
+
 test("somente administrador da empresa e supervisor recebem a ação de vincular Dala", () => {
   assert.equal(podeVincularDala("ADMIN_EMPRESA"), true);
   assert.equal(podeVincularDala("SUPERVISOR"), true);
@@ -595,7 +624,7 @@ test("status e comando visíveis sempre pertencem à solicitação mais recente"
 });
 
 test("comando aplicado não substitui o estado operacional retornado pelo carregamento", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   armazenamento.state = {
     loadingId: 7,
     operationalState: "PAUSADO",
@@ -623,7 +652,7 @@ test("comando aplicado não substitui o estado operacional retornado pelo carreg
 });
 
 test("consulta sem comando limpa intenção sem identificador local", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   armazenamento.state = {
     loadingId: 7,
     operationalState: "PAUSADO",
@@ -640,7 +669,7 @@ test("consulta sem comando limpa intenção sem identificador local", async () =
 });
 
 test("nova seleção e ausência de carregamento removem a intenção anterior", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   armazenamento.state = {
     loadingId: 7,
     selectedLoadingId: 7,
@@ -656,7 +685,7 @@ test("nova seleção e ausência de carregamento removem a intenção anterior",
 });
 
 test("trocar de Dala descarta comando e intenção da seleção anterior", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   armazenamento.state = {
     loadingId: 7,
     selectedLoadingId: 7,
@@ -682,7 +711,7 @@ test("trocar de Dala descarta comando e intenção da seleção anterior", async
 });
 
 test("comando mais novo substitui intenção local antiga", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   armazenamento.state = {
     loadingId: 7,
     operationalState: "PAUSADO",
@@ -848,7 +877,7 @@ test("falha ao selecionar Dala pode ser exibida sem notificação flutuante", ()
 });
 
 test("leitura de estado da Dala sincroniza a última reversão confirmada", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   armazenamento.state = { loadingId: 7, plcCommand: null, commandIntent: null };
   armazenamento.api = { fetch: async () => ({ ok: true }) };
   armazenamento.jsonResponse = async () => ({
@@ -890,7 +919,7 @@ test("resumo de sacas evita repetir a contagem de leituras válidas", () => {
 });
 
 test("consulta transitória sem comando preserva início pendente local", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   const pedido = {
     id: 42,
     command: "INICIAR_CARREGAMENTO",
@@ -908,7 +937,7 @@ test("consulta transitória sem comando preserva início pendente local", async 
 });
 
 test("comando de início atualiza o estado visível antes do ACK físico", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   armazenamento.state = {
     loadingId: 7,
     operationalState: "PAUSADO",
@@ -937,7 +966,7 @@ test("comando de início atualiza o estado visível antes do ACK físico", async
 });
 
 test("comando de reversão atualiza imediatamente a intenção visível", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   armazenamento.state = {
     loadingId: 7,
     operationalState: "PAUSADO",
@@ -965,7 +994,7 @@ test("comando de reversão atualiza imediatamente a intenção visível", async 
 });
 
 test("comando rejeitado devolve o estado anterior", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   armazenamento.state = {
     loadingId: 7,
     operationalState: "CARREGANDO",
@@ -1001,7 +1030,7 @@ test("comando rejeitado devolve o estado anterior", async () => {
 });
 
 test("quadro vazio não apaga a Dala durante comando operacional pendente", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   const carregamento = {
     id: 7,
     state: "PREPARANDO",
@@ -1030,7 +1059,7 @@ test("quadro vazio não apaga a Dala durante comando operacional pendente", asyn
 });
 
 test("quadro vazio remove a seleção quando não há comando pendente", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   armazenamento.state = {
     loadingId: 7,
     selectedLoadingId: 7,
@@ -1049,7 +1078,7 @@ test("quadro vazio remove a seleção quando não há comando pendente", async (
 });
 
 test("snapshot ativo preserva a causa da pausa e o aviso do operador", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   armazenamento.state = { loadingId: 7, selectedLoadingId: 7, activeLoadings: [] };
   armazenamento.activeLoadingRefresh = Promise.resolve();
   const loading = {
@@ -1133,7 +1162,7 @@ test("foco do leitor é restaurado sem roubar foco de outro campo de entrada", (
 });
 
 test("resposta de status atrasada de outra Dala não sobrescreve a seleção atual", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   armazenamento.state = {
     loadingId: 8,
     operationalState: "CARREGANDO",
@@ -1178,26 +1207,41 @@ test("assinatura da Operação muda quando reversão ou identificação da Dala 
   assert.notEqual(operationStructureSignature(base, false), original);
 });
 
-test("status de CLP só libera comandos quando o monitoramento local é recente e ONLINE", () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+test("status leve e recente do CLP é a fonte primária para liberar comandos", () => {
+  const armazenamento = criarArmazenamento();
+  armazenamento.state = {
+    equipmentId: 3,
+    monitoring: { dispositivos: [{ equipment_id: 3, device_type: "CLP", status: "OFFLINE" }] },
+    monitoringUpdatedAt: new Date().toISOString(),
+    deviceStatuses: [{ equipment_id: 3, device_type: "CLP", status: "ONLINE" }],
+    deviceStatusesUpdatedAt: new Date().toISOString(),
+  };
+  assert.equal(armazenamento.clpDisponivel(), true);
+
+  // Um snapshot completo recente não pode mascarar o status leve vencido.
+  armazenamento.state.deviceStatusesUpdatedAt = new Date(Date.now() - 7000).toISOString();
+  assert.equal(armazenamento.clpDisponivel(), false);
+  assert.match(armazenamento.mensagemClpIndisponivel(), /servidor local/);
+
+  armazenamento.state.deviceStatusesUpdatedAt = new Date().toISOString();
+  armazenamento.state.deviceStatuses[0].status = "OK";
+  assert.equal(armazenamento.clpDisponivel(), false);
+});
+
+test("snapshot completo continua como fallback até chegar o primeiro status leve", () => {
+  const armazenamento = criarArmazenamento();
   armazenamento.state = {
     equipmentId: 3,
     monitoring: { dispositivos: [{ equipment_id: 3, device_type: "CLP", status: "ONLINE" }] },
     monitoringUpdatedAt: new Date().toISOString(),
+    deviceStatuses: [],
+    deviceStatusesUpdatedAt: null,
   };
   assert.equal(armazenamento.clpDisponivel(), true);
-
-  armazenamento.state.monitoringUpdatedAt = new Date(Date.now() - 7000).toISOString();
-  assert.equal(armazenamento.clpDisponivel(), false);
-  assert.match(armazenamento.mensagemClpIndisponivel(), /servidor local/);
-
-  armazenamento.state.monitoringUpdatedAt = new Date().toISOString();
-  armazenamento.state.monitoring.dispositivos[0].status = "OK";
-  assert.equal(armazenamento.clpDisponivel(), false);
 });
 
 test("CLP sem last_seen não é exibido como sem sinal há zero segundos", () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   armazenamento.state = {
     equipmentId: 3,
     monitoringUpdatedAt: new Date().toISOString(),
@@ -1212,7 +1256,7 @@ test("CLP sem last_seen não é exibido como sem sinal há zero segundos", () =>
 });
 
 test("heartbeat com zero segundo usa texto de menos de um segundo", () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
+  const armazenamento = criarArmazenamento();
   armazenamento.state = {
     equipmentId: 3,
     monitoringUpdatedAt: new Date().toISOString(),

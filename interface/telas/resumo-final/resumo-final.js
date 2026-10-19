@@ -3,7 +3,7 @@ import { dataHora, numero, relativo } from "../../js/funcoes/formato.js?v=202609
 import { deviceBadge, emergencyPanel, pageHeader, physicalStateBadge, progress } from "../../js/funcoes/view.js?v=202610061745";
 import { rotuloEstado, rotuloOcorrencia, rotuloStatusSincronizacao } from "../../js/funcoes/rotulos.js";
 export function summary(store) {
-  const data = store.state.monitoring || {
+  const data = store.state.summaryMonitoring || {
     leituras: {},
     ocorrencias: [],
     sync_pendente: 0,

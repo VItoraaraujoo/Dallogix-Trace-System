@@ -1,0 +1,111 @@
+import assert from "node:assert/strict";
+import test from "node:test";
+import { criarDespachanteAcoes } from "../interface/js/controladores/despachante-acoes.js";
+
+function criarTratadores(overrides = {}) {
+  return Object.fromEntries([
+    "navegacao",
+    "administracao",
+    "operacional",
+    "diagnostico",
+    "relatorios",
+    "cadastros",
+    "interface",
+  ].map((name) => [name, overrides[name] || (() => false)]));
+}
+
+function criarNode({ action = "acao", type = "button", page = "2", isBack = false } = {}) {
+  return {
+    dataset: { action, page },
+    classList: { contains: (name) => name === "page-back" && isBack },
+    getAttribute: (name) => name === "type" ? type : null,
+    closest: () => ({ requestSubmit() { this.submitted = true; } }),
+  };
+}
+
+function criarBase(overrides = {}) {
+  const calls = [];
+  return {
+    calls,
+    api: { fetch: async (...args) => calls.push(["fetch", ...args]) },
+    store: { csrfToken: "csrf", setManifestPage: async () => {} },
+    telas: {},
+    navegar: async (...args) => calls.push(["navegar", ...args]),
+    paginaPadrao: () => "dashboard",
+    caminhoPagina: (page) => `/${page}`,
+    renderPagina: async () => calls.push(["renderPagina"]),
+    render: () => calls.push(["render"]),
+    acoesDeFormulario: new Set(),
+    notificar: (...args) => calls.push(["notificar", ...args]),
+    tratadores: criarTratadores(),
+    windowRef: { history: { length: 1, back: () => calls.push(["back"]) }, location: {} },
+    ...overrides,
+  };
+}
+
+test("o despachante mantém a prioridade e interrompe após uma ação tratada", async () => {
+  const order = [];
+  const options = criarBase({
+    tratadores: criarTratadores({
+      navegacao: () => { order.push("navegacao"); return false; },
+      administracao: () => { order.push("administracao"); return false; },
+      operacional: async () => { order.push("operacional"); return "concluido"; },
+      diagnostico: () => { order.push("diagnostico"); return false; },
+    }),
+  });
+
+  await criarDespachanteAcoes(options)(criarNode());
+
+  assert.deepEqual(order, ["navegacao", "administracao", "operacional"]);
+});
+
+test("a ação de formulário não duplica o submit do botão", async () => {
+  let submitted = 0;
+  const options = criarBase({ acoesDeFormulario: new Set(["salvar"]) });
+  const dispatch = criarDespachanteAcoes(options);
+  const node = criarNode({ action: "salvar" });
+  node.closest = () => ({ requestSubmit: () => { submitted += 1; } });
+
+  await dispatch(node);
+  await dispatch(criarNode({ action: "salvar", type: "submit" }));
+
+  assert.equal(submitted, 1);
+  assert.deepEqual(options.calls, []);
+});
+
+test("a paginação atualiza a tela e apresenta falhas ao usuário", async () => {
+  const options = criarBase();
+  const dispatch = criarDespachanteAcoes(options);
+  await dispatch(criarNode({ action: "manifest-page" }));
+  assert.deepEqual(options.calls, [["render"]]);
+
+  options.store.setManifestPage = async () => { throw new Error("Falha ao paginar"); };
+  await dispatch(criarNode({ action: "manifest-page" }));
+  assert.deepEqual(options.calls.at(-1), ["notificar", "Falha ao paginar"]);
+});
+
+test("logout envia o token CSRF e redireciona ao login", async () => {
+  const options = criarBase();
+  await criarDespachanteAcoes(options)(criarNode({ action: "logout" }));
+
+  assert.deepEqual(options.calls[0], ["fetch", "/api/logout.php", {
+    method: "POST",
+    headers: { "X-CSRF-Token": "csrf" },
+  }]);
+  assert.equal(options.windowRef.location.href, "/login");
+});
+
+test("botão de voltar usa o histórico e a rota padrão quando necessário", async () => {
+  const options = criarBase();
+  const dispatch = criarDespachanteAcoes(options);
+  const node = criarNode({ action: "", isBack: true });
+  options.windowRef.history.length = 2;
+
+  await dispatch(node);
+  assert.deepEqual(options.calls, [["back"]]);
+
+  options.calls.length = 0;
+  options.windowRef.history.length = 1;
+  await dispatch(node);
+  assert.deepEqual(options.calls, [["navegar", "dashboard", "", { replace: true }]]);
+});

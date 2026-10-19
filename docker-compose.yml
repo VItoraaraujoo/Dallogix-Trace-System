@@ -16,9 +16,11 @@ services:
       - -c
       - >-
         set -eu;
-        mkdir -p /var/www/armazenamento/backups /var/www/armazenamento/logs;
+        mkdir -p /var/www/armazenamento/backups /var/www/armazenamento/logs /var/www/armazenamento/camera-pc;
         chown -R 82:82 /var/www/armazenamento;
         chmod -R u+rwX /var/www/armazenamento;
+        chown 1000:82 /var/www/armazenamento/camera-pc;
+        chmod 2770 /var/www/armazenamento/camera-pc;
         probe=/var/www/armazenamento/.trace-write-probe;
         : > "$$probe";
         rm -f "$$probe"
@@ -95,6 +97,7 @@ services:
       TRACE_READINESS_TOKEN: ${TRACE_READINESS_TOKEN:-}
       TRACE_INSTALLATION_MODE: ${TRACE_INSTALLATION_MODE:-}
       TRACE_DEBOUNCE_MS: ${TRACE_DEBOUNCE_MS:-400}
+      TRACE_SCANNER_NO_READ_TIMEOUT_MS: ${TRACE_SCANNER_NO_READ_TIMEOUT_MS:-1500}
       TRACE_END_PRODUCT_ALERT_THRESHOLD: ${TRACE_END_PRODUCT_ALERT_THRESHOLD:-5}
       TRACE_LOCAL_SIMULATION: ${TRACE_LOCAL_SIMULATION:-0}
       TRACE_VERSION: ${TRACE_VERSION:-development}
@@ -138,6 +141,14 @@ services:
     pids_limit: 256
     mem_limit: 512m
     cpus: "1.00"
+    # Limita buffers de diagnóstico do Performance Schema no PC de 512 MiB.
+    # Isso reduz histórico de consultas, sem limitar conexões nem alterar dados SQL.
+    command:
+      - --performance-schema-digests-size=1000
+      - --performance-schema-events-stages-history-long-size=1000
+      - --performance-schema-events-statements-history-long-size=1000
+      - --performance-schema-events-transactions-history-long-size=1000
+      - --performance-schema-events-waits-history-long-size=1000
     tmpfs:
       - /tmp:rw,nosuid,nodev,mode=1777
       - /var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999
@@ -217,6 +228,9 @@ services:
       TRACE_MODBUS_UNIT_ID: ${TRACE_MODBUS_UNIT_ID:-1}
       TRACE_MODBUS_HEARTBEAT_FUNCTION: ${TRACE_MODBUS_HEARTBEAT_FUNCTION:-1}
       TRACE_MODBUS_HEARTBEAT_REGISTER: ${TRACE_MODBUS_HEARTBEAT_REGISTER:-2052}
+      TRACE_MODBUS_SENSOR_REGISTER: ${TRACE_MODBUS_SENSOR_REGISTER:-2052}
+      TRACE_SENSOR_ACTIVE_LEVEL: ${TRACE_SENSOR_ACTIVE_LEVEL:-1}
+      TRACE_SENSOR_SIGNAL_MODE: ${TRACE_SENSOR_SIGNAL_MODE:-rising_edge}
     volumes:
       - node_red_data:/data
       - ./integracoes/node-red:/seed:ro
@@ -241,6 +255,8 @@ services:
     depends_on:
       nginx:
         condition: service_started
+      armazenamento-init:
+        condition: service_completed_successfully
     pids_limit: 128
     mem_limit: 384m
     cpus: "1.50"
@@ -254,15 +270,18 @@ services:
       CAMERA_RTSP_USERNAME: ${CAMERA_RTSP_USERNAME:-}
       CAMERA_RTSP_PASSWORD: ${CAMERA_RTSP_PASSWORD:-}
       CAMERA_JOB_POLL_MS: ${CAMERA_JOB_POLL_MS:-200}
-      CAMERA_FRAME_FRESH_MS: ${CAMERA_FRAME_FRESH_MS:-750}
+      CAMERA_CAPTURE_TIMEOUT_MS: ${CAMERA_CAPTURE_TIMEOUT_MS:-10000}
       CAMERA_HEARTBEAT_INTERVAL_MS: ${CAMERA_HEARTBEAT_INTERVAL_MS:-5000}
+      CAMERA_EVIDENCE_DIR: /var/lib/trace/camera-evidence
+    volumes:
+      - ./armazenamento/camera-pc:/var/lib/trace/camera-evidence
     healthcheck:
       test:
         [
           "CMD",
           "node",
           "-e",
-          "fetch('http://127.0.0.1:8090/health').then(async (response) => { const health = response.ok ? await response.json() : null; process.exit(health?.stream_ready === true ? 0 : 1); }).catch(() => process.exit(1))",
+          "fetch('http://127.0.0.1:8090/health').then(async (response) => { const health = response.ok ? await response.json() : null; process.exit(health?.running === true && health?.capture_mode === 'ON_DEMAND' ? 0 : 1); }).catch(() => process.exit(1))",
         ]
       interval: 15s
       timeout: 3s

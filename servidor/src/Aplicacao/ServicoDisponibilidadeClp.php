@@ -3,8 +3,9 @@ declare(strict_types=1);
 
 namespace App\Aplicacao;
 
-use PDO;
+use App\Persistencia\RepositorioDisponibilidadeClp;
 require_once __DIR__ . "/ExcecaoDisponibilidadeClp.php";
+require_once __DIR__ . "/../Persistencia/RepositorioDisponibilidadeClp.php";
 
 /**
  * Centraliza a regra de disponibilidade do CLP para comandos operacionais.
@@ -14,24 +15,13 @@ final class ServicoDisponibilidadeClp
 {
     private const LIMITE_SEM_SINAL_SEGUNDOS = 3;
 
-    public function __construct(private readonly PDO $connection) {}
+    public function __construct(private readonly RepositorioDisponibilidadeClp $disponibilidade)
+    {
+    }
 
     public function validarComando(int $companyId, int $equipmentId): void
     {
-        $statement = $this->connection->prepare(
-            "SELECT d.status, d.last_seen_at,
-                    TIMESTAMPDIFF(SECOND, d.last_seen_at, NOW()) AS segundos_sem_sinal
-             FROM equipamentos e
-             LEFT JOIN status_dispositivos d
-               ON d.equipment_id = e.id AND d.device_type = 'CLP'
-             WHERE e.id = :equipment_id AND e.company_id = :company_id
-             LIMIT 1",
-        );
-        $statement->execute([
-            "equipment_id" => $equipmentId,
-            "company_id" => $companyId,
-        ]);
-        $clp = $statement->fetch();
+        $clp = $this->disponibilidade->obterEstado($companyId, $equipmentId);
 
         $limiteSemSinal = function_exists("\\limite_sinal_clp_segundos")
             ? \limite_sinal_clp_segundos()

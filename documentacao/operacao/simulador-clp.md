@@ -19,7 +19,7 @@ O simulador executa:
 1. mudança do estado para `CARREGANDO`;
 2. evento do sensor;
 3. leitura do scanner;
-4. ocorrência e pedido imediato de captura de câmera somente quando houver `SEM_LEITURA` ou produto incorreto;
+4. ocorrência `SEM_LEITURA` e pedido de uma captura pontual da câmera após o timeout sem código;
 5. fila local para sincronização quando houver falha.
 
 Variáveis opcionais:

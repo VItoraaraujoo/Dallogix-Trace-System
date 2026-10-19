@@ -3,6 +3,13 @@
 declare(strict_types=1);
 
 require_once __DIR__ . "/../../configuracao/bootstrap.php";
+require_once __DIR__ . "/../../src/Persistencia/RepositorioRomaneiosLista.php";
+require_once __DIR__ . "/../../src/Persistencia/RepositorioItensRomaneio.php";
+require_once __DIR__ . "/../../src/Persistencia/RepositorioProdutosRomaneio.php";
+
+use App\Persistencia\RepositorioRomaneiosLista;
+use App\Persistencia\RepositorioItensRomaneio;
+use App\Persistencia\RepositorioProdutosRomaneio;
 
 exigir_metodo_http(["GET", "PATCH", "POST"]);
 
@@ -13,6 +20,9 @@ if ($empresaId === null) {
 }
 
 $companyId = (int) $empresaId;
+if ($_SERVER["REQUEST_METHOD"] === "GET") {
+    session_write_close();
+}
 $pdo = obter_conexao_banco();
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
@@ -35,7 +45,9 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
 
         $items = $pdo->prepare(
             'SELECT ri.id, ri.product_id, ri.truck_id, ri.planned_quantity, p.code, p.name, p.category,
-                    COALESCE((SELECT pc.barcode FROM codigos_produtos pc WHERE pc.product_id = p.id ORDER BY pc.id LIMIT 1), "") AS barcode
+                    COALESCE((SELECT pc.barcode FROM codigos_produtos pc
+                              WHERE pc.company_id = p.company_id AND pc.product_id = p.id
+                              ORDER BY pc.id LIMIT 1), "") AS barcode
              FROM romaneio_itens ri JOIN produtos p ON p.id = ri.product_id
              WHERE ri.romaneio_id = :id ORDER BY ri.id',
         );
@@ -90,19 +102,6 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
         responder_json(["error" => "Status inválido."], 422);
     }
 
-    $params = [
-        "company_id" => $companyId,
-        "filter_date_from" => $dateFrom === null ? 0 : 1,
-        "date_from" => $dateFrom ?? "1000-01-01",
-        "filter_date_to" => $dateTo === null ? 0 : 1,
-        "date_to" => $dateTo ?? "9999-12-31",
-        "filter_number" => $number === "" ? 0 : 1,
-        "number" => "%" . addcslashes($number, "%_\\") . "%",
-        "filter_expedidor" => $expedidor === "" ? 0 : 1,
-        "expedidor" => "%" . addcslashes($expedidor, "%_\\") . "%",
-        "filter_status" => $status === "" ? 0 : 1,
-        "status" => $status,
-    ];
     if ($number !== "") {
         if (mb_strlen($number, "UTF-8") > 80) {
             responder_json(["error" => "O número pode ter no máximo 80 caracteres."], 422);
@@ -114,76 +113,16 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
         }
     }
 
-    $totalStatement = $pdo->prepare(
-        "SELECT COUNT(*) FROM romaneios r
-         WHERE r.company_id = :company_id
-           AND (:filter_date_from = 0 OR r.scheduled_date >= :date_from)
-           AND (:filter_date_to = 0 OR r.scheduled_date <= :date_to)
-           AND (:filter_number = 0 OR r.number LIKE :number)
-           AND (:filter_expedidor = 0 OR r.expedidor LIKE :expedidor)
-           AND (:filter_status = 0 OR r.status = :status)",
-    );
-    $totalStatement->execute($params);
-    $total = (int) $totalStatement->fetchColumn();
-    $statement = $pdo->prepare(
-        "WITH carregamento_ativo AS (
-                SELECT c.id, c.romaneio_id, c.state, e.equipment_code,
-                       ROW_NUMBER() OVER (PARTITION BY c.romaneio_id ORDER BY c.id DESC) AS rn
-                FROM carregamentos c
-                JOIN romaneios r2 ON r2.id = c.romaneio_id
-                LEFT JOIN equipamentos e ON e.id = c.equipment_id
-                WHERE c.state <> 'FINALIZADO'
-                  AND r2.status NOT IN ('FINALIZADO', 'CANCELADO')
-            )
-         SELECT r.id, r.number, r.scheduled_date, r.status, r.expedidor,
-                (SELECT rt.plate FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS plate,
-                (SELECT rt.driver_name FROM romaneio_caminhoes rt WHERE rt.romaneio_id = r.id ORDER BY rt.id LIMIT 1) AS driver_name,
-                COUNT(DISTINCT rt.id) AS trucks_count,
-                COALESCE(planned.planned_quantity, 0) AS planned_quantity,
-                COALESCE(loaded.loaded_quantity, 0) AS loaded_quantity,
-                COALESCE(occurrences.ocorrencias_count, 0) AS ocorrencias_count,
-                ca.id AS active_loading_id,
-                ca.state AS active_state,
-                ca.equipment_code AS active_equipment
-         FROM romaneios r
-         LEFT JOIN romaneio_caminhoes rt ON rt.romaneio_id = r.id
-         LEFT JOIN (
-             SELECT ri2.romaneio_id, SUM(ri2.planned_quantity) AS planned_quantity
-             FROM romaneio_itens ri2
-             GROUP BY ri2.romaneio_id
-         ) planned ON planned.romaneio_id = r.id
-         LEFT JOIN (
-             SELECT c2.romaneio_id, COUNT(*) AS loaded_quantity
-             FROM leituras l
-             JOIN carregamentos c2 ON c2.id = l.carregamento_id
-             WHERE l.result = 'VALIDO'
-             GROUP BY c2.romaneio_id
-         ) loaded ON loaded.romaneio_id = r.id
-         LEFT JOIN (
-             SELECT c3.romaneio_id, COUNT(*) AS ocorrencias_count
-             FROM ocorrencias o
-             JOIN carregamentos c3 ON c3.id = o.carregamento_id
-             GROUP BY c3.romaneio_id
-         ) occurrences ON occurrences.romaneio_id = r.id
-         LEFT JOIN carregamento_ativo ca
-           ON ca.romaneio_id = r.id AND ca.rn = 1
-         WHERE r.company_id = :company_id
-           AND (:filter_date_from = 0 OR r.scheduled_date >= :date_from)
-           AND (:filter_date_to = 0 OR r.scheduled_date <= :date_to)
-           AND (:filter_number = 0 OR r.number LIKE :number)
-           AND (:filter_expedidor = 0 OR r.expedidor LIKE :expedidor)
-           AND (:filter_status = 0 OR r.status = :status)
-         GROUP BY r.id, ca.id, ca.state, ca.equipment_code
-         ORDER BY r.scheduled_date DESC, r.id DESC
-         LIMIT :limit OFFSET :offset",
-    );
-    foreach ($params as $name => $value) {
-        $statement->bindValue(':' . $name, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
-    }
-    $statement->bindValue(':limit', $perPage, PDO::PARAM_INT);
-    $statement->bindValue(':offset', $offset, PDO::PARAM_INT);
-    $statement->execute();
-    $rows = $statement->fetchAll();
+    $filters = [
+        "date_from" => $dateFrom,
+        "date_to" => $dateTo,
+        "number" => $number,
+        "expedidor" => $expedidor,
+        "status" => $status !== "" ? $status : null,
+    ];
+    $repository = new RepositorioRomaneiosLista($pdo);
+    $total = $repository->contar($companyId, $filters);
+    $rows = $repository->listar($companyId, $filters, $perPage, $offset);
 
     foreach ($rows as &$row) {
         $finalizado = $row["status"] === "FINALIZADO";
@@ -317,15 +256,15 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
                 responder_json(["error" => "Só é possível editar um romaneio antes de iniciar o carregamento."], 409);
             }
 
-            $productStatement = $pdo->prepare(
-                "SELECT id FROM produtos WHERE id = :id AND company_id = :company_id AND active = 1 LIMIT 1",
-            );
-            foreach ($normalizedItems as $item) {
-                $productStatement->execute(["id" => $item["product_id"], "company_id" => $companyId]);
-                if (!$productStatement->fetch()) {
-                    $pdo->rollBack();
-                    responder_json(["error" => "Produto não encontrado ou inativo."], 422);
-                }
+            $productIds = array_values(array_unique(array_map(
+                static fn (array $item): int => (int) $item["product_id"],
+                $normalizedItems,
+            )));
+            $activeProducts = (new RepositorioProdutosRomaneio($pdo))
+                ->buscarAtivosPorIds($companyId, $productIds);
+            if (count($activeProducts) !== count($productIds)) {
+                $pdo->rollBack();
+                responder_json(["error" => "Produto não encontrado ou inativo."], 422);
             }
 
             $truckStatement = $pdo->prepare(
@@ -359,18 +298,18 @@ if ($_SERVER["REQUEST_METHOD"] === "PATCH") {
             $pdo->prepare("DELETE FROM romaneio_itens WHERE romaneio_id = :romaneio_id")
                 ->execute(["romaneio_id" => $romaneioId]);
 
-            $itemStatement = $pdo->prepare(
-                "INSERT INTO romaneio_itens (company_id, romaneio_id, product_id, truck_id, planned_quantity) VALUES (:company_id, :romaneio_id, :product_id, :truck_id, :planned_quantity)",
+            (new RepositorioItensRomaneio($pdo))->inserirLinhas(
+                $companyId,
+                array_map(
+                    static fn (array $item): array => [
+                        "romaneio_id" => (int) $romaneioId,
+                        "product_id" => (int) $item["product_id"],
+                        "truck_id" => (int) $truck["id"],
+                        "quantity" => (int) $item["quantity"],
+                    ],
+                    $normalizedItems,
+                ),
             );
-            foreach ($normalizedItems as $item) {
-                $itemStatement->execute([
-                    "company_id" => $companyId,
-                    "romaneio_id" => $romaneioId,
-                    "product_id" => $item["product_id"],
-                    "truck_id" => $truck["id"],
-                    "planned_quantity" => $item["quantity"],
-                ]);
-            }
 
             record_operational_event(
                 $pdo,
@@ -464,31 +403,27 @@ foreach (array_values($items) as $index => $item) {
 try {
     $pdo->beginTransaction();
 
-    $resolvedItems = [];
-    $productById = $pdo->prepare(
-        "SELECT id, code, name FROM produtos WHERE id = :id AND company_id = :company_id AND active = 1 LIMIT 1",
-    );
-    $productByCodeOrBarcode = $pdo->prepare(
-        "SELECT id, code, name FROM produtos WHERE company_id = :company_id AND active = 1 AND (code = :code OR id IN (SELECT product_id FROM codigos_produtos WHERE barcode = :barcode)) LIMIT 1",
-    );
+    $productRepository = new RepositorioProdutosRomaneio($pdo);
+    $productIds = [];
+    $productIdentifiers = [];
     foreach ($normalizedItems as $item) {
         if ($item["product_id"]) {
-            $productById->execute([
-                "id" => $item["product_id"],
-                "company_id" => $companyId,
-            ]);
+            $productIds[] = (int) $item["product_id"];
         } else {
-            $code = substr((string) $item["key"], 5);
-            $productByCodeOrBarcode->execute([
-                "company_id" => $companyId,
-                "code" => $code,
-                "barcode" => $code,
-            ]);
+            $productIdentifiers[] = substr((string) $item["key"], 5);
         }
-
+    }
+    $productsById = $productRepository->buscarAtivosPorIds($companyId, $productIds);
+    $productsByIdentifier = $productRepository->buscarAtivosPorCodigoOuBarras(
+        $companyId,
+        $productIdentifiers,
+    );
+    $resolvedItems = [];
+    foreach ($normalizedItems as $item) {
+        $identifier = substr((string) $item["key"], 5);
         $product = $item["product_id"]
-            ? $productById->fetch()
-            : $productByCodeOrBarcode->fetch();
+            ? ($productsById[(int) $item["product_id"]] ?? null)
+            : ($productsByIdentifier[mb_strtolower($identifier, "UTF-8")] ?? null);
         if (!$product) {
             $pdo->rollBack();
             responder_json(
@@ -524,18 +459,18 @@ try {
     ]);
     $truckId = (int) $pdo->lastInsertId();
 
-    $itemStatement = $pdo->prepare(
-        "INSERT INTO romaneio_itens (company_id, romaneio_id, product_id, truck_id, planned_quantity) VALUES (:company_id, :romaneio_id, :product_id, :truck_id, :planned_quantity)",
+    (new RepositorioItensRomaneio($pdo))->inserirLinhas(
+        $companyId,
+        array_map(
+            static fn (array $entry): array => [
+                "romaneio_id" => $romaneioId,
+                "product_id" => (int) $entry["product"]["id"],
+                "truck_id" => $truckId,
+                "quantity" => (int) $entry["quantity"],
+            ],
+            $resolvedItems,
+        ),
     );
-    foreach ($resolvedItems as $entry) {
-        $itemStatement->execute([
-            "company_id" => $companyId,
-            "romaneio_id" => $romaneioId,
-            "product_id" => $entry["product"]["id"],
-            "truck_id" => $truckId,
-            "planned_quantity" => $entry["quantity"],
-        ]);
-    }
 
     record_operational_event(
         $pdo,

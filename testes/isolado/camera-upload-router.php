@@ -35,6 +35,13 @@ class CameraUploadStatement extends PDOStatement
             return ['id' => 42, 'carregamento_id' => 5, 'equipment_id' => 7,
                 'reason' => 'SEM_LEITURA', 'company_id' => 1, 'evidence_pdf_path' => $imagePath];
         }
+        if (str_contains($this->sql, 'r.evidence_pdf_path') && isset($this->params['request_id'])) {
+            $files = glob(TRACE_CAMERA_TEST_STORAGE . '/company_1/equipment_7/capture-42-*.pdf') ?: [];
+            return $this->params['request_id'] === 42 && $files !== []
+                ? ['id' => 42, 'equipment_id' => 7, 'company_id' => 1,
+                    'evidence_pdf_path' => 'company_1/equipment_7/' . basename($files[0])]
+                : false;
+        }
         return $this->params === [
             'request_id' => 42, 'equipment_id' => 7, 'company_id' => 1, 'device_id' => 3,
         ] ? ['id' => 42] : false;
@@ -87,7 +94,11 @@ $endpoint = str_ends_with((string) ($_SERVER['REQUEST_URI'] ?? ''), '/camera_wor
     ? 'camera_worker.php' : 'camera_upload.php';
 $source = (string) file_get_contents(__DIR__ . '/../../servidor/api/camera/' . $endpoint);
 $source = preg_replace('/^require_once .*;$/m', '', $source);
-$source = str_replace("__DIR__ . '/../../../armazenamento'", 'TRACE_CAMERA_TEST_STORAGE', $source);
+$source = str_replace(
+    ["__DIR__ . '/../../../armazenamento'", '__DIR__ . "/../../../armazenamento"'],
+    ['TRACE_CAMERA_TEST_STORAGE', 'TRACE_CAMERA_TEST_STORAGE'],
+    $source,
+);
 $source = preg_replace('/\A<\?php\s*/', '', $source, 1);
 define('TRACE_CAMERA_TEST_STORAGE', (string) getenv('TRACE_CAMERA_TEST_STORAGE'));
 try {

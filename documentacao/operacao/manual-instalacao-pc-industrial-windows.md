@@ -29,7 +29,7 @@ Mesmo conectado à internet, a interface do Trace permanece limitada a `127.0.0.
 
 Se `.env` já existir, o instalador preserva seus valores e informa quais campos obrigatórios estão vazios. Depois provisione cada dispositivo com `scripts/provision_device.php` e token próprio.
 
-Quando o adaptador de rede dedicado estiver conectado, configure IP privado fixo para a câmera e preencha `CAMERA_RTSP_HOST`, `CAMERA_RTSP_USERNAME` e `CAMERA_RTSP_PASSWORD` no mesmo arquivo. Até essa etapa, o worker inicia automaticamente e mantém a câmera como OFFLINE; a fila aguarda a conexão para capturar. Siga o [guia de captura da câmera](../../integracoes/node-red/README.md#captura-imediata).
+Quando o adaptador de rede dedicado estiver conectado, configure IP privado fixo para a câmera e preencha `CAMERA_RTSP_HOST`, `CAMERA_RTSP_USERNAME` e `CAMERA_RTSP_PASSWORD` no mesmo arquivo. Até essa etapa, o worker inicia automaticamente sem abrir o stream; o status fica OFFLINE e os pedidos de captura aguardam a rede. Depois da configuração, o worker faz uma sonda TCP leve e abre o RTSP apenas para tirar uma foto solicitada. Siga o [guia de captura da câmera](../../integracoes/node-red/README.md#captura-imediata).
 
 No PC industrial, cadastre o endereço e a porta de cada CLP na própria Dala.
 Ao salvar, o Trace tenta abrir uma conexão TCP para esse destino, limitado a

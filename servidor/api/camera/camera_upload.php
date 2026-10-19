@@ -15,17 +15,17 @@ $requestId = filter_var($_POST['request_id'] ?? null, FILTER_VALIDATE_INT);
 $upload = $_FILES['file'] ?? null;
 if (!$requestId || !is_array($upload) || ($upload['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_OK
     || !is_string($upload['tmp_name'] ?? null) || !is_uploaded_file($upload['tmp_name'])) {
-    json_response(['error' => 'Envie request_id e uma imagem da câmera.'], 422);
+    json_response(['error' => 'Envie request_id e o PDF de evidência da câmera.'], 422);
 }
 $requestId = (int) $requestId;
 $bytes = filesize($upload['tmp_name']);
-if ($bytes === false || $bytes < 1 || $bytes > 5 * 1024 * 1024) {
-    json_response(['error' => 'Imagem vazia ou acima de 5 MB.'], 413);
+if ($bytes === false || $bytes < 100 || $bytes > 10 * 1024 * 1024) {
+    json_response(['error' => 'PDF vazio ou acima de 10 MiB.'], 413);
 }
 $mime = (new finfo(FILEINFO_MIME_TYPE))->file($upload['tmp_name']);
 $mime = is_string($mime) ? $mime : '';
-if (!in_array($mime, ['image/jpeg', 'image/png'], true)) {
-    json_response(['error' => 'A evidência deve ser JPEG ou PNG.'], 422);
+if ($mime !== 'application/pdf') {
+    json_response(['error' => 'A evidência deve ser enviada como PDF.'], 422);
 }
 
 $pdo = db();
@@ -48,17 +48,18 @@ if (!$request = $claim->fetch()) {
     json_response(['error' => 'Pedido não reservado por esta câmera.'], 404);
 }
 
-$imageData = file_get_contents($upload['tmp_name']);
-if (!is_string($imageData) || strlen($imageData) !== $bytes) {
-    json_response(['error' => 'Não foi possível ler a imagem recebida.'], 422);
+$pdfBytes = file_get_contents($upload['tmp_name']);
+if (!is_string($pdfBytes) || strlen($pdfBytes) !== $bytes
+    || !str_starts_with($pdfBytes, "%PDF-1.4\n") || !str_ends_with($pdfBytes, "%%EOF")) {
+    json_response(['error' => 'O arquivo recebido não é um PDF completo.'], 422);
 }
-$evidence = new RelatorioAuditoriaPdf('Dallogix Trace', 'Evidência da câmera');
-$evidence->escreverTitulo('Evidência da câmera');
-if (!$evidence->inserirDadosDaImagemDaOcorrencia($imageData, $mime, 'Ocorrência: ' . (string) $request['reason'], true)) {
-    json_response(['error' => 'A imagem está inválida ou excede os limites de processamento do PDF.'], 422);
+$sourceImages = RelatorioAuditoriaPdf::extrairImagensOriginaisDoPdf($pdfBytes);
+if (count($sourceImages) !== 1 || $sourceImages[0]['mime'] !== 'image/jpeg'
+    || strlen($sourceImages[0]['bytes']) > 4 * 1024 * 1024) {
+    json_response(['error' => 'O PDF deve conter uma única captura JPEG válida e recuperável.'], 422);
 }
-$pdfBytes = $evidence->obterArquivoPdf();
 $sha256 = hash('sha256', $pdfBytes);
+$sourceJpeg = $sourceImages[0]['bytes'];
 
 $storageRoot = realpath(__DIR__ . '/../../../armazenamento');
 if ($storageRoot === false) {
@@ -136,8 +137,8 @@ try {
 json_response(['data' => [
     'request_id' => (int) $requestId,
     'evidence_pdf_path' => $storedPdfPath,
-    'source_bytes' => $bytes,
+    'source_bytes' => strlen($sourceJpeg),
     'pdf_bytes' => strlen($pdfBytes),
-    'source_sha256' => hash('sha256', $imageData),
+    'source_sha256' => hash('sha256', $sourceJpeg),
     'pdf_sha256' => $sha256,
 ]], 201);

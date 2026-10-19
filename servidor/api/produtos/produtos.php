@@ -14,6 +14,9 @@ $podeGerenciar = in_array(
     ["ADMIN_DALLOGIX", "ADMIN_EMPRESA", "SUPERVISOR"],
     true,
 );
+if ($_SERVER["REQUEST_METHOD"] === "GET") {
+    session_write_close();
+}
 $pdo = obter_conexao_banco();
 
 $productResponse = static function (array $product): array {
@@ -41,16 +44,23 @@ $syncBarcode = static function (PDO $pdo, int $companyId, int $productId, string
     $barcodeError,
 ): void {
     $existing = $pdo->prepare(
-        "SELECT id FROM codigos_produtos WHERE product_id = :product_id ORDER BY id LIMIT 1",
+        "SELECT id FROM codigos_produtos
+         WHERE company_id = :company_id AND product_id = :product_id
+         ORDER BY id LIMIT 1",
     );
-    $existing->execute(["product_id" => $productId]);
+    $existing->execute(["company_id" => $companyId, "product_id" => $productId]);
     $row = $existing->fetch();
     try {
         if ($row) {
             $update = $pdo->prepare(
-                "UPDATE codigos_produtos SET barcode = :barcode WHERE id = :id",
+                "UPDATE codigos_produtos SET barcode = :barcode
+                 WHERE id = :id AND company_id = :company_id",
             );
-            $update->execute(["barcode" => $barcode, "id" => $row["id"]]);
+            $update->execute([
+                "barcode" => $barcode,
+                "id" => $row["id"],
+                "company_id" => $companyId,
+            ]);
             return;
         }
         $insert = $pdo->prepare(
@@ -74,12 +84,16 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $conditions[] = "p.id > :cursor";
     if ($search !== "") {
         $conditions[] =
-            "(p.name LIKE :search OR p.code LIKE :search OR p.category LIKE :search OR EXISTS (SELECT 1 FROM codigos_produtos pc WHERE pc.product_id = p.id AND pc.barcode LIKE :search))";
+            "(p.name LIKE :search OR p.code LIKE :search OR p.category LIKE :search OR EXISTS (
+                SELECT 1 FROM codigos_produtos pc
+                WHERE pc.company_id = p.company_id AND pc.product_id = p.id AND pc.barcode LIKE :search
+            ))";
         $params["search"] = "%" . addcslashes($search, "%_\\") . "%";
     }
     $statement = $pdo->prepare(
         'SELECT p.id, p.code, p.name, p.category, p.active, GROUP_CONCAT(pc.barcode ORDER BY pc.barcode SEPARATOR ",") AS barcodes
-         FROM produtos p LEFT JOIN codigos_produtos pc ON pc.product_id = p.id
+         FROM produtos p LEFT JOIN codigos_produtos pc
+           ON pc.company_id = p.company_id AND pc.product_id = p.id
          WHERE ' .
             implode(" AND ", $conditions) .
             '
@@ -275,7 +289,8 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
     $find = $pdo->prepare(
         "SELECT p.id, p.code, p.name, p.category, p.active, p.remote_product_id,
                 COALESCE((SELECT cp.barcode FROM codigos_produtos cp
-                          WHERE cp.product_id = p.id ORDER BY cp.id LIMIT 1), '') AS barcode
+                          WHERE cp.company_id = p.company_id AND cp.product_id = p.id
+                          ORDER BY cp.id LIMIT 1), '') AS barcode
          FROM produtos p
          WHERE p.id = :id AND p.company_id = :company_id LIMIT 1",
     );
@@ -290,8 +305,8 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
         // Leituras e ocorrências permanecem preservadas, sem apontar para um
         // cadastro que deixou de existir.
         $pdo->prepare(
-            "DELETE FROM codigos_produtos WHERE product_id = :id",
-        )->execute(["id" => $productId]);
+            "DELETE FROM codigos_produtos WHERE company_id = :company_id AND product_id = :id",
+        )->execute(["company_id" => $usuarioAtor["company_id"], "id" => $productId]);
         $pdo->prepare(
             "UPDATE leituras SET product_id = NULL WHERE product_id = :id",
         )->execute(["id" => $productId]);

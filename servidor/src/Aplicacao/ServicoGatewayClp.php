@@ -3,9 +3,12 @@ declare(strict_types=1);
 
 namespace App\Aplicacao;
 
+use App\Persistencia\RepositorioComandosClp;
 use PDO;
 use RuntimeException;
 use Throwable;
+
+require_once __DIR__ . "/../Persistencia/RepositorioComandosClp.php";
 
 final class ExcecaoGatewayClp extends RuntimeException
 {
@@ -21,7 +24,12 @@ final class ServicoGatewayClp
 {
     private const ESTADOS_FINAIS = ["APLICADO", "REJEITADO", "ERRO"];
 
-    public function __construct(private readonly PDO $connection) {}
+    private readonly RepositorioComandosClp $repositorio;
+
+    public function __construct(private readonly PDO $connection)
+    {
+        $this->repositorio = new RepositorioComandosClp($connection);
+    }
 
     public function reservarComando(int $equipmentId, int $deviceId): ?array
     {
@@ -211,7 +219,9 @@ final class ServicoGatewayClp
             $stateChanged = false;
             $stateTransition = null;
             if ($status === "APLICADO" && $request["command"] === "DESBLOQUEAR_MAQUINA") {
-                $staleUnlock = !$this->ehUltimaSolicitacaoDeDesbloqueio((int) $request["carregamento_id"], $requestId);
+                $staleUnlock = $this->repositorio->ultimaSolicitacaoDeSeguranca(
+                    (int) $request["carregamento_id"],
+                ) !== $requestId;
                 if ($staleUnlock) {
                     $status = "REJEITADO";
                     $message = "ACK de desbloqueio obsoleto após outra solicitação de segurança.";
@@ -368,19 +378,6 @@ final class ServicoGatewayClp
             error_log("PLC gateway could not complete command: " . $exception->getMessage());
             throw new ExcecaoGatewayClp("Não foi possível concluir o comando industrial.", 500);
         }
-    }
-
-    private function ehUltimaSolicitacaoDeDesbloqueio(int $loadingId, int $requestId): bool
-    {
-        $lockClause = $this->connection->getAttribute(PDO::ATTR_DRIVER_NAME) === "sqlite" ? "" : " FOR UPDATE";
-        $latest = $this->connection->prepare(
-            "SELECT id FROM solicitacoes_comandos_clp
-             WHERE carregamento_id = :carregamento_id
-               AND command IN ('DESBLOQUEAR_MAQUINA', 'EMERGENCIA')
-             ORDER BY id DESC LIMIT 1{$lockClause}",
-        );
-        $latest->execute(["carregamento_id" => $loadingId]);
-        return (int) $latest->fetchColumn() === $requestId;
     }
 
     /** @return array{id:null, company_id:int} */

@@ -4,6 +4,9 @@ declare(strict_types=1);
 require_once __DIR__ . "/../../configuracao/bootstrap.php";
 
 $user = require_role(["ADMIN_DALLOGIX"]);
+if ($_SERVER["REQUEST_METHOD"] === "GET") {
+    session_write_close();
+}
 $pdo = db();
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {

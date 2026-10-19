@@ -3,48 +3,37 @@ import {
 } from "./sessao.js?v=202609222100";
 import { ClienteApi } from "./api/ClienteApi.js?v=202610140003";
 import { confirmarAcao, limparNotificacao, notificar, solicitarTexto } from "./componentes/notificacoes.js?v=202610160002";
+import { setFormFeedback } from "./componentes/form-feedback.js?v=202610190001";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610180001";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610190058";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
-import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, instalarRecuperacaoFocoLeitor, changeOperationLoading, renderDalaStatuses, linhaItemRomaneio, operationStructureSignature } from "./controladores/operacao.js?v=202610190001";
-import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610140001";
+import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, instalarRecuperacaoFocoLeitor, changeOperationLoading, linhaItemRomaneio } from "./controladores/operacao.js?v=202610190001";
+import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610190018";
 import { createPageRefreshController } from "./controladores/page-refresh.js?v=202610130001";
 import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
-import { numero, relativo } from "./funcoes/formato.js?v=202609201000";
+import { criarRegistroTelas } from "./controladores/registro-telas.js?v=202610190046";
+import { alternarTecladoLeituraManual } from "./controladores/teclado-leitura-manual.js?v=202610190046";
+import { criarTratadorAcoesNavegacao } from "./controladores/acoes-navegacao.js?v=202610190001";
+import { criarTratadorAcoesAdministracao } from "./controladores/acoes-administracao.js?v=202610190001";
+import { criarTratadorAcoesOperacionais } from "./controladores/acoes-operacionais.js?v=202610190040";
+import { criarTratadorAcoesDiagnostico } from "./controladores/acoes-diagnostico.js?v=202610190001";
+import { criarTratadorAcoesCadastros } from "./controladores/acoes-cadastros.js?v=202610190042";
+import { criarTratadorAcoesInterface, instalarInteracoesGlobaisInterface } from "./controladores/acoes-interface.js?v=202610190042";
+import { criarTratadorAcoesRelatorios } from "./controladores/acoes-relatorios.js?v=202610190043";
+import { criarDelegacaoAcoes, criarDespachanteAcoes } from "./controladores/despachante-acoes.js?v=202610190059";
+import { criarCarregadorPaginas } from "./controladores/carregador-paginas.js?v=202610190041";
+import { createLiveViewController } from "./controladores/estado-visualizacao.js?v=202610190029";
+import { createLocalConnectivityController } from "./controladores/conectividade-local.js?v=202610190029";
+import { bindManifestCreationForm, bindManifestEditForm } from "./controladores/formulario-romaneio.js?v=202610190001";
+import { bindProductForm } from "./controladores/formulario-produto.js?v=202610190001";
+import { bindDalaCreationForm, bindDalaEditForm } from "./controladores/formulario-dala.js?v=202610190030";
+import { bindCsvManifestImportForm, bindPdfManifestImportForm } from "./controladores/formulario-importacao-romaneio.js?v=202610190001";
+import { bindAdministrativeForms } from "./controladores/formularios-administrativos.js?v=202610190001";
+import { bindOperationalForms } from "./controladores/formularios-operacionais.js?v=202610190001";
+import { bindPageForms } from "./controladores/formularios-telas.js?v=202610190001";
 import { el, esc } from "./funcoes/html.js";
-import { refreshCompanyStatusCards } from "./funcoes/view.js?v=202610130001";
-import { agora, sincronizarRelogio, statusRelogio, usarRelogioDoPc } from "./funcoes/relogio.js?v=202609170015";
 import { rotuloEstado } from "./funcoes/rotulos.js?v=202609240001";
-import {
-  apresentacaoConectividadePc,
-  apresentacaoStatusDispositivo,
-  renderStatusDalaBinario,
-  resumoStatusDispositivos,
-  settings,
-} from "../telas/configuracoes/configuracoes.js?v=202610160005";
-import { dalas } from "../telas/dalas/dalas.js?v=202610160005";
-import { dalaEdit } from "../telas/editar-dala/editar-dala.js?v=202610010001";
-import { dalaView } from "../telas/visualizar-dala/visualizar-dala.js?v=202610160005";
-import { company } from "../telas/empresa/empresa.js?v=202610130001";
-import { companies } from "../telas/empresas/empresas.js?v=202610130001";
-import { errorLogs } from "../telas/logs-erros/logs-erros.js?v=202610160005";
-import { masterHome } from "../telas/painel-dallogix/painel-dallogix.js?v=202610080002";
-import { alerts } from "../telas/alertas/alertas.js?v=202610130001";
-import { emergency } from "../telas/emergencia/emergencia.js?v=202610130001";
-import { occurrences } from "../telas/ocorrencias/ocorrencias.js?v=202610130001";
-import { products } from "../telas/produtos/produtos.js?v=202610130001";
-import { summary } from "../telas/resumo-final/resumo-final.js?v=202610130001";
-import { division } from "../telas/divisao-carga/divisao-carga.js?v=202610130001";
-import { importScreen } from "../telas/importar-romaneio/importar-romaneio.js?v=202610190001";
-import { manifestEdit } from "../telas/editar-romaneio/editar-romaneio.js?v=202610190001";
-import { manifests } from "../telas/romaneios/romaneios.js?v=202610130006";
-import { manifestView } from "../telas/romaneio/romaneio.js?v=202610130006";
-import { alternarTecladoLeituraManual, work } from "../telas/operacao/operacao.js?v=202610160005";
-import { dashboard } from "../telas/painel/painel.js?v=202610130001";
-import { users } from "../telas/usuarios/usuarios.js?v=202610130001";
-import { validarDala, validarProduto } from "./utilitarios/Validadores.js?v=202610060003";
-import { validarCadastroRomaneio } from "./funcoes/romaneio.js?v=202610190001";
 import { logFrontend, configurarTransporteLogs } from "./utilitarios/LogFrontend.js?v=202610160005";
 import { estadoErro } from "./componentes/estados.js?v=202610060002";
 import {
@@ -78,29 +67,52 @@ const servicoOperacao = new ServicoOperacao(store);
 let renderRequestId = 0;
 let workViewSignature = "";
 let companyViewSignature = "";
-const screens = {
-  dashboard,
-  manifests,
-  import: importScreen,
-  division,
-  work,
-  occurrences,
-  summary,
-  products,
-  alerts,
-  emergency,
-  settings,
-  dalas,
-  dala: dalaView,
-  "dala-edit": dalaEdit,
-  manifest: manifestView,
-  "manifest-edit": manifestEdit,
-  companies,
-  "master-home": masterHome,
-  company,
-  users,
-  "error-logs": errorLogs,
-};
+let sidebarPreferenceWarningReported = false;
+const registroTelas = criarRegistroTelas({
+  dashboard: () =>
+    import("../telas/painel/painel.js?v=202610190046").then(({ dashboard }) => dashboard),
+  manifests: () =>
+    import("../telas/romaneios/romaneios.js?v=202610190046").then(({ manifests }) => manifests),
+  import: () =>
+    import("../telas/importar-romaneio/importar-romaneio.js?v=202610190046").then(({ importScreen }) => importScreen),
+  division: () =>
+    import("../telas/divisao-carga/divisao-carga.js?v=202610190046").then(({ division }) => division),
+  work: () =>
+    import("../telas/operacao/operacao.js?v=202610190046").then(({ work }) => work),
+  occurrences: () =>
+    import("../telas/ocorrencias/ocorrencias.js?v=202610190046").then(({ occurrences }) => occurrences),
+  summary: () =>
+    import("../telas/resumo-final/resumo-final.js?v=202610190046").then(({ summary }) => summary),
+  products: () =>
+    import("../telas/produtos/produtos.js?v=202610190046").then(({ products }) => products),
+  alerts: () =>
+    import("../telas/alertas/alertas.js?v=202610190046").then(({ alerts }) => alerts),
+  emergency: () =>
+    import("../telas/emergencia/emergencia.js?v=202610190046").then(({ emergency }) => emergency),
+  settings: () =>
+    import("../telas/configuracoes/configuracoes.js?v=202610190046").then(({ settings }) => settings),
+  dalas: () =>
+    import("../telas/dalas/dalas.js?v=202610190046").then(({ dalas }) => dalas),
+  dala: () =>
+    import("../telas/visualizar-dala/visualizar-dala.js?v=202610190046").then(({ dalaView }) => dalaView),
+  "dala-edit": () =>
+    import("../telas/editar-dala/editar-dala.js?v=202610190046").then(({ dalaEdit }) => dalaEdit),
+  manifest: () =>
+    import("../telas/romaneio/romaneio.js?v=202610190046").then(({ manifestView }) => manifestView),
+  "manifest-edit": () =>
+    import("../telas/editar-romaneio/editar-romaneio.js?v=202610190046").then(({ manifestEdit }) => manifestEdit),
+  companies: () =>
+    import("../telas/empresas/empresas.js?v=202610190046").then(({ companies }) => companies),
+  "master-home": () =>
+    import("../telas/painel-dallogix/painel-dallogix.js?v=202610190046").then(({ masterHome }) => masterHome),
+  company: () =>
+    import("../telas/empresa/empresa.js?v=202610190046").then(({ company }) => company),
+  users: () =>
+    import("../telas/usuarios/usuarios.js?v=202610190046").then(({ users }) => users),
+  "error-logs": () =>
+    import("../telas/logs-erros/logs-erros.js?v=202610190046").then(({ errorLogs }) => errorLogs),
+});
+const screens = registroTelas.telas;
 const FAST_STATUS_PAGES = new Set([
   "dashboard",
   "division",
@@ -130,12 +142,14 @@ const PAGE_REFRESHERS = new Map([
   "company",
   "error-logs",
 ].map((page) => [page, {
-  load: () => loadLiveStatusData(page),
+  load: () => pageDataLoader.obterConsultasAoVivo(page),
   refresh: (freshness) => refreshLiveStatusView(page, freshness),
-  intervalMs: FAST_STATUS_PAGES.has(page) ? 5000 : 15000,
-  hiddenIntervalMs: FAST_STATUS_PAGES.has(page)
-    ? 15000
-    : ["companies", "master-home"].includes(page) ? 60000 : 30000,
+  intervalMs: page === "products" ? 60000 : FAST_STATUS_PAGES.has(page) ? 5000 : 15000,
+  hiddenIntervalMs: page === "products"
+    ? 300000
+    : FAST_STATUS_PAGES.has(page)
+      ? 15000
+      : ["companies", "master-home"].includes(page) ? 60000 : 30000,
 }]));
 // Os arquivos HTML continuam acessíveis diretamente, mas, após o primeiro carregamento,
 // as mudanças de tela usam o History API para não reiniciar toda a aplicação.
@@ -143,8 +157,31 @@ const initialPage =
   document.querySelector("script[data-page]")?.dataset.page || "";
 let currentPage = initialPage;
 let authenticatedUser = null;
-let localHealthTimer = null;
-let localHealthRequest = false;
+const pageDataLoader = criarCarregadorPaginas({
+  store,
+  obterPerfil: () => authenticatedUser?.role,
+  obterModoInstalacao: () => currentInstallationMode,
+  idDaConsulta: queryId,
+  registrarAviso: (...args) => logFrontend.aviso(...args),
+});
+const liveView = createLiveViewController({
+  store,
+  getCurrentPage: () => currentPage,
+  screens,
+  renderScreen: () => renderScreen(),
+  bindActions: () => bindActions(),
+  getCompanyViewSignature: () => companyViewSignature,
+  setCompanyViewSignature: (signature) => { companyViewSignature = signature; },
+});
+const {
+  companyStatusViewSignature,
+  workStructureSignature,
+  refreshWorkLiveView,
+  refreshSettingsStatusView,
+  refreshLiveStatusView,
+  refreshStatusRefreshFeedback,
+  installRelativeTimeRefresh,
+} = liveView;
 
 // Notificações flutuantes foram desativadas globalmente; mensagens operacionais
 // permanecem disponíveis nos estados próprios das telas.
@@ -160,7 +197,7 @@ const machineCommandQueue = createMachineCommandQueue({
     if (currentPage === "work") {
       Promise.allSettled([
         store.loadActiveLoading(loadingId),
-        store.loadMonitoring(),
+        store.loadDeviceStatuses(),
       ]).then(() => {
         if (currentPage === "work") render();
       });
@@ -226,7 +263,20 @@ function sidebarCollapsed() {
   try {
     return localStorage.getItem("trace-sidebar-collapsed") === "1";
   } catch (error) {
+    reportSidebarPreferenceFailure(error);
     return false;
+  }
+}
+function reportSidebarPreferenceFailure(error) {
+  if (sidebarPreferenceWarningReported) return;
+  sidebarPreferenceWarningReported = true;
+  logFrontend.aviso("navegacao.preferencia_menu_indisponivel", error);
+}
+function saveSidebarCollapsedPreference(collapsed) {
+  try {
+    localStorage.setItem("trace-sidebar-collapsed", collapsed ? "1" : "0");
+  } catch (error) {
+    reportSidebarPreferenceFailure(error);
   }
 }
 function normalizeRole(role) {
@@ -320,133 +370,20 @@ let currentInstallationMode = ["localhost", "127.0.0.1", "::1"].includes(window.
   ? "local"
   : "central";
 
-function setLocalIndicator(state, checkedAt = null, installationMode = currentInstallationMode) {
-  const labels = installationMode === "central"
-    ? {
-        online: "Servidor central online",
-        degraded: "Servidor central sem confirmação",
-        offline: "Servidor central sem comunicação",
-      }
-    : {
-        online: "Sistema local online",
-        degraded: "Sistema local sem confirmação",
-        offline: "Sistema local sem comunicação",
-      };
-  const clock = statusRelogio();
-  const detail = checkedAt
-    ? `Última verificação: ${new Date(checkedAt).toLocaleTimeString("pt-BR", { timeZone: "America/Sao_Paulo" })} • Horário: ${clock.label}`
-    : `Horário: ${clock.label}`;
-  document.querySelectorAll(".local").forEach((indicator) => {
-    indicator.classList.remove("is-online", "is-degraded", "is-offline");
-    indicator.classList.add(`is-${state}`);
-    indicator.innerHTML = `<i></i> ${labels[state] || labels.degraded}`;
-    indicator.title = detail;
-    indicator.setAttribute("aria-label", `${labels[state] || labels.degraded}. ${detail}`);
-  });
-}
-
-async function refreshLocalIndicator() {
-  if (localHealthRequest) return;
-  if (!navigator.onLine) {
-    usarRelogioDoPc();
-    store.state.serverStatus = "OFFLINE";
-    setLocalIndicator("offline");
-    if (currentPage === "work") refreshWorkLiveView();
-    if (currentPage === "settings") refreshSettingsStatusView();
-    return;
-  }
-  localHealthRequest = true;
-  try {
-    const [response] = await Promise.all([
-      api.fetch(`/api/health.php?ts=${Date.now()}`, {
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-      }),
-      sincronizarRelogio(),
-    ]);
-    const result = await response.json().catch(() => ({}));
-    currentInstallationMode = result.installation_mode === "central" ? "central" : "local";
-    const state = response.ok && result.status === "ok" ? "online" : "degraded";
-    store.state.serverStatus = state === "online" ? "ONLINE" : "ERRO";
-    setLocalIndicator(state, result.checked_at || Date.now(), currentInstallationMode);
-    if (currentPage === "work") refreshWorkLiveView();
-    if (currentPage === "settings") refreshSettingsStatusView();
-    if (state === "online") {
-      const previousPending = store.state.offlineQueueSize;
-      store.flushOfflineOperations().then((queue) => {
-        if (currentPage === "work" && (queue.sent > 0 || queue.pending !== previousPending)) render();
-      }).catch((error) => logFrontend.aviso("fila.offline", error));
-    }
-  } catch (error) {
-    logFrontend.aviso("indicador.saude", error);
-    store.state.serverStatus = "OFFLINE";
-    setLocalIndicator("offline");
-    if (currentPage === "work") refreshWorkLiveView();
-    if (currentPage === "settings") refreshSettingsStatusView();
-  } finally {
-    localHealthRequest = false;
-  }
-}
-
-function installLocalIndicator() {
-  if (localHealthTimer) return;
-  const restoreScannerFocus = () => {
-    if (currentPage === "work" && document.visibilityState === "visible") {
-      focusOperationScanner(el("#screen-root"));
-    }
-  };
-  window.addEventListener("focus", restoreScannerFocus);
-  document.addEventListener("visibilitychange", restoreScannerFocus);
-  window.addEventListener("online", () => {
-    refreshLocalIndicator();
-    store.flushOfflineOperations().then(() => {
-      if (currentPage === "work") render();
-    }).catch((error) => {
-      logFrontend.aviso("fila.offline", error);
-      /* a fila permanece armazenada para a próxima tentativa */
-    });
-  });
-  window.addEventListener("offline", () => {
-    usarRelogioDoPc();
-    refreshLocalIndicator();
-  });
-  refreshLocalIndicator();
-  localHealthTimer = window.setInterval(refreshLocalIndicator, 30000);
-}
-
-function installOfflineShell() {
-  if (!("serviceWorker" in navigator) || window.location.protocol === "file:") return;
-  let reloadAfterUpdate = false;
-  navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (!reloadAfterUpdate) return;
-    reloadAfterUpdate = false;
-    window.location.reload();
-  });
-  navigator.serviceWorker.register("/service-worker.js?v=202610190001").then((registration) => {
-    const ativarAtualizacaoSilenciosamente = () => {
-      if (!registration.waiting || !navigator.serviceWorker.controller) return;
-      reloadAfterUpdate = true;
-      registration.waiting.postMessage({ type: "ATIVAR_NOVA_VERSAO" });
-    };
-    if (registration.waiting) ativarAtualizacaoSilenciosamente();
-    registration.addEventListener("updatefound", () => {
-      const worker = registration.installing;
-      if (!worker) return;
-      worker.addEventListener("statechange", () => {
-        if (worker.state === "installed" && navigator.serviceWorker.controller) {
-          ativarAtualizacaoSilenciosamente();
-        }
-      });
-    });
-    registration.update().catch((error) => {
-      logFrontend.aviso("service-worker.atualizacao", error);
-      // A aplicação continua funcional quando a verificação do cache falhar.
-    });
-  }).catch((error) => {
-    logFrontend.aviso("service-worker.registro", error);
-    // A aplicação continua funcional quando o navegador não oferece suporte ao cache offline.
-  });
-}
+const conectividadeLocal = createLocalConnectivityController({
+  store,
+  api,
+  getCurrentPage: () => currentPage,
+  getInstallationMode: () => currentInstallationMode,
+  setInstallationMode: (mode) => { currentInstallationMode = mode; },
+  refreshWorkView: () => refreshWorkLiveView(),
+  refreshSettingsView: () => refreshSettingsStatusView(),
+  render: () => render(),
+  focusScanner: (root) => focusOperationScanner(root),
+  getScreenRoot: () => el("#screen-root"),
+  logWarning: (...args) => logFrontend.aviso(...args),
+  serviceWorkerUrl: "/service-worker.js?v=202610190060",
+});
 
 function waitForDocumentStyles() {
   const links = [...document.querySelectorAll('link[rel="stylesheet"]')];
@@ -502,79 +439,6 @@ async function ensureScreenStyles(page) {
   if (!link.sheet) logFrontend.aviso("tela.css", new Error(`Não foi possível carregar ${expectedUrl.pathname}.`));
 }
 
-function renderLogin(message = "") {
-  const box = el("#login-error");
-  if (box) {
-    box.setAttribute("role", "alert");
-    box.setAttribute("aria-live", "assertive");
-    box.innerHTML = message
-      ? `<div class="login-error">${esc(message)}</div>`
-      : "";
-    if (message) box.focus();
-  }
-}
-
-function renderLocalActivation(data = { active: false }, message = "") {
-  const status = el("#local-license-status");
-  const panel = el("#local-activation");
-  const error = el("#local-activation-error");
-  const enabled = Boolean(data?.enabled);
-  const licenseStatus = String(data?.license_status || (data?.active ? "ATIVA" : ""));
-  const active = enabled && Boolean(data?.active) && licenseStatus === "ATIVA";
-  const blocked = enabled && Boolean(data?.active) && licenseStatus !== "ATIVA";
-  if (status) {
-    status.hidden = !active && !blocked;
-    status.classList.toggle("is-blocked", blocked);
-    status.innerHTML = active
-      ? `<strong>Licença ativa</strong><small>${esc(data.company_name || "Empresa configurada")} · @${esc(data.login_domain || "—")}</small>`
-      : blocked
-        ? `<strong>Licença bloqueada</strong><small>${esc(data.license_reason || "A empresa precisa ser liberada no servidor central.")}</small>`
-        : "";
-  }
-  if (panel) panel.hidden = !enabled || active || blocked;
-  if (error) {
-    error.textContent = message;
-    error.hidden = !message;
-  }
-}
-
-function bindLocalActivationForm() {
-  const form = document.querySelector("#local-activation-form");
-  if (!form || form.dataset.bound === "1") return;
-  form.dataset.bound = "1";
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    if (form.dataset.submitting === "1") return;
-    form.dataset.submitting = "1";
-    const submit = form.querySelector('button[type="submit"]');
-    if (submit) {
-      submit.disabled = true;
-      submit.textContent = "Ativando…";
-    }
-    renderLocalActivation({ enabled: true, active: false }, "");
-    try {
-      const data = Object.fromEntries(new FormData(form));
-      const activation = await store.activateLocalInstallation(data);
-      renderLocalActivation(activation);
-      const login = document.querySelector('#login-form [name="email"]');
-      if (login) login.value = data.email || "";
-      form.reset();
-          notificar(`Instalação ativada para ${activation.company_name}.`, "sucesso");
-    } catch (error) {
-      renderLocalActivation(
-        { enabled: true, active: false },
-        error.message || "Não foi possível ativar esta instalação.",
-      );
-    } finally {
-      form.dataset.submitting = "0";
-      if (submit) {
-        submit.disabled = false;
-        submit.textContent = "Ativar este PC";
-      }
-    }
-  });
-}
-
 function isMobileMenuViewport() {
   return window.matchMedia(
     "(max-width: 760px), (orientation: landscape) and (max-width: 900px)",
@@ -610,11 +474,7 @@ function hydrateChrome() {
           return;
         }
         const collapsed = currentShell?.classList.toggle("sidebar-collapsed") || false;
-        try {
-          localStorage.setItem("trace-sidebar-collapsed", collapsed ? "1" : "0");
-        } catch (storageError) {
-          /* modo privado */
-        }
+        saveSidebarCollapsedPreference(collapsed);
       });
     }
   }
@@ -632,7 +492,7 @@ function hydrateChrome() {
   if (pageHeading) {
     pageHeading.innerHTML = `<span class="brand-context">TracePlatform</span><small>/ Dallogix Trace</small><span class="page-context"> · ${esc(pageLabel)}</span>`;
   }
-  installLocalIndicator();
+  conectividadeLocal.installIndicator();
   const userRole = normalizeRole(authenticatedUser?.role);
   el("#user-avatar").textContent = (authenticatedUser?.name || "A")
     .slice(0, 1)
@@ -662,371 +522,11 @@ function renderScreen() {
   statusScreensRealtime.start();
   if (currentPage === "master-home") companyViewSignature = companyStatusViewSignature();
 }
-function companyStatusViewSignature() {
-  const companies = Array.isArray(store.state.companies) ? store.state.companies : [];
-  return JSON.stringify([
-    Boolean(store.state.companyStatusStale),
-    companies.map((company) => [
-      company.id,
-      company.archived,
-      company.total_machines,
-      company.machines_online,
-      company.industrial_pc_status,
-      company.total_users,
-      company.active_users,
-      company.license_status,
-    ]),
-  ]);
-}
-// Mantém uma entrada global para atualizações em tempo real e inicialização.
-// Handlers de uma tela usam a guarda local de bindActions/bindForms abaixo.
-function render() {
-  renderScreen();
-}
 function stopWorkPolling() {
   workRealtime.stop();
 }
 function startWorkPolling() {
   workRealtime.start();
-}
-function workStructureSignature() {
-  return operationStructureSignature(store.state, store.clpDisponivel());
-}
-function refreshWorkLiveView() {
-  const detectedBags = Number(store.state.detectedBags) || 0;
-  const validReadings = Number(store.state.loaded) || 0;
-  const planned = Number(store.state.planned) || 0;
-  const remaining = Math.max(0, planned - validReadings);
-  const percent = planned > 0 ? Math.min(100, Math.round((validReadings / planned) * 100)) : 0;
-  const values = {
-    planned: numero(planned),
-    detected: numero(detectedBags),
-    loaded: numero(validReadings),
-    "remaining-label": planned <= 0
-      ? "Quantidade prevista não informada"
-      : remaining === 0
-        ? "Nenhuma leitura pendente"
-        : `Falta${remaining === 1 ? "" : "m"} ${numero(remaining)} leitura${remaining === 1 ? "" : "s"} válida${remaining === 1 ? "" : "s"}`,
-    "progress-percent": `${percent}%`,
-  };
-  Object.entries(values).forEach(([key, value]) => {
-    document.querySelectorAll(`[data-live="${key}"]`).forEach((node) => {
-      node.textContent = String(value);
-    });
-  });
-  const progressBar = document.querySelector('[data-live="progress-bar"]');
-  if (progressBar) {
-    progressBar.style.width = `${percent}%`;
-    progressBar.parentElement?.setAttribute("aria-valuenow", String(percent));
-  }
-  const endNotice = document.querySelector('[data-live="end-notice"]');
-  if (endNotice) {
-    const threshold = planned > 0 ? Math.max(1, Math.ceil(planned * 0.1)) : 0;
-    const nearEnd = planned > 0 && validReadings > 0 && remaining > 0 && remaining <= threshold;
-    const complete = planned > 0 && validReadings >= planned;
-    const excess = planned > 0 && validReadings > planned;
-    endNotice.textContent = excess
-      ? `Atenção: ${numero(validReadings - planned)} leituras válidas acima do previsto.`
-      : complete
-        ? "Quantidade programada atingida. Confira as leituras finais."
-        : nearEnd
-          ? "Atenção: o romaneio está próximo do fim."
-          : "";
-    endNotice.hidden = !complete && !nearEnd && !excess;
-    endNotice.classList.toggle("complete", complete && !excess);
-    endNotice.classList.toggle("near-end", nearEnd && !complete);
-    endNotice.classList.toggle("excess", excess);
-  }
-  focusOperationScanner(el("#screen-root"));
-}
-
-function refreshSettingsStatusView() {
-  const devices = store.state.monitoring?.dispositivos || [];
-  const presentations = [];
-  document.querySelectorAll("[data-device-status-card]").forEach((card) => {
-    const type = card.dataset.deviceStatusCard;
-    const equipmentId = Number(card.dataset.liveStatusEquipment) || null;
-    const device = type === "SERVER"
-      ? null
-      : devices.find((item) => item.device_type === type &&
-          (!equipmentId || Number(item.equipment_id) === equipmentId));
-    const value = type === "SERVER"
-      ? (store.state.serverStatus || "DESCONHECIDO")
-      : (device?.status || "NAO_REGISTRADO");
-    const presentation = apresentacaoStatusDispositivo(value, type);
-    presentations.push(presentation);
-    card.className = `settings-device-status-card ${presentation.tone}`;
-    const status = card.querySelector("[data-live-status]");
-    if (status) {
-      status.textContent = presentation.label;
-      status.className = `status-value status-${presentation.tone}`;
-    }
-    const detail = card.querySelector("[data-live-status-detail]");
-    if (detail) detail.textContent = presentation.detail;
-  });
-
-  const { online: onlineCount, attention: attentionCount, unmonitored: unmonitoredCount } =
-    resumoStatusDispositivos(presentations);
-  const onlineSummary = document.querySelector('[data-device-summary="online-count"]');
-  const attentionSummary = document.querySelector('[data-device-summary="attention-count"]');
-  const unmonitoredSummary = document.querySelector('[data-device-summary="unmonitored-count"]');
-  const attentionLabel = document.querySelector('[data-device-summary="attention-label"]');
-  if (onlineSummary) onlineSummary.textContent = String(onlineCount);
-  if (attentionSummary) attentionSummary.textContent = String(attentionCount);
-  if (unmonitoredSummary) unmonitoredSummary.textContent = String(unmonitoredCount);
-  if (attentionLabel) attentionLabel.textContent = "sem sinal ou com falha";
-
-  const [pcTone, pcLabel] = apresentacaoConectividadePc(store.state.syncStatus);
-  const updateConnectivity = (key, tone, label) => {
-    const row = document.querySelector(`[data-settings-connectivity="${key}"]`);
-    const dot = row?.querySelector("[data-settings-connectivity-dot]");
-    const text = row?.querySelector("[data-settings-connectivity-label]");
-    if (dot) dot.className = `status-dot ${tone}`;
-    if (text) text.textContent = label;
-  };
-  updateConnectivity("pc", pcTone, pcLabel);
-
-  const configuredDalas = store.state.configuration?.dalas || [];
-  const dalaStatuses = store.state.dalaStatuses || [];
-  const onlineDalas = dalaStatuses.filter((dala) => String(dala.status).toUpperCase() === "ONLINE").length;
-  const offlineDalas = dalaStatuses.filter((dala) => ["OFFLINE", "ERRO"].includes(String(dala.status).toUpperCase())).length;
-  const unknownDalas = Math.max(0, configuredDalas.length - onlineDalas - offlineDalas);
-  const dalaLabel = configuredDalas.length === 0
-    ? "Dalas não cadastradas"
-    : onlineDalas === configuredDalas.length
-      ? "Dalas online"
-      : offlineDalas === configuredDalas.length
-        ? "Dalas sem comunicação"
-        : onlineDalas > 0
-          ? "Dalas parcialmente online"
-          : "Dalas sem status";
-  const dalaTone = configuredDalas.length === 0 || unknownDalas > 0 || (onlineDalas > 0 && offlineDalas > 0)
-    ? "unknown"
-    : offlineDalas > 0
-      ? "offline"
-      : "online";
-  updateConnectivity("dalas", dalaTone, dalaLabel);
-
-  const statusByEquipment = new Map(dalaStatuses.map((status) => [String(status.equipment_id), status]));
-  document.querySelectorAll(".dala-status[data-equipment-id]").forEach((cell) => {
-    const status = statusByEquipment.get(String(cell.dataset.equipmentId));
-    cell.innerHTML = renderStatusDalaBinario(status);
-  });
-}
-
-function loadLiveStatusData(page) {
-  switch (page) {
-    case "dashboard":
-      return [store.loadMonitoring(), loadEquipmentStatus()];
-    case "manifests":
-      return [store.loadManifests()];
-    case "manifest":
-      return [store.loadManifest(queryId())];
-    case "occurrences":
-      return [store.loadMonitoring()];
-    case "summary":
-      return [store.loadMonitoring(), store.loadActiveLoading(store.state.selectedLoadingId)];
-    case "division":
-      return [store.loadManifest(queryId()), store.loadActiveLoading(), loadEquipmentStatus()];
-    case "products":
-      return [store.loadProducts()];
-    case "alerts":
-      return [store.loadMonitoring(), store.loadSyncStatus()];
-    case "dalas":
-      return [store.loadDalaStatuses(), loadEquipmentStatus()];
-    case "dala":
-      return [
-        store.loadMonitoring(),
-        store.loadDalaCommandHistory(queryId()),
-        store.loadDalaStatuses(),
-      ];
-    case "users":
-      return [store.loadUsers()];
-    case "settings":
-      return [store.loadConfiguration(), store.loadMonitoring(), store.loadSyncStatus(), store.loadDalaStatuses()];
-    case "companies":
-    case "master-home":
-      return [store.loadCompanies()];
-    case "company":
-      return [store.loadCompanyDetail()];
-    case "error-logs":
-      return [store.loadErrorLogs(), store.loadTechnicalDiagnostics(), store.loadDeadLetters()];
-    default:
-      return [];
-  }
-}
-
-async function loadEquipmentStatus() {
-  await store.loadEquipments({ force: true });
-  if (store.state.equipmentsError) {
-    throw new Error(store.state.equipmentsError);
-  }
-}
-
-function refreshLiveStatusView(page, freshness = {}) {
-  if (currentPage !== page) return;
-  const root = el("#screen-root");
-  if (!root) return;
-
-  const { stale = false, staleForMs = 0 } = freshness;
-  if (page === "settings") {
-    refreshSettingsStatusView();
-    refreshStatusRefreshFeedback(root, freshness);
-    return;
-  }
-  if (["companies", "master-home"].includes(page)) {
-    store.state.companyStatusStale = stale;
-    const staleMessage = stale ? statusRefreshMessage(staleForMs) : null;
-    if (page === "master-home" && companyStatusViewSignature() !== companyViewSignature) {
-      const scrollTop = window.scrollY;
-      renderScreen();
-      refreshCompanyStatusCards(store.state.companies, root, { stale, staleMessage });
-      window.scrollTo(0, scrollTop);
-      refreshRelativeTimes();
-      return;
-    }
-    if (page === "companies") {
-      const template = document.createElement("template");
-      template.innerHTML = screens[page](store);
-      const next = template.content.querySelector('[data-status-region="company-status-overview"]');
-      const current = root.querySelector('[data-status-region="company-status-overview"]');
-      const scrollTop = window.scrollY;
-      const focusedControl = document.activeElement?.matches?.("input, select, textarea, button, [contenteditable='true']")
-        && current?.contains(document.activeElement);
-      if (next && current && !focusedControl && current.innerHTML !== next.innerHTML) {
-        current.innerHTML = next.innerHTML;
-        window.scrollTo(0, scrollTop);
-      }
-    }
-    refreshCompanyStatusCards(store.state.companies, root, { stale, staleMessage });
-    refreshRelativeTimes();
-    bindActions();
-    return;
-  }
-
-  const template = document.createElement("template");
-  template.innerHTML = screens[page](store);
-  const nextRegions = new Map(
-    [...template.content.querySelectorAll("[data-status-region]")]
-      .map((node) => [node.dataset.statusRegion, node]),
-  );
-  const activeElement = document.activeElement;
-  const focusedControl = activeElement?.matches?.(
-    "input, select, textarea, button, [contenteditable='true']",
-  ) ? activeElement : null;
-  const scrollTop = window.scrollY;
-  let didPatch = false;
-  root.querySelectorAll("[data-status-region]").forEach((region) => {
-    const next = nextRegions.get(region.dataset.statusRegion);
-    if (!next || focusedControl && region.contains(focusedControl)) return;
-    const nextClassName = next.className;
-    const nextHidden = next.hidden;
-    const attributesChanged = ["aria-label", "aria-live", "aria-busy"].some((attribute) =>
-      region.getAttribute(attribute) !== next.getAttribute(attribute),
-    );
-    if (
-      region.innerHTML === next.innerHTML &&
-      region.className === nextClassName &&
-      region.hidden === nextHidden &&
-      !attributesChanged
-    ) return;
-    const selectedEquipment = region.dataset.statusRegion === "division-equipment"
-      ? region.querySelector('select[name="equipment_id"]')?.value
-      : null;
-    region.innerHTML = next.innerHTML;
-    region.className = nextClassName;
-    region.hidden = nextHidden;
-    if (selectedEquipment) {
-      const equipmentSelect = region.querySelector('select[name="equipment_id"]');
-      if ([...(equipmentSelect?.options || [])].some((option) => option.value === selectedEquipment && !option.disabled)) {
-        equipmentSelect.value = selectedEquipment;
-      }
-    }
-    ["aria-label", "aria-live", "aria-busy"].forEach((attribute) => {
-      if (next.hasAttribute(attribute)) region.setAttribute(attribute, next.getAttribute(attribute));
-      else region.removeAttribute(attribute);
-    });
-    didPatch = true;
-  });
-
-  if (didPatch) window.scrollTo(0, scrollTop);
-  if (["dalas", "dala"].includes(page)) renderDalaStatuses(store);
-  if (page === "company") refreshIndustrialInstallationStatuses();
-  refreshStatusRefreshFeedback(root, freshness);
-  bindActions();
-  refreshRelativeTimes();
-}
-
-function statusRefreshMessage(staleForMs = 0) {
-  const seconds = Math.max(1, Math.floor(Number(staleForMs) / 1000));
-  return `Dados desatualizados há ${seconds} s. Exibindo a última informação confirmada.`;
-}
-
-function refreshStatusRefreshFeedback(root, { stale = false, staleForMs = 0 } = {}) {
-  let feedback = root.querySelector("[data-status-refresh-feedback]");
-  if (!feedback && stale) {
-    feedback = document.createElement("p");
-    feedback.className = "form-feedback status-refresh-feedback";
-    feedback.dataset.statusRefreshFeedback = "1";
-    feedback.setAttribute("role", "status");
-    feedback.setAttribute("aria-live", "polite");
-    root.prepend(feedback);
-  }
-  if (!feedback) return;
-  feedback.textContent = stale ? statusRefreshMessage(staleForMs) : "";
-  feedback.hidden = !stale;
-}
-
-function refreshIndustrialInstallationStatuses() {
-  const installations = new Map(
-    (store.state.industrialInstallations || []).map((item) => [String(item.id), item]),
-  );
-  const labels = {
-    ONLINE: ["Online", "online"],
-    OFFLINE: ["Offline", "offline"],
-    ERRO: ["Com erro", "error"],
-    DESCONHECIDO: ["Sem sinal", "unknown"],
-  };
-  document.querySelectorAll("[data-installation-status]").forEach((node) => {
-    const installation = installations.get(node.dataset.installationStatus);
-    if (!installation) return;
-    const status = String(installation.status || "DESCONHECIDO").toUpperCase();
-    let [label, tone] = labels[status] || labels.DESCONHECIDO;
-    if (!installation.activated && !installation.activated_at) [label, tone] = ["Pendente de ativação", "pending"];
-    if (installation.access_blocked) [label, tone] = [installation.activated ? "Acesso bloqueado" : "Ativação bloqueada", "blocked"];
-    if (installation.archived) [label, tone] = ["Arquivado", "archived"];
-    node.className = `industrial-pc-status is-${tone}`;
-    node.textContent = label;
-    const card = node.closest(".industrial-pc-row");
-    if (card) {
-      card.classList.remove("is-online", "is-offline", "is-error", "is-unknown", "is-pending", "is-blocked", "is-archived");
-      card.classList.add(`is-${tone}`);
-    }
-    const lastSeen = [...document.querySelectorAll("[data-installation-last-seen]")]
-      .find((candidate) => candidate.dataset.installationLastSeen === String(installation.id));
-    if (lastSeen) lastSeen.textContent = installation.last_seen_at ? dataHora(installation.last_seen_at) : "Ainda não se conectou";
-  });
-}
-
-let relativeTimeTimer = null;
-function refreshRelativeTimes() {
-  document.querySelectorAll("[data-relative-time]").forEach((node) => {
-    const value = node.dataset.relativeTime || "";
-    const text = relativo(value);
-    if (node.dataset.relativeRendered === text) return;
-    node.dataset.relativeRendered = text;
-    const icon = node.querySelector(".status-dot");
-    if (icon) node.replaceChildren(icon, document.createTextNode(text));
-    else node.textContent = text;
-  });
-}
-function installRelativeTimeRefresh() {
-  if (relativeTimeTimer) window.clearInterval(relativeTimeTimer);
-  refreshRelativeTimes();
-  // Os horários relativos não precisam de precisão de um segundo. Atualizar
-  // a lista inteira a cada segundo força layout durante a rolagem, sobretudo
-  // no WebView2 do PC industrial.
-  relativeTimeTimer = window.setInterval(refreshRelativeTimes, 5000);
 }
 function installInteractionGuards() {
   document.addEventListener("dragstart", (event) => {
@@ -1042,29 +542,7 @@ function installInteractionGuards() {
       event.preventDefault();
   });
 }
-function downloadCsv(filename, rows) {
-  const csvCell = (value) => {
-    let text = String(value ?? "");
-    // Planilhas interpretam células iniciadas por estes caracteres como fórmulas.
-    // Dados operacionais exportados devem permanecer texto ao abrir no Excel/LibreOffice.
-    if (/^[\t\r\n ]*[=+\-@]/.test(text)) text = `'${text}`;
-    return `"${text.replaceAll('"', '""')}"`;
-  };
-  const csv = rows
-    .map((row) =>
-      row
-        .map(csvCell)
-        .join(";"),
-    )
-    .join("\n");
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(
-    new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8" }),
-  );
-  link.download = filename;
-  link.click();
-  URL.revokeObjectURL(link.href);
-}
+let atualizarDelegacaoAcoes = null;
 function bindActions() {
   const renderContextId = renderRequestId;
   // Uma resposta assíncrona pode chegar depois que o operador trocou de tela.
@@ -1074,804 +552,92 @@ function bindActions() {
     if (renderContextId !== renderRequestId) return;
     renderScreen();
   };
-  if (!document.body.dataset.shellInteractionsBound) {
-    document.body.dataset.shellInteractionsBound = "1";
-      document.addEventListener("keydown", (event) => {
-        if (event.key !== "Escape") return;
-      const shell = document.querySelector(".shell");
-      const toggle = document.querySelector('[data-action="toggle-menu"]');
-      if (!shell?.classList.contains("mobile-menu-open")) return;
-      shell.classList.remove("mobile-menu-open");
-      setMobileMenuState(false);
-        toggle?.setAttribute("aria-expanded", "false");
-        toggle?.setAttribute("title", "Abrir menu");
-      });
-      document.addEventListener("click", (event) => {
-        const shell = document.querySelector(".shell");
-        if (!shell?.classList.contains("mobile-menu-open")) return;
-        if (event.target.closest(".sidebar, [data-action=\"toggle-menu\"]")) return;
-        shell.classList.remove("mobile-menu-open");
-        setMobileMenuState(false);
-        const toggle = document.querySelector('[data-action="toggle-menu"]');
-        toggle?.setAttribute("aria-expanded", "false");
-        toggle?.setAttribute("title", "Abrir menu");
-      });
-      document.addEventListener("click", (event) => {
-        const removeItemButton = event.target?.closest?.('[data-action="remove-item"]');
-        removeItemButton?.closest("tr")?.remove();
-      });
-    }
-  document.querySelectorAll("[data-action]").forEach((node) => {
-    if (node.dataset.actionBound === "1") return;
-    node.dataset.actionBound = "1";
-    node.addEventListener("click", async () => {
-      const action = node.dataset.action;
-      // Botões com uma ação declarada precisam seguir sua rota contextual
-      // (por exemplo, Dala aberta pelo dashboard volta ao dashboard). O
-      // fallback de histórico fica reservado para botões sem rota própria.
-      if (node.classList.contains("page-back") && !action) {
-        if (window.history.length > 1) window.history.back();
-        else await navigate(defaultPage(), "", { replace: true });
-        return;
-      }
-      if (FORM_ACTIONS.has(action)) {
-        // Botões `submit` já disparam o evento do formulário. Chamar
-        // requestSubmit() novamente aqui duplicava cadastros e comandos.
-        if (node.getAttribute("type") !== "submit") {
-          node.closest("form")?.requestSubmit();
-        }
-        return;
-      }
-      if (action === "reload-page") {
-        await renderPage();
-        return;
-      }
-      if (action === "pending-readings-page") {
-        if (node.dataset.busy === "1") return;
-        const page = Number(node.dataset.page);
-        if (!Number.isSafeInteger(page) || page < 1 || page > store.state.pendingReadingsPages) return;
-        node.dataset.busy = "1";
-        node.disabled = true;
-        try {
-          await store.loadPendingReadings(page);
-          if (currentPage === "work") render();
-        } catch (error) {
-          notificar(error.message || "Não foi possível carregar as leituras pendentes.", "erro");
-        } finally {
-          if (node.isConnected) {
-            node.dataset.busy = "0";
-            node.disabled = false;
-          }
-        }
-        return;
-      }
-      if (action === "toggle-menu") {
-        const shell = document.querySelector(".shell");
-        if (isMobileMenuViewport()) {
-          const open = shell?.classList.toggle("mobile-menu-open") || false;
-          setMobileMenuState(open);
-          node.setAttribute("aria-expanded", String(open));
-          node.setAttribute("title", open ? "Fechar menu" : "Abrir menu");
-          return;
-        }
-        const collapsed = shell
-          ? shell.classList.toggle("sidebar-collapsed")
-          : false;
-        try {
-          localStorage.setItem(
-            "trace-sidebar-collapsed",
-            collapsed ? "1" : "0",
-          );
-        } catch (storageError) {
-          /* modo privado */
-        }
-        return;
-      }
-      if (action === "toggle-manifest-filters") {
-        const panel = document.querySelector("#manifest-filters-panel");
-        if (!panel) return;
-        const willOpen = panel.hidden;
-        panel.hidden = !willOpen;
-        node.setAttribute("aria-expanded", String(willOpen));
-        return;
-      }
-      if (action === "toggle-user-create-password") {
-        const input = document.getElementById(
-          node.getAttribute("aria-controls") || "user-create-password",
-        );
-        if (!input) return;
-        const willShow = input.type === "password";
-        input.type = willShow ? "text" : "password";
-        node.textContent = willShow ? "Ocultar senha" : "Ver senha";
-        node.setAttribute("aria-label", willShow ? "Ocultar senha" : "Ver senha");
-        node.setAttribute("aria-pressed", String(willShow));
-        return;
-      }
-      if (action === "clear-manifest-date") {
-        const form = document.querySelector("#manifest-filters");
-        const field = form?.elements?.namedItem(node.dataset.field || "");
-        if (!field) return;
-        field.value = "";
-        field.dispatchEvent(new Event("change", { bubbles: true }));
-        return;
-      }
-      if (action === "open-company") {
-        navigate("company", `?id=${node.dataset.id}&from=${currentPage}`);
-        return;
-      }
-      if (action === "archive-company") {
-        const name = node.dataset.name || "esta empresa";
-        if (!await confirmarAcao(`Arquivar a empresa "${name}"? Os dados serão preservados e os logins deixarão de acessar o sistema.`)) return;
-        try {
-          await store.setCompanyArchiveState(node.dataset.id, true);
-          notificar("Empresa arquivada. Os dados foram preservados.");
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "restore-company") {
-        const name = node.dataset.name || "esta empresa";
-        if (!await confirmarAcao(`Restaurar a empresa "${name}" e liberar novamente os acessos?`)) return;
-        try {
-          await store.setCompanyArchiveState(node.dataset.id, false);
-          notificar("Empresa restaurada.");
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "delete-company-permanently") {
-        const name = node.dataset.name || "esta empresa";
-        if (!await confirmarAcao(`Excluir definitivamente a empresa "${name}"? Os dados não poderão ser recuperados.`)) return;
-        const password = await solicitarTexto("Digite sua senha atual para confirmar a exclusão definitiva:", { tipo: "password", confirmar: "Validar senha" });
-        if (password === null) return;
-        const confirmation = await solicitarTexto(`Digite exatamente o nome da empresa:\n${name}`, { confirmar: "Confirmar nome" });
-        if (confirmation === null) return;
-        const credentials = { password, confirmation };
-        try {
-          await store.deleteCompany(node.dataset.id, { permanent: true, ...credentials });
-          notificar("Empresa excluída definitivamente.");
-          render();
-        } catch (error) {
-          if (error.status === 409) {
-            const purge = await confirmarAcao(
-              `A empresa "${name}" possui dados vinculados. Deseja apagar também todos os dados arquivados? Esta ação não poderá ser desfeita.`,
-            );
-            if (!purge) return;
-            try {
-              await store.deleteCompany(node.dataset.id, { permanent: true, force: true, ...credentials });
-              notificar("Empresa e dados vinculados excluídos definitivamente.");
-              render();
-            } catch (purgeError) {
-              notificar(purgeError.message);
-            }
-            return;
-          }
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "link-industrial-pc-dala") {
-        const form = node.closest(".industrial-pc-link-form");
-        const installationId = form?.dataset.installationId;
-        const equipmentId = form?.elements?.namedItem("equipment_id")?.value;
-        if (!installationId || !equipmentId) {
-          notificar("Selecione a Dala que pertence a este PC industrial.");
-          return;
-        }
-        try {
-          await store.assignIndustrialEquipment(installationId, equipmentId);
-          await store.loadCompanyDetail();
-          render();
-          notificar("Dala vinculada ao PC industrial.");
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "generate-industrial-pc-code") {
-        try {
-          await store.generateIndustrialActivationCode(node.dataset.id);
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "toggle-industrial-pc-access") {
-        const blocked = node.dataset.blocked === "true";
-        const activated = node.dataset.activated === "true";
-        const name = node.dataset.name || "este PC industrial";
-        const confirmation = blocked
-          ? activated
-            ? "Bloquear o acesso remoto do PC industrial \"" + name + "\"? A operação local continuará funcionando."
-            : "Bloquear a ativação do PC industrial \"" + name + "\"? Ele não poderá receber um código até ser liberado."
-          : activated
-            ? "Liberar o acesso remoto do PC industrial \"" + name + "\"? A sincronização será retomada."
-            : "Liberar a ativação do PC industrial \"" + name + "\" para permitir a geração de um código?";
-        if (!await confirmarAcao(confirmation)) return;
-        try {
-          await store.setIndustrialAccessBlocked(node.dataset.id, blocked);
-          render();
-          notificar(blocked
-            ? (activated ? "Acesso remoto bloqueado. O PC continua funcionando localmente." : "Ativação bloqueada para este PC.")
-            : (activated ? "Acesso remoto liberado novamente." : "Ativação liberada. Agora é possível gerar um código."));
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "archive-industrial-pc") {
-        const name = node.dataset.name || "este PC industrial";
-        if (!await confirmarAcao("Arquivar \"" + name + "\"? O acesso e o código serão revogados. A Dala e o histórico serão preservados.")) return;
-        try {
-          await store.setIndustrialInstallationArchived(node.dataset.id, true);
-          render();
-          notificar("PC industrial arquivado. Para usá-lo novamente, restaure o cadastro e faça uma nova ativação.");
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "restore-industrial-pc") {
-        try {
-          await store.setIndustrialInstallationArchived(node.dataset.id, false);
-          render();
-          notificar("PC restaurado. Gere um novo código e faça a ativação no PC industrial.");
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "delete-industrial-pc") {
-        const name = node.dataset.name || "este PC industrial";
-        if (!await confirmarAcao("Excluir definitivamente \"" + name + "\"? Esta ação não pode ser desfeita. A Dala e o histórico de operação serão mantidos.")) return;
-        try {
-          await store.deleteArchivedIndustrialInstallation(node.dataset.id);
-          render();
-          notificar("Cadastro do PC industrial excluído. A Dala e o histórico foram preservados.");
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "generate-company-activation") {
-        try {
-          await store.generateCompanyActivation(node.dataset.id);
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "copy-company-activation") {
-        const code = node.dataset.code || "";
-        try {
-          await navigator.clipboard.writeText(code);
-          notificar("Código copiado.");
-        } catch (error) {
-          notificar(`Código de ativação: ${code}`);
-        }
-        return;
-      }
-      if (action === "toggle-license") {
-        const active = node.dataset.status === "ATIVA";
-        const reason = active
-          ? await solicitarTexto("Motivo do bloqueio da licença:", { valorInicial: "Bloqueio manual", confirmar: "Bloquear licença" })
-          : "Licença desbloqueada manualmente";
-        if (reason === null) return;
-        try {
-          await store.updateLicense({
-            company_id: Number(node.dataset.id),
-            status: active ? "BLOQUEADA" : "ATIVA",
-            blocked_reason: active ? reason : "",
-          });
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "back-companies") {
-        const from = new URLSearchParams(window.location.search).get("from");
-        navigate(["master-home", "companies"].includes(from || "") ? from : "companies");
-        return;
-      }
-      if (action === "back-settings") {
-        navigate("settings");
-        return;
-      }
-      if (action === "back-company") {
-        navigate("company", `?id=${encodeURIComponent(node.dataset.companyId || "")}&from=companies`);
-        return;
-      }
-      if (action === "open-users") {
-        navigate(
-          "users",
-          node.dataset.companyId
-            ? `?company_id=${node.dataset.companyId}&from=company`
-            : "",
-        );
-        return;
-      }
-      if (action === "toggle-user") {
-        const active = node.dataset.active !== "1";
-        if (
-          !await confirmarAcao(
-            `${active ? "Ativar" : "Desativar"} o login de ${node.dataset.name}?`,
-          )
-        )
-          return;
-        try {
-          await store.updateUser({
-            id: node.dataset.id,
-            name: node.dataset.name,
-            role: node.dataset.role,
-            active,
-            ...(store.state.userRole === "ADMIN_DALLOGIX" &&
-            store.state.selectedCompanyId
-              ? { company_id: store.state.selectedCompanyId }
-              : {}),
-          });
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "reset-user-password") {
-        const password = await solicitarTexto(
-          `Nova senha para ${node.dataset.name} (mínimo 6 caracteres):`,
-          { tipo: "password", confirmar: "Atualizar senha" },
-        );
-        if (password === null) return;
-        if (password.length < 6) {
-          notificar("A senha deve ter pelo menos 6 caracteres.");
-          return;
-        }
-        try {
-          await store.updateUser({
-            id: node.dataset.id,
-            name: node.dataset.name,
-            role: node.dataset.role,
-            active: node.dataset.active === "1",
-            password,
-            ...(store.state.userRole === "ADMIN_DALLOGIX" &&
-            store.state.selectedCompanyId
-              ? { company_id: store.state.selectedCompanyId }
-              : {}),
-          });
-          notificar("Senha atualizada.");
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "logout") {
-        await api.fetch("/api/logout.php", {
-          method: "POST",
-          headers: store.csrfToken ? { "X-CSRF-Token": store.csrfToken } : {},
-        });
-        window.location.href = pagePath("login");
-        return;
-      }
-      if (action === "download-audit-report") {
-        try {
-          const id = Number(node.dataset.id);
-          if (!Number.isSafeInteger(id) || id <= 0) throw new Error("Romaneio inválido.");
-          const response = await api.fetch(`/api/relatorio_auditoria.php?romaneio_id=${id}`, {
-            credentials: "same-origin",
-            headers: { Accept: "application/pdf, application/json" },
-          });
-          if (response.status === 401) {
-            notificar("Sua sessão expirou. Entre novamente para baixar o relatório.");
-            window.location.href = pagePath("login");
-            return;
-          }
-          if (!response.ok) {
-            const raw = await response.text();
-            let result = {};
-            try {
-              result = JSON.parse(raw);
-            } catch {
-              // A API deve responder JSON, mas não transforma uma resposta HTML
-              // de proxy em uma mensagem vazia para quem opera a tela.
-            }
-            throw new Error(result.error || "Não foi possível baixar o relatório.");
-          }
-          const contentType = response.headers.get("content-type") || "";
-          if (!contentType.toLowerCase().includes("application/pdf")) {
-            throw new Error("O servidor não retornou um relatório PDF válido.");
-          }
-          const blob = await response.blob();
-          if (!blob.size) throw new Error("O relatório retornou vazio.");
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = url;
-          link.download = `romaneio-${id}.pdf`;
-          link.hidden = true;
-          document.body.append(link);
-          link.click();
-          window.setTimeout(() => {
-            link.remove();
-            URL.revokeObjectURL(url);
-          }, 60000);
-        } catch (error) {
-          notificar(error.message || "Não foi possível baixar o relatório.");
-        }
-        return;
-      }
-      if (action === "retry-sync") {
-        try {
-          const result = await store.retrySync(node.dataset.id);
-          notificar(
-            result?.reason ||
-              (result?.processed ? "Evento enviado." : "Evento reprocessado."),
-          );
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "goto-manifests") {
-        const returnToDashboard = new URLSearchParams(window.location.search).get("from") === "dashboard";
-        navigate(returnToDashboard ? "dashboard" : "manifests");
-        return;
-      }
-      if (action === "manifest-page") {
-        try {
-          await store.setManifestPage(node.dataset.page);
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "goto-dalas") {
-        navigate("dalas");
-        return;
-      }
-      if (action === "goto-companies") {
-        navigate("companies");
-        return;
-      }
-      if (action === "goto-error-logs") {
-        navigate("error-logs");
-        return;
-      }
-      if (action === "reload-master-home") {
-        try {
-          await Promise.all([store.loadCompanies(), store.loadErrorLogs()]);
-          render();
-        } catch (error) {
-          notificar(error.message || "Não foi possível atualizar a visão geral.");
-        }
-        return;
-      }
-      if (action === "new-manifest") {
-        navigate("import");
-        return;
-      }
-      if (action === "view-manifest") {
-        const fromDashboard = currentPage === "dashboard" ? "&from=dashboard" : "";
-        navigate("manifest", `?id=${node.dataset.id}${fromDashboard}`);
-        return;
-      }
-      if (action === "edit-manifest") {
-        navigate("manifest-edit", `?id=${node.dataset.id}`);
-        return;
-      }
-      if (action === "prepare-manifest") {
-        navigate("division", `?id=${encodeURIComponent(node.dataset.id)}${isDashboardReturn() ? "&from=dashboard" : ""}`);
-        return;
-      }
-      if (action === "cancel-manifest") {
-        const reason = await solicitarTexto("Informe o motivo do cancelamento do romaneio:", { obrigatorio: true }) || "";
-        if (!reason.trim()) return;
-        if (!await confirmarAcao("Confirma o cancelamento deste romaneio? Essa ação não poderá ser desfeita.")) return;
-        if (!await confirmarAcao("SEGUNDA CONFIRMAÇÃO: cancelar este romaneio agora?")) return;
-        try {
-          await store.cancelManifest(node.dataset.id || queryId(), reason.trim());
-          notificar("Romaneio cancelado.");
-          await navigate(isDashboardReturn() ? "dashboard" : "manifests");
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "cancel-manifest-progress") {
-        const reason = await solicitarTexto("Informe o motivo do cancelamento da operação:", { obrigatorio: true }) || "";
-        if (!reason.trim()) return;
-        if (!await confirmarAcao("Confirma o cancelamento? A operação precisa estar pausada ou em emergência.")) return;
-        const manifestId = node.dataset.id || queryId();
-        store.state.manifestActionPending = true;
-        store.state.manifestActionFeedback = { type: "status", message: "Cancelando operação…" };
-        render();
-        let cancellationResult;
-        try {
-          cancellationResult = await store.cancelManifest(manifestId, reason.trim());
-        } catch (error) {
-          store.state.manifestActionPending = false;
-          store.state.manifestActionFeedback = {
-            type: "error",
-            message: error.message || "Não foi possível cancelar a operação.",
-          };
-          render();
-          return;
-        }
-
-        store.state.manifestActionPending = false;
-        if (store.state.manifestDetail) {
-          store.state.manifestDetail.status = cancellationResult?.status || "CANCELADO";
-          store.state.manifestDetail.active_loading_id = null;
-        }
-        store.state.manifestActionFeedback = {
-          type: "success",
-          message: "Operação cancelada e registrada na auditoria.",
-        };
-        render();
-        try {
-          await navigate(isDashboardReturn() ? "dashboard" : "manifests");
-          store.state.manifestActionFeedback = null;
-        } catch (error) {
-          logFrontend.aviso("romaneio.cancelamento.navegacao", error);
-        }
-        return;
-      }
-      if (action === "back-manifest") {
-        navigate("manifest", `?id=${encodeURIComponent(queryId() || "")}${isDashboardReturn() ? "&from=dashboard" : ""}`);
-        return;
-      }
-      if (action === "resume-loading") {
-        store.state.selectedLoadingId = Number(node.dataset.loadingId) || null;
-        navigate("work", dashboardReturnQuery());
-        return;
-      }
-      if (action === "select-loading") {
-        try {
-          store.state.commandFeedback = "";
-          await store.loadActiveLoading(node.dataset.id);
-          await store.loadMonitoring();
-          render();
-        } catch (error) {
-          store.state.selectedLoadingId = null;
-          store.state.commandFeedback = error?.message || "Não foi possível carregar a Dala selecionada.";
-          render();
-        }
-        return;
-      }
-      if (action === "change-loading") {
-        await changeOperationLoading(store, render);
-        return;
-      }
-      if (action === "open-summary") {
-        if (!["FINALIZANDO", "FINALIZADO"].includes(store.state.operationalState)) {
-          notificarForaDaOperacao("O resumo final ficará disponível quando a quantidade prevista for atingida.", "aviso");
-          return;
-        }
-        await navigate("summary");
-        return;
-      }
-      if (action === "back-work") {
-        await navigate("work");
-        return;
-      }
-      if (action === "view-dala") {
-        const from =
-          currentPage === "dashboard" ? "dashboard" : queryReturnPage();
-        navigate("dala", `?id=${node.dataset.id}&from=${from}`);
-        return;
-      }
-      if (action === "edit-dala") {
-        navigate(
-          "dala-edit",
-          `?id=${node.dataset.id}&from=${queryReturnPage()}`,
-        );
-        return;
-      }
-      if (action === "back-dala") {
-        navigate(queryReturnPage());
-        return;
-      }
-      if (action === "open-dala-operation") {
-        store.state.selectedLoadingId = Number(node.dataset.loadingId) || null;
-        await navigate("work");
-        return;
-      }
-      if (action === "reload-dala-diagnostics") {
-        try {
-          await store.loadDalaCommandHistory(node.dataset.id);
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "dala-command-page") {
-        try {
-          await store.loadDalaCommandHistory(node.dataset.id, node.dataset.page);
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "error-logs-page") {
-        try {
-          await store.loadErrorLogs(node.dataset.page);
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "reload-error-logs") {
-        try {
-          await Promise.all([store.loadErrorLogs(1), store.loadTechnicalDiagnostics(), store.loadDeadLetters()]);
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "requeue-dead-letter" || action === "resolve-dead-letter") {
-        const verb = action === "requeue-dead-letter" ? "reenfileirar" : "resolver";
-        const note = await solicitarTexto(`Informe o motivo para ${verb} este evento:`, { obrigatorio: true });
-        if (note === null || !note.trim()) return;
-        if (!await confirmarAcao(`Confirma ${verb} este evento da fila morta?`)) return;
-        try {
-          await store.updateDeadLetter(
-            node.dataset.id,
-            action === "requeue-dead-letter" ? "requeue" : "resolve",
-            note.trim(),
-          );
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "reload-dalas") {
-        store.state.equipmentsLoaded = false;
-        store.state.equipmentsError = "";
-        render();
-        await store.loadEquipments({ force: true });
-        if (currentPage === "dalas") render();
-        return;
-      }
-      if (action === "toggle-product-form") {
-        store.state.productFormOpen = !store.state.productFormOpen;
-        store.state.editingProductId = null;
-        render();
-        return;
-      }
-      if (action === "cancel-product") {
-        store.state.productFormOpen = false;
-        store.state.editingProductId = null;
-        render();
-        return;
-      }
-      if (action === "edit-product") {
-        store.state.productFormOpen = true;
-        store.state.editingProductId = node.dataset.id;
-        render();
-        window.scrollTo({ top: 0, behavior: "smooth" });
-        return;
-      }
-      if (action === "toggle-product-active") {
-        const product = (store.state.products || []).find(
-          (item) => Number(item.id) === Number(node.dataset.id),
-        );
-        if (!product) return;
-        const nextActive = node.dataset.active === "1" ? 0 : 1;
-        const productForm = document.querySelector("#product-form");
-        const raw = productForm
-          ? Object.fromEntries(new FormData(productForm))
-          : product;
-        try {
-          await store.updateProduct({
-            id: product.id,
-            ...raw,
-            active: nextActive,
-          });
-          notificar(nextActive ? "Produto ativado." : "Produto desativado.");
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "delete-product-edit") {
-        if (!await confirmarAcao(`Excluir o produto "${node.dataset.name}"? Os itens de romaneios vinculados serão removidos.`)) return;
-        try {
-          await store.deleteProduct(node.dataset.id);
-          notificar("Produto excluído.");
-          store.state.productFormOpen = false;
-          store.state.editingProductId = null;
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (action === "toggle-dala-form") {
-        store.state.dalaFormOpen = !store.state.dalaFormOpen;
-        render();
-        return;
-      }
-      if (action === "delete-dala") {
-        if (!["ADMIN_DALLOGIX", "ADMIN_EMPRESA"].includes(store.state.userRole)) {
-          notificar("Somente administradores podem excluir Dala.");
-          return;
-        }
-        if (!await confirmarAcao(`Excluir a Dala "${node.dataset.name}"?`)) return;
-        if (!await confirmarAcao(`SEGUNDA CONFIRMAÇÃO: excluir a Dala "${node.dataset.name}" definitivamente?`)) return;
-        try {
-          await store.deleteEquipment(node.dataset.id);
-          notificar("Dala excluída.");
-          render();
-        } catch (error) {
-          notificar(error.message);
-        }
-        return;
-      }
-      if (["start-machine", "stop-machine", "run", "stop", "reverse-machine", "reverse-on", "reverse-off", "reverse-toggle", "emergency"].includes(action)) {
-        await executarComandoDeOperacao(node, action);
-        return;
-      }
-      if (action === "add-item") {
-        const tbody = document.querySelector("#manifest-items tbody");
-        if (tbody) tbody.insertAdjacentHTML("beforeend", linhaItemRomaneio(store));
-        return;
-      }
-      if (action === "remove-item") {
-        return;
-      }
-      if (screens[action]) navigate(action);
-      else if (action === "unlock") {
-        node.disabled = true;
-        try {
-          await servicoEmergencia.liberar();
-          render();
-        } catch (error) {
-          notificarForaDaOperacao(error.message, "erro");
-        } finally {
-          node.disabled = false;
-        }
-      } else if (action === "finish") {
-        try {
-          const justification =
-            store.state.loaded < store.state.planned
-              ? await solicitarTexto("Justificativa obrigatória para finalizar com divergência:", { obrigatorio: true, multilinha: true }) || ""
-              : "";
-          if (store.state.loaded < store.state.planned && !justification.trim()) return;
-          await store.finishLoading(justification.trim());
-          render();
-        } catch (error) {
-          notificarForaDaOperacao(error.message, "erro");
-        }
-      } else if (action === "export") {
-        downloadCsv(`dallogix-${currentPage}.csv`, [
-          ["Campo", "Valor"],
-          ["Romaneio", store.state.romaneio],
-          ["Caminhão", store.state.truck],
-          ["Estado", store.state.operationalState],
-          ["Carregado", store.state.loaded],
-          ["Planejado", store.state.planned],
-          [
-            "Sincronização pendente",
-            store.state.monitoring?.sync_pendente || 0,
-          ],
-        ]);
-      }
-    });
+  const tratarAcaoNavegacao = criarTratadorAcoesNavegacao({
+    navegar: navigate,
+    paginaAtual: () => currentPage,
+    buscaAtual: () => window.location.search,
+    store,
+    estaVoltandoAoDashboard: isDashboardReturn,
+    consultaRetornoDashboard: dashboardReturnQuery,
+    paginaDeRetorno: queryReturnPage,
+    idDaConsulta: queryId,
   });
+  const tratarAcaoAdministracao = criarTratadorAcoesAdministracao({
+    store,
+    confirmarAcao,
+    solicitarTexto,
+    notificar,
+    render,
+    copiarTexto: (texto) => navigator.clipboard.writeText(texto),
+  });
+  const tratarAcaoOperacional = criarTratadorAcoesOperacionais({
+    store,
+    render,
+    navegar: navigate,
+    paginaAtual: () => currentPage,
+    estaVoltandoAoDashboard: isDashboardReturn,
+    idDaConsulta: queryId,
+    solicitarTexto,
+    confirmarAcao,
+    notificar,
+    notificarForaDaOperacao,
+    registrarAviso: (...args) => logFrontend.aviso(...args),
+    servicoEmergencia,
+    executarComandoDeOperacao,
+    changeOperationLoading,
+  });
+  const tratarAcaoDiagnostico = criarTratadorAcoesDiagnostico({
+    store,
+    render,
+    notificar,
+    solicitarTexto,
+    confirmarAcao,
+  });
+  const tratarAcaoRelatorios = criarTratadorAcoesRelatorios({
+    api,
+    store,
+    notificar,
+    redirecionarParaLogin: () => { window.location.href = pagePath("login"); },
+    registrarAviso: (...args) => logFrontend.aviso(...args),
+    paginaAtual: () => currentPage,
+  });
+  const tratarAcaoCadastro = criarTratadorAcoesCadastros({
+    store,
+    render,
+    notificar,
+    confirmarAcao,
+    paginaAtual: () => currentPage,
+    criarLinhaItemRomaneio: () => linhaItemRomaneio(store),
+  });
+  const tratarAcaoInterface = criarTratadorAcoesInterface({
+    isMobileMenuViewport,
+    setMobileMenuState,
+    saveSidebarCollapsedPreference,
+  });
+  instalarInteracoesGlobaisInterface(setMobileMenuState);
+  const despacharAcao = criarDespachanteAcoes({
+    api,
+    store,
+    telas: screens,
+    navegar: navigate,
+    paginaPadrao: defaultPage,
+    caminhoPagina: pagePath,
+    renderPagina: renderPage,
+    render,
+    acoesDeFormulario: FORM_ACTIONS,
+    notificar,
+    tratadores: {
+      navegacao: tratarAcaoNavegacao,
+      administracao: tratarAcaoAdministracao,
+      operacional: tratarAcaoOperacional,
+      diagnostico: tratarAcaoDiagnostico,
+      relatorios: tratarAcaoRelatorios,
+      cadastros: tratarAcaoCadastro,
+      interface: tratarAcaoInterface,
+    },
+  });
+  if (!atualizarDelegacaoAcoes) atualizarDelegacaoAcoes = criarDelegacaoAcoes(document);
+  atualizarDelegacaoAcoes(despacharAcao);
   document.querySelectorAll(".sidebar .nav-item[data-page]").forEach((item) => {
     if (item.dataset.navigationBound === "1") return;
     item.dataset.navigationBound = "1";
@@ -1899,58 +665,13 @@ function bindActions() {
     });
   });
 }
-function bindLoginForm() {
-  const form = document.querySelector("#login-form");
-  if (!form || form.dataset.bound === "1") return;
-  form.dataset.bound = "1";
-  form.addEventListener("submit", async (event) => {
-    event.preventDefault();
-    const submit = form.querySelector('button[type="submit"]');
-    const originalLabel = submit?.textContent || "Entrar no sistema";
-    if (submit) {
-      submit.disabled = true;
-      submit.textContent = "Entrando…";
-    }
-    renderLogin("");
-    try {
-      const data = Object.fromEntries(new FormData(form));
-      const response = await api.fetch("/api/login.php", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify(data),
-      });
-      const result = await response.json().catch(() => ({}));
-      if (!response.ok || result.authenticated !== true) {
-        renderLogin(result.error || "Login ou senha inválidos.");
-        return;
-      }
-      authenticatedUser = result.user;
-      store.setUser(authenticatedUser);
-      store.setCsrfToken(result.csrf_token);
-      configurarTransporteLogs((registro) => store.persistFrontendLog(registro));
-      window.location.replace(pagePath(defaultPage()));
-    } catch (error) {
-      logFrontend.aviso("login.conexao", error);
-      renderLogin(
-        "Não foi possível conectar ao servidor local. Verifique se o sistema está em execução.",
-      );
-    } finally {
-      if (submit) {
-        submit.disabled = false;
-        submit.textContent = originalLabel;
-      }
-    }
-  });
-}
-function setFormFeedback(form, message = "", tone = "") {
-  const feedback = form?.querySelector("[data-form-feedback]");
-  if (!feedback) return;
-  feedback.textContent = message;
-  feedback.hidden = !message;
-  feedback.className = `form-feedback${tone ? ` is-${tone}` : ""}`;
+function redirectToLoginWithMessage(error, source) {
+  try {
+    sessionStorage.setItem("trace-login-message", error.message);
+  } catch (storageError) {
+    logFrontend.aviso(`${source}.sessao.expirada.mensagem`, storageError);
+  }
+  window.location.replace(pagePath("login"));
 }
 
 function bindForms() {
@@ -1961,755 +682,75 @@ function bindForms() {
     if (renderContextId !== renderRequestId) return;
     renderScreen();
   };
-  const occurrenceForm = document.querySelector("#occurrence-form");
-  if (occurrenceForm)
-    occurrenceForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      try {
-        await store.createOccurrence(
-          Object.fromEntries(new FormData(occurrenceForm)),
-        );
-        render();
-      } catch (error) {
-        if (error.status === 401) {
-          try {
-            sessionStorage.setItem("trace-login-message", error.message);
-          } catch (storageError) {
-            /* armazenamento indisponível */
-          }
-          window.location.replace(pagePath("login"));
-          return;
-        }
-        notificar(error.message);
-      }
-    });
-  // Parâmetros de PDF: preserva valores legados não exibidos na interface.
-  const pdfSettingsForm = document.querySelector("#pdf-settings-form");
-  if (pdfSettingsForm)
-    pdfSettingsForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const raw = Object.fromEntries(new FormData(pdfSettingsForm));
-      const pdf_field_mapping = {};
-      Object.entries(raw)
-        .filter(([key]) => key.startsWith("pdf_") && key !== "pdf_search_field")
-        .forEach(([key, value]) => {
-          if (value) pdf_field_mapping[key.slice(4)] = value;
-        });
-      const saved = store.state.configuration?.settings || {};
-      try {
-        await store.saveConfiguration({
-          gateway_public_ip: saved.gateway_public_ip || "",
-          pdf_field_mapping,
-          pdf_search_field: raw.pdf_search_field,
-        });
-        notificar("Parâmetros salvos.");
-        render();
-      } catch (error) {
-        notificar(error.message);
-      }
-    });
-  const productForm = document.querySelector("#product-form");
-  if (productForm)
-    productForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (productForm.dataset.submitting === "1") return;
-      const raw = Object.fromEntries(new FormData(productForm));
-      const validationError = validarProduto(raw);
-      if (validationError) {
-        setFormFeedback(productForm, validationError, "error");
-        notificar(validationError);
-        return;
-      }
-      productForm.dataset.submitting = "1";
-      productForm.querySelectorAll("button").forEach((button) => {
-        button.disabled = true;
-      });
-      const editingId = productForm.dataset.editing;
-      try {
-        if (editingId) {
-          await store.updateProduct({ id: editingId, ...raw });
-          notificar("Produto atualizado.");
-        } else {
-          await store.createProduct(raw);
-          notificar("Produto cadastrado.");
-        }
-        store.state.productFormOpen = false;
-        store.state.editingProductId = null;
-        render();
-      } catch (error) {
-        if (error.status === 401) {
-          try {
-            sessionStorage.setItem("trace-login-message", error.message);
-          } catch (storageError) {
-            /* armazenamento indisponível */
-          }
-          window.location.replace(pagePath("login"));
-          return;
-        }
-        notificar(error.message);
-      } finally {
-        productForm.dataset.submitting = "0";
-        productForm.querySelectorAll("button").forEach((button) => {
-          button.disabled = false;
-        });
-      }
-    });
-  const dalaCreateForm = document.querySelector("#dala-create-form");
-  if (dalaCreateForm)
-    dalaCreateForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (dalaCreateForm.dataset.submitting === "1") return;
-      const raw = Object.fromEntries(new FormData(dalaCreateForm));
-      const validationError = validarDala(raw);
-      if (validationError) {
-        setFormFeedback(dalaCreateForm, validationError, "error");
-        notificar(validationError);
-        return;
-      }
-      dalaCreateForm.dataset.submitting = "1";
-      dalaCreateForm.querySelectorAll("button").forEach((button) => { button.disabled = true; });
-      let created;
-      try {
-        created = await store.createEquipment(raw);
-      } catch (error) {
-        notificar(error.message);
-        dalaCreateForm.dataset.submitting = "0";
-        dalaCreateForm.querySelectorAll("button").forEach((button) => { button.disabled = false; });
-        return;
-      }
-      store.state.dalaFormOpen = false;
-      render();
-      try {
-        const connection = await store.checkEquipmentStatus(created.id);
-        notificar(`Dala cadastrada. ${connection.message}`);
-      } catch (error) {
-        notificar(`Dala cadastrada, mas a verificação de conexão falhou: ${error.message}`);
-      }
-    });
-  const dalaEditForm = document.querySelector("#dala-edit-form");
-  if (dalaEditForm)
-    dalaEditForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (dalaEditForm.dataset.submitting === "1") return;
-      const raw = Object.fromEntries(new FormData(dalaEditForm));
-      const validationError = validarDala(raw);
-      if (validationError) {
-        setFormFeedback(dalaEditForm, validationError, "error");
-        notificar(validationError);
-        return;
-      }
-      dalaEditForm.dataset.submitting = "1";
-      dalaEditForm.querySelectorAll("button").forEach((button) => { button.disabled = true; });
-      try {
-        await store.updateEquipment({ id: dalaEditForm.dataset.id, ...raw });
-      } catch (error) {
-        notificar(error.message);
-        dalaEditForm.dataset.submitting = "0";
-        dalaEditForm.querySelectorAll("button").forEach((button) => { button.disabled = false; });
-        return;
-      }
-      const equipmentId = dalaEditForm.dataset.id;
-      await navigate("dala", `?id=${equipmentId}&from=${queryReturnPage()}`);
-      try {
-        const connection = await store.checkEquipmentStatus(equipmentId);
-        notificar(`Dala atualizada. ${connection.message}`);
-      } catch (error) {
-        notificar(`Dala atualizada, mas a verificação de conexão falhou: ${error.message}`);
-      }
-    });
-  const manifestForm = document.querySelector("#new-manifest-form");
-  if (manifestForm)
-    manifestForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (manifestForm.dataset.submitting === "1") return;
-      const raw = Object.fromEntries(new FormData(manifestForm));
-      const scheduledDate = raw.scheduled_date;
-      const today = agora();
-      const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-      const items = [...document.querySelectorAll("#manifest-items tbody tr")]
-        .map((row) => ({
-          product_id: row.querySelector('[name="item_product"]')?.value,
-          quantity: row.querySelector('[name="item_quantity"]')?.value,
-        }));
-      const validationError = validarCadastroRomaneio({
-        scheduledDate,
-        todayString,
-        items,
-      });
-      if (validationError) {
-        setFormFeedback(manifestForm, validationError, "error");
-        return;
-      }
-      manifestForm.dataset.submitting = "1";
-      manifestForm.querySelectorAll("button").forEach((button) => {
-        button.disabled = true;
-      });
-      setFormFeedback(manifestForm, "Salvando romaneio…");
-      try {
-        await store.createManifest({
-          number: raw.number,
-          scheduled_date: scheduledDate,
-          plate: raw.plate,
-          expedidor: raw.expedidor,
-          driver_name: raw.driver_name,
-          items: items.map((item) => ({
-            product_id: item.product_id,
-            quantity: Number(item.quantity),
-          })),
-        });
-      } catch (error) {
-        if (error.status === 401) {
-          try {
-            sessionStorage.setItem("trace-login-message", error.message);
-          } catch (storageError) {
-            /* armazenamento indisponível */
-          }
-          window.location.replace(pagePath("login"));
-          return;
-        }
-        setFormFeedback(
-          manifestForm,
-          error.message || "Não foi possível salvar o romaneio. Confira os dados e tente novamente.",
-          "error",
-        );
-        return;
-      } finally {
-        manifestForm.dataset.submitting = "0";
-        manifestForm.querySelectorAll("button").forEach((button) => {
-          button.disabled = false;
-        });
-      }
-      if (manifestForm.isConnected) {
-        setFormFeedback(manifestForm, "Romaneio cadastrado com sucesso.");
-        await navigate("manifests");
-      }
-    });
-  const manifestEditForm = document.querySelector("#edit-manifest-form");
-  if (manifestEditForm)
-    manifestEditForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const raw = Object.fromEntries(new FormData(manifestEditForm));
-      const today = agora();
-      const todayString = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-      if (!raw.scheduled_date || raw.scheduled_date < todayString) {
-        notificar("Informe uma data igual ou posterior ao dia atual do PC industrial.");
-        return;
-      }
-      const items = [...document.querySelectorAll("#manifest-items tbody tr")]
-        .map((row) => ({
-          product_id: row.querySelector('[name="item_product"]')?.value,
-          quantity: row.querySelector('[name="item_quantity"]')?.value,
-        }))
-        .filter((item) => item.product_id && Number(item.quantity) >= 1);
-      if (!items.length) {
-        notificar("Adicione ao menos um item com produto e quantidade.");
-        return;
-      }
-      if (manifestEditForm.dataset.submitting === "1") return;
-      manifestEditForm.dataset.submitting = "1";
-      manifestEditForm.querySelectorAll("button").forEach((button) => {
-        button.disabled = true;
-      });
-      try {
-        await store.updateManifest({
-          romaneio_id: manifestEditForm.dataset.id,
-          number: raw.number,
-          scheduled_date: raw.scheduled_date,
-          plate: raw.plate,
-          expedidor: raw.expedidor,
-          driver_name: raw.driver_name,
-          items,
-        });
-        notificar("Romaneio atualizado.");
-        await navigate("manifest", `?id=${manifestEditForm.dataset.id}`);
-      } catch (error) {
-        notificar(error.message);
-      } finally {
-        manifestEditForm.dataset.submitting = "0";
-        manifestEditForm.querySelectorAll("button").forEach((button) => {
-          button.disabled = false;
-        });
-      }
-    });
-  // Importação PDF: preenche o formulário manual com os campos extraídos.
-  const pdfForm = document.querySelector("#pdf-form");
-  if (pdfForm) {
-    const pdfFile = pdfForm.querySelector(".file-input");
-    const pdfFileName = pdfForm.querySelector("[data-file-name]");
-    const pdfFeedback = document.querySelector("#pdf-import-feedback");
-    const showPdfFeedback = (message, tone = "") => {
-      if (!pdfFeedback) return;
-      pdfFeedback.className = `import-feedback${tone ? ` is-${tone}` : ""}`;
-      pdfFeedback.textContent = message;
-    };
-    pdfFile?.addEventListener("change", () => {
-      pdfFileName.textContent = pdfFile.files?.[0]?.name || "Nenhum arquivo escolhido";
-    });
-    pdfForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const buttonNode = pdfForm.querySelector("button.button");
-      if (buttonNode) buttonNode.disabled = true;
-      showPdfFeedback("Lendo o PDF…");
-      try {
-        const data = await store.importPdf(new FormData(pdfForm));
-        const fields = data.fields || {};
-        const set = (name, value) => {
-          const input = document.querySelector(
-            `#new-manifest-form [name="${name}"]`,
-          );
-          if (input && value) input.value = value;
-        };
-        set("number", fields.codigo);
-        set("scheduled_date", fields.data_iso);
-        set("plate", fields.placa);
-        set("expedidor", fields.expedidor);
-        set("driver_name", fields.motorista);
-        if (data.product && fields.quantidade_numero) {
-          const tbody = document.querySelector("#manifest-items tbody");
-          if (tbody) {
-            tbody.innerHTML = "";
-            tbody.insertAdjacentHTML(
-              "beforeend",
-              linhaItemRomaneio(store, data.product.id, fields.quantidade_numero),
-            );
-          }
-        }
-        const missing = data.missing || [];
-        showPdfFeedback(
-          `PDF importado.${missing.length ? ` Campos não encontrados: ${missing.join(", ")}.` : " Confira os dados e salve."}`,
-          missing.length ? "warning" : "success",
-        );
-      } catch (error) {
-        showPdfFeedback(error.message || "Não foi possível importar o PDF.", "error");
-      } finally {
-        if (buttonNode) buttonNode.disabled = false;
-      }
-    });
-  }
-  const csvForm = document.querySelector("#csv-form");
-  if (csvForm) {
-    const csvFile = csvForm.querySelector(".file-input");
-    const csvFileName = csvForm.querySelector("[data-file-name]");
-    const csvFeedback = document.querySelector("#csv-import-feedback");
-    const showCsvFeedback = (message, tone = "") => {
-      if (!csvFeedback) return;
-      csvFeedback.className = `import-feedback${tone ? ` is-${tone}` : ""}`;
-      csvFeedback.textContent = message;
-    };
-    csvFile?.addEventListener("change", () => {
-      csvFileName.textContent = csvFile.files?.[0]?.name || "Nenhum arquivo escolhido";
-    });
-    csvForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const submit = csvForm.querySelector("button.button");
-      if (submit) submit.disabled = true;
-      showCsvFeedback("Validando o CSV…");
-      try {
-        const response = await api.fetch("/api/importar_csv.php", {
-          method: "POST",
-          headers: store.csrfToken ? { "X-CSRF-Token": store.csrfToken } : {},
-          body: new FormData(csvForm),
-        });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error || "Falha ao importar CSV.");
-        await store.loadManifests();
-        showCsvFeedback(
-          `${result.data.romaneios} romaneio(s), ${result.data.items} item(ns) consolidados em ${result.data.linhas} linha(s) importada(s).`,
-          "success",
-        );
-      } catch (error) {
-        showCsvFeedback(error.message || "Falha ao importar CSV.", "error");
-      } finally {
-        if (submit) submit.disabled = false;
-      }
-    });
-  }
-  const prepareLoadingForm = document.querySelector("#prepare-loading-form");
-  if (prepareLoadingForm)
-    prepareLoadingForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const submit = prepareLoadingForm.querySelector('button[type="submit"]');
-      if (submit) submit.disabled = true;
-      try {
-        const raw = Object.fromEntries(new FormData(prepareLoadingForm));
-        await store.prepareLoading({
-          romaneio_id: queryId(),
-          truck_id: raw.truck_id,
-          equipment_id: raw.equipment_id,
-        });
-        await navigate("work", dashboardReturnQuery());
-      } catch (error) {
-        notificar(error.message);
-      } finally {
-        if (submit) submit.disabled = false;
-      }
-    });
-  document.querySelectorAll(".reassign-loading-form").forEach((form) => {
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      const submit = form.querySelector('button[type="submit"]');
-      if (submit) submit.disabled = true;
-      setFormFeedback(form, "Vinculando a nova Dala…");
-      try {
-        const raw = Object.fromEntries(new FormData(form));
-        await store.reassignLoading(form.dataset.loadingId, raw.equipment_id);
-        render();
-      } catch (error) {
-        setFormFeedback(form, error.message || "Não foi possível vincular a nova Dala.", "error");
-      } finally {
-        if (submit) submit.disabled = false;
-      }
-    });
+  bindPageForms({
+    root: document,
+    store,
+    render,
+    notify: notificar,
+    onUnauthorized: (error, source) => redirectToLoginWithMessage(error, source),
   });
-  document.querySelectorAll(".manual-operation-reading-form").forEach((form) => {
-    const barcodeInput = form.querySelector('[name="barcode"]');
-    const keyboardToggle = form.querySelector(".manual-reading-keyboard-toggle");
-    keyboardToggle?.addEventListener("click", () => {
-      alternarTecladoLeituraManual(barcodeInput, keyboardToggle);
-    });
-    barcodeInput?.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" || barcodeInput.disabled) return;
-      event.preventDefault();
-      if (typeof form.requestSubmit === "function") form.requestSubmit();
-    });
-    barcodeInput?.addEventListener("focus", () => updateOperationScannerFocus(document.querySelector("#screen-root")));
-    barcodeInput?.addEventListener("blur", () => {
-      window.setTimeout(() => updateOperationScannerFocus(document.querySelector("#screen-root")), 0);
-    });
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (form.dataset.submitting === "1") return;
-      form.dataset.submitting = "1";
-      const submit = form.querySelector('button[type="submit"]');
-      if (submit) submit.disabled = true;
-      setFormFeedback(form, "Registrando leitura…");
-      try {
-        const raw = Object.fromEntries(new FormData(form));
-        const result = await store.registerManualReading(raw.barcode);
-        const messages = {
-          VALIDO: result.load_status === "COMPLETO"
-            ? "Código registrado e quantidade programada atingida."
-            : "Código registrado e produto validado.",
-          PRODUTO_INCORRETO: result.operator_alert || "Código não previsto para o carregamento; a operação foi pausada.",
-          EXCESSO: result.operator_alert || "Quantidade prevista para este produto atingida. Confira a leitura excedente.",
-          SEM_LEITURA: "Leitura registrada sem código.",
-        };
-        const message = result.queued
-          ? "Leitura guardada para envio. A validação está pendente; não repita o código."
-          : result.refreshWarning
-            ? "Leitura registrada. A atualização falhou; confira o status antes de repetir."
-            : messages[result.result] || "Leitura registrada.";
-        if (result.refreshWarning) {
-          logFrontend.aviso("leitura.atualizacao", new Error(result.refreshWarning));
-        }
-        barcodeInput.value = "";
-        render();
-        const currentForm = document.querySelector(".manual-operation-reading-form");
-        if (currentForm) {
-          setFormFeedback(currentForm, message, result.queued || result.refreshWarning || ["PRODUTO_INCORRETO", "SEM_LEITURA"].includes(result.result) ? "error" : "");
-          currentForm.querySelector('[name="barcode"]')?.focus();
-        }
-      } catch (error) {
-        setFormFeedback(form, error.message || "Não foi possível registrar a leitura manual.", "error");
-      } finally {
-        if (form.isConnected) {
-          form.dataset.submitting = "";
-          if (submit) submit.disabled = false;
-        }
-      }
-    });
+  bindProductForm({
+    form: document.querySelector("#product-form"),
+    store,
+    render,
+    notify: notificar,
+    onUnauthorized: (error) => redirectToLoginWithMessage(error, "produto"),
   });
-  document.querySelectorAll(".manual-reading-form").forEach((form) => {
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (form.dataset.submitting === "1") return;
-      form.dataset.submitting = "1";
-      const submit = form.querySelector('button[type="submit"]');
-      if (submit) submit.disabled = true;
-      setFormFeedback(form, "Confirmando código…");
-      try {
-        const raw = Object.fromEntries(new FormData(form));
-        await store.identifyReading(form.dataset.readingId, raw.barcode);
-        render();
-      } catch (error) {
-        setFormFeedback(form, error.message || "Não foi possível confirmar o código.", "error");
-      } finally {
-        if (form.isConnected) {
-          form.dataset.submitting = "";
-          if (submit) submit.disabled = false;
-        }
-      }
-    });
+  bindDalaCreationForm({
+    form: document.querySelector("#dala-create-form"),
+    store,
+    render,
+    notify: notificar,
   });
-  document.querySelectorAll(".confirm-stop-removal-form").forEach((form) => {
-    form.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (form.dataset.submitting === "1") return;
-      const confirmation = form.querySelector('[name="confirmar_remocao"]');
-      if (!confirmation?.checked) {
-        setFormFeedback(
-          form,
-          "Confirme a remoção da unidade e a parada física antes de continuar.",
-          "error",
-        );
-        return;
-      }
-      form.dataset.submitting = "1";
-      form.querySelectorAll("button").forEach((button) => {
-        button.disabled = true;
-      });
-      setFormFeedback(form, "Registrando confirmação…");
-      try {
-        await store.confirmStopRemoval();
-        notificar("Confirmação registrada. A operação continua pausada; use Ligar esteira quando estiver pronta.");
-        render();
-      } catch (error) {
-        setFormFeedback(
-          form,
-          error.message || "Não foi possível registrar a confirmação de segurança.",
-          "error",
-        );
-      } finally {
-        if (form.isConnected) {
-          form.dataset.submitting = "";
-          form.querySelectorAll("button").forEach((button) => {
-            button.disabled = false;
-          });
-        }
-      }
-    });
+  bindDalaEditForm({
+    form: document.querySelector("#dala-edit-form"),
+    store,
+    navigate,
+    returnPage: queryReturnPage,
+    notify: notificar,
   });
-  const userForm = document.querySelector("#user-create-form");
-  if (userForm)
-    userForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (userForm.dataset.submitting === "1") return;
-      userForm.dataset.submitting = "1";
-      const submit = userForm.querySelector('button[type="submit"]');
-      if (submit) submit.disabled = true;
-      setFormFeedback(userForm, "");
-      try {
-        await store.createUser(Object.fromEntries(new FormData(userForm)));
-        userForm.reset();
-        await store.loadUsers();
-        render();
-        notificar("Login criado.");
-      } catch (error) {
-        setFormFeedback(userForm, error.message, "error");
-        notificar(error.message);
-      } finally {
-        userForm.dataset.submitting = "0";
-        if (submit) submit.disabled = false;
-      }
-    });
-  const companyForm = document.querySelector("#company-create-form");
-  if (companyForm)
-    companyForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (companyForm.dataset.submitting === "1") return;
-      companyForm.dataset.submitting = "1";
-      const submit = companyForm.querySelector('button[type="submit"]');
-      if (submit) submit.disabled = true;
-      setFormFeedback(companyForm, "");
-      try {
-        await store.createCompany(
-          Object.fromEntries(new FormData(companyForm)),
-        );
-        companyForm.reset();
-        await store.loadCompanies();
-        render();
-        notificar("Empresa criada. Agora crie o login de administrador.");
-      } catch (error) {
-        setFormFeedback(companyForm, error.message, "error");
-        notificar(error.message);
-      } finally {
-        companyForm.dataset.submitting = "0";
-        if (submit) submit.disabled = false;
-      }
-    });
-  const renameCompanyForm = document.querySelector("#company-rename-form");
-  if (renameCompanyForm)
-    renameCompanyForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (renameCompanyForm.dataset.submitting === "1") return;
-      renameCompanyForm.dataset.submitting = "1";
-      const submit = renameCompanyForm.querySelector('button[type="submit"]');
-      if (submit) submit.disabled = true;
-      setFormFeedback(renameCompanyForm, "");
-      try {
-        const { name } = Object.fromEntries(new FormData(renameCompanyForm));
-        await store.renameCompany(renameCompanyForm.dataset.companyId, name);
-        await store.loadCompanyDetail();
-        render();
-        notificar("Empresa renomeada.");
-      } catch (error) {
-        setFormFeedback(renameCompanyForm, error.message, "error");
-        notificar(error.message);
-      } finally {
-        renameCompanyForm.dataset.submitting = "0";
-        if (submit) submit.disabled = false;
-      }
-    });
-  const industrialPcCreateForm = document.querySelector("#industrial-pc-create-form");
-  if (industrialPcCreateForm)
-    industrialPcCreateForm.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      if (industrialPcCreateForm.dataset.submitting === "1") return;
-      industrialPcCreateForm.dataset.submitting = "1";
-      const submit = industrialPcCreateForm.querySelector('button[type="submit"]');
-      if (submit) submit.disabled = true;
-      setFormFeedback(industrialPcCreateForm, "");
-      try {
-        const { name } = Object.fromEntries(new FormData(industrialPcCreateForm));
-        await store.createIndustrialInstallation(name);
-        await store.loadCompanyDetail();
-        render();
-        notificar("PC industrial cadastrado. Agora gere o código individual para ativá-lo.");
-      } catch (error) {
-        setFormFeedback(industrialPcCreateForm, error.message, "error");
-        notificar(error.message);
-      } finally {
-        industrialPcCreateForm.dataset.submitting = "0";
-        if (submit) submit.disabled = false;
-      }
-    });
-  // Filtros de romaneios: aplicam automaticamente ao alterar/confirmar.
-  const manifestFilters = document.querySelector("#manifest-filters");
-  if (manifestFilters) {
-    const apply = async () => {
-      try {
-        await store.applyManifestFilters(
-          Object.fromEntries(new FormData(manifestFilters)),
-        );
-        render();
-      } catch (error) {
-        notificar(error.message);
-      }
-    };
-    manifestFilters.addEventListener("submit", async (event) => {
-      event.preventDefault();
-      await apply();
-    });
-    manifestFilters.addEventListener("change", apply);
-  }
-  // Busca de produtos: filtra as linhas da tabela sem recarregar a tela.
-  const productSearch = document.querySelector("#product-search");
-  const usersCompanySelector = document.querySelector(
-    "#users-company-selector",
-  );
-  if (usersCompanySelector)
-    usersCompanySelector.addEventListener("change", async () => {
-      store.state.selectedCompanyId = usersCompanySelector.value || null;
-      await store.loadUsers();
-      render();
-    });
-  if (productSearch)
-    productSearch.addEventListener("input", () => {
-      const term = productSearch.value.toLowerCase();
-      store.state.productSearch = productSearch.value;
-      document.querySelectorAll(".table-wrap tbody tr").forEach((row) => {
-        row.style.display =
-          !term || row.textContent.toLowerCase().includes(term) ? "" : "none";
-      });
-    });
-}
-async function loadPageData(page) {
-  if (authenticatedUser.role === "ADMIN_DALLOGIX") {
-    await store.loadCompanies();
-    if (["master-home", "error-logs"].includes(page)) {
-      await store.loadErrorLogs();
-      if (page === "error-logs") await store.loadTechnicalDiagnostics();
-    }
-    if (page === "company") {
-      const id = queryId();
-      if (!id) throw new Error("Empresa não informada.");
-      store.selectCompany(id);
-      await store.loadCompanyDetail();
-    }
-    if (page === "users") {
-      store.state.selectedCompanyId =
-        new URLSearchParams(window.location.search).get("company_id") || null;
-      if (store.state.selectedCompanyId) await store.loadUsers();
-    }
-    if (page === "settings") {
-      await Promise.all([
-        store.loadConfiguration(),
-        store.loadMonitoring(),
-        store.loadEquipments(),
-        store.loadSyncStatus(),
-        store.loadDalaStatuses(),
-      ]);
-    }
-    return;
-  }
-  const tasks = {
-    dashboard: () => [
-      store.loadDashboard(),
-      store.loadMonitoring(),
-      store.loadEquipments(),
-      store.loadSyncStatus(),
-      store.loadDalaStatuses(),
-    ],
-    manifests: () => [store.loadManifests()],
-    manifest: () => [store.loadManifest(queryId())],
-    "manifest-edit": () => [store.loadManifest(queryId()), store.loadProducts()],
-    import: () => [store.loadProducts()],
-    division: () => [
-      store.loadManifest(queryId()),
-      store.loadEquipments(),
-      store.loadActiveLoading(),
-    ],
-    work: () => [
-      store.loadActiveLoading().then(() => store.loadPendingReadings()),
-      store.loadMonitoring(),
-      store.loadEquipments(),
-      store.loadManifests(),
-    ],
-    occurrences: () => [store.loadMonitoring(), store.loadActiveLoading()],
-    summary: () => [store.loadMonitoring(), store.loadActiveLoading()],
-    products: () => [store.loadProducts()],
-    alerts: () => [
-      store.loadMonitoring(),
-      store.loadEquipments(),
-      store.loadSyncStatus(),
-    ],
-    emergency: () => [store.loadActiveLoading(), store.loadMonitoring()],
-    settings: () => [store.loadConfiguration(), store.loadMonitoring(), store.loadEquipments(), store.loadSyncStatus(), store.loadDalaStatuses()],
-    dalas: () => [store.loadEquipments(), store.loadDalaStatuses()],
-    dala: () => [loadDalaView(queryId())],
-    "dala-edit": () => [store.loadEquipment(queryId())],
-    "error-logs": () => [store.loadErrorLogs(), store.loadTechnicalDiagnostics(), store.loadDeadLetters()],
-    users: () => [store.loadUsers()],
-  };
-  if (
-    ["manifest", "manifest-edit", "division", "dala", "dala-edit"].includes(page) &&
-    !queryId()
-  )
-    throw new Error("Registro não informado.");
-  await Promise.all(tasks[page]?.() || []);
-}
-
-async function loadDalaView(id) {
-  await store.loadEquipment(id);
-  const results = await Promise.allSettled([
-    store.loadMonitoring(),
-    store.loadDalaCommandHistory(id),
-    store.loadDalaStatuses(),
-  ]);
-  results.forEach((result) => {
-    if (result.status === "rejected") {
-      logFrontend.aviso("dala.consulta-auxiliar", result.reason);
-    }
+  bindManifestCreationForm({
+    form: document.querySelector("#new-manifest-form"),
+    store,
+    navigate,
+    onUnauthorized: (error) => redirectToLoginWithMessage(error, "romaneio"),
+  });
+  bindManifestEditForm({
+    form: document.querySelector("#edit-manifest-form"),
+    store,
+    navigate,
+    notify: notificar,
+  });
+  bindPdfManifestImportForm({
+    form: document.querySelector("#pdf-form"),
+    store,
+    renderManifestItem: linhaItemRomaneio,
+  });
+  bindCsvManifestImportForm({
+    form: document.querySelector("#csv-form"),
+    api,
+    store,
+  });
+  bindAdministrativeForms({ root: document, store, render, notify: notificar });
+  bindOperationalForms({
+    root: document,
+    store,
+    navigate,
+    loadingId: queryId,
+    dashboardQuery: dashboardReturnQuery,
+    render,
+    notify: notificar,
+    toggleKeyboard: alternarTecladoLeituraManual,
+    updateScannerFocus: updateOperationScannerFocus,
+    logWarning: (...args) => logFrontend.aviso(...args),
   });
 }
-
 async function renderPage() {
   const root = el("#screen-root");
   limparNotificacao();
   const requestId = ++renderRequestId;
+  const page = currentPage;
   api.beginNavigation();
-
-  await ensureScreenStyles(currentPage);
 
   // Mantém a tela atual visível enquanto as consultas terminam. Exibir um
   // painel intermediário de carregamento a cada navegação fazia o operador
@@ -2717,7 +758,11 @@ async function renderPage() {
   // A nova tela substitui a anterior apenas quando os dados necessários
   // estiverem prontos; erros continuam sendo mostrados no mesmo espaço.
   try {
-    await loadPageData(currentPage);
+    await Promise.all([
+      ensureScreenStyles(page),
+      registroTelas.carregar(page),
+      pageDataLoader.carregarDadosIniciais(page),
+    ]);
     if (requestId !== renderRequestId) return;
     render();
   } catch (error) {
@@ -2755,43 +800,27 @@ async function renderPage() {
 
 async function bootstrap() {
   installInteractionGuards();
-  installOfflineShell();
+  conectividadeLocal.installOfflineShell();
   currentPage = initialPage || pageFromPath();
-  if (currentPage === "login") {
-    if (window.location.search)
-      window.history.replaceState(null, "", window.location.pathname);
-    let loginMessage = "";
-    try {
-      loginMessage = sessionStorage.getItem("trace-login-message") || "";
-      sessionStorage.removeItem("trace-login-message");
-    } catch (storageError) {
-      /* armazenamento indisponível */
-    }
-    try {
-      await store.loadLocalActivation();
-    } catch (error) {
-      store.state.localActivation = { active: false };
-    }
-    renderLocalActivation(store.state.localActivation || { active: false });
-    renderLogin(loginMessage);
-    bindLocalActivationForm();
-    bindLoginForm();
-    return;
-  }
   if (!screens[currentPage]) {
     window.location.replace(pagePath("login"));
     return;
   }
   const response = await api.fetch("/api/me.php");
   if (!response.ok) {
-    const result = await response.json().catch(() => ({}));
+    let result = {};
+    try {
+      result = await response.json();
+    } catch (parseError) {
+      logFrontend.aviso("sessao.resposta_me_nao_json", parseError);
+    }
     try {
       sessionStorage.setItem(
         "trace-login-message",
         result.error || "O acesso ao sistema foi bloqueado.",
       );
     } catch (storageError) {
-      /* armazenamento indisponível */
+      logFrontend.aviso("sessao.acesso_bloqueado.mensagem_indisponivel", storageError);
     }
     window.location.replace(pagePath("login"));
     return;

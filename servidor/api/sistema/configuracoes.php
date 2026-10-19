@@ -8,6 +8,9 @@ $usuarioAtor = exigir_sessao_usuario();
 if ($usuarioAtor["company_id"] === null) {
     responder_json(["error" => "Usuário sem empresa vinculada."], 403);
 }
+if ($_SERVER["REQUEST_METHOD"] === "GET") {
+    session_write_close();
+}
 $pdo = obter_conexao_banco();
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
