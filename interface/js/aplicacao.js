@@ -382,7 +382,7 @@ const conectividadeLocal = createLocalConnectivityController({
   focusScanner: (root) => focusOperationScanner(root),
   getScreenRoot: () => el("#screen-root"),
   logWarning: (...args) => logFrontend.aviso(...args),
-  serviceWorkerUrl: "/service-worker.js?v=202610190060",
+  serviceWorkerUrl: "/service-worker.js?v=202610190061",
 });
 
 function waitForDocumentStyles() {
@@ -521,6 +521,9 @@ function renderScreen() {
   else stopWorkPolling();
   statusScreensRealtime.start();
   if (currentPage === "master-home") companyViewSignature = companyStatusViewSignature();
+}
+function render() {
+  renderScreen();
 }
 function stopWorkPolling() {
   workRealtime.stop();
