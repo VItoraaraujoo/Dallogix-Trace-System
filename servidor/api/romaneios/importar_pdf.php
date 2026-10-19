@@ -271,7 +271,13 @@ if (isset($fields["produto"]) && $fields["produto"] !== "") {
         ]);
     } else {
         $productStatement = $pdo->prepare(
-            "SELECT id, code, name FROM produtos WHERE company_id = :company_id AND active = 1 AND id IN (SELECT product_id FROM codigos_produtos WHERE barcode = :identifier) LIMIT 1",
+            "SELECT p.id, p.code, p.name
+             FROM codigos_produtos pc
+             JOIN produtos p ON p.id = pc.product_id AND p.company_id = pc.company_id
+             WHERE pc.company_id = :company_id
+               AND pc.barcode = :identifier
+               AND p.active = 1
+             LIMIT 1",
         );
         $productStatement->execute([
             "company_id" => $user["company_id"],

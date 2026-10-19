@@ -20,6 +20,9 @@ if ($_SERVER["REQUEST_METHOD"] === "PUT") {
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
     exigir_metodo_http(["POST"]);
 }
+if ($_SERVER["REQUEST_METHOD"] === "GET") {
+    session_write_close();
+}
 
 $resolverIdEmpresa = static function (array $entrada) use ($usuarioAtor, $eAdministradorPlataforma): int {
     $empresaSolicitada = filter_var($entrada["company_id"] ?? null, FILTER_VALIDATE_INT);

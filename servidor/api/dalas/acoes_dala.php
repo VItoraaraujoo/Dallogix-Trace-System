@@ -17,6 +17,9 @@ $equipmentId = filter_var($_GET["equipment_id"] ?? $payload["equipment_id"] ?? n
 if (!$equipmentId) {
     json_response(["error" => "Dala não informada."], 422);
 }
+if ($method === "GET") {
+    session_write_close();
+}
 
 function require_dala(PDO $pdo, int $equipmentId, int $companyId): void
 {

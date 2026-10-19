@@ -138,6 +138,14 @@ services:
     pids_limit: 256
     mem_limit: 512m
     cpus: "1.00"
+    # Limita buffers de diagnóstico do Performance Schema no PC de 512 MiB.
+    # Isso reduz histórico de consultas, sem limitar conexões nem alterar dados SQL.
+    command:
+      - --performance-schema-digests-size=1000
+      - --performance-schema-events-stages-history-long-size=1000
+      - --performance-schema-events-statements-history-long-size=1000
+      - --performance-schema-events-transactions-history-long-size=1000
+      - --performance-schema-events-waits-history-long-size=1000
     tmpfs:
       - /tmp:rw,nosuid,nodev,mode=1777
       - /var/run/mysqld:rw,nosuid,nodev,uid=999,gid=999
@@ -253,6 +261,7 @@ services:
       CAMERA_RTSP_CHANNEL: ${CAMERA_RTSP_CHANNEL:-101}
       CAMERA_RTSP_USERNAME: ${CAMERA_RTSP_USERNAME:-}
       CAMERA_RTSP_PASSWORD: ${CAMERA_RTSP_PASSWORD:-}
+      CAMERA_OUTPUT_FPS: ${CAMERA_OUTPUT_FPS:-5}
       CAMERA_JOB_POLL_MS: ${CAMERA_JOB_POLL_MS:-200}
       CAMERA_FRAME_FRESH_MS: ${CAMERA_FRAME_FRESH_MS:-750}
       CAMERA_HEARTBEAT_INTERVAL_MS: ${CAMERA_HEARTBEAT_INTERVAL_MS:-5000}

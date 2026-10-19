@@ -1,4 +1,6 @@
-const CACHE_NAME = "trace-shell-20261019-01";
+const CACHE_NAME = "trace-shell-20261019-47";
+const APPLICATION_ASSET_VERSION = "202610190059";
+const PRECACHE_CONCURRENCY = 4;
 const SHELL = [
   "/",
   "/service-worker.js",
@@ -100,10 +102,22 @@ const SHELL = [
   "/js/configuracaoAplicacao.js",
   "/js/api/ClienteApi.js",
   "/js/componentes/notificacoes.js",
+  "/js/componentes/form-feedback.js",
   "/js/componentes/estados.js",
   "/js/servicos/ServicoEmergencia.js",
   "/js/servicos/ServicoOperacao.js",
   "/js/servicos/ServicoSincronizacao.js",
+  "/js/servicos/ServicoInstalacoesIndustriais.js",
+  "/js/servicos/ServicoAdministracaoContas.js",
+  "/js/servicos/ServicoAtivacaoLocal.js",
+  "/js/servicos/ServicoRomaneios.js",
+  "/js/servicos/ServicoCatalogoProdutos.js",
+  "/js/servicos/ServicoDalas.js",
+  "/js/servicos/ServicoAcoesDala.js",
+  "/js/servicos/ServicoObservabilidade.js",
+  "/js/servicos/ServicoCarregamentoAtivo.js",
+  "/js/servicos/ServicoComandosMaquina.js",
+  "/js/servicos/ServicoLeiturasOperacionais.js",
   "/js/classes/ArmazenamentoTrace.js",
   "/js/classes/OfflineOperationBuffer.js",
   "/js/constantes/acoes.js",
@@ -111,6 +125,26 @@ const SHELL = [
   "/js/controladores/tempo-real.js",
   "/js/controladores/page-refresh.js",
   "/js/controladores/comandos-maquina.js",
+  "/js/controladores/registro-telas.js",
+  "/js/controladores/teclado-leitura-manual.js",
+  "/js/controladores/acoes-navegacao.js",
+  "/js/controladores/acoes-administracao.js",
+  "/js/controladores/acoes-operacionais.js",
+  "/js/controladores/acoes-diagnostico.js",
+  "/js/controladores/acoes-cadastros.js",
+  "/js/controladores/acoes-interface.js",
+  "/js/controladores/acoes-relatorios.js",
+  "/js/controladores/despachante-acoes.js",
+  "/js/controladores/carregador-paginas.js",
+  "/js/controladores/estado-visualizacao.js",
+  "/js/controladores/conectividade-local.js",
+  "/js/controladores/formulario-romaneio.js",
+  "/js/controladores/formulario-produto.js",
+  "/js/controladores/formulario-dala.js",
+  "/js/controladores/formulario-importacao-romaneio.js",
+  "/js/controladores/formularios-administrativos.js",
+  "/js/controladores/formularios-operacionais.js",
+  "/js/controladores/formularios-telas.js",
   "/js/funcoes/formato.js",
   "/js/funcoes/estado-comando.js",
   "/js/funcoes/html.js",
@@ -120,6 +154,8 @@ const SHELL = [
   "/js/funcoes/rotulos.js",
   "/js/funcoes/view.js",
   "/js/funcoes/dialogo.js",
+  "/js/funcoes/downloads.js",
+  "/js/funcoes/paginacao-api.js",
   "/js/utilitarios/Validadores.js",
   "/js/utilitarios/LogFrontend.js",
   "/js/login.js",
@@ -148,19 +184,27 @@ function isVersionedStaticAsset(url) {
   return /\.(?:css|js)$/.test(url.pathname) && /^[0-9]{8,}/.test(url.searchParams.get("v") || "");
 }
 
+async function precacheShell(cache) {
+  let nextAssetIndex = 0;
+  const workerCount = Math.min(PRECACHE_CONCURRENCY, SHELL.length);
+  const worker = async () => {
+    while (nextAssetIndex < SHELL.length) {
+      const path = SHELL[nextAssetIndex++];
+      try {
+        await cache.add(new Request(path));
+      } catch (error) {
+        // Mantém a instalação disponível; registra o arquivo para diagnóstico offline.
+        console.warn("Não foi possível pré-carregar o recurso do shell:", path, error);
+      }
+    }
+  };
+
+  await Promise.all(Array.from({ length: workerCount }, () => worker()));
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then(async (cache) => {
-      await Promise.all(
-        SHELL.map(async (path) => {
-          try {
-            await cache.add(new Request(path));
-          } catch (_) {
-            // A instalação não pode falhar se uma tela opcional não estiver disponível.
-          }
-        }),
-      );
-    }),
+    caches.open(CACHE_NAME).then(precacheShell),
   );
 });
 
@@ -204,6 +248,11 @@ self.addEventListener("fetch", (event) => {
         if (isVersionedStaticAsset(url)) {
           const cached = await caches.match(request);
           if (cached) return cached;
+          if (url.searchParams.get("v") === APPLICATION_ASSET_VERSION) {
+            const currentCache = await caches.open(CACHE_NAME);
+            const precached = await currentCache.match(url.pathname);
+            if (precached) return precached;
+          }
         }
         try {
           return await cacheResponse(request, await fetchWithTimeout(request));

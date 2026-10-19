@@ -1,6 +1,9 @@
 import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { isIP } from "node:net";
+import { boundedInteger, cameraOutputFps } from "./config.mjs";
+import { createFfmpegArguments, createFfmpegInputList } from "./ffmpeg-arguments.mjs";
+import { JpegFrameCollector } from "./jpeg-frame-collector.mjs";
 
 const SERVICE_NAME = "camera-worker";
 const API_BASE = (process.env.TRACE_API_URL || "http://nginx").replace(/\/+$/, "");
@@ -10,21 +13,23 @@ const CAMERA_PORT = Number.parseInt(process.env.CAMERA_RTSP_PORT || "554", 10);
 const CAMERA_CHANNEL = process.env.CAMERA_RTSP_CHANNEL || "101";
 const CAMERA_USERNAME = process.env.CAMERA_RTSP_USERNAME || "";
 const CAMERA_PASSWORD = process.env.CAMERA_RTSP_PASSWORD || "";
+// A captura guarda apenas o quadro mais recente para evidência, não reproduz vídeo.
+// Cinco quadros por segundo mantêm a janela de 750 ms com folga e reduzem codificações JPEG.
+const CAMERA_OUTPUT_FPS = cameraOutputFps(process.env.CAMERA_OUTPUT_FPS);
+// O intervalo também limita quanto um saco pode avançar antes de o worker reservar sua foto.
 const JOB_POLL_MS = boundedInteger(process.env.CAMERA_JOB_POLL_MS, 200, 100, 5000);
 const FRAME_FRESH_MS = boundedInteger(process.env.CAMERA_FRAME_FRESH_MS, 750, 200, 5000);
 const HEARTBEAT_MS = boundedInteger(process.env.CAMERA_HEARTBEAT_INTERVAL_MS, 5000, 1000, 60000);
 const MAX_FRAME_BYTES = 4 * 1024 * 1024;
+const API_RETRY_MAX_MS = 2000;
+const API_FAILURE_LOG_INTERVAL_MS = 30000;
 const SHUTDOWN_GRACE_MS = 5000;
 
 let latestFrame = null;
 let latestFrameAt = 0;
 let shuttingDown = false;
 let activeFfmpegChild = null;
-
-function boundedInteger(rawValue, fallback, minimum, maximum) {
-  const value = Number.parseInt(rawValue || "", 10);
-  return Number.isInteger(value) && value >= minimum && value <= maximum ? value : fallback;
-}
+const apiFailureLogState = new Map();
 
 function log(level, message, details = {}) {
   const entry = {
@@ -73,6 +78,28 @@ function sleep(milliseconds) {
   return new Promise((resolve) => setTimeout(resolve, milliseconds));
 }
 
+function reportApiFailure(operation, message, error) {
+  const now = Date.now();
+  const reason = (error instanceof Error ? error.message : String(error || "erro inesperado"))
+    .slice(0, 300);
+  const previous = apiFailureLogState.get(operation);
+  if (
+    previous?.reason === reason &&
+    now - previous.loggedAt < API_FAILURE_LOG_INTERVAL_MS
+  ) return;
+
+  apiFailureLogState.set(operation, { reason, loggedAt: now });
+  log("warn", message, { operation, reason });
+}
+
+function apiRetryDelay(failureCount) {
+  const multiplier = 2 ** Math.min(failureCount, 8);
+  return Math.max(
+    JOB_POLL_MS,
+    Math.min(API_RETRY_MAX_MS, JOB_POLL_MS * multiplier),
+  );
+}
+
 async function apiRequest(path, { jsonBody = null, formBody = null } = {}) {
   const headers = { "X-Device-Token": DEVICE_TOKEN };
   let body;
@@ -117,59 +144,22 @@ async function publishHeartbeat() {
 }
 
 function collectJpegs(child) {
-  let pending = Buffer.alloc(0);
-  const startMarker = Buffer.from([0xff, 0xd8]);
-  const endMarker = Buffer.from([0xff, 0xd9]);
+  const collector = new JpegFrameCollector(MAX_FRAME_BYTES);
 
   child.stdout.on("data", (chunk) => {
-    pending = Buffer.concat([pending, chunk]);
-    while (pending.length >= 4) {
-      const start = pending.indexOf(startMarker);
-      if (start < 0) {
-        pending = pending.subarray(pending.length - 1);
-        return;
-      }
-      if (start > 0) pending = pending.subarray(start);
-      const end = pending.indexOf(endMarker, 2);
-      if (end < 0) {
-        if (pending.length > MAX_FRAME_BYTES) pending = Buffer.alloc(0);
-        return;
-      }
-      const frameEnd = end + endMarker.length;
-      const jpeg = Buffer.from(pending.subarray(0, frameEnd));
-      pending = pending.subarray(frameEnd);
-      if (jpeg.length <= MAX_FRAME_BYTES) {
-        latestFrame = jpeg;
-        latestFrameAt = Date.now();
-      }
+    const jpeg = collector.pushLatest(chunk);
+    if (jpeg) {
+      latestFrame = jpeg;
+      latestFrameAt = Date.now();
     }
   });
   child.stdout.on("error", () => {
-    pending = Buffer.alloc(0);
+    collector.reset();
   });
 }
 
 async function runFfmpeg() {
-  const argumentsList = [
-    "-hide_banner",
-    "-loglevel", "error",
-    "-nostdin",
-    "-rtsp_transport", "tcp",
-    "-timeout", "5000000",
-    "-fflags", "nobuffer",
-    "-flags", "low_delay",
-    "-max_delay", "100000",
-    "-i", streamUrl(),
-    "-an",
-    "-sn",
-    "-dn",
-    "-vf", "fps=15",
-    "-q:v", "5",
-    "-c:v", "mjpeg",
-    "-f", "image2pipe",
-    "-flush_packets", "1",
-    "pipe:1",
-  ];
+  const argumentsList = createFfmpegArguments(CAMERA_OUTPUT_FPS);
 
   return new Promise((resolve) => {
     let settled = false;
@@ -178,9 +168,16 @@ async function runFfmpeg() {
       settled = true;
       resolve(code);
     };
-    const child = spawn("ffmpeg", argumentsList, { stdio: ["ignore", "pipe", "ignore"] });
+    // FFmpeg lê a URL pela entrada padrão para não expor usuário e senha no ps.
+    const child = spawn("ffmpeg", argumentsList, { stdio: ["pipe", "pipe", "ignore"] });
     activeFfmpegChild = child;
     collectJpegs(child);
+    child.stdin.once("error", (error) => {
+      log("warn", "Não foi possível enviar o endereço RTSP ao FFmpeg.", {
+        code: error.code || "ERRO_ENTRADA_FFMPEG",
+      });
+    });
+    child.stdin.end(createFfmpegInputList(streamUrl()), "utf8");
     child.once("error", () => {
       activeFfmpegChild = null;
       finish(null);
@@ -277,14 +274,16 @@ async function processRequest(request) {
 
 async function pollRequests() {
   let lastHeartbeatAt = 0;
+  let claimFailureCount = 0;
   while (!shuttingDown) {
     const now = Date.now();
     if (now - lastHeartbeatAt >= HEARTBEAT_MS) {
       lastHeartbeatAt = now;
       try {
         await publishHeartbeat();
-      } catch {
-        log("warn", "Não foi possível atualizar o heartbeat da câmera.");
+        apiFailureLogState.delete("heartbeat");
+      } catch (error) {
+        reportApiFailure("heartbeat", "Não foi possível atualizar o heartbeat da câmera.", error);
       }
     }
 
@@ -293,6 +292,8 @@ async function pollRequests() {
         const result = await apiRequest("/api/camera_worker.php", {
           jsonBody: { action: "CLAIM" },
         });
+        claimFailureCount = 0;
+        apiFailureLogState.delete("claim");
         const request = result?.data || null;
         if (request) {
           try {
@@ -304,8 +305,11 @@ async function pollRequests() {
             });
           }
         }
-      } catch {
-        log("warn", "Não foi possível consultar a fila de captura do Trace.");
+      } catch (error) {
+        claimFailureCount = Math.min(claimFailureCount + 1, 8);
+        reportApiFailure("claim", "Não foi possível consultar a fila de captura do Trace.", error);
+        await sleep(apiRetryDelay(claimFailureCount));
+        continue;
       }
     }
     await sleep(JOB_POLL_MS);
@@ -344,6 +348,12 @@ if (!DEVICE_TOKEN) {
   log("error", "CAMERA_DEVICE_TOKEN não foi configurado.");
   process.exitCode = 1;
 } else {
+  log("info", "Configuração do worker da câmera carregada.", {
+    output_fps: CAMERA_OUTPUT_FPS,
+    queue_poll_ms: JOB_POLL_MS,
+    frame_fresh_ms: FRAME_FRESH_MS,
+    heartbeat_interval_ms: HEARTBEAT_MS,
+  });
   if (!cameraConfigurationIsComplete()) {
     log("warn", "Configure IP privado, usuário e senha RTSP para habilitar a câmera.");
   }

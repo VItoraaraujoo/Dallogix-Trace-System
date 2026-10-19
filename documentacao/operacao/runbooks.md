@@ -66,3 +66,10 @@ autorização do supervisor.
 - Confirmar: verificar o comando no painel técnico e a confirmação do gateway.
 - Ação segura: confirmar intertravamentos e segurança física no CLP; o Trace não substitui o operador.
 - Escalar: manutenção e supervisor quando o CLP não confirmar a liberação.
+
+## RUNBOOK-010 — Fila local de operações atingiu o limite
+
+- Sintoma: a tela informa que há operações locais aguardando envio e bloqueia novas leituras.
+- Confirmar: verificar a conexão com o servidor e aguardar a fila existente ser enviada.
+- Ação segura: não limpar dados do navegador nem repetir leituras já registradas na fila. O limite de 20 operações por usuário protege o armazenamento local; operações existentes não são apagadas.
+- Escalar: se a conexão voltou e os registros continuam pendentes ou com erro, consultar o painel técnico antes de retomar a leitura.

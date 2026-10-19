@@ -3,6 +3,7 @@ import test from "node:test";
 import { createPageRefreshController } from "../interface/js/controladores/page-refresh.js";
 import { renderDalaStatuses } from "../interface/js/controladores/operacao.js";
 import { renderStatusDala } from "../interface/js/funcoes/status-dala.js";
+import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js";
 import {
   apresentacaoConectividadePc,
   apresentacaoStatusDala,
@@ -81,7 +82,7 @@ test("status têm apresentação clara para online, offline, erro e ausência de
 test("Configurações mostra cartões próprios e status vinculados à Dala", () => {
   const markup = settings({ state: {
     configuration: { settings: {}, dalas: [{ id: 4, name: "Dala 4", equipment_code: "EST-04" }] },
-    monitoring: { dispositivos: [{ device_type: "SENSOR", status: "ONLINE", equipment_id: 4 }] },
+    deviceStatuses: [{ device_type: "SENSOR", status: "ONLINE", equipment_id: 4 }],
     equipments: [{ id: 4, equipment_code: "EST-04" }],
     syncStatus: { central_sync: { configured: true, installation_registered: true, pc_status: "ONLINE" } },
     dalaStatuses: [{ equipment_id: 4, status: "ONLINE", message: "Online" }],
@@ -104,7 +105,7 @@ test("Configurações mostra cartões próprios e status vinculados à Dala", ()
 test("sensor e scanner sem produtor não entram na contagem online e explicam a falta de status", () => {
   const markup = settings({ state: {
     configuration: { settings: {}, dalas: [] },
-    monitoring: { dispositivos: [] },
+    deviceStatuses: [],
     equipments: [],
     syncStatus: null,
     dalaStatuses: [],
@@ -119,6 +120,27 @@ test("sensor e scanner sem produtor não entram na contagem online e explicam a 
   assert.match(markup, /data-device-summary="online-count">0<\/strong>/);
   assert.match(markup, /data-device-status-card="CAMERA"[\s\S]*?SEM SINAL/);
   assert.match(markup, /Instalação atual/);
+});
+
+test("status da tela usa o endpoint leve dedicado, sem carregar o snapshot completo", async () => {
+  const store = Object.create(ArmazenamentoTrace.prototype);
+  let requestedPath = "";
+  store.state = {};
+  store.api = {
+    async fetch(path) {
+      requestedPath = path;
+      return new Response(JSON.stringify({ data: [{ device_type: "CLP", status: "ONLINE" }] }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    },
+  };
+
+  const devices = await store.loadDeviceStatuses();
+
+  assert.equal(requestedPath, "/api/status_dispositivos.php");
+  assert.deepEqual(devices, [{ device_type: "CLP", status: "ONLINE" }]);
+  assert.deepEqual(store.state.deviceStatuses, devices);
 });
 
 test("a tabela mostra comunicação do CLP em ON/OFF e preserva estado desconhecido", () => {

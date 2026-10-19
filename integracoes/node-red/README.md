@@ -123,6 +123,14 @@ O ciclo automático usa o token do dispositivo CAMERA provisionado para a Dala:
 4. Preencha no `.env` local `CAMERA_RTSP_HOST`, `CAMERA_RTSP_PORT`, `CAMERA_RTSP_CHANNEL`, `CAMERA_RTSP_USERNAME` e `CAMERA_RTSP_PASSWORD`. O canal `101` seleciona o fluxo principal; `102`, o secundário. A porta padrão configurada no Trace é `554`; ajuste-a se a câmera estiver configurada com outra porta.
 5. Inicie o PC pelo `TraceLauncher.cmd` ou execute o Compose com o perfil `industrial`. O serviço inicia junto do Trace e tenta recuperar o fluxo sem intervenção.
 
+O fluxo da câmera pode continuar em 15 fps; `CAMERA_OUTPUT_FPS` controla quantos quadros o worker recodifica para JPEG, não a resolução nem a configuração RTSP. O padrão é 5 fps (aceita 3–15), suficiente para manter um quadro recente para cada solicitação e reduzir uso de CPU. Com o quadro marcado como recente por 750 ms, mantenha esse valor coerente caso altere a taxa.
+
+O usuário e a senha RTSP são passados ao FFmpeg como parte da URL de entrada e podem ficar visíveis a administradores do PC que consultem os argumentos do processo. Use uma conta dedicada apenas para visualização e restrinja o acesso administrativo ao PC. O `stderr` do FFmpeg não é encaminhado aos logs, pois mensagens de falha podem incluir a URL de conexão; os erros operacionais do worker são registrados sem incluir essa URL.
+
+`CAMERA_JOB_POLL_MS` controla a frequência das consultas da fila (200 ms por padrão, até cinco consultas por segundo quando o worker está ocioso). Aumentar esse intervalo reduz chamadas ao PHP/MySQL, mas pode atrasar a foto do saco; só altere depois de medir a latência de captura com o equipamento instalado.
+
+Se uma consulta à API falhar, o worker aumenta progressivamente a espera até 2 s, respeitando o intervalo configurado como mínimo. O mesmo erro é registrado no máximo uma vez a cada 30 s; após uma resposta bem-sucedida, as consultas voltam ao intervalo configurado.
+
 Se a interface da câmera não tiver sido inicializada, faça essa configuração uma vez com a ferramenta SADP da Hikvision ou pela interface web da câmera, antes de iniciar a operação. A rede precisa permitir que o worker em Docker alcance o endereço configurado; confirme esse caminho na bancada do PC que receberá o adaptador.
 
 Quando o relatório final do romaneio é solicitado, o Trace incorpora as evidências ao relatório PDF, salva esse PDF em `armazenamento/company_<id>/reports/` e remove os PDFs intermediários e referências temporárias. O PDF final permanece no servidor e é reutilizado nos próximos downloads. A retenção de evidências intermediárias segue `IMAGE_RETENTION_DAYS` caso o relatório ainda não tenha sido solicitado.

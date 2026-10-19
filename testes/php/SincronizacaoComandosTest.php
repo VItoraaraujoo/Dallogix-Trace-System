@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-use App\Aplicacao\ServicoSincronizacaoRemota;
+use App\Persistencia\RepositorioComandosRemotos;
 use PHPUnit\Framework\TestCase;
 
 final class SincronizacaoComandosTest extends TestCase
@@ -19,8 +19,7 @@ final class SincronizacaoComandosTest extends TestCase
 
     private function synchronize(PDO $pdo, string $remoteStatus): void
     {
-        $method = new ReflectionMethod(ServicoSincronizacaoRemota::class, 'salvarOuAtualizarComando');
-        $method->invoke(new ServicoSincronizacaoRemota($pdo), 1, 2, 3, 4, [
+        (new RepositorioComandosRemotos($pdo))->salvarOuAtualizar(1, 2, 3, 4, [
             'id' => 99, 'command' => 'REVERSAO_ATIVAR', 'status' => $remoteStatus,
             'requested_at' => '2026-09-23 00:00:00.000',
         ]);
@@ -49,5 +48,17 @@ final class SincronizacaoComandosTest extends TestCase
         $this->synchronize($pdo, 'PENDENTE');
         self::assertSame('PENDENTE', $pdo->query('SELECT status FROM solicitacoes_comandos_clp')->fetchColumn());
         self::assertSame(1, (int) $pdo->query('SELECT COUNT(*) FROM solicitacoes_comandos_clp')->fetchColumn());
+    }
+
+    public function testMesmoIdentificadorRemotoEmOutraEmpresaNaoColide(): void
+    {
+        $pdo = $this->database();
+        $repository = new RepositorioComandosRemotos($pdo);
+
+        $repository->salvarOuAtualizar(1, 2, 3, 4, ['id' => 99, 'command' => 'ESTEIRA_INICIAR']);
+        $repository->salvarOuAtualizar(2, 5, 6, 7, ['id' => 99, 'command' => 'ESTEIRA_PARAR']);
+
+        self::assertSame(2, (int) $pdo->query('SELECT COUNT(*) FROM solicitacoes_comandos_clp')->fetchColumn());
+        self::assertSame(2, (int) $pdo->query('SELECT COUNT(DISTINCT company_id) FROM solicitacoes_comandos_clp')->fetchColumn());
     }
 }

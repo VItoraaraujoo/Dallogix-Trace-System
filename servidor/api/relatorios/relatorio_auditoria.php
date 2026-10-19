@@ -92,6 +92,9 @@ if ($user["company_id"] === null || !$romaneioId) {
     $respondJson(["error" => "Romaneio obrigatório."], 422);
 }
 
+if (!is_array($apiClient)) {
+    session_write_close();
+}
 $pdo = db();
 $manifest = $pdo->prepare("SELECT r.id, r.number, r.status, r.scheduled_date, r.expedidor,
     c.name AS company_name,
@@ -200,7 +203,7 @@ $items = $pdo->prepare("SELECT p.name, COALESCE(MIN(pc.barcode), p.code, '—') 
       WHERE c.romaneio_id = ri.romaneio_id AND l.product_id = ri.product_id
         AND l.result = 'VALIDO'), 0) AS moved_quantity
     FROM romaneio_itens ri JOIN produtos p ON p.id = ri.product_id
-    LEFT JOIN codigos_produtos pc ON pc.product_id = p.id
+    LEFT JOIN codigos_produtos pc ON pc.product_id = p.id AND pc.company_id = p.company_id
     WHERE ri.romaneio_id = ?
     GROUP BY ri.romaneio_id, ri.product_id, p.id, p.name, p.code
     ORDER BY p.name, p.code");

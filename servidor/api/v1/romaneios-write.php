@@ -1,6 +1,12 @@
 <?php
 declare(strict_types=1);
 
+require_once __DIR__ . "/../../src/Persistencia/RepositorioItensRomaneio.php";
+require_once __DIR__ . "/../../src/Persistencia/RepositorioProdutosRomaneio.php";
+
+use App\Persistencia\RepositorioItensRomaneio;
+use App\Persistencia\RepositorioProdutosRomaneio;
+
 final class ApiV1PayloadException extends RuntimeException
 {
     public function __construct(string $message, public readonly string $errorCode = "invalid_payload")
@@ -237,20 +243,23 @@ function api_v1_criar_romaneio(PDO $pdo, array $client): never
             );
         }
         $installationId = (int) $installations[0]["id"];
-        $productById = $pdo->prepare(
-            "SELECT id, code, name FROM produtos WHERE id = :id AND company_id = :company_id AND active = 1 LIMIT 1",
-        );
-        $productByCode = $pdo->prepare(
-            "SELECT id, code, name FROM produtos WHERE company_id = :company_id AND code = :code AND active = 1 LIMIT 1",
-        );
-        $resolvedItems = [];
+        $productIds = [];
+        $productCodes = [];
         foreach ($payload["items"] as $item) {
             if ($item["product_id"] !== null) {
-                $productById->execute(["id" => $item["product_id"], "company_id" => $client["company_id"]]);
+                $productIds[] = $item["product_id"];
             } else {
-                $productByCode->execute(["company_id" => $client["company_id"], "code" => $item["product_code"]]);
+                $productCodes[] = (string) $item["product_code"];
             }
-            $product = $item["product_id"] !== null ? $productById->fetch(PDO::FETCH_ASSOC) : $productByCode->fetch(PDO::FETCH_ASSOC);
+        }
+        $productRepository = new RepositorioProdutosRomaneio($pdo);
+        $productsById = $productRepository->buscarAtivosPorIds((int) $client["company_id"], $productIds);
+        $productsByCode = $productRepository->buscarAtivosPorCodigos((int) $client["company_id"], $productCodes);
+        $resolvedItems = [];
+        foreach ($payload["items"] as $item) {
+            $product = $item["product_id"] !== null
+                ? ($productsById[$item["product_id"]] ?? null)
+                : ($productsByCode[mb_strtolower((string) $item["product_code"], "UTF-8")] ?? null);
             if (!is_array($product)) {
                 $pdo->rollBack();
                 api_v1_responder_erro("product_not_found", "Produto inexistente, inativo ou fora da empresa da chave.", 422);
@@ -283,19 +292,18 @@ function api_v1_criar_romaneio(PDO $pdo, array $client): never
         ]);
         $truckId = (int) $pdo->lastInsertId();
 
-        $romaneioItem = $pdo->prepare(
-            "INSERT INTO romaneio_itens (company_id, romaneio_id, product_id, truck_id, planned_quantity)
-             VALUES (:company_id, :romaneio_id, :product_id, :truck_id, :planned_quantity)",
+        (new RepositorioItensRomaneio($pdo))->inserirLinhas(
+            (int) $client["company_id"],
+            array_map(
+                static fn (array $item): array => [
+                    "romaneio_id" => $romaneioId,
+                    "product_id" => $item["product_id"],
+                    "truck_id" => $truckId,
+                    "quantity" => $item["quantity"],
+                ],
+                $resolvedItems,
+            ),
         );
-        foreach ($resolvedItems as $item) {
-            $romaneioItem->execute([
-                "company_id" => (int) $client["company_id"],
-                "romaneio_id" => $romaneioId,
-                "product_id" => $item["product_id"],
-                "truck_id" => $truckId,
-                "planned_quantity" => $item["quantity"],
-            ]);
-        }
 
         $metadata = json_encode([
             "integration_id" => $client["id"],

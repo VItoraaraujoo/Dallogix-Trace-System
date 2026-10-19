@@ -47,7 +47,13 @@ if ($productId) {
     $product = $pdo->prepare("SELECT id, name, code FROM produtos WHERE id = :id AND company_id = :company_id AND active = 1 LIMIT 1");
     $product->execute(["id" => $productId, "company_id" => $user["company_id"]]);
 } else {
-    $product = $pdo->prepare("SELECT p.id, p.name, p.code FROM codigos_produtos pc JOIN produtos p ON p.id = pc.product_id WHERE pc.barcode = :barcode AND p.company_id = :company_id AND p.active = 1 LIMIT 1");
+    $product = $pdo->prepare(
+        "SELECT p.id, p.name, p.code
+         FROM codigos_produtos pc
+         JOIN produtos p ON p.id = pc.product_id AND p.company_id = pc.company_id
+         WHERE pc.company_id = :company_id AND pc.barcode = :barcode AND p.active = 1
+         LIMIT 1",
+    );
     $product->execute(["barcode" => $barcode, "company_id" => $user["company_id"]]);
 }
 $selected = $product->fetch();

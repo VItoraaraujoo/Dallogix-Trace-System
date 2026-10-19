@@ -25,11 +25,12 @@ final class SincronizacaoProdutoOutboundTest extends TestCase
         )');
         $pdo->exec('CREATE TABLE codigos_produtos (
             id INTEGER PRIMARY KEY,
+            company_id INTEGER NOT NULL,
             product_id INTEGER NOT NULL,
             barcode TEXT NOT NULL
         )');
         $pdo->exec("INSERT INTO produtos VALUES (5, 3, 'SKU-LOCAL-5', 'Produto local atual', 'Sacas', 1)");
-        $pdo->exec("INSERT INTO codigos_produtos VALUES (1, 5, '7890000000005')");
+        $pdo->exec("INSERT INTO codigos_produtos VALUES (1, 3, 5, '7890000000005')");
 
         $event = [
             'company_id' => 3,

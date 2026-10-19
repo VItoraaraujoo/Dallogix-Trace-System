@@ -18,10 +18,15 @@ if ($periodDays === false) {
 }
 session_write_close();
 $limiteSemSinal = limite_sinal_clp_segundos();
-$snapshot = (new ServicoMonitoramento(obter_conexao_banco()))->obterInstantaneo(
-    (int) $usuario["company_id"],
-    (int) $periodDays,
-    $limiteSemSinal,
-    limite_sinal_camera_segundos(),
-);
+$service = new ServicoMonitoramento(obter_conexao_banco());
+$companyId = (int) $usuario["company_id"];
+$periodDays = (int) $periodDays;
+$cameraSignalLimit = limite_sinal_camera_segundos();
+
+$view = (string) ($_GET["view"] ?? "");
+$snapshot = match ($view) {
+    "alertas" => $service->obterResumoAlertas($companyId, $periodDays, $limiteSemSinal, $cameraSignalLimit),
+    "resumo" => $service->obterResumoFinal($companyId, $periodDays),
+    default => $service->obterInstantaneo($companyId, $periodDays, $limiteSemSinal, $cameraSignalLimit),
+};
 responder_json(["data" => $snapshot]);

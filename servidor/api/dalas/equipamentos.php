@@ -4,22 +4,22 @@ declare(strict_types=1);
 require_once __DIR__ . "/../../configuracao/bootstrap.php";
 require_once __DIR__ . "/../../src/Aplicacao/InicializadorAcoesDala.php";
 require_once __DIR__ . "/../../src/Aplicacao/ProvisionadorDispositivosLocais.php";
+require_once __DIR__ . "/../../src/Aplicacao/ValidadorCodigoDala.php";
 
 use App\Aplicacao\InicializadorAcoesDala;
 use App\Aplicacao\ProvisionadorDispositivosLocais;
+use App\Aplicacao\ValidadorCodigoDala;
 
 $user = require_session_user();
 if ($user["company_id"] === null) {
     json_response(["error" => "Usuário sem empresa vinculada."], 403);
 }
+if ($_SERVER["REQUEST_METHOD"] === "GET") {
+    session_write_close();
+}
 $pdo = db();
 $canManage = $user["role"] === "ADMIN_EMPRESA";
 $canDelete = $user["role"] === "ADMIN_EMPRESA";
-
-// Identificador no padrão da referência: letras minúsculas, números e underscores (máx. 30).
-$validIdentifier = static function (string $code): bool {
-    return (bool) preg_match('/^[a-z0-9_]{1,30}$/', $code);
-};
 
 // Verificação de conectividade TCP. Na instalação local, o destino vem sempre
 // do IP/nome e porta da Dala cadastrada. Isso não confirma o protocolo Modbus.
@@ -165,9 +165,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     json_response(pagina_lista_por_id($query->fetchAll(PDO::FETCH_ASSOC), $pagination["limit"]));
 }
 
-$validatePayload = static function (array $payload) use (
-    $validIdentifier,
-): array {
+$validatePayload = static function (array $payload): array {
     $code = trim((string) ($payload["equipment_code"] ?? ""));
     $name = trim((string) ($payload["name"] ?? ""));
     $ip = trim((string) ($payload["plc_ip"] ?? ""));
@@ -180,11 +178,11 @@ $validatePayload = static function (array $payload) use (
     $protocol = strtoupper(
         trim((string) ($payload["plc_protocol"] ?? "MODBUS_TCP")),
     );
-    if (!$validIdentifier($code)) {
+    if (!ValidadorCodigoDala::ehValido($code)) {
         json_response(
             [
                 "error" =>
-                    "Identificador inválido: use letras minúsculas, números e underscores (máx. 30 caracteres).",
+                    "Identificador inválido: use letras, números, hífen ou underscore (máx. 30 caracteres).",
             ],
             422,
         );

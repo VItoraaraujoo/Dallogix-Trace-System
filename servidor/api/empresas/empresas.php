@@ -237,11 +237,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
             ],
             201,
         );
-    } catch (Throwable $exception) {
+    } catch (PDOException $exception) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
         }
-        responder_json(["error" => "Não foi possível criar a empresa."], 409);
+        if ((int) ($exception->errorInfo[1] ?? 0) === 1062) {
+            responder_json(["error" => "Já existe uma empresa com este nome."], 409);
+        }
+        throw $exception;
     } catch (Throwable $exception) {
         if ($pdo->inTransaction()) {
             $pdo->rollBack();
@@ -474,7 +477,11 @@ if ($_SERVER["REQUEST_METHOD"] === "DELETE") {
             } catch (Throwable $exception) {
                 try {
                     $pdo->exec("SET FOREIGN_KEY_CHECKS = 1");
-                } catch (Throwable $ignored) {
+                } catch (Throwable $restoreException) {
+                    error_log(
+                        "Falha ao restaurar FOREIGN_KEY_CHECKS após erro ao excluir a empresa {$id}: "
+                        . $restoreException->getMessage(),
+                    );
                 }
                 if ($pdo->inTransaction()) {
                     $pdo->rollBack();
@@ -525,6 +532,7 @@ if ($_SERVER["REQUEST_METHOD"] !== "GET") {
     json_response(["error" => "Método não permitido."], 405);
 }
 
+session_write_close();
 $isAdminDallogix = $usuarioAtor["role"] === "ADMIN_DALLOGIX";
 $rawCompanyId = trim((string) ($_GET["company_id"] ?? ""));
 if ($rawCompanyId !== "" && filter_var($rawCompanyId, FILTER_VALIDATE_INT) === false) {
@@ -546,16 +554,14 @@ if (!$isAdminDallogix) {
 }
 
 $pdo = db();
-$industrialInstallationsTableAvailable = (bool) $pdo->query(
-    "SELECT 1 FROM information_schema.tables
-     WHERE table_schema = DATABASE() AND table_name = 'instalacoes_industriais'
-     LIMIT 1",
-)->fetchColumn();
-$legacyIndustrialPcTableAvailable = (bool) $pdo->query(
-    "SELECT 1 FROM information_schema.tables
-     WHERE table_schema = DATABASE() AND table_name = 'status_pc_industrial'
-     LIMIT 1",
-)->fetchColumn();
+$availableStatusTables = $pdo->query(
+    "SELECT table_name FROM information_schema.tables
+     WHERE table_schema = DATABASE()
+       AND table_name IN ('instalacoes_industriais', 'status_pc_industrial')",
+)->fetchAll(PDO::FETCH_COLUMN);
+$availableStatusTables = array_fill_keys($availableStatusTables, true);
+$industrialInstallationsTableAvailable = isset($availableStatusTables["instalacoes_industriais"]);
+$legacyIndustrialPcTableAvailable = isset($availableStatusTables["status_pc_industrial"]);
 $pcSignalLimitSeconds = max(5, min(300, (int) (getenv("HEALTH_DEVICE_STALE_SECONDS") ?: 30)));
 $industrialPcStatusSelect = $industrialInstallationsTableAvailable
     ? "(SELECT CASE

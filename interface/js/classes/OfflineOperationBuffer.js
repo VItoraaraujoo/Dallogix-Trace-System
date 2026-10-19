@@ -1,5 +1,16 @@
 import { agora } from "../funcoes/relogio.js?v=202609170015";
 import { ClienteApi } from "../api/ClienteApi.js?v=202610140003";
+import { logFrontend } from "../utilitarios/LogFrontend.js?v=202610060007";
+
+export const MAX_OFFLINE_OPERATIONS_PER_OWNER = 20;
+
+class OfflineQueueLimitError extends Error {
+  constructor() {
+    super(`A fila offline atingiu ${MAX_OFFLINE_OPERATIONS_PER_OWNER} operações. Aguarde o envio das pendências antes de tentar novamente.`);
+    this.name = "OfflineQueueLimitError";
+    this.code = "OFFLINE_QUEUE_LIMIT";
+  }
+}
 
 export function secureRandomId() {
   const webCrypto = globalThis.crypto;
@@ -17,10 +28,11 @@ export function secureRandomId() {
  * utilizável em navegadores privados que bloqueiam armazenamento persistente.
  */
 export class OfflineOperationBuffer {
-  constructor() {
+  constructor({ logger = logFrontend } = {}) {
     this.databaseName = "trace-offline-operations";
     this.storeName = "operations";
     this.lockStoreName = "locks";
+    this.ownerIndexName = "by_owner";
     this.memory = [];
     this.flushing = false;
     this.owner = null;
@@ -31,6 +43,32 @@ export class OfflineOperationBuffer {
     this.databasePromise = null;
     this.leaseMs = 60000;
     this.api = new ClienteApi({ timeoutMs: 15000, retry: 1 });
+    this.logger = logger && typeof logger.aviso === "function" ? logger : logFrontend;
+    this.volatilityWarningReported = false;
+  }
+
+  reportarFalha(contexto, error, { armazenamento = "IndexedDB", fallback = "manter-operacao" } = {}) {
+    this.logger.aviso(`fila-offline.${contexto}`, error, {
+      armazenamento,
+      fallback,
+    });
+  }
+
+  reportarArmazenamentoVolatil() {
+    if (this.volatilityWarningReported) return;
+    this.volatilityWarningReported = true;
+    this.reportarFalha(
+      "armazenamento-volatil",
+      new Error("IndexedDB indisponível; operações offline valem apenas nesta sessão."),
+      { armazenamento: "memoria", fallback: "perda-ao-fechar-a-aba" },
+    );
+  }
+
+  exigirEspacoNaMemoria() {
+    const quantidade = this.memory.filter((item) => item.owner === this.owner).length;
+    if (quantidade >= MAX_OFFLINE_OPERATIONS_PER_OWNER) {
+      throw new OfflineQueueLimitError();
+    }
   }
 
   setOwner(user) {
@@ -48,11 +86,15 @@ export class OfflineOperationBuffer {
     if (!this.supported()) return Promise.resolve(null);
     if (this.databasePromise) return this.databasePromise;
     this.databasePromise = new Promise((resolve, reject) => {
-      const request = indexedDB.open(this.databaseName, 2);
+      const request = indexedDB.open(this.databaseName, 3);
       request.onupgradeneeded = () => {
         const database = request.result;
-        if (!database.objectStoreNames.contains(this.storeName)) {
-          database.createObjectStore(this.storeName, { keyPath: "id", autoIncrement: true });
+        const operations = database.objectStoreNames.contains(this.storeName)
+          ? request.transaction.objectStore(this.storeName)
+          : database.createObjectStore(this.storeName, { keyPath: "id", autoIncrement: true });
+        if (!operations.indexNames.contains(this.ownerIndexName)) {
+          // O índice evita carregar registros de outras contas só para filtrá-los depois.
+          operations.createIndex(this.ownerIndexName, "owner", { unique: false });
         }
         if (!database.objectStoreNames.contains(this.lockStoreName)) {
           database.createObjectStore(this.lockStoreName, { keyPath: "owner" });
@@ -89,17 +131,49 @@ export class OfflineOperationBuffer {
     try {
       const database = await this.open();
       if (!database) {
+        this.exigirEspacoNaMemoria();
+        this.reportarArmazenamentoVolatil();
         record.id = secureRandomId();
         this.memory.push(record);
         return record.id;
       }
       return await new Promise((resolve, reject) => {
         const transaction = database.transaction(this.storeName, "readwrite");
-        const request = transaction.objectStore(this.storeName).add(record);
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = () => reject(request.error || new Error("Não foi possível guardar a operação."));
+        const store = transaction.objectStore(this.storeName);
+        // A contagem e a inserção compartilham a transação para que abas
+        // concorrentes não ultrapassem o limite do armazenamento local.
+        const request = store.indexNames.contains(this.ownerIndexName)
+          ? store.index(this.ownerIndexName).count(this.owner)
+          : store.getAll();
+        let id;
+        let limiteAtingido = false;
+        request.onsuccess = () => {
+          const quantidade = Array.isArray(request.result)
+            ? request.result.filter((item) => item.owner === this.owner).length
+            : Number(request.result) || 0;
+          const quantidadeTotal = quantidade + this.memory.filter((item) => item.owner === this.owner).length;
+          if (quantidadeTotal >= MAX_OFFLINE_OPERATIONS_PER_OWNER) {
+            limiteAtingido = true;
+            transaction.abort();
+            return;
+          }
+          const addRequest = store.add(record);
+          addRequest.onsuccess = () => { id = addRequest.result; };
+          addRequest.onerror = () => reject(addRequest.error || new Error("Não foi possível guardar a operação."));
+        };
+        request.onerror = () => reject(request.error || new Error("Não foi possível verificar o espaço da fila offline."));
+        transaction.oncomplete = () => resolve(id);
+        transaction.onerror = () => reject(limiteAtingido
+          ? new OfflineQueueLimitError()
+          : transaction.error || new Error("A transação da fila offline falhou."));
+        transaction.onabort = () => reject(limiteAtingido
+          ? new OfflineQueueLimitError()
+          : transaction.error || new Error("A transação da fila offline foi cancelada."));
       });
-    } catch (_) {
+    } catch (error) {
+      if (error?.code === "OFFLINE_QUEUE_LIMIT") throw error;
+      this.reportarFalha("gravar", error);
+      this.exigirEspacoNaMemoria();
       record.id = secureRandomId();
       this.memory.push(record);
       return record.id;
@@ -114,14 +188,18 @@ export class OfflineOperationBuffer {
       const database = await this.open();
       if (!database) return ownedMemory;
       return await new Promise((resolve, reject) => {
-        const request = database.transaction(this.storeName, "readonly").objectStore(this.storeName).getAll();
+        const store = database.transaction(this.storeName, "readonly").objectStore(this.storeName);
+        const request = store.indexNames.contains(this.ownerIndexName)
+          ? store.index(this.ownerIndexName).getAll(this.owner)
+          : store.getAll();
         request.onsuccess = () => resolve([
           ...ownedMemory,
           ...(request.result || []).filter((item) => item.owner === this.owner),
         ]);
         request.onerror = () => reject(request.error || new Error("Não foi possível ler a fila."));
       });
-    } catch (_) {
+    } catch (error) {
+      this.reportarFalha("ler", error);
       return ownedMemory;
     }
   }
@@ -147,8 +225,8 @@ export class OfflineOperationBuffer {
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error || new Error("Não foi possível atualizar a operação."));
       });
-    } catch (_) {
-      /* a operação permanece na fila com o estado anterior */
+    } catch (error) {
+      this.reportarFalha("atualizar", error);
     }
   }
 
@@ -158,7 +236,8 @@ export class OfflineOperationBuffer {
     if (!this.instanceId) {
       try {
         this.instanceId = secureRandomId();
-      } catch (_) {
+      } catch (error) {
+        this.reportarFalha("identificador", error, { armazenamento: "WebCrypto", fallback: "bloquear-envio" });
         return false;
       }
     }
@@ -181,7 +260,8 @@ export class OfflineOperationBuffer {
         };
         request.onerror = () => reject(request.error || new Error("Não foi possível reservar a fila offline."));
       });
-    } catch (_) {
+    } catch (error) {
+      this.reportarFalha("reservar", error);
       return false;
     }
   }
@@ -205,7 +285,8 @@ export class OfflineOperationBuffer {
         };
         request.onerror = () => reject(request.error || new Error("Não foi possível renovar a fila offline."));
       });
-    } catch (_) {
+    } catch (error) {
+      this.reportarFalha("renovar-reserva", error);
       return false;
     }
   }
@@ -225,34 +306,42 @@ export class OfflineOperationBuffer {
         transaction.oncomplete = () => resolve();
         transaction.onerror = () => reject(transaction.error || new Error("Não foi possível liberar a fila offline."));
       });
-    } catch (_) {
-      /* a expiração da lease libera a fila automaticamente */
+    } catch (error) {
+      this.reportarFalha("liberar-reserva", error);
     }
   }
 
   async remove(id) {
-    this.memory = this.memory.filter((item) => item.id !== id);
-    if (!this.supported()) return;
+    if (!this.supported()) {
+      this.memory = this.memory.filter((item) => item.id !== id);
+      return;
+    }
     try {
       const database = await this.open();
-      if (!database) return;
+      if (!database) throw new Error("IndexedDB indisponível para remover a operação.");
       await new Promise((resolve, reject) => {
-        const request = database.transaction(this.storeName, "readwrite").objectStore(this.storeName).delete(id);
-        request.onsuccess = () => resolve();
+        const transaction = database.transaction(this.storeName, "readwrite");
+        const request = transaction.objectStore(this.storeName).delete(id);
         request.onerror = () => reject(request.error || new Error("Não foi possível remover a operação."));
+        transaction.oncomplete = () => resolve();
+        transaction.onerror = () => reject(transaction.error || new Error("A transação de remoção da fila offline falhou."));
+        transaction.onabort = () => reject(transaction.error || new Error("A transação de remoção da fila offline foi cancelada."));
       });
-    } catch (_) {
-      /* a operação permanece no armazenamento para a próxima tentativa */
+      this.memory = this.memory.filter((item) => item.id !== id);
+    } catch (error) {
+      this.reportarFalha("remover", error);
     }
   }
 
   async flush(currentHeaders = {}) {
     if (this.flushing || typeof fetch !== "function") return { sent: 0, pending: (await this.all()).length };
-    if (!(await this.acquireLease())) return { sent: 0, pending: (await this.all()).length };
     this.flushing = true;
     let sent = 0;
-    const owner = this.owner;
+    let leaseAcquired = false;
     try {
+      leaseAcquired = await this.acquireLease();
+      if (!leaseAcquired) return { sent: 0, pending: (await this.all()).length };
+      const owner = this.owner;
       for (const operation of await this.all()) {
         if (!owner || this.owner !== owner) break;
         if (!(await this.renewLease())) break;
@@ -281,13 +370,14 @@ export class OfflineOperationBuffer {
           } else {
             break;
           }
-        } catch (_) {
+        } catch (error) {
+          this.logger.aviso("fila-offline.envio", error, { acao: "tentar-novamente" });
           break;
         }
       }
     } finally {
+      if (leaseAcquired) await this.releaseLease();
       this.flushing = false;
-      await this.releaseLease();
     }
     return { sent, pending: (await this.all()).length };
   }

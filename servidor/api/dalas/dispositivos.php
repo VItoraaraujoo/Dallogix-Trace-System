@@ -8,6 +8,7 @@ if ($user["company_id"] === null) {
     json_response(["error" => "Usuário sem empresa vinculada."], 403);
 }
 exigir_metodo_http(["GET"]);
+session_write_close();
 $pdo = db();
 
 if ($_SERVER["REQUEST_METHOD"] === "GET") {

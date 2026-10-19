@@ -2,6 +2,13 @@
 declare(strict_types=1);
 
 require_once __DIR__ . "/../../configuracao/bootstrap.php";
+require_once __DIR__ . "/../../src/Aplicacao/AgrupadorItensImportacaoRomaneio.php";
+require_once __DIR__ . "/../../src/Persistencia/RepositorioItensRomaneio.php";
+require_once __DIR__ . "/../../src/Persistencia/RepositorioProdutosRomaneio.php";
+
+use App\Aplicacao\AgrupadorItensImportacaoRomaneio;
+use App\Persistencia\RepositorioItensRomaneio;
+use App\Persistencia\RepositorioProdutosRomaneio;
 
 final class ExcecaoValidacaoImportacaoCsv extends RuntimeException
 {
@@ -88,9 +95,15 @@ $pdo = db();
 $created = 0;
 $romaneioIds = [];
 $truckIds = [];
-$itemIds = [];
+$itemRows = [];
+$productCodes = array_map(
+    static fn (array $row): string => trim((string) ($row[$index["produto"]] ?? "")),
+    array_slice($rows, 1),
+);
 try {
     $pdo->beginTransaction();
+    $productsByCode = (new RepositorioProdutosRomaneio($pdo))
+        ->buscarAtivosPorCodigos($companyId, $productCodes);
     foreach (array_slice($rows, 1) as $line => $row) {
         $lineNumber = $line + 2;
         $number = trim((string) ($row[$index["romaneio"]] ?? ""));
@@ -141,14 +154,7 @@ try {
             );
         }
 
-        $productStatement = $pdo->prepare(
-            "SELECT id FROM produtos WHERE company_id = :company_id AND code = :code AND active = 1 LIMIT 1",
-        );
-        $productStatement->execute([
-            "company_id" => $user["company_id"],
-            "code" => $productCode,
-        ]);
-        $product = $productStatement->fetch();
+        $product = $productsByCode[mb_strtolower($productCode, "UTF-8")] ?? null;
         if (!$product) {
             throw new ExcecaoValidacaoImportacaoCsv(
                 "Produto {$productCode} não encontrado na linha {$lineNumber}.",
@@ -180,27 +186,17 @@ try {
             ]);
             $truckIds[$truckKey] = (int) $pdo->lastInsertId();
         }
-        $itemKey =
-            $romaneioId . "|" . $truckIds[$truckKey] . "|" . $product["id"];
-        if (isset($itemIds[$itemKey])) {
-            $pdo->prepare(
-                "UPDATE romaneio_itens SET planned_quantity = planned_quantity + :quantity WHERE id = :id",
-            )->execute(["quantity" => $quantity, "id" => $itemIds[$itemKey]]);
-        } else {
-            $itemStatement = $pdo->prepare(
-                "INSERT INTO romaneio_itens (company_id, romaneio_id, product_id, truck_id, planned_quantity) VALUES (:company_id, :romaneio_id, :product_id, :truck_id, :quantity)",
-            );
-            $itemStatement->execute([
-                "company_id" => $companyId,
-                "romaneio_id" => $romaneioId,
-                "product_id" => $product["id"],
-                "truck_id" => $truckIds[$truckKey],
-                "quantity" => $quantity,
-            ]);
-            $itemIds[$itemKey] = (int) $pdo->lastInsertId();
-        }
+        $truckId = $truckIds[$truckKey];
+        $itemRows[] = [
+            "romaneio_id" => $romaneioId,
+            "product_id" => (int) $product["id"],
+            "truck_id" => $truckId,
+            "quantity" => (int) $quantity,
+        ];
         $created++;
     }
+    $itemTotals = (new AgrupadorItensImportacaoRomaneio())->agrupar($itemRows);
+    (new RepositorioItensRomaneio($pdo))->inserirLinhas($companyId, $itemTotals);
     foreach ($romaneioIds as $number => $romaneioId) {
         record_operational_event(
             $pdo,
@@ -218,7 +214,7 @@ try {
             "data" => [
                 "romaneios" => count($romaneioIds),
                 "linhas" => $created,
-                "items" => count($itemIds),
+                "items" => count($itemTotals),
             ],
         ],
         201,

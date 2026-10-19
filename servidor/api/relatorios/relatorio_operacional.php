@@ -51,6 +51,7 @@ if ($status !== "") {
     $params["status"] = $status;
 }
 
+session_write_close();
 $pdo = db();
 $statement = $pdo->prepare(
     "WITH quantidades_planejadas AS (

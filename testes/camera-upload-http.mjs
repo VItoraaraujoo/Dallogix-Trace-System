@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
-import { mkdtemp, readdir, rm } from "node:fs/promises";
+import { mkdtemp, readFile, readdir, rm } from "node:fs/promises";
 import net from "node:net";
 import os from "node:os";
 import path from "node:path";
@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { test } from "node:test";
 
 const root = fileURLToPath(new URL("..", import.meta.url));
-const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/NssAAAAASUVORK5CYII=", "base64");
+const jpeg = Buffer.from("/9j/4AAQSkZJRgABAQEAYABgAAD//gA7Q1JFQVRPUjogZ2QtanBlZyB2MS4wICh1c2luZyBJSkcgSlBFRyB2ODApLCBxdWFsaXR5ID0gODUK/9sAQwAFAwQEBAMFBAQEBQUFBgcMCAcHBwcPCwsJDBEPEhIRDxERExYcFxMUGhURERghGBodHR8fHxMXIiQiHiQcHh8e/9sAQwEFBQUHBgcOCAgOHhQRFB4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4e/8AAEQgAAgACAwEiAAIRAQMRAf/EAB8AAAEFAQEBAQEBAAAAAAAAAAABAgMEBQYHCAkKC//EALUQAAIBAwMCBAMFBQQEAAABfQECAwAEEQUSITFBBhNRYQcicRQygZGhCCNCscEVUtHwJDNicoIJChYXGBkaJSYnKCkqNDU2Nzg5OkNERUZHSElKU1RVVldYWVpjZGVmZ2hpanN0dXZ3eHl6g4SFhoeIiYqSk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/EAB8BAAMBAQEBAQEBAQEAAAAAAAABAgMEBQYHCAkKC//EALURAAIBAgQEAwQHBQQEAAECdwABAgMRBAUhMQYSQVEHYXETIjKBCBRCkaGxwQkjM1LwFWJy0QoWJDThJfEXGBkaJSYnKCkqKSo1Njc4OTpDREVGR0hJSlNUVVZXWFlaY2RlZmdoaWpzdHV2d3h5eoKDhIWGh4iJipKTk5SVlpeYmZqio6Slpqeoqaqys7S1tre4ubrCw8TFxsfIycrS09TV1tfY2drh4uPk5ebn6Onq8fLz9PX29/j5+v/aAAwDAQACEQMRAD8A8nooor6o+cP/2Q==", "base64");
 
 async function freePort() {
   const server = net.createServer();
@@ -18,7 +18,7 @@ async function freePort() {
   return port;
 }
 
-test("upload de câmera exige token, reserva e imagem real; retry não duplica", async () => {
+test("upload JPEG da câmera exige token e reserva; retry preserva um único PDF", async () => {
   const storage = await mkdtemp(path.join(os.tmpdir(), "trace-camera-http-"));
   const port = await freePort();
   const server = spawn("php", ["-S", `127.0.0.1:${port}`, "testes/isolado/camera-upload-router.php"], {
@@ -29,10 +29,10 @@ test("upload de câmera exige token, reserva e imagem real; retry não duplica",
   let stderr = "";
   server.stderr.on("data", (chunk) => { stderr += chunk.toString(); });
   const url = `http://127.0.0.1:${port}/api/camera_upload.php`;
-  async function upload(requestId, bytes = png, token = "test-camera-token") {
+  async function upload(requestId, bytes = jpeg, token = "test-camera-token") {
     const form = new FormData();
     form.append("request_id", String(requestId));
-    form.append("file", new Blob([bytes], { type: "image/png" }), "capture.png");
+    form.append("file", new Blob([bytes], { type: "image/jpeg" }), "capture.jpg");
     const response = await fetch(url, { method: "POST", headers: { "X-Device-Token": token }, body: form });
     return { status: response.status, body: await response.json() };
   }
@@ -51,7 +51,7 @@ test("upload de câmera exige token, reserva e imagem real; retry não duplica",
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
     assert.equal(ready, true, stderr);
-    assert.equal((await upload(42, png, "wrong-token")).status, 401);
+    assert.equal((await upload(42, jpeg, "wrong-token")).status, 401);
     assert.equal((await upload(43)).status, 404);
     assert.equal((await upload(42, Buffer.from("not an image"))).status, 422);
     const expectedPathPattern = /^company_1\/equipment_7\/capture-42-[a-f0-9]{64}\.pdf$/;
@@ -66,8 +66,12 @@ test("upload de câmera exige token, reserva e imagem real; retry não duplica",
     const completed = await complete(first.body.data.evidence_pdf_path);
     assert.equal(completed.status, 200, JSON.stringify(completed.body));
     assert.equal(completed.body.data.status, "CAPTURADA");
-    const files = await readdir(path.join(storage, "company_1", "equipment_7"));
+    const evidenceDirectory = path.join(storage, "company_1", "equipment_7");
+    const files = await readdir(evidenceDirectory);
     assert.deepEqual(files, [path.basename(first.body.data.evidence_pdf_path)]);
+    const pdf = await readFile(path.join(evidenceDirectory, files[0]));
+    assert.equal(pdf.subarray(0, 8).toString(), "%PDF-1.4");
+    assert.equal(pdf.includes(jpeg), true, "o PDF deve preservar os bytes JPEG originais");
   } finally {
     server.kill("SIGTERM");
     await new Promise((resolve) => server.once("exit", resolve));

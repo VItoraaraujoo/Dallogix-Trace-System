@@ -4,7 +4,7 @@ USER root
 RUN apk add --no-cache ffmpeg
 
 WORKDIR /opt/trace-camera-worker
-COPY --chown=1000:1000 camera-worker.mjs ./camera-worker.mjs
+COPY --chown=1000:1000 camera-worker.mjs config.mjs ffmpeg-arguments.mjs jpeg-frame-collector.mjs ./
 USER 1000:1000
 
 ENV NODE_ENV=production

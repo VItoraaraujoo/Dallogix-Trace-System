@@ -6,8 +6,8 @@ function textoObrigatorio(valor, rotulo) {
 export function validarIdentificadorDala(valor) {
   const identificador = String(valor ?? "").trim();
   if (!identificador) return "O identificador da Dala é obrigatório.";
-  if (!/^[a-z0-9_]{1,30}$/.test(identificador)) {
-    return "O identificador deve usar apenas letras minúsculas, números e underscore (até 30 caracteres).";
+  if (!/^[A-Za-z0-9_-]{1,30}$/.test(identificador)) {
+    return "O identificador deve usar letras, números, hífen ou underscore (até 30 caracteres).";
   }
   return "";
 }
