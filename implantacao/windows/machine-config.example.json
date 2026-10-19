@@ -7,6 +7,7 @@
   "central_api_url": "https://api.seudominio.com.br",
   "device_token": "PREENCHER_FORA_DO_REPOSITORIO",
   "heartbeat_seconds": 15,
+  "scanner_usb_pattern": "",
   "operation_mode": "SIMULATED",
   "physical_clp_enabled": false,
   "io_map_status": "APPROVED",

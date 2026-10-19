@@ -1,4 +1,4 @@
-import { apresentacaoConectividadePc, apresentacaoStatusDispositivo, renderStatusDalaBinario, resumoStatusDispositivos } from "../../telas/configuracoes/configuracoes.js?v=202610190007";
+import { apresentacaoConectividadePc, apresentacaoStatusDispositivo, renderStatusDalaBinario, resumoStatusDispositivos } from "../../telas/configuracoes/configuracoes.js?v=202610190062";
 import { focusOperationScanner, operationStructureSignature, renderDalaStatuses } from "./operacao.js?v=202610190001";
 import { numero, relativo, dataHora } from "../funcoes/formato.js?v=202609201000";
 import { el } from "../funcoes/html.js";

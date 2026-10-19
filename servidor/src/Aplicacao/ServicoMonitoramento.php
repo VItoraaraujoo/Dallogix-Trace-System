@@ -16,6 +16,7 @@ final class ServicoMonitoramento
     private const MAXIMO_PERIODO_DIAS = 3650;
     private const MAXIMO_SINAL_CLP_SEGUNDOS = 60;
     private const MAXIMO_SINAL_CAMERA_SEGUNDOS = 300;
+    private const MAXIMO_SINAL_SCANNER_SEGUNDOS = 300;
 
     private readonly RepositorioMonitoramento $repositorio;
 
@@ -29,20 +30,35 @@ final class ServicoMonitoramento
         int $companyId,
         int $clpSignalLimit = 3,
         int $cameraSignalLimit = 15,
+        int $scannerSignalLimit = 90,
     ): array {
         $clpSignalLimit = self::limitarValorPositivo($clpSignalLimit, self::MAXIMO_SINAL_CLP_SEGUNDOS);
         $cameraSignalLimit = self::limitarValorPositivo($cameraSignalLimit, self::MAXIMO_SINAL_CAMERA_SEGUNDOS);
+        $scannerSignalLimit = self::limitarValorPositivo($scannerSignalLimit, self::MAXIMO_SINAL_SCANNER_SEGUNDOS);
         $devices = $this->repositorio->listarStatusDispositivos($companyId);
         foreach ($devices as &$device) {
-            $limit = $device["device_type"] === "CAMERA" ? $cameraSignalLimit : $clpSignalLimit;
+            $deviceType = (string) $device["device_type"];
+            $limit = match ($deviceType) {
+                "CAMERA" => $cameraSignalLimit,
+                "SCANNER" => $scannerSignalLimit,
+                default => $clpSignalLimit,
+            };
             $ageMicros = $device["micros_sem_sinal"];
             $reportedStatus = (string) $device["status"];
-            $device["status"] = $reportedStatus === "ERRO"
-                ? "ERRO"
-                : ($reportedStatus === "ONLINE" && $ageMicros !== null
-                    && (int) $ageMicros <= $limit * 1_000_000
+            $isFresh = $ageMicros !== null && (int) $ageMicros <= $limit * 1_000_000;
+            if ($deviceType === "SCANNER" && !$isFresh) {
+                // Um heartbeat vencido indica que não há dado recente do agente,
+                // não que o scanner foi fisicamente desconectado.
+                $device["status"] = "DESCONHECIDO";
+            } elseif ($reportedStatus === "ERRO") {
+                $device["status"] = "ERRO";
+            } elseif ($reportedStatus === "DESCONHECIDO") {
+                $device["status"] = "DESCONHECIDO";
+            } else {
+                $device["status"] = $reportedStatus === "ONLINE" && $isFresh
                     ? "ONLINE"
-                    : "OFFLINE");
+                    : "OFFLINE";
+            }
             unset($device["micros_sem_sinal"]);
         }
         unset($device);

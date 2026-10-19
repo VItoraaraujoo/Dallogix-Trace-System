@@ -66,15 +66,23 @@ test("status têm apresentação clara para online, offline, erro e ausência de
   assert.equal(apresentacaoStatusDispositivo("OFFLINE").label, "OFF");
   assert.equal(apresentacaoStatusDispositivo("ERRO").tone, "error");
   assert.equal(apresentacaoStatusDispositivo("DESCONHECIDO").tone, "unknown");
-  assert.deepEqual(apresentacaoStatusDispositivo("NAO_REGISTRADO", "SENSOR"), {
-    monitored: false, online: false, tone: "unknown", label: "SEM STATUS", detail: "Integração automática pendente",
+  assert.deepEqual(apresentacaoStatusDispositivo("ONLINE", "SENSOR"), {
+    monitored: false,
+    online: false,
+    tone: "unknown",
+    label: "NÃO CONFIRMADO",
+    detail: "CLP comunicando; conexão física do sensor não confirmada.",
   });
+  assert.equal(apresentacaoStatusDispositivo("OFFLINE", "SENSOR").label, "SEM SINAL");
+  assert.equal(apresentacaoStatusDispositivo("ONLINE", "SCANNER").label, "CONECTADO");
+  assert.equal(apresentacaoStatusDispositivo("OFFLINE", "SCANNER").label, "DESCONECTADO");
+  assert.equal(apresentacaoStatusDispositivo("ERRO", "SCANNER").label, "ERRO");
   assert.deepEqual(apresentacaoStatusDispositivo("NAO_REGISTRADO", "SCANNER"), {
     monitored: false,
     online: false,
     tone: "unknown",
-    label: "AGUARDANDO",
-    detail: "Sem leitura; conexão USB não verificável.",
+    label: "NÃO VERIFICADO",
+    detail: "Detecção USB não configurada neste PC.",
   });
   assert.equal(apresentacaoStatusDispositivo("NAO_REGISTRADO", "CAMERA").label, "SEM SINAL");
 });
@@ -89,12 +97,12 @@ test("Configurações mostra cartões próprios e status vinculados à Dala", ()
     serverStatus: "ONLINE",
     userRole: "USUARIO",
   } });
-  assert.match(markup, /settings-device-status-card online/);
+  assert.match(markup, /settings-device-status-card unknown/);
   assert.match(markup, /data-device-status-card="SENSOR" data-live-status-equipment="4"/);
   assert.match(markup, /EST-04/);
-  assert.match(markup, /data-device-summary="online-count">2<\/strong>/);
+  assert.match(markup, /data-device-summary="online-count">1<\/strong>/);
   assert.match(markup, /data-device-summary="attention-count">2<\/strong><span data-device-summary="attention-label">sem sinal ou com falha/);
-  assert.match(markup, /data-device-summary="unmonitored-count">1<\/strong><span>sem status automático/);
+  assert.match(markup, /data-device-summary="unmonitored-count">2<\/strong><span>não confirmado/);
   assert.match(markup, /class="dala-status" data-equipment-id="4"><span class="settings-dala-status online"[^>]*>ON<\/span>/);
   assert.doesNotMatch(markup, /data-action="reload-monitoring"|data-action="reload-dalas"/);
   assert.match(markup, /Atualização automática enquanto esta tela estiver aberta/);
@@ -102,7 +110,7 @@ test("Configurações mostra cartões próprios e status vinculados à Dala", ()
   assert.doesNotMatch(markup, /Atualizado em|Atualizado \d/);
 });
 
-test("sensor e scanner sem produtor não entram na contagem online e explicam a falta de status", () => {
+test("sensor e scanner sem confirmação física não aparecem como conectados", () => {
   const markup = settings({ state: {
     configuration: { settings: {}, dalas: [] },
     deviceStatuses: [],
@@ -112,11 +120,12 @@ test("sensor e scanner sem produtor não entram na contagem online e explicam a 
     serverStatus: "DESCONHECIDO",
     userRole: "USUARIO",
   } });
-  assert.match(markup, /data-device-status-card="SENSOR"[\s\S]*?SEM STATUS[\s\S]*?Integração automática pendente/);
-  assert.match(markup, /data-device-status-card="SCANNER"[\s\S]*?AGUARDANDO[\s\S]*?Sem leitura; conexão USB não verificável\./);
+  assert.match(markup, /data-device-status-card="SENSOR"[\s\S]*?NÃO VALIDADO[\s\S]*?Conexão física do sensor não validada/);
+  assert.match(markup, /data-device-status-card="SCANNER"[\s\S]*?NÃO VERIFICADO[\s\S]*?Detecção USB não configurada neste PC/);
   assert.match(markup, /Elgin EL8600 · USB HID/);
-  assert.match(markup, /não detecta conexão em repouso/);
-  assert.match(markup, /data-device-summary="unmonitored-count">2<\/strong>/);
+  assert.match(markup, /Sensor: o CLP responde pelo sinal M2052/);
+  assert.match(markup, /detecção USB está configurada neste PC/);
+  assert.match(markup, /data-device-summary="unmonitored-count">2<\/strong><span>não confirmado/);
   assert.match(markup, /data-device-summary="online-count">0<\/strong>/);
   assert.match(markup, /data-device-status-card="CAMERA"[\s\S]*?SEM SINAL/);
   assert.match(markup, /Instalação atual/);

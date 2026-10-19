@@ -1,7 +1,7 @@
 import { button, esc } from "../../js/funcoes/html.js";
 
 const DEVICE_TYPES = [
-  ["SENSOR", "Sensor", "Detecção de sacos"],
+  ["SENSOR", "Sensor", "Sinal de passagem no CLP"],
   ["SCANNER", "Scanner", "Elgin EL8600 · USB HID"],
   ["CLP", "CLP", "Controle da esteira"],
   ["CAMERA", "Câmera", "Registro visual"],
@@ -11,23 +11,67 @@ const DEVICE_TYPES = [
 export function apresentacaoStatusDispositivo(value, type = "") {
   const normalized = String(value || "NAO_REGISTRADO").trim().toUpperCase();
   const deviceType = String(type).toUpperCase();
-  if (normalized === "NAO_REGISTRADO" && deviceType === "SCANNER") {
+  if (deviceType === "SENSOR") {
+    if (normalized === "ONLINE") {
+      return {
+        monitored: false,
+        online: false,
+        tone: "unknown",
+        label: "NÃO CONFIRMADO",
+        detail: "CLP comunicando; conexão física do sensor não confirmada.",
+      };
+    }
+    if (["OFFLINE", "ERRO"].includes(normalized)) {
+      return {
+        monitored: true,
+        online: false,
+        tone: "error",
+        label: "SEM SINAL",
+        detail: "CLP sem leitura de M2052; não confirma defeito no sensor.",
+      };
+    }
     return {
       monitored: false,
       online: false,
       tone: "unknown",
-      label: "AGUARDANDO",
-      detail: "Sem leitura; conexão USB não verificável.",
+      label: "NÃO VALIDADO",
+      detail: "Conexão física do sensor não validada.",
     };
   }
-  const unmonitored = normalized === "NAO_REGISTRADO" && deviceType === "SENSOR";
-  if (unmonitored) {
+  if (deviceType === "SCANNER") {
+    if (normalized === "ONLINE") {
+      return {
+        monitored: true,
+        online: true,
+        tone: "online",
+        label: "CONECTADO",
+        detail: "Elgin EL8600 detectado no USB.",
+      };
+    }
+    if (normalized === "OFFLINE") {
+      return {
+        monitored: true,
+        online: false,
+        tone: "offline",
+        label: "DESCONECTADO",
+        detail: "Elgin EL8600 não detectado no USB.",
+      };
+    }
+    if (normalized === "ERRO") {
+      return {
+        monitored: true,
+        online: false,
+        tone: "error",
+        label: "ERRO",
+        detail: "Falha na verificação USB do PC.",
+      };
+    }
     return {
       monitored: false,
       online: false,
       tone: "unknown",
-      label: "SEM STATUS",
-      detail: "Integração automática pendente",
+      label: "NÃO VERIFICADO",
+      detail: "Detecção USB não configurada neste PC.",
     };
   }
   const online = ["ONLINE", "LOCAL", "OK"].includes(normalized);
@@ -111,9 +155,9 @@ function deviceStatusPanel(store) {
   }).join("");
   return `<section class="panel settings-device-status-panel" aria-label="Status dos dispositivos">
     <div class="settings-device-status-heading"><div><span class="kicker">Status da máquina</span><h3>Dispositivos e serviços</h3><p>Atualização automática enquanto esta tela estiver aberta.</p></div></div>
-    <div class="settings-device-status-summary"><div><strong data-device-summary="online-count">${onlineCount}</strong><span>online</span></div><div><strong data-device-summary="attention-count">${attentionCount}</strong><span data-device-summary="attention-label">sem sinal ou com falha</span></div><div><strong data-device-summary="unmonitored-count">${unmonitoredCount}</strong><span>sem status automático</span></div></div>
+    <div class="settings-device-status-summary"><div><strong data-device-summary="online-count">${onlineCount}</strong><span>online</span></div><div><strong data-device-summary="attention-count">${attentionCount}</strong><span data-device-summary="attention-label">sem sinal ou com falha</span></div><div><strong data-device-summary="unmonitored-count">${unmonitoredCount}</strong><span>não confirmado</span></div></div>
     <div class="settings-device-status-grid">${cards}</div>
-    <p class="settings-device-status-note">O Elgin EL8600 funciona como teclado USB HID: o Trace só confirma atividade quando recebe uma leitura; não detecta conexão em repouso. O sensor de passagem continua sem validação nesta bancada. Esses estados não alteram os comandos da Dala.</p>
+    <p class="settings-device-status-note">Sensor: o CLP responde pelo sinal M2052, mas isso não confirma a conexão física. Scanner: conectado/desconectado só é exibido quando a detecção USB está configurada neste PC.</p>
   </section><br>`;
 }
 

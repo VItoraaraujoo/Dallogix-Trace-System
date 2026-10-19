@@ -65,6 +65,10 @@ O assistente de instalação não inventa resposta do CLP: `TRACE_LOCAL_SIMULATI
 
 O `TraceAgent` mantém a presença da máquina no servidor central por HTTPS/443, iniciado pelo PC industrial. O heartbeat não depende de conexões recebidas e não exige abertura de porta no roteador. Se a internet cair, o Agent registra a falha, enquanto o Trace continua operando localmente com o CLP e a fila de sincronização.
 
+Durante a instalação, o assistente lista os dispositivos USB HID e permite vincular o Elgin EL8600 pelo identificador USB. Só selecione um item se tiver confirmado que pertence ao leitor; sem seleção, o cartão do scanner permanece “Não verificado”. Com a identificação configurada, o agente informa ao Central quando o leitor está conectado ou desconectado e repete o sinal a cada 30 segundos. O status vencido volta a “Não verificado”, pois ausência de heartbeat não prova que o leitor foi removido.
+
+Em PCs já instalados, execute como administrador implantacao\windows\Configure-TraceScanner.ps1. Ele permite selecionar o leitor, cria uma cópia de segurança do config\machine.json e reinicia somente a tarefa do agente; não reinstala o Trace nem altera o banco de dados. Se não for possível identificar o EL8600 na lista, cancele e desconecte outros dispositivos USB HID para repetir a seleção com segurança.
+
 ## Atualizações remotas
 
 `TraceUpdater.ps1` valida manifesto, assinatura e SHA-256, bloqueia a troca durante carregamentos, encerra a interface WebView2 somente depois dessa verificação, para os escritores, faz backup, aplica migrations e só registra a versão depois de verificar PHP e MySQL. Ao concluir, agenda a reabertura da interface na sessão interativa; em falha, tenta restaurar arquivos e banco e registra a versão falha para evitar tentativas repetidas. A tarefa roda como `SYSTEM`; o log fica em `armazenamento\logs\update-stable.log`. O contrato completo está em [documentacao/operacao/atualizacoes-remotas.md](../../documentacao/operacao/atualizacoes-remotas.md).
