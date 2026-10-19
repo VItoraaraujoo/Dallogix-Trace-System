@@ -349,7 +349,7 @@ rollback() {
     echo "O backup do banco não passou na verificação durante o rollback." >&2
     return 1
   fi
-  if ! compose exec -T mysql sh -lc 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql -uroot "$MYSQL_DATABASE"' < "$db_backup"; then
+  if ! restore_database_from_verified_backup "$db_backup"; then
     echo "Não foi possível restaurar o banco da versão anterior." >&2
     return 1
   fi
@@ -366,6 +366,39 @@ rollback() {
     echo "Rollback concluído, mas o healthcheck da versão anterior também falhou." >&2
     return 1
   fi
+}
+
+restore_database_from_verified_backup() {
+  local backup_file="$1"
+  local drop_statements=""
+
+  if ! bash "$root_dir/scripts/verify_backup.sh" "$backup_file" >/dev/null; then
+    echo "O dump não passou na verificação antes de remover qualquer tabela." >&2
+    return 1
+  fi
+
+  drop_statements="$(compose exec -T mysql sh -lc \
+    'export MYSQL_PWD="$MYSQL_PASSWORD"; mysql --connect-timeout=5 --batch --skip-column-names -u"$MYSQL_USER" "$MYSQL_DATABASE" -e "$1"' \
+    trace-rollback "SELECT CONCAT('DROP TABLE IF EXISTS ', CHAR(96), REPLACE(table_name, CHAR(96), CONCAT(CHAR(96), CHAR(96))), CHAR(96), ';') FROM information_schema.tables WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'")" || {
+      echo "Não foi possível enumerar as tabelas antes de restaurar o dump." >&2
+      return 1
+    }
+
+  {
+    printf 'SET FOREIGN_KEY_CHECKS=0;\n'
+    if [[ -n "$drop_statements" ]]; then
+      printf '%s\n' "$drop_statements"
+    fi
+  } | compose exec -T mysql sh -lc \
+    'export MYSQL_PWD="$MYSQL_PASSWORD"; mysql --connect-timeout=5 -u"$MYSQL_USER" "$MYSQL_DATABASE"' || {
+      echo "Não foi possível limpar o schema parcial antes do rollback." >&2
+      return 1
+    }
+
+  if ! compose exec -T mysql sh -lc 'MYSQL_PWD="$MYSQL_ROOT_PASSWORD" mysql --connect-timeout=5 -uroot "$MYSQL_DATABASE"' < "$backup_file"; then
+    return 1
+  fi
+  return 0
 }
 
 if ! compose stop >/dev/null; then

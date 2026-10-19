@@ -93,6 +93,12 @@ def main():
         (ROOT / 'nginx/https.conf.example').read_text().replace('__APP_URL__', f'https://localhost:{HTTPS_PORT}')
     )
     run(COMPOSE + ['up', '-d', '--build', '--wait', 'mysql', 'php'])
+    binlog_settings = sql('SELECT @@GLOBAL.log_bin, @@GLOBAL.log_bin_trust_function_creators')
+    if binlog_settings != '1\t0':
+        raise SystemExit(
+            'O MySQL de homologação precisa reproduzir o binary log de produção '
+            'com log_bin_trust_function_creators desativado.'
+        )
     sql('CREATE TABLE IF NOT EXISTS trace_deployment_migrations (name VARCHAR(190) PRIMARY KEY);')
     applied = set(sql('SELECT name FROM trace_deployment_migrations').splitlines())
     for migration in sorted((ROOT / 'banco-de-dados/migrations').glob('*.sql')):

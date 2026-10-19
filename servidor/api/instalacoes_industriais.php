@@ -428,6 +428,16 @@ if ($action === "delete_archived") {
                 "name" => (string) $row["name"],
             ],
         );
+        $clearRomaneioAssignments = $pdo->prepare(
+            "UPDATE romaneios
+             SET assigned_installation_id = NULL, assigned_installation_company_id = NULL
+             WHERE assigned_installation_id = :installation_id
+               AND assigned_installation_company_id = :company_id"
+        );
+        $clearRomaneioAssignments->execute([
+            "installation_id" => $installationId,
+            "company_id" => (int) $row["company_id"],
+        ]);
         $delete = $pdo->prepare(
             "DELETE FROM instalacoes_industriais
              WHERE id = :id AND company_id = :company_id AND archived_at IS NOT NULL"

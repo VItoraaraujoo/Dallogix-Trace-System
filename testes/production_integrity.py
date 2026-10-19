@@ -46,8 +46,8 @@ try:
         f"UPDATE romaneios SET assigned_installation_id = 999999999 "
         f"WHERE id = {romaneio_id}"
     )
-    if invalid_pair.returncode == 0 or "deve informar o PC e a empresa juntos" not in invalid_pair.stderr:
-        raise RuntimeError("O banco não recusou a atribuição incompleta do PC industrial.")
+    if invalid_pair.returncode == 0 or "chk_romaneio_assigned_installation_pair" not in invalid_pair.stderr:
+        raise RuntimeError("O banco não recusou a atribuição incompleta do PC industrial pela CHECK.")
 
     sql(
         "INSERT INTO instalacoes_industriais (company_id, equipment_id, name, created_by) "
@@ -61,6 +61,16 @@ try:
         f"{installation_id}, assigned_installation_company_id = {company_id} "
         f"WHERE id = {romaneio_id}"
     )
+    restricted_delete = executar_uma_vez(
+        f"DELETE FROM instalacoes_industriais WHERE id = {installation_id}"
+    )
+    if restricted_delete.returncode == 0 or "1451" not in restricted_delete.stderr:
+        raise RuntimeError("A FK deveria impedir a exclusão enquanto o romaneio mantiver a atribuição.")
+    sql(
+        "UPDATE romaneios SET assigned_installation_id = NULL, "
+        "assigned_installation_company_id = NULL "
+        f"WHERE id = {romaneio_id} AND assigned_installation_id = {installation_id}"
+    )
     sql(f"DELETE FROM instalacoes_industriais WHERE id = {installation_id}")
     installation_id = 0
 
@@ -72,6 +82,12 @@ try:
     if assignment != "NULL|NULL":
         raise RuntimeError("A exclusão do PC não limpou os dois campos de atribuição.")
 finally:
+    if romaneio_id:
+        sql(
+            "UPDATE romaneios SET assigned_installation_id = NULL, "
+            "assigned_installation_company_id = NULL "
+            f"WHERE id = {romaneio_id}"
+        )
     if installation_id:
         sql(f"DELETE FROM instalacoes_industriais WHERE id = {installation_id}")
     if romaneio_id:

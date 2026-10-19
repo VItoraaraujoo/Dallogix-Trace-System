@@ -114,6 +114,23 @@ test("o atualizador exige MySQL saudável, com prazo limitado, antes das migrati
   ]);
 });
 
+test("rollback verifica o dump e remove relações parciais antes de restaurar", () => {
+  const source = readFileSync(updater, "utf8");
+  const helperStart = source.indexOf("restore_database_from_verified_backup() {");
+  const helperEnd = source.indexOf("\n}\n", helperStart);
+  assert.ok(helperStart >= 0 && helperEnd > helperStart, "Rotina de recuperação verificada não encontrada.");
+  const helper = source.slice(helperStart, helperEnd);
+  const verify = helper.indexOf("verify_backup.sh");
+  const enumerate = helper.indexOf("information_schema.tables");
+  const drop = helper.indexOf("SET FOREIGN_KEY_CHECKS=0");
+  const restore = helper.indexOf('< "$backup_file"');
+  assert.ok(verify >= 0 && verify < enumerate, "O dump deve ser validado antes de alterar o schema.");
+  assert.ok(enumerate < drop && drop < restore, "Tabelas e FKs parciais devem sair antes da importação do dump.");
+  const rollbackStart = source.indexOf("rollback() {");
+  const rollbackEnd = source.indexOf("\n}\n", rollbackStart);
+  assert.match(source.slice(rollbackStart, rollbackEnd), /restore_database_from_verified_backup "\$db_backup"/);
+});
+
 test("a consulta de carregamentos não expõe a senha na linha de comando", () => {
   const source = readFileSync(updater, "utf8");
   assert.match(source, /export MYSQL_PWD=\"\$MYSQL_PASSWORD\"; mysql -N -B -u\"\$MYSQL_USER\" \"\$MYSQL_DATABASE\"/);
