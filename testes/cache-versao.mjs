@@ -4,9 +4,9 @@ import { join } from "node:path";
 import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
-const versaoAplicacao = "202610190059";
-const versaoAplicacaoImportacao = "202610190059";
-const versaoServiceWorker = "202610190060";
+const versaoAplicacao = "202610190061";
+const versaoAplicacaoImportacao = "202610190061";
+const versaoServiceWorker = "202610190061";
 const versaoTela = "202610190058";
 const versaoTelaImportacao = "202610190046";
 const versaoEstiloConfiguracoes = "202610160001";
@@ -22,12 +22,12 @@ test("o shell invalida cache quando a aplicação muda", () => {
   const telaAcesso = readFileSync(join(raiz, "telas", "acesso", "acesso.html"), "utf8");
   const armazenamento = readFileSync(join(raiz, "js", "classes", "ArmazenamentoTrace.js"), "utf8");
   const estadoVisualizacao = readFileSync(join(raiz, "js", "controladores", "estado-visualizacao.js"), "utf8");
-  assert.match(serviceWorker, /trace-shell-20261019-47/);
+  assert.match(serviceWorker, /trace-shell-20261019-48/);
   assert.match(serviceWorker, /const PRECACHE_CONCURRENCY = 4/);
   assert.match(serviceWorker, /const workerCount = Math\.min\(PRECACHE_CONCURRENCY, SHELL\.length\)/);
   assert.match(serviceWorker, /await Promise\.all\(Array\.from\(\{ length: workerCount \}, \(\) => worker\(\)\)\)/);
   assert.match(serviceWorker, /console\.warn\("Não foi possível pré-carregar o recurso do shell:"/);
-  assert.match(serviceWorker, /APPLICATION_ASSET_VERSION = "202610190059"/);
+  assert.match(serviceWorker, /APPLICATION_ASSET_VERSION = "202610190061"/);
   assert.match(serviceWorker, /currentCache\.match\(url\.pathname\)/);
   assert.match(aplicacao, /notificacoes\.js\?v=202610160002/);
   assert.match(aplicacao, /registro-telas\.js\?v=202610190046/);
@@ -154,6 +154,16 @@ test("a navegação não exibe uma tela intermediária de carregamento", () => {
   const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
   assert.doesNotMatch(aplicacao, /Abrindo tela/);
   assert.doesNotMatch(aplicacao, /root\.innerHTML\s*=\s*[\s\S]{0,180}page-loading/);
+});
+
+test("a renderização inicial mantém disponível a entrada compartilhada", () => {
+  const aplicacao = readFileSync(join(raiz, "js", "aplicacao.js"), "utf8");
+  const renderPage = aplicacao.slice(
+    aplicacao.indexOf("async function renderPage()"),
+    aplicacao.indexOf("async function bootstrap()"),
+  );
+  assert.match(aplicacao, /function render\(\)\s*\{\s*renderScreen\(\);\s*\}/);
+  assert.match(renderPage, /render\(\);/);
 });
 
 test("a navegação interna carrega os estilos exclusivos das telas alteradas", () => {
