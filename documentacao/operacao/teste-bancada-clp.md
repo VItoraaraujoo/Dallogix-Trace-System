@@ -26,7 +26,7 @@ Este procedimento deve ser executado antes de conectar a esteira em produção.
 2. Passar um código válido e confirmar que ele aparece no buffer.
 3. Passar um código incorreto e confirmar a classificação.
 4. Acionar o sensor do CLP e confirmar que a leitura mais próxima é associada ao evento.
-5. Acionar o sensor sem apresentar código e confirmar `SEM_LEITURA` e captura imediata.
+5. Acionar o sensor sem apresentar código; após o prazo padrão de 1500 ms, confirmar `SEM_LEITURA` único e uma captura pontual da câmera.
 6. Confirmar que não existe segunda tentativa nem retorno do saco.
 
 ## 4. Saídas controladas

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js";
 import { createOperationalRealtimeController } from "../interface/js/controladores/tempo-real.js";
+import { ServicoCarregamentoAtivo } from "../interface/js/servicos/ServicoCarregamentoAtivo.js";
 
 function criarAmbiente() {
   const originalWindow = globalThis.window;
@@ -215,12 +216,14 @@ test("quadro vazio confirmado permite limpar uma operação encerrada", async ()
   }
 });
 
-test("mantém polling quando o stream SSE conecta", async () => {
+test("polling operacional usa status leve do CLP e evita o snapshot completo", async () => {
   const restaurar = criarAmbiente();
   const originalSetTimeout = window.setTimeout;
   const originalClearTimeout = window.clearTimeout;
   let agendado = null;
-  let consultas = 0;
+  let carregamentosConsultados = 0;
+  let statusConsultados = 0;
+  let snapshotsCompletos = 0;
   window.setTimeout = (callback) => {
     agendado = callback;
     return 1;
@@ -231,8 +234,9 @@ test("mantém polling quando o stream SSE conecta", async () => {
     subscribeOperationalEvents() {
       return { close() {} };
     },
-    async loadActiveLoading() { consultas += 1; },
-    async loadMonitoring() {},
+    async loadActiveLoading() { carregamentosConsultados += 1; },
+    async loadDeviceStatuses() { statusConsultados += 1; },
+    async loadMonitoring() { snapshotsCompletos += 1; },
     async loadPendingReadings() {},
   };
   const controller = createOperationalRealtimeController({
@@ -248,7 +252,9 @@ test("mantém polling quando o stream SSE conecta", async () => {
     controller.start();
     assert.equal(typeof agendado, "function");
     await agendado();
-    assert.equal(consultas, 1);
+    assert.equal(carregamentosConsultados, 1);
+    assert.equal(statusConsultados, 1);
+    assert.equal(snapshotsCompletos, 0);
   } finally {
     controller.stop();
     window.setTimeout = originalSetTimeout;
@@ -318,7 +324,7 @@ test("duas consultas operacionais falhas exibem dados desatualizados", async () 
     state: { selectedLoadingId: 7, loadingId: 7 },
     subscribeOperationalEvents() { return { close() {} }; },
     async loadActiveLoading() { throw new Error("Gateway sem resposta"); },
-    async loadMonitoring() {},
+    async loadDeviceStatuses() {},
     async loadPendingReadings() {},
   };
   const controller = createOperationalRealtimeController({
@@ -353,6 +359,12 @@ test("snapshot operacional enfileirado é descartado quando a página fica obsol
   const armazenamento = Object.create(ArmazenamentoTrace.prototype);
   armazenamento.activeLoadingRefresh = new Promise((resolve) => { liberarFila = resolve; });
   armazenamento._applyActiveLoadingSnapshot = () => { aplicado = true; };
+  armazenamento.servicoCarregamentoAtivo = new ServicoCarregamentoAtivo({
+    state: { selectedLoadingId: 7 },
+    getRefreshQueue: () => armazenamento.activeLoadingRefresh,
+    setRefreshQueue: (queue) => { armazenamento.activeLoadingRefresh = queue; },
+    applySnapshotFromStore: (...args) => armazenamento._applyActiveLoadingSnapshot(...args),
+  });
   const consulta = armazenamento.applyActiveLoadingSnapshot([], 7, () => false);
   liberarFila();
   await consulta;
@@ -393,7 +405,7 @@ test("snapshot SSE anterior à consulta em curso não substitui dados mais novos
       await consulta;
       this.state.activeLoadings = dadosAtuais;
     },
-    async loadMonitoring() {},
+    async loadDeviceStatuses() {},
     async loadPendingReadings() {},
     async loadPlcCommandStatus() { comandosConsultados += 1; },
     async applyActiveLoadingSnapshot() { snapshotsAplicados += 1; },
@@ -450,7 +462,7 @@ test("evento SSE antigo não limpa aviso de monitoramento desatualizado", async 
       return { close() {} };
     },
     async loadActiveLoading() { throw new Error("Gateway sem resposta"); },
-    async loadMonitoring() {},
+    async loadDeviceStatuses() {},
     async loadPendingReadings() {},
     async loadPlcCommandStatus() {},
   };

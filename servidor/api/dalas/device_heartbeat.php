@@ -15,10 +15,14 @@ $deviceType = strtoupper(trim((string) ($payload["device_type"] ?? (
     strtoupper((string) $device["device_type"]) === "CAMERA" ? $device["device_type"] : ""
 ))));
 $status = strtoupper(trim((string) ($payload["status"] ?? "ONLINE")));
+$sameDeviceType = $deviceType === $device["device_type"];
+// O gateway autenticado do CLP também é o produtor do sinal M2052; ele pode
+// atualizar somente o status SENSOR vinculado à própria Dala.
+$clpReportsAttachedSensor = $device["device_type"] === "CLP" && $deviceType === "SENSOR";
 if (
     $equipmentId === false ||
     (int) $equipmentId !== $device["equipment_id"] ||
-    $deviceType !== $device["device_type"] ||
+    (!$sameDeviceType && !$clpReportsAttachedSensor) ||
     !in_array($status, ["ONLINE", "OFFLINE", "ERRO"], true)
 ) {
     json_response(
@@ -49,7 +53,7 @@ try {
     );
     $current->execute([
         "equipment_id" => $device["equipment_id"],
-        "device_type" => $device["device_type"],
+        "device_type" => $deviceType,
     ]);
     $previous = $current->fetch();
 
@@ -63,7 +67,7 @@ try {
     $upsert->execute([
         "device_id" => $device["id"],
         "equipment_id" => $device["equipment_id"],
-        "device_type" => $device["device_type"],
+        "device_type" => $deviceType,
         "status" => $status,
         "details" => $details,
     ]);
@@ -79,7 +83,7 @@ try {
             [
                 "equipment_id" => $device["equipment_id"],
                 "device_id" => $device["id"],
-                "device_type" => $device["device_type"],
+                "device_type" => $deviceType,
                 "previous_status" => $previous["status"] ?? null,
                 "status" => $status,
                 "remote_equipment_id" => $equipmentMeta["remote_equipment_id"] === null
@@ -102,8 +106,11 @@ try {
             $reasonLabels = [
                 "camera_config_missing" => "configuração da câmera incompleta",
                 "stream_unavailable" => "imagem da câmera indisponível",
+                "rtsp_tcp_unreachable" => "câmera inacessível na rede RTSP",
+                "capture_failed" => "a câmera não entregou o quadro solicitado",
+                "sensor_modbus_unavailable" => "sensor sem resposta Modbus",
             ];
-            $deviceLabel = $deviceLabels[$device["device_type"]] ?? "Dispositivo";
+            $deviceLabel = $deviceLabels[$deviceType] ?? "Dispositivo";
             $message = $status === "ERRO"
                 ? "{$deviceLabel} reportou falha de comunicação."
                 : "{$deviceLabel} sem comunicação com a Dala.";
@@ -111,7 +118,7 @@ try {
                 $message = $deviceLabel . ": " . $reasonLabels[$reasonCode] . ".";
             }
             $context = json_encode([
-                "device_type" => $device["device_type"],
+                "device_type" => $deviceType,
                 "device_id" => $device["id"],
                 "equipment_id" => $device["equipment_id"],
                 "previous_status" => $previous["status"] ?? null,
@@ -140,7 +147,7 @@ try {
 json_response([
     "data" => [
         "equipment_id" => $device["equipment_id"],
-        "device_type" => $device["device_type"],
+        "device_type" => $deviceType,
         "status" => $status,
     ],
 ]);

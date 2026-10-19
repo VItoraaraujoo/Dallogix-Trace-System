@@ -3,9 +3,12 @@ declare(strict_types=1);
 
 namespace App\Aplicacao;
 
+use App\Persistencia\RepositorioDisponibilidadeClp;
 use PDO;
 use RuntimeException;
 use Throwable;
+
+require_once __DIR__ . "/../Persistencia/RepositorioDisponibilidadeClp.php";
 
 final class ExcecaoEstadoCarregamento extends RuntimeException
 {
@@ -96,7 +99,9 @@ final class ServicoEstadoCarregamento
                 );
             }
             if (in_array($target, ["CARREGANDO", "PAUSADO"], true)) {
-                (new ServicoDisponibilidadeClp($this->connection))->validarComando(
+                (new ServicoDisponibilidadeClp(
+                    new RepositorioDisponibilidadeClp($this->connection),
+                ))->validarComando(
                     (int) $user["company_id"],
                     (int) $current["equipment_id"],
                 );

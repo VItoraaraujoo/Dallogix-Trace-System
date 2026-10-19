@@ -11,7 +11,7 @@
     "type": "comment",
     "z": "trace-clp-bridge",
     "name": "TRACE / Node-RED local",
-    "info": "Configure TRACE_API_URL, TRACE_DEVICE_TOKEN e TRACE_MODBUS_UNIT_ID no ambiente do Node-RED. O heartbeat M2052 publica ONLINE somente depois de uma resposta Modbus válida. A escrita física exige aprovação do mapa, vínculo ao ID da Dala, bobinas distintas M2049/M2050/M2051 e retorno M17. Os comandos são concluídos somente após eco FC5; o desbloqueio exige retorno Modbus M17 em 0. A emergência elétrica e os intertravamentos permanecem no CLP.",
+    "info": "Configure TRACE_API_URL, TRACE_DEVICE_TOKEN e TRACE_MODBUS_UNIT_ID no ambiente do Node-RED. O heartbeat M2052 publica ONLINE somente depois de uma resposta Modbus válida. O sensor M2052 é lido separadamente a cada 200 ms; a primeira amostra só estabelece a linha de base e a borda configurada registra uma passagem. O código USB do Elgin é associado à passagem pendente; após o prazo sem código, o servidor registra SEM_LEITURA e enfileira uma captura pontual da câmera. A escrita física continua condicionada à aprovação explícita do mapa.",
     "x": 180,
     "y": 80,
     "wires": []
@@ -80,8 +80,8 @@
     "type": "function",
     "z": "trace-clp-bridge",
     "name": "Validar Modbus das Dalas",
-    "func": "if (msg.statusCode !== 200) return [[], []];\nconst equipment = Array.isArray(msg.payload?.data) ? msg.payload.data : [];\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst traceToken = String(msg.traceToken || '');\nif (!equipment.length || !baseUrl || !traceToken) return [[], []];\nconst defaultUnit = String(env.get('TRACE_MODBUS_UNIT_ID') || '1').trim();\nconst defaultFunction = String(env.get('TRACE_MODBUS_HEARTBEAT_FUNCTION') || '1').trim();\nconst defaultRegister = String(env.get('TRACE_MODBUS_HEARTBEAT_REGISTER') || '2052').trim();\nconst validConfig = (unit, fc, register) => /^\\d+$/.test(unit) && /^\\d+$/.test(fc) && /^\\d+$/.test(register)\n    && Number(unit) >= 0 && Number(unit) <= 255 && [1, 2, 3, 4].includes(Number(fc)) && Number(register) <= 65535;\nconst probes = [];\nconst watchdogs = [];\nfor (const item of equipment) {\n    const equipmentId = Number(item.id);\n    const host = String(item.plc_connect_ip || '').trim();\n    const port = Number(item.plc_port || 0);\n    const protocol = String(item.plc_protocol || 'MODBUS_TCP').toUpperCase();\n    watchdogs.push({ ...msg, traceToken, equipmentId, url: `${baseUrl}/api/device_heartbeat.php`, method: 'POST', headers: { 'X-Device-Token': traceToken, 'Content-Type': 'application/json' }, payload: { equipment_id: equipmentId, device_type: 'CLP', status: 'OFFLINE', details: { source: 'node-red', communication: 'modbus_tcp', reason: 'sem_resposta_modbus' } } });\n    const unit = String(item.modbus_unit_id ?? defaultUnit).trim();\n    const fc = String(item.modbus_heartbeat_function ?? defaultFunction).trim();\n    const register = String(item.modbus_heartbeat_register ?? defaultRegister).trim();\n    if (equipmentId > 0 && host && Number.isInteger(port) && port >= 1 && port <= 65535 && protocol === 'MODBUS_TCP' && validConfig(unit, fc, register)) {\n        probes.push({ ...msg, traceToken, equipmentId, modbusHost: host, modbusPort: port, modbusUnit: Number(unit), modbusFunction: Number(fc), modbusRegister: Number(register), payload: null });\n    }\n}\nreturn [probes, watchdogs];",
-    "outputs": 2,
+    "func": "if (msg.statusCode !== 200) return [[], [], []];\nconst equipment = Array.isArray(msg.payload?.data) ? msg.payload.data : [];\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst traceToken = String(msg.traceToken || '');\nif (!equipment.length || !baseUrl || !traceToken) return [[], [], []];\nconst defaultUnit = String(env.get('TRACE_MODBUS_UNIT_ID') || '1').trim();\nconst defaultFunction = String(env.get('TRACE_MODBUS_HEARTBEAT_FUNCTION') || '1').trim();\nconst defaultRegister = String(env.get('TRACE_MODBUS_HEARTBEAT_REGISTER') || '2052').trim();\nconst defaultSensorRegister = String(env.get('TRACE_MODBUS_SENSOR_REGISTER') || '2052').trim();\nconst validConfig = (unit, fc, register) => /^\\d+$/.test(unit) && /^\\d+$/.test(fc) && /^\\d+$/.test(register)\n    && Number(unit) >= 0 && Number(unit) <= 255 && [1, 2, 3, 4].includes(Number(fc)) && Number(register) <= 65535;\nconst probes = [];\nconst watchdogs = [];\nconst sweepers = [];\nconst sensorEquipmentIds = [];\nfor (const item of equipment) {\n    const equipmentId = Number(item.id);\n    const host = String(item.plc_connect_ip || '').trim();\n    const port = Number(item.plc_port || 0);\n    const protocol = String(item.plc_protocol || 'MODBUS_TCP').toUpperCase();\n    watchdogs.push({ ...msg, traceToken, equipmentId, url: `${baseUrl}/api/device_heartbeat.php`, method: 'POST', headers: { 'X-Device-Token': traceToken, 'Content-Type': 'application/json' }, payload: { equipment_id: equipmentId, device_type: 'CLP', status: 'OFFLINE', details: { source: 'node-red', communication: 'modbus_tcp', reason: 'sem_resposta_modbus' } } });\n    const unit = String(item.modbus_unit_id ?? defaultUnit).trim();\n    const fc = String(item.modbus_heartbeat_function ?? defaultFunction).trim();\n    const register = String(item.modbus_heartbeat_register ?? defaultRegister).trim();\n    const sensorRegister = String(item.modbus_sensor_register ?? defaultSensorRegister).trim();\n    const destinationValid = equipmentId > 0 && host && Number.isInteger(port) && port >= 1 && port <= 65535 && protocol === 'MODBUS_TCP';\n    if (destinationValid && validConfig(unit, fc, register)) {\n        probes.push({ ...msg, traceToken, equipmentId, modbusHost: host, modbusPort: port, modbusUnit: Number(unit), modbusFunction: Number(fc), modbusRegister: Number(register), modbusPurpose: 'heartbeat', payload: null });\n    }\n    if (destinationValid && validConfig(unit, '1', sensorRegister)) {\n        const activeLoadingId = Number(item.active_loading_id) || null;\n        flow.set(`trace_sensor_equipment_${equipmentId}`, {\n            equipmentId, host, port, unit: Number(unit), register: Number(sensorRegister), activeLoadingId,\n        });\n        sensorEquipmentIds.push(equipmentId);\n        if (activeLoadingId) {\n            sweepers.push({\n                traceToken, equipmentId,\n                url: `${baseUrl}/api/sensor_eventos.php`, method: 'POST',\n                headers: { 'X-Device-Token': traceToken, 'Content-Type': 'application/json' },\n                payload: { action: 'FINALIZE_EXPIRED', equipment_id: equipmentId },\n            });\n        }\n    }\n}\nflow.set('trace_sensor_equipment_ids', sensorEquipmentIds);\nreturn [probes, watchdogs, sweepers];",
+    "outputs": 3,
     "timeout": 0,
     "noerr": 0,
     "initialize": "",
@@ -95,6 +95,9 @@
       ],
       [
         "heartbeat-watchdog"
+      ],
+      [
+        "sensor-finalize-http"
       ]
     ]
   },
@@ -103,7 +106,7 @@
     "type": "function",
     "z": "trace-clp-bridge",
     "name": "Ler diagnóstico Modbus configurado",
-    "func": "const rawUnit = String(msg.modbusUnit ?? env.get('TRACE_MODBUS_UNIT_ID') ?? '1').trim();\nconst rawFunction = String(msg.modbusFunction ?? env.get('TRACE_MODBUS_HEARTBEAT_FUNCTION') ?? '1').trim();\nconst rawRegister = String(msg.modbusRegister ?? env.get('TRACE_MODBUS_HEARTBEAT_REGISTER') ?? '2052').trim();\nif (![rawUnit, rawFunction, rawRegister].every(value => /^\\d+$/.test(value))) return null;\nconst unit = Number(rawUnit), fc = Number(rawFunction), register = Number(rawRegister);\nif (unit < 0 || unit > 255 || ![1, 2, 3, 4].includes(fc) || register > 65535) return null;\nconst inFlightKey = `modbus_heartbeat_inflight_${msg.equipmentId}`;\nif (flow.get(inFlightKey)) return null;\nflow.set(inFlightKey, true);\nconst transaction = ((flow.get('modbus_transaction') || 0) + 1) & 0xffff;\nflow.set('modbus_transaction', transaction);\nconst frame = Buffer.alloc(12);\nframe.writeUInt16BE(transaction, 0);\nframe.writeUInt16BE(6, 4);\nframe[6] = unit;\nframe[7] = fc;\nframe.writeUInt16BE(register, 8);\nframe.writeUInt16BE(1, 10);\nmsg.modbusTransaction = transaction;\nmsg.modbusUnit = unit;\nmsg.modbusFunction = fc;\nmsg.modbusRegister = register;\nmsg.modbusStartedAt = Date.now();\nmsg.payload = frame;\nmsg.host = msg.modbusHost;\nmsg.port = msg.modbusPort;\nreturn msg;",
+    "func": "const purpose = String(msg.modbusPurpose || 'heartbeat');\nconst rawUnit = String(msg.modbusUnit ?? env.get('TRACE_MODBUS_UNIT_ID') ?? '1').trim();\nconst rawFunction = String(msg.modbusFunction ?? env.get('TRACE_MODBUS_HEARTBEAT_FUNCTION') ?? '1').trim();\nconst rawRegister = String(msg.modbusRegister ?? env.get('TRACE_MODBUS_HEARTBEAT_REGISTER') ?? '2052').trim();\nif (![rawUnit, rawFunction, rawRegister].every(value => /^\\d+$/.test(value))) return null;\nconst unit = Number(rawUnit), fc = Number(rawFunction), register = Number(rawRegister);\nif (unit < 0 || unit > 255 || ![1, 2, 3, 4].includes(fc) || register > 65535) return null;\nconst inFlightKey = `modbus_${purpose}_inflight_${msg.equipmentId}`;\nif (flow.get(inFlightKey)) return null;\nflow.set(inFlightKey, true);\nconst transaction = ((flow.get('modbus_transaction') || 0) + 1) & 0xffff;\nflow.set('modbus_transaction', transaction);\nconst frame = Buffer.alloc(12);\nframe.writeUInt16BE(transaction, 0);\nframe.writeUInt16BE(6, 4);\nframe[6] = unit;\nframe[7] = fc;\nframe.writeUInt16BE(register, 8);\nframe.writeUInt16BE(1, 10);\nmsg.modbusPurpose = purpose;\nmsg.modbusTransaction = transaction;\nmsg.modbusUnit = unit;\nmsg.modbusFunction = fc;\nmsg.modbusRegister = register;\nmsg.modbusStartedAt = Date.now();\nmsg.payload = frame;\nmsg.host = msg.modbusHost;\nmsg.port = msg.modbusPort;\nreturn msg;",
     "outputs": 1,
     "timeout": 0,
     "noerr": 0,
@@ -150,8 +153,8 @@
     "type": "function",
     "z": "trace-clp-bridge",
     "name": "Confirmar resposta Modbus",
-    "func": "if (Number.isInteger(Number(msg.equipmentId))) flow.set(`modbus_heartbeat_inflight_${msg.equipmentId}`, false);\nconst frame = Buffer.isBuffer(msg.payload) ? msg.payload : Buffer.alloc(0);\nconst age = Date.now() - Number(msg.modbusStartedAt);\nconst functionCode = Number(msg.modbusFunction);\nconst bitRead = [1, 2].includes(functionCode);\nconst expectedBytes = bitRead ? 1 : 2;\nconst expectedPduLength = 3 + expectedBytes;\nconst valid = Number.isFinite(age) && age >= 0 && age <= 2000\n    && frame.length === 7 + 2 + expectedBytes && frame.readUInt16BE(0) === msg.modbusTransaction\n    && frame.readUInt16BE(2) === 0 && frame.readUInt16BE(4) === expectedPduLength\n    && frame[6] === msg.modbusUnit && frame[7] === functionCode\n    && [1, 2, 3, 4].includes(functionCode) && frame[8] === expectedBytes;\nif (!valid) return null;\nflow.set(`modbus_last_success_${msg.equipmentId}`, Date.now());\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nif (!baseUrl || !msg.traceToken) return null;\nmsg.url = `${baseUrl}/api/device_heartbeat.php`;\nmsg.method = 'POST';\nmsg.headers = { 'X-Device-Token': msg.traceToken, 'Content-Type': 'application/json' };\nconst diagnosticValue = bitRead ? (frame[9] & 1) : frame.readUInt16BE(9);\nmsg.payload = { equipment_id: msg.equipmentId, device_type: 'CLP', status: 'ONLINE', details: {\n    source: 'node-red', communication: 'modbus_tcp', plc_ip: msg.modbusHost, plc_port: msg.modbusPort,\n    modbus_unit_id: msg.modbusUnit, modbus_function: functionCode,\n    diagnostic_register: msg.modbusRegister, diagnostic_value: diagnosticValue, heartbeat_interval_ms: 1000\n} };\nreturn msg;",
-    "outputs": 1,
+    "func": "const purpose = String(msg.modbusPurpose || 'heartbeat');\nif (Number.isInteger(Number(msg.equipmentId))) flow.set(`modbus_${purpose}_inflight_${msg.equipmentId}`, false);\nconst frame = Buffer.isBuffer(msg.payload) ? msg.payload : Buffer.alloc(0);\nconst age = Date.now() - Number(msg.modbusStartedAt);\nconst functionCode = Number(msg.modbusFunction);\nconst bitRead = [1, 2].includes(functionCode);\nconst expectedBytes = bitRead ? 1 : 2;\nconst expectedPduLength = 3 + expectedBytes;\nconst valid = Number.isFinite(age) && age >= 0 && age <= 2000\n    && frame.length === 7 + 2 + expectedBytes && frame.readUInt16BE(0) === msg.modbusTransaction\n    && frame.readUInt16BE(2) === 0 && frame.readUInt16BE(4) === expectedPduLength\n    && frame[6] === msg.modbusUnit && frame[7] === functionCode\n    && [1, 2, 3, 4].includes(functionCode) && frame[8] === expectedBytes;\nif (!valid) return [null, null, null];\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nif (!baseUrl || !msg.traceToken) return [null, null, null];\nconst diagnosticValue = bitRead ? (frame[9] & 1) : frame.readUInt16BE(9);\nif (purpose === 'sensor') {\n    if (![1, 2].includes(functionCode)) return [null, null, null];\n    const rawValue = frame[9] & 1;\n    const activeLevelRaw = String(env.get('TRACE_SENSOR_ACTIVE_LEVEL') || '1').trim();\n    const activeLevel = activeLevelRaw === '0' ? 0 : 1;\n    const active = rawValue === activeLevel;\n    const modeRaw = String(env.get('TRACE_SENSOR_SIGNAL_MODE') || 'rising_edge').trim().toLowerCase();\n    const mode = ['rising_edge', 'falling_edge', 'toggle'].includes(modeRaw) ? modeRaw : 'rising_edge';\n    const previous = flow.get(`trace_sensor_last_value_${msg.equipmentId}`);\n    flow.set(`trace_sensor_last_value_${msg.equipmentId}`, active);\n    const detected = previous !== undefined && (\n        (mode === 'rising_edge' && previous === false && active === true)\n        || (mode === 'falling_edge' && previous === true && active === false)\n        || (mode === 'toggle' && previous !== active)\n    );\n    flow.set(`trace_sensor_last_success_${msg.equipmentId}`, Date.now());\n    const now = Date.now();\n    const lastHeartbeat = flow.get(`trace_sensor_last_heartbeat_${msg.equipmentId}`) || 0;\n    let sensorHeartbeat = null;\n    if (now - lastHeartbeat >= 1000) {\n        flow.set(`trace_sensor_last_heartbeat_${msg.equipmentId}`, now);\n        sensorHeartbeat = {\n            traceToken: msg.traceToken, equipmentId: msg.equipmentId,\n            url: `${baseUrl}/api/device_heartbeat.php`, method: 'POST',\n            headers: { 'X-Device-Token': msg.traceToken, 'Content-Type': 'application/json' },\n            payload: { equipment_id: msg.equipmentId, device_type: 'SENSOR', status: 'ONLINE', details: {\n                source: 'node-red', communication: 'modbus_tcp', sensor_register: msg.modbusRegister,\n                signal_value: rawValue, signal_state: active ? 'PASSAGEM_DETECTADA' : 'PRONTO',\n                signal_mode: mode, poll_interval_ms: 200,\n            } },\n        };\n    }\n    let sensorEvent = null;\n    if (detected && Number(msg.activeLoadingId) > 0) {\n        const eventUuid = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, character => {\n            const random = Math.random() * 16 | 0;\n            return (character === 'x' ? random : (random & 3 | 8)).toString(16);\n        });\n        sensorEvent = {\n            traceToken: msg.traceToken, equipmentId: msg.equipmentId,\n            url: `${baseUrl}/api/sensor_eventos.php`, method: 'POST',\n            headers: { 'X-Device-Token': msg.traceToken, 'Content-Type': 'application/json' },\n            payload: { equipment_id: msg.equipmentId, carregamento_id: Number(msg.activeLoadingId), event_uuid: eventUuid },\n            sensorEventPayload: { equipment_id: msg.equipmentId, carregamento_id: Number(msg.activeLoadingId), event_uuid: eventUuid },\n            sensorEventAttempts: 0,\n        };\n    }\n    return [null, sensorHeartbeat, sensorEvent];\n}\nflow.set(`modbus_last_success_${msg.equipmentId}`, Date.now());\nconst clpHeartbeat = {\n    traceToken: msg.traceToken, equipmentId: msg.equipmentId,\n    url: `${baseUrl}/api/device_heartbeat.php`, method: 'POST',\n    headers: { 'X-Device-Token': msg.traceToken, 'Content-Type': 'application/json' },\n    payload: { equipment_id: msg.equipmentId, device_type: 'CLP', status: 'ONLINE', details: {\n        source: 'node-red', communication: 'modbus_tcp', plc_ip: msg.modbusHost, plc_port: msg.modbusPort,\n        modbus_unit_id: msg.modbusUnit, modbus_function: functionCode,\n        diagnostic_register: msg.modbusRegister, diagnostic_value: diagnosticValue, heartbeat_interval_ms: 1000,\n    } },\n};\nreturn [clpHeartbeat, null, null];",
+    "outputs": 3,
     "timeout": 0,
     "noerr": 0,
     "initialize": "",
@@ -162,6 +165,12 @@
     "wires": [
       [
         "heartbeat-post"
+      ],
+      [
+        "sensor-heartbeat-http"
+      ],
+      [
+        "sensor-event-http"
       ]
     ]
   },
@@ -561,7 +570,7 @@
     "type": "comment",
     "z": "trace-clp-bridge",
     "name": "Mapa Modbus físico configurável",
-    "info": "Os endereços M2049 (motor), M2050 (reversão), M2051 (emergência) e M17 (retorno) são lidos de config/node-red-clp.env, gerado pelo instalador a partir de config/machine.json. O mapa do INVT TS621 está aprovado, mas physical_clp_enabled começa false; a habilitação é escolhida explicitamente por instalação. M2052 é um bit do sensor lido por FC1; o comportamento do Ladder (pulso/nível) ainda precisa ser validado em bancada. Modbus e comandos de software não substituem a emergência elétrica nem os intertravamentos do CLP.",
+    "info": "Mapa aprovado: M2049 (esteira), M2050 (reversão), M2051 (emergência), M17 (retorno) e M2052 (sensor). O gateway lê M2052 por FC1 a cada 200 ms, publica SENSOR ONLINE somente após resposta válida e registra passagem conforme TRACE_SENSOR_SIGNAL_MODE (rising_edge por padrão). A primeira amostra após inicialização estabelece a linha de base para evitar saco falso. O timeout configura SEM_LEITURA e solicita captura pontual. O comportamento exato do Ladder ainda precisa de homologação física; nenhum comando de escrita é enviado por esse monitoramento.",
     "x": 420,
     "y": 400,
     "wires": []
@@ -588,8 +597,8 @@
     "type": "function",
     "z": "trace-clp-bridge",
     "name": "Liberar sonda após erro",
-    "func": "if (Number.isInteger(Number(msg.equipmentId))) flow.set(`modbus_heartbeat_inflight_${msg.equipmentId}`, false);\nreturn msg;",
-    "outputs": 1,
+    "func": "const purpose = String(msg.modbusPurpose || 'heartbeat');\nif (Number.isInteger(Number(msg.equipmentId))) flow.set(`modbus_${purpose}_inflight_${msg.equipmentId}`, false);\nif (purpose !== 'sensor') return [msg, null];\nconst now = Date.now();\nconst previousPost = flow.get(`trace_sensor_last_heartbeat_${msg.equipmentId}`) || 0;\nif (now - previousPost < 1000) return [null, null];\nflow.set(`trace_sensor_last_heartbeat_${msg.equipmentId}`, now);\nconst baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst token = String(msg.traceToken || '');\nif (!baseUrl || !token) return [null, null];\nreturn [null, {\n    traceToken: token, equipmentId: msg.equipmentId,\n    url: `${baseUrl}/api/device_heartbeat.php`, method: 'POST',\n    headers: { 'X-Device-Token': token, 'Content-Type': 'application/json' },\n    payload: { equipment_id: msg.equipmentId, device_type: 'SENSOR', status: 'OFFLINE', details: {\n        source: 'node-red', communication: 'modbus_tcp', sensor_register: msg.modbusRegister,\n        reason_code: 'sensor_modbus_unavailable',\n    } },\n}];",
+    "outputs": 2,
     "timeout": 0,
     "noerr": 0,
     "initialize": "",
@@ -600,6 +609,199 @@
     "wires": [
       [
         "heartbeat-watchdog"
+      ],
+      [
+        "sensor-heartbeat-http"
+      ]
+    ]
+  },
+  {
+    "id": "sensor-poll-tick",
+    "type": "inject",
+    "z": "trace-clp-bridge",
+    "name": "Ler sensor M2052 • 200 ms",
+    "props": [],
+    "repeat": "0.2",
+    "crontab": "",
+    "once": true,
+    "onceDelay": "1.2",
+    "topic": "",
+    "x": 170,
+    "y": 220,
+    "wires": [
+      [
+        "sensor-poll-dispatch"
+      ]
+    ]
+  },
+  {
+    "id": "sensor-poll-dispatch",
+    "type": "function",
+    "z": "trace-clp-bridge",
+    "name": "Montar leitura rápida do sensor",
+    "func": "const baseUrl = String(env.get('TRACE_API_URL') || '').replace(/\\/$/, '');\nconst token = String(env.get('TRACE_DEVICE_TOKEN') || '').trim();\nif (!baseUrl || !token || /[,;\\n]/.test(token)) return null;\nconst ids = flow.get('trace_sensor_equipment_ids') || [];\nconst probes = [];\nfor (const id of ids) {\n    const config = flow.get(`trace_sensor_equipment_${id}`);\n    if (!config) continue;\n    probes.push({ traceToken: token, equipmentId: config.equipmentId, modbusHost: config.host,\n        modbusPort: config.port, modbusUnit: config.unit, modbusFunction: 1,\n        modbusRegister: config.register, modbusPurpose: 'sensor', activeLoadingId: config.activeLoadingId,\n        payload: null });\n}\nreturn [probes];",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 430,
+    "y": 220,
+    "wires": [
+      [
+        "modbus-frame"
+      ]
+    ]
+  },
+  {
+    "id": "sensor-heartbeat-http",
+    "type": "http request",
+    "z": "trace-clp-bridge",
+    "name": "POST estado do sensor",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "persist": false,
+    "authType": "",
+    "senderr": false,
+    "x": 1060,
+    "y": 540,
+    "wires": [
+      [
+        "sensor-heartbeat-debug"
+      ]
+    ]
+  },
+  {
+    "id": "sensor-heartbeat-debug",
+    "type": "debug",
+    "z": "trace-clp-bridge",
+    "name": "Status do sensor confirmado",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "statusCode",
+    "targetType": "msg",
+    "statusVal": "statusCode",
+    "statusType": "msg",
+    "x": 1320,
+    "y": 540,
+    "wires": []
+  },
+  {
+    "id": "sensor-event-http",
+    "type": "http request",
+    "z": "trace-clp-bridge",
+    "name": "POST passagem do sensor",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "persist": false,
+    "authType": "",
+    "senderr": false,
+    "x": 1060,
+    "y": 600,
+    "wires": [
+      [
+        "sensor-event-retry"
+      ]
+    ]
+  },
+  {
+    "id": "sensor-event-debug",
+    "type": "debug",
+    "z": "trace-clp-bridge",
+    "name": "Passagem associada ao sensor",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "statusCode",
+    "statusType": "msg",
+    "x": 1320,
+    "y": 600,
+    "wires": []
+  },
+  {
+    "id": "sensor-finalize-http",
+    "type": "http request",
+    "z": "trace-clp-bridge",
+    "name": "Finalizar passagens sem código",
+    "method": "use",
+    "ret": "obj",
+    "paytoqs": "ignore",
+    "url": "",
+    "persist": false,
+    "authType": "",
+    "senderr": false,
+    "x": 1060,
+    "y": 660,
+    "wires": [
+      [
+        "sensor-finalize-debug"
+      ]
+    ]
+  },
+  {
+    "id": "sensor-finalize-debug",
+    "type": "debug",
+    "z": "trace-clp-bridge",
+    "name": "Resultado do timeout do scanner",
+    "active": false,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "statusCode",
+    "statusType": "msg",
+    "x": 1320,
+    "y": 660,
+    "wires": []
+  },
+  {
+    "id": "sensor-event-retry",
+    "type": "function",
+    "z": "trace-clp-bridge",
+    "name": "Repetir POST da passagem com segurança",
+    "func": "const status = Number(msg.statusCode || 0);\nconst attempt = Math.max(0, Number(msg.sensorEventAttempts) || 0);\nconst retryable = Boolean(msg.error) || status === 0 || status === 408 || status === 429 || status >= 500;\nif (!retryable) return [msg, null];\nif (attempt >= 3) {\n    const eventUuid = String(msg.sensorEventPayload?.event_uuid || 'desconhecido');\n    const totalAttempts = attempt + 1;\n    node.error(`Falha ao registrar passagem ${eventUuid} após ${totalAttempts} tentativas; HTTP ${status || 'sem resposta'}.`);\n    msg.payload = { delivery_status: 'ERRO', event_uuid: eventUuid, attempts: totalAttempts, status_code: status || null };\n    return [msg, null];\n}\nconst retryMessage = { ...msg, payload: msg.sensorEventPayload || msg.payload, sensorEventAttempts: attempt + 1 };\ndelete retryMessage.error;\ndelete retryMessage.statusCode;\nconst delayMs = [150, 350, 700][attempt];\nsetTimeout(() => node.send([null, retryMessage]), delayMs);\nreturn [null, null];",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1330,
+    "y": 600,
+    "wires": [
+      [
+        "sensor-event-debug"
+      ],
+      [
+        "sensor-event-http"
+      ]
+    ]
+  },
+  {
+    "id": "sensor-event-catch",
+    "type": "catch",
+    "z": "trace-clp-bridge",
+    "name": "Falha no envio da passagem",
+    "scope": [
+      "sensor-event-http"
+    ],
+    "uncaught": false,
+    "x": 1130,
+    "y": 640,
+    "wires": [
+      [
+        "sensor-event-retry"
       ]
     ]
   }

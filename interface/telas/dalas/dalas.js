@@ -33,7 +33,7 @@ export function dalas(store) {
     return `<div class="dala-create-screen"><div class="title-row has-back"><button class="button secondary page-back" data-action="toggle-dala-form" type="button">← Voltar</button><div><h2>Nova Dala</h2><p>Cadastre a comunicação da Dala com o CLP e o gateway.</p></div></div>
 <section class="panel dala-create-panel"><form id="dala-create-form"><div class="grid one">
 <label>Nome da Dala<input name="name" autocomplete="off" required /></label>
-<label>Identificador<input name="equipment_code" autocomplete="off" required pattern="[a-z0-9_]{1,30}" title="Letras minúsculas, números e underscores (máx. 30)" /><small>Use letras minúsculas, números e underscore. Máximo de 30 caracteres.</small></label>
+<label>Identificador<input name="equipment_code" autocomplete="off" required pattern="[A-Za-z0-9_-]{1,30}" title="Letras, números, hífen ou underscore (máx. 30)" /><small>Use letras, números, hífen ou underscore. Máximo de 30 caracteres.</small></label>
 <label>Endereço do CLP (IP ou nome)<input name="plc_ip" autocomplete="off" required /></label>
 <label>Porta do CLP<input name="plc_port" type="number" min="1" max="65535" required /></label>
 </div><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p><div class="actions">${button("Cadastrar Dala", "submit-dala")}</div></form></section></div>`;

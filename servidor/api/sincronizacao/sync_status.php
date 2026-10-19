@@ -3,6 +3,9 @@
 declare(strict_types=1);
 
 require_once __DIR__ . "/../../configuracao/bootstrap.php";
+require_once __DIR__ . "/../../src/Persistencia/RepositorioStatusSincronizacao.php";
+
+use App\Persistencia\RepositorioStatusSincronizacao;
 
 $user = require_session_user();
 if ($_SERVER["REQUEST_METHOD"] !== "GET") {
@@ -12,29 +15,18 @@ if ($user["company_id"] === null) {
     json_response(["error" => "Usuário sem empresa vinculada."], 403);
 }
 
+session_write_close();
 $pdo = db();
 $scope = "q.company_id = :company_id";
 $params = ["company_id" => $user["company_id"]];
-$counts = $pdo->prepare(
-    "SELECT q.status, COUNT(*) AS total FROM fila_sincronizacao q WHERE {$scope} GROUP BY q.status",
-);
-$counts->execute($params);
-$summary = ["PENDENTE" => 0, "PROCESSANDO" => 0, "ENVIADO" => 0, "ERRO" => 0];
-foreach ($counts->fetchAll() as $row) {
-    $summary[$row["status"]] = (int) $row["total"];
-}
+$queueSummary = (new RepositorioStatusSincronizacao($pdo))->obterResumoFila((int) $user["company_id"]);
+$summary = $queueSummary["summary"];
+$oldestQueueAt = $queueSummary["oldest_at"];
 
 $recent = $pdo->prepare(
     "SELECT q.id, q.aggregate_type, q.aggregate_id, q.status, q.attempts, q.transient_attempts, q.last_error, q.available_at, q.created_at FROM fila_sincronizacao q WHERE {$scope} AND q.status IN ('PENDENTE', 'ERRO') ORDER BY q.id DESC LIMIT 20",
 );
 $recent->execute($params);
-$queueAge = $pdo->prepare(
-    "SELECT MIN(CASE WHEN q.status IN ('PENDENTE', 'PROCESSANDO', 'ERRO') THEN q.created_at END) AS oldest_at
-     FROM fila_sincronizacao q WHERE {$scope}",
-);
-$queueAge->execute($params);
-$queueAgeRow = $queueAge->fetch() ?: [];
-$oldestQueueAt = $queueAgeRow["oldest_at"] ?? null;
 $oldestQueueAgeSeconds = null;
 if ($oldestQueueAt !== null && trim((string) $oldestQueueAt) !== "") {
     try {

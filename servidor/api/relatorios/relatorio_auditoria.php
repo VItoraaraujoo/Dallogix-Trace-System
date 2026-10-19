@@ -7,7 +7,7 @@ require_once __DIR__ . "/../../../scripts/image_storage_path.php";
 
 use App\Aplicacao\RelatorioAuditoriaPdf;
 
-/** Remove só os arquivos de captura intermediários mantidos dentro do armazenamento. */
+/** Remove imagens legadas soltas; PDFs de captura ficam até a política de retenção. */
 function trace_cleanup_report_evidence(PDO $pdo, array $loadIds, int $companyId, string $storageRoot): void
 {
     if ($loadIds === []) {
@@ -32,8 +32,11 @@ function trace_cleanup_report_evidence(PDO $pdo, array $loadIds, int $companyId,
         if (str_starts_with($relativePath, "armazenamento/")) {
             $relativePath = substr($relativePath, strlen("armazenamento/"));
         }
+        if (str_ends_with(strtolower($relativePath), ".pdf")) {
+            continue;
+        }
         if (preg_match(
-            '/\\Acompany_' . $companyId . '\/equipment_[0-9]+\/capture-[0-9]+-[a-f0-9]{64}\\.(pdf|jpg|png)\\z/',
+            '/\\Acompany_' . $companyId . '\/equipment_[0-9]+\/capture-[0-9]+-[a-f0-9]{64}\\.(jpg|png)\\z/',
             $relativePath,
         ) !== 1) {
             continue;
@@ -46,14 +49,10 @@ function trace_cleanup_report_evidence(PDO $pdo, array $loadIds, int $companyId,
     try {
         $deleteImages = $pdo->prepare(
             "DELETE i FROM imagens i JOIN carregamentos c ON c.id = i.carregamento_id
-             WHERE c.company_id = ? AND i.carregamento_id IN ({$placeholders})",
+             WHERE c.company_id = ? AND i.carregamento_id IN ({$placeholders})
+               AND (LOWER(i.path) LIKE '%.jpg' OR LOWER(i.path) LIKE '%.png')",
         );
         $deleteImages->execute([$companyId, ...$loadIds]);
-        $clearCapturePaths = $pdo->prepare(
-            "UPDATE solicitacoes_captura_camera r JOIN carregamentos c ON c.id = r.carregamento_id
-             SET r.evidence_pdf_path = NULL WHERE c.company_id = ? AND r.carregamento_id IN ({$placeholders})",
-        );
-        $clearCapturePaths->execute([$companyId, ...$loadIds]);
         $pdo->commit();
     } catch (Throwable $exception) {
         if ($pdo->inTransaction()) {
@@ -92,6 +91,9 @@ if ($user["company_id"] === null || !$romaneioId) {
     $respondJson(["error" => "Romaneio obrigatório."], 422);
 }
 
+if (!is_array($apiClient)) {
+    session_write_close();
+}
 $pdo = db();
 $manifest = $pdo->prepare("SELECT r.id, r.number, r.status, r.scheduled_date, r.expedidor,
     c.name AS company_name,
@@ -200,7 +202,7 @@ $items = $pdo->prepare("SELECT p.name, COALESCE(MIN(pc.barcode), p.code, '—') 
       WHERE c.romaneio_id = ri.romaneio_id AND l.product_id = ri.product_id
         AND l.result = 'VALIDO'), 0) AS moved_quantity
     FROM romaneio_itens ri JOIN produtos p ON p.id = ri.product_id
-    LEFT JOIN codigos_produtos pc ON pc.product_id = p.id
+    LEFT JOIN codigos_produtos pc ON pc.product_id = p.id AND pc.company_id = p.company_id
     WHERE ri.romaneio_id = ?
     GROUP BY ri.romaneio_id, ri.product_id, p.id, p.name, p.code
     ORDER BY p.name, p.code");

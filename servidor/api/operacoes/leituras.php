@@ -3,9 +3,15 @@
 declare(strict_types=1);
 
 require_once __DIR__ . "/../../configuracao/bootstrap.php";
+require_once __DIR__ . "/../../src/Aplicacao/ClassificadorLeitura.php";
+require_once __DIR__ . "/../../src/Aplicacao/SolicitacaoLeitura.php";
 require_once __DIR__ . "/../../src/Aplicacao/ServicoLeituras.php";
+require_once __DIR__ . "/../../src/Persistencia/RepositorioLeituras.php";
 
+use App\Aplicacao\ClassificadorLeitura;
+use App\Aplicacao\SolicitacaoLeitura;
 use App\Aplicacao\ServicoLeituras;
+use App\Persistencia\RepositorioLeituras;
 
 $usuarioAtor = exigir_sessao_usuario();
 if ($usuarioAtor["company_id"] === null) {
@@ -17,7 +23,7 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
     $page = filter_var($_GET["page"] ?? 1, FILTER_VALIDATE_INT);
     $page = $page === false ? 1 : max(1, (int) $page);
     session_write_close();
-    $pendencias = (new ServicoLeituras(obter_conexao_banco()))->listarPendentes(
+    $pendencias = (new ServicoLeituras(new RepositorioLeituras(obter_conexao_banco())))->listarPendentes(
         (int) $usuarioAtor["company_id"],
         (int) $loadingId,
         $page,
@@ -31,35 +37,19 @@ exigir_csrf();
 session_write_close();
 
 $payload = ler_json_da_requisicao();
-$loadingId = filter_var(
-    $payload["carregamento_id"] ?? null,
-    FILTER_VALIDATE_INT,
-);
-$sensorEventId = filter_var(
-    $payload["sensor_event_id"] ?? null,
-    FILTER_VALIDATE_INT,
-);
-$barcode = trim((string) ($payload["barcode"] ?? ""));
-$offlineEventId = trim((string) ($_SERVER["HTTP_X_TRACE_OFFLINE_ID"] ?? ""));
-if ($offlineEventId !== "" && preg_match('/^[a-f0-9-]{16,36}$/i', $offlineEventId) !== 1) {
-    responder_json(["error" => "Identificador da leitura inválido."], 422);
-}
-$attemptNumber = filter_var(
-    $payload["attempt_number"] ?? 1,
-    FILTER_VALIDATE_INT,
-);
-if (!$loadingId) {
-    json_response(["error" => "Carregamento obrigatório."], 422);
-}
-if (mb_strlen($barcode, "UTF-8") > 128 || preg_match('/[\x00-\x1F\x7F]/', $barcode) === 1) {
-    json_response(["error" => "Código de barras inválido ou longo demais."], 422);
-}
-if ($attemptNumber !== 1) {
-    json_response(
-        ["error" => "Cada saco possui uma única tentativa de leitura."],
-        422,
+try {
+    $solicitacao = SolicitacaoLeitura::fromPayload(
+        $payload,
+        (string) ($_SERVER["HTTP_X_TRACE_OFFLINE_ID"] ?? ""),
     );
+} catch (InvalidArgumentException $exception) {
+    responder_json(["error" => $exception->getMessage()], 422);
 }
+$loadingId = $solicitacao->loadingId;
+$sensorEventId = $solicitacao->sensorEventId;
+$barcode = $solicitacao->barcode;
+$offlineEventId = $solicitacao->offlineEventId;
+$attemptNumber = $solicitacao->attemptNumber;
 
 $pdo = db();
 $pdo->beginTransaction();
@@ -69,7 +59,7 @@ register_shutdown_function(static function () use ($pdo): void {
     }
 });
 $loadingStatement = $pdo->prepare(
-    'SELECT c.id, c.state, c.romaneio_id, c.truck_id, c.equipment_id
+    'SELECT c.id, c.state, c.romaneio_id, c.truck_id, c.equipment_id, c.leituras_validas
      FROM carregamentos c
      WHERE c.id = :id AND c.company_id = :company_id LIMIT 1 FOR UPDATE',
 );
@@ -85,17 +75,13 @@ if (!$loading) {
         404,
     );
 }
+$readingRepository = new RepositorioLeituras($pdo);
 if ($offlineEventId !== "") {
-    $previous = $pdo->prepare(
-        "SELECT entity_id, metadata FROM logs_auditoria
-         WHERE company_id = :company_id AND event_uuid = :event_uuid
-           AND action = 'LEITURA_REGISTRADA' LIMIT 1",
+    $registered = $readingRepository->buscarLeituraOfflineRegistrada(
+        (int) $usuarioAtor["company_id"],
+        $offlineEventId,
+        (int) $loadingId,
     );
-    $previous->execute([
-        "company_id" => $usuarioAtor["company_id"],
-        "event_uuid" => $offlineEventId,
-    ]);
-    $registered = $previous->fetch();
     if ($registered) {
         $original = json_decode((string) $registered["metadata"], true);
         if (
@@ -106,24 +92,14 @@ if ($offlineEventId !== "") {
             $pdo->rollBack();
             responder_json(["error" => "Identificador já usado em outra leitura."], 409);
         }
-        $originalReading = $pdo->prepare(
-            "SELECT id, result FROM leituras
-             WHERE id = :id AND company_id = :company_id AND carregamento_id = :carregamento_id LIMIT 1",
-        );
-        $originalReading->execute([
-            "id" => $registered["entity_id"],
-            "company_id" => $usuarioAtor["company_id"],
-            "carregamento_id" => $loadingId,
-        ]);
-        $reading = $originalReading->fetch();
         $pdo->rollBack();
-        if (!$reading) {
+        if ($registered["reading_id"] === null) {
             responder_json(["error" => "Leitura original não está mais disponível para reenvio."], 409);
         }
         responder_json([
             "data" => [
-                "id" => (int) $reading["id"],
-                "result" => $reading["result"],
+                "id" => (int) $registered["reading_id"],
+                "result" => $registered["result"],
                 "duplicate" => true,
                 "load_status" => in_array($loading["state"], ["FINALIZANDO", "FINALIZADO"], true)
                     ? "COMPLETO" : "EM_ANDAMENTO",
@@ -149,19 +125,30 @@ if ($loading["state"] !== "CARREGANDO") {
     );
 }
 
-$plannedStatement = $pdo->prepare(
-    "SELECT COALESCE(SUM(ri.planned_quantity), 0) FROM romaneio_itens ri WHERE ri.romaneio_id = :romaneio_id AND (ri.truck_id = :truck_id OR ri.truck_id IS NULL)",
-);
-$plannedStatement->execute([
-    "romaneio_id" => $loading["romaneio_id"],
-    "truck_id" => $loading["truck_id"],
-]);
-$plannedQuantity = (int) $plannedStatement->fetchColumn();
-$validCountStatement = $pdo->prepare(
-    "SELECT leituras_validas FROM carregamentos WHERE id = :carregamento_id FOR UPDATE",
-);
-$validCountStatement->execute(["carregamento_id" => $loadingId]);
-$validCount = (int) $validCountStatement->fetchColumn();
+$loadingValidCount = (int) $loading["leituras_validas"];
+// O Elgin EL8600 envia o código como teclado USB. Associe a leitura ao evento
+// de passagem mais recente ainda dentro da janela, sem exigir outro pedido do navegador.
+if (!$sensorEventId && $barcode !== "") {
+    $associationWindowMs = max(500, min(10000, (int) (getenv("TRACE_SCANNER_NO_READ_TIMEOUT_MS") ?: 1500)));
+    $associationWindowMicroseconds = $associationWindowMs * 1000;
+    $pendingSensor = $pdo->prepare(
+        "SELECT s.id
+         FROM eventos_sensor s
+         WHERE s.carregamento_id = :carregamento_id
+           AND s.equipment_id = :equipment_id
+           AND s.detected_at >= DATE_SUB(NOW(3), INTERVAL {$associationWindowMicroseconds} MICROSECOND)
+           AND NOT EXISTS (SELECT 1 FROM leituras l WHERE l.sensor_event_id = s.id)
+         ORDER BY s.detected_at DESC, s.id DESC LIMIT 1 FOR UPDATE",
+    );
+    $pendingSensor->execute([
+        "carregamento_id" => $loadingId,
+        "equipment_id" => $loading["equipment_id"],
+    ]);
+    $matchedSensorEventId = $pendingSensor->fetchColumn();
+    if ($matchedSensorEventId !== false) {
+        $sensorEventId = (int) $matchedSensorEventId;
+    }
+}
 if ($sensorEventId) {
     $sensorStatement = $pdo->prepare(
         "SELECT id FROM eventos_sensor WHERE id = :sensor_event_id AND carregamento_id = :carregamento_id AND equipment_id = :equipment_id LIMIT 1",
@@ -180,67 +167,37 @@ if ($sensorEventId) {
     }
 }
 
-$result = "SEM_LEITURA";
-$productId = null;
+$matchedProductId = null;
 $productPlannedQuantity = 0;
 $productValidCount = 0;
 if ($barcode !== "") {
-    $productStatement = $pdo->prepare(
-        'SELECT p.id
-         FROM codigos_produtos pc
-         JOIN produtos p ON p.id = pc.product_id AND p.company_id = :company_id
-         WHERE pc.barcode = :barcode AND p.active = 1 LIMIT 1',
+    $matchedProductId = $readingRepository->buscarProdutoAtivoPorCodigo(
+        (int) $usuarioAtor["company_id"],
+        $barcode,
     );
-    $productStatement->execute([
-        "company_id" => $usuarioAtor["company_id"],
-        "barcode" => $barcode,
-    ]);
-    $product = $productStatement->fetch();
-    if ($product) {
-        $plannedStatement = $pdo->prepare(
-            "SELECT COALESCE(SUM(ri.planned_quantity), 0) AS planned_quantity,
-                    COALESCE((
-                        SELECT COUNT(*)
-                        FROM leituras l
-                        WHERE l.carregamento_id = :carregamento_id
-                          AND l.product_id = :count_product_id
-                          AND l.result = 'VALIDO'
-                    ), 0) AS valid_count
-             FROM romaneio_itens ri
-             WHERE ri.romaneio_id = :romaneio_id
-               AND ri.product_id = :product_id
-               AND (ri.truck_id = :truck_id OR ri.truck_id IS NULL)",
-        );
-        $plannedStatement->execute([
-            "carregamento_id" => $loadingId,
-            "count_product_id" => $product["id"],
-            "romaneio_id" => $loading["romaneio_id"],
-            "product_id" => $product["id"],
-            "truck_id" => $loading["truck_id"],
-        ]);
-        $productPlan = $plannedStatement->fetch() ?: [];
-        $productPlannedQuantity = (int) ($productPlan["planned_quantity"] ?? 0);
-        $productValidCount = (int) ($productPlan["valid_count"] ?? 0);
-        if ($productPlannedQuantity > 0) {
-            $productId = (int) $product["id"];
-            $result = "VALIDO";
-        } else {
-            $result = "PRODUTO_INCORRETO";
-        }
-    } else {
-        $result = "PRODUTO_INCORRETO";
-    }
 }
-if (
-    $result === "VALIDO" &&
-    $productPlannedQuantity > 0 &&
-    $productValidCount >= $productPlannedQuantity
-) {
-    $result = "EXCESSO";
-}
-if ($result === "VALIDO" && $plannedQuantity > 0 && $validCount >= $plannedQuantity) {
-    $result = "EXCESSO";
-}
+$quantities = $readingRepository->obterQuantidadesParaClassificar(
+    (int) $usuarioAtor["company_id"],
+    (int) $loadingId,
+    (int) $loading["romaneio_id"],
+    $loading["truck_id"] === null ? null : (int) $loading["truck_id"],
+    $matchedProductId,
+);
+$loadingPlannedQuantity = $quantities["loading_planned_quantity"];
+$productPlannedQuantity = $quantities["product_planned_quantity"];
+$productValidCount = $quantities["product_valid_count"];
+$classification = (new ClassificadorLeitura())->classificar(
+    $barcode !== "",
+    $matchedProductId,
+    $productPlannedQuantity,
+    $productValidCount,
+    $loadingPlannedQuantity,
+    $loadingValidCount,
+);
+$result = $classification["result"];
+$productId = $classification["product_id"];
+$productPlannedQuantity = $classification["product_planned_quantity"];
+$productValidCount = $classification["product_valid_count"];
 
 $endProductAlert = null;
 $alertThreshold = limite_alerta_fim_produto_sacas();
@@ -378,7 +335,7 @@ if ($result === "SEM_LEITURA") {
         $occurrenceId,
         ["carregamento_id" => (int) $loadingId, "leitura_id" => $readingId],
     );
-    $cameraStatus = "CAPTURA_PENDENTE_INCIDENTE";
+    $cameraStatus = $sensorEventId ? "CAPTURA_PENDENTE_INCIDENTE" : "NAO_SOLICITADA";
 }
 if ($result === "PRODUTO_INCORRETO") {
     $occurrence = $pdo->prepare(
@@ -399,7 +356,7 @@ if ($result === "PRODUTO_INCORRETO") {
         $occurrenceId,
         ["carregamento_id" => (int) $loadingId, "leitura_id" => $readingId],
     );
-    $cameraStatus = "CAPTURA_PENDENTE_INCIDENTE";
+    $cameraStatus = "NAO_SOLICITADA";
 }
 if ($result === "EXCESSO") {
     record_operational_event(
@@ -463,7 +420,7 @@ if ($result === "PRODUTO_INCORRETO") {
     );
 }
 if (
-    in_array($result, ["SEM_LEITURA", "PRODUTO_INCORRETO"], true) &&
+    $result === "SEM_LEITURA" &&
     $sensorEventId
 ) {
     $cameraRequest = $pdo->prepare(
@@ -498,8 +455,8 @@ if (
 $loadStatus = "EM_ANDAMENTO";
 if (
     $result === "VALIDO" &&
-    $plannedQuantity > 0 &&
-    $validCount + 1 >= $plannedQuantity
+    $loadingPlannedQuantity > 0 &&
+    $loadingValidCount + 1 >= $loadingPlannedQuantity
 ) {
     $trigger = $pdo->prepare(
         "SELECT a.id, a.comando, a.rotulo
@@ -553,8 +510,8 @@ if (
         "carregamento",
         (int) $loadingId,
         [
-            "planned_quantity" => $plannedQuantity,
-            "valid_readings" => $validCount + 1,
+            "planned_quantity" => $loadingPlannedQuantity,
+            "valid_readings" => $loadingValidCount + 1,
             "gatilho_configurado" => $configuredAction["comando"] ?? null,
         ],
     );

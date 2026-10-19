@@ -15,6 +15,7 @@ if (!$loadingId) {
     json_response(["error" => "Carregamento obrigatório."], 422);
 }
 
+session_write_close();
 $pdo = db();
 $loading = $pdo->prepare(
     "SELECT c.id, c.state, c.started_at, c.finished_at,

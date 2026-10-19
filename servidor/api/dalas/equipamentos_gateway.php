@@ -13,6 +13,10 @@ $device = require_device_token(["CLP"]);
 $signalLimit = limite_sinal_clp_segundos();
 $statement = db()->prepare(
     "SELECT e.id, e.equipment_code, e.name, e.plc_ip, e.plc_port, e.plc_protocol,
+            (SELECT c.id FROM carregamentos c
+             WHERE c.equipment_id = e.id AND c.company_id = e.company_id
+               AND c.state = 'CARREGANDO'
+             ORDER BY c.id DESC LIMIT 1) AS active_loading_id,
             CASE WHEN d.status = 'ONLINE'
                        AND d.last_seen_at >= DATE_SUB(NOW(3), INTERVAL {$signalLimit} SECOND)
                  THEN 1 ELSE 0 END AS modbus_recently_confirmed

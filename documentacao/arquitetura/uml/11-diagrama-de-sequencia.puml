@@ -15,19 +15,23 @@ API -> DB : criar solicitação PENDENTE
 Worker -> API : consultar fila / CLAIM
 API -> DB : reservar solicitação
 API --> Worker : solicitação reservada
-Worker -> Camera : ler quadro recente via RTSP/TCP
-Camera --> Worker : quadro JPEG
-Worker -> API : enviar JPEG autenticado
-API -> PDF : converter/incorporar evidência
-PDF -> Storage : gravar PDF de evidência
-PDF --> API : caminho persistido
+Worker -> Camera : abrir RTSP e solicitar um quadro
+Camera --> Worker : um JPEG
+Worker -> Camera : encerrar sessão RTSP
+Worker -> PDF : montar PDF com o quadro
+PDF --> Worker : PDF final
+Worker -> Storage : gravar cópia PDF no PC industrial
+Worker -> API : enviar PDF autenticado
+API -> Storage : armazenar os mesmos bytes PDF no servidor local
+Storage --> API : caminho persistido
 API -> DB : salvar evidence_pdf_path
 Worker -> API : COMPLETE com confirmação
 API -> DB : concluir solicitação
 API --> Worker : captura concluída
 
 note over API,Storage
-Se a conversão ou gravação falhar, a evidência de origem
-deve ser preservada para recuperação.
+O JPEG existe apenas em memória durante a captura e como dado
+incorporado ao PDF. Persistem somente cópias PDF no PC industrial
+e no servidor local, sujeitas à retenção configurada.
 end note
 @enduml

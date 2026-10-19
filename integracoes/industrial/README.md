@@ -24,7 +24,7 @@ sem leitura → SEM_LEITURA + captura da câmera, sem pausar o carregamento
 
 ## Configuração
 
-[`register-map.example.json`](./register-map.example.json) é somente um modelo genérico de documentação/simulação; seus endereços físicos `CONFIRMAR` não são o mapa da bancada. Para esta Dala, use exclusivamente o mapa aprovado registrado no README do Node-RED: M2049 (esteira), M2050 (reversão), M2051 (emergência), M17 (retorno da emergência) e M2052 (bit do sensor, lido por FC1). O Ladder ainda precisa confirmar se o sinal é pulso ou nível mantido antes da correlação automática de sacos.
+[`register-map.example.json`](./register-map.example.json) é somente um modelo genérico de documentação/simulação; seus endereços físicos `CONFIRMAR` não são o mapa da bancada. Para esta Dala, use exclusivamente o mapa aprovado registrado no README do Node-RED: M2049 (esteira), M2050 (reversão), M2051 (emergência), M17 (retorno da emergência) e M2052 (sensor, lido por FC1). O gateway agora monitora M2052 a cada 200 ms com detecção configurável de borda; ainda é necessária homologação do modo configurado com o Ladder real.
 
 O endereço cadastrado é `192.168.1.10:502`, com Modbus TCP por Ethernet. A escrita física começa desabilitada no instalador e só pode ser habilitada explicitamente depois dos testes de intertravamento. O retorno de movimento da esteira ainda não está configurado; M17 é retorno de emergência e não deve ser reutilizado para indicar movimento.
 

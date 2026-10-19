@@ -6,6 +6,7 @@ require_once __DIR__ . "/../../src/Aplicacao/ServicoDisponibilidadeClp.php";
 
 use App\Aplicacao\ExcecaoDisponibilidadeClp;
 use App\Aplicacao\ServicoDisponibilidadeClp;
+use App\Persistencia\RepositorioDisponibilidadeClp;
 
 $user = require_role(["ADMIN_EMPRESA", "SUPERVISOR"]);
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
@@ -50,7 +51,9 @@ try {
             409,
         );
     }
-    (new ServicoDisponibilidadeClp($pdo))->validarComando(
+    (new ServicoDisponibilidadeClp(
+        new RepositorioDisponibilidadeClp($pdo),
+    ))->validarComando(
         (int) $user["company_id"],
         (int) $current["equipment_id"],
     );

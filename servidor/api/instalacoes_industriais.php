@@ -7,6 +7,9 @@ require_once __DIR__ . "/../configuracao/bootstrap.php";
 $actor = require_session_user();
 $isMaster = ($actor["role"] ?? "") === "ADMIN_DALLOGIX";
 $method = strtoupper((string) ($_SERVER["REQUEST_METHOD"] ?? "GET"));
+if ($method === "GET") {
+    session_write_close();
+}
 $pdo = db();
 
 $resolveCompanyId = static function (mixed $raw, bool $master, array $user): int {

@@ -128,12 +128,12 @@ test("resposta FC1 publica os estados 0 e 1 do bit M2052", () => {
     message.modbusFunction = 1;
     message.modbusRegister = 2052;
     const result = runtime()("modbus-result", message);
-    assert.equal(result.payload.status, "ONLINE");
-    assert.equal(result.payload.details.diagnostic_value, bit);
+    assert.equal(result[0].payload.status, "ONLINE");
+    assert.equal(result[0].payload.details.diagnostic_value, bit);
   }
 });
 test("resposta correlacionada e completa produz ONLINE", () => {
-  assert.equal(runtime()("modbus-result", resultMessage(response())).payload.status, "ONLINE");
+  assert.equal(runtime()("modbus-result", resultMessage(response()))[0].payload.status, "ONLINE");
 });
 for (const [name, change] of [
   ["transação diferente", (b) => b.writeUInt16BE(41, 0)],

@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ArmazenamentoTrace } from "../interface/js/classes/ArmazenamentoTrace.js";
+import { ServicoDalas } from "../interface/js/servicos/ServicoDalas.js";
+import { ServicoLeiturasOperacionais } from "../interface/js/servicos/ServicoLeiturasOperacionais.js";
 
 test("armazenamento preserva resposta válida como dados", async () => {
   const armazenamento = Object.create(ArmazenamentoTrace.prototype);
@@ -10,6 +12,45 @@ test("armazenamento preserva resposta válida como dados", async () => {
     await armazenamento.jsonResponse(response, "fallback"),
     { data: { total: 3 } },
   );
+});
+
+test("pedidos simultâneos de Dalas aguardam e compartilham a mesma carga", async () => {
+  const state = {
+    equipments: [],
+    equipmentsLoaded: false,
+    equipmentsLoading: false,
+    equipmentsError: "",
+  };
+  const service = new ServicoDalas({
+    api: {}, state, jsonHeaders() {}, jsonResponse() {},
+    fetchAllPages: () => {
+      chamadas += 1;
+      if (chamadas > 1) return Promise.resolve([{ equipment_code: "dala_c", name: "Dala C" }]);
+      return new Promise((resolve) => { concluirCarga = resolve; });
+    },
+  });
+  let concluirCarga;
+  let chamadas = 0;
+
+  const primeiraTela = service.loadAll();
+  const segundaTela = service.loadAll({ force: true });
+
+  assert.equal(chamadas, 1);
+  assert.equal(state.equipmentsLoading, true);
+  concluirCarga([
+    { equipment_code: "dala_b", name: "Dala B" },
+    { equipment_code: "dala_a", name: "Dala A" },
+  ]);
+  const [primeiraLista, segundaLista] = await Promise.all([primeiraTela, segundaTela]);
+
+  assert.equal(primeiraLista, segundaLista);
+  assert.deepEqual(primeiraLista.map(({ equipment_code }) => equipment_code), ["dala_a", "dala_b"]);
+  assert.equal(state.equipmentsLoaded, true);
+  assert.equal(state.equipmentsLoading, false);
+  assert.equal(service.request, null);
+
+  await service.loadAll({ force: true });
+  assert.equal(chamadas, 2, "forçar atualização após concluir deve consultar novamente");
 });
 
 test("armazenamento transforma erro HTTP em erro classificado", async () => {
@@ -33,8 +74,7 @@ test("armazenamento preserva mensagem alternativa do servidor sem consumir o err
 });
 
 test("resposta atrasada de pendências não troca a página ou a Dala atual", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
-  armazenamento.state = {
+  const state = {
     loadingId: 7,
     pendingReadings: [],
     pendingReadingsPage: 1,
@@ -42,40 +82,57 @@ test("resposta atrasada de pendências não troca a página ou a Dala atual", as
     pendingReadingsTotal: 0,
     pendingReadingsLoadingId: 7,
   };
-  armazenamento.pendingReadingsRequestId = 0;
+  let currentRequestId = 0;
   let finishOld;
   const oldResponse = new Promise((resolve) => { finishOld = resolve; });
-  armazenamento.api = {
+  const service = new ServicoLeiturasOperacionais({
+    state,
+    api: {
     fetch: (path) => path.includes("page=2")
       ? oldResponse
       : Promise.resolve(new Response(JSON.stringify({
         data: [{ id: 11 }], pagination: { page: 1, pages: 1, total: 1 },
       }), { status: 200 })),
-  };
-  const stale = armazenamento.loadPendingReadings(2);
-  armazenamento.state.loadingId = 8;
-  const fresh = armazenamento.loadPendingReadings();
+    },
+    jsonHeaders: () => ({}),
+    jsonResponse: (response) => response.json(),
+    requestWithOfflineQueue: async () => {},
+    nextPendingReadingsRequestId: () => ++currentRequestId,
+    getPendingReadingsRequestId: () => currentRequestId,
+    loadActiveLoading: async () => {},
+    loadPendingReadings: async () => {},
+  });
+  const stale = service.loadPendingReadings(2);
+  state.loadingId = 8;
+  const fresh = service.loadPendingReadings();
   finishOld(new Response(JSON.stringify({
     data: [{ id: 99 }], pagination: { page: 2, pages: 2, total: 21 },
   }), { status: 200 }));
   await Promise.all([stale, fresh]);
-  assert.deepEqual(armazenamento.state.pendingReadings, [{ id: 11 }]);
-  assert.equal(armazenamento.state.pendingReadingsLoadingId, 8);
-  assert.equal(armazenamento.state.pendingReadingsPage, 1);
+  assert.deepEqual(state.pendingReadings, [{ id: 11 }]);
+  assert.equal(state.pendingReadingsLoadingId, 8);
+  assert.equal(state.pendingReadingsPage, 1);
 });
 
 test("falha na atualização posterior não transforma leitura confirmada em erro repetível", async () => {
-  const armazenamento = Object.create(ArmazenamentoTrace.prototype);
-  armazenamento.state = { loadingId: 7 };
+  const state = { loadingId: 7 };
   let posts = 0;
-  armazenamento.requestWithOfflineQueue = async () => {
+  const service = new ServicoLeiturasOperacionais({
+    state,
+    api: {},
+    jsonHeaders: () => ({}),
+    jsonResponse: async (response) => response.json(),
+    requestWithOfflineQueue: async () => {
     posts += 1;
     return new Response(JSON.stringify({ data: { id: 42, result: "VALIDO" } }), { status: 200 });
-  };
-  armazenamento.loadActiveLoading = async () => { throw new Error("Consulta GET indisponível."); };
-  armazenamento.loadPendingReadings = async () => assert.fail("não deve tentar recarregar pendências após a primeira falha");
+    },
+    nextPendingReadingsRequestId: () => 1,
+    getPendingReadingsRequestId: () => 1,
+    loadActiveLoading: async () => { throw new Error("Consulta GET indisponível."); },
+    loadPendingReadings: async () => assert.fail("não deve tentar recarregar pendências após a primeira falha"),
+  });
 
-  const result = await armazenamento.registerManualReading("7890123");
+  const result = await service.registerManualReading("7890123");
 
   assert.equal(result.id, 42);
   assert.equal(result.result, "VALIDO");

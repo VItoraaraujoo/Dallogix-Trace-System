@@ -9,18 +9,31 @@ if ($usuarioAtor["company_id"] === null) {
     responder_json(["error" => "Usuário sem empresa vinculada."], 403);
 }
 
-$pdo = obter_conexao_banco();
 if ($_SERVER["REQUEST_METHOD"] === "GET") {
+    session_write_close();
+    $limit = filter_var($_GET["limit"] ?? 50, FILTER_VALIDATE_INT);
+    if ($limit === false || $limit < 1 || $limit > 50) {
+        responder_json(["error" => "Limite de ocorrências inválido."], 422);
+    }
+
+    $pdo = obter_conexao_banco();
     $statement = $pdo->prepare(
-        "SELECT id, type, quantity, description, carregamento_id, created_at FROM ocorrencias WHERE company_id = :company_id ORDER BY id DESC LIMIT 50",
+        "SELECT id, type, quantity, description, carregamento_id, created_at
+         FROM ocorrencias
+         WHERE company_id = :company_id
+         ORDER BY id DESC
+         LIMIT :limit",
     );
-    $statement->execute(["company_id" => $usuarioAtor["company_id"]]);
+    $statement->bindValue(":company_id", (int) $usuarioAtor["company_id"], PDO::PARAM_INT);
+    $statement->bindValue(":limit", $limit, PDO::PARAM_INT);
+    $statement->execute();
     responder_json(["data" => $statement->fetchAll()]);
 }
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     responder_json(["error" => "Método não permitido."], 405);
 }
 exigir_csrf();
+$pdo = obter_conexao_banco();
 
 $payload = ler_json_da_requisicao();
 $type = trim((string) ($payload["type"] ?? ""));

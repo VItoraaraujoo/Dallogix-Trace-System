@@ -26,11 +26,10 @@ while (ob_get_level() > 0) {
 
 $service = new ServicoMonitoramento(obter_conexao_banco());
 $companyId = (int) $usuario["company_id"];
-$periodDays = filter_var($_GET["period_days"] ?? 30, FILTER_VALIDATE_INT);
-$periodDays = $periodDays === false ? 30 : max(1, min(3650, (int) $periodDays));
-$limit = limite_sinal_clp_segundos();
 $payload = [
-    "monitoring" => $service->obterInstantaneo($companyId, $periodDays, $limit, limite_sinal_camera_segundos()),
+    // Operação recebe o estado do carregamento neste stream. O status do CLP
+    // é consultado pela rota leve de dispositivos; não agregamos relatórios e
+    // históricos a cada reconexão SSE.
     "active_loadings" => $service->carregamentosAtivos($companyId),
     "sent_at" => gmdate("c"),
 ];

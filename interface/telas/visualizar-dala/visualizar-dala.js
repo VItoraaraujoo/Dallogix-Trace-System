@@ -6,7 +6,7 @@ import { pageHeader, physicalStateBadge } from "../../js/funcoes/view.js?v=20261
 export function dalaView(store) {
   const dala = store.state.equipmentDetail;
   if (!dala) return `${pageHeader("Cadastros / Dalas", "Dala", "Carregando…")}`;
-  const operation = (store.state.monitoring?.maquinas || []).find(
+  const operation = (store.state.dalaStatuses || []).find(
     (item) => Number(item.id) === Number(dala.id),
   ) || {};
   const planned = Number(operation.planned_quantity || 0);

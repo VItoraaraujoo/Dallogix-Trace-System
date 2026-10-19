@@ -30,6 +30,11 @@ services:
       - --log-bin=trace-bin
       - --server-id=1
       - --log-bin-trust-function-creators=OFF
+      - --performance-schema-digests-size=1000
+      - --performance-schema-events-stages-history-long-size=1000
+      - --performance-schema-events-statements-history-long-size=1000
+      - --performance-schema-events-transactions-history-long-size=1000
+      - --performance-schema-events-waits-history-long-size=1000
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:?}

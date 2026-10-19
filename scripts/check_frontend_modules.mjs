@@ -43,7 +43,11 @@ while (pending.length > 0) {
   }
   visited.add(file);
   const source = readFileSync(file, "utf8");
-  for (const match of source.matchAll(/\b(?:import|export)\s+(?:[\w$*{},\s]+?\s+from\s+)?["']([^"']+)["']/g)) {
+  const imports = [
+    ...source.matchAll(/\b(?:import|export)\s+(?:[\w$*{},\s]+?\s+from\s+)?["']([^"']+)["']/g),
+    ...source.matchAll(/\bimport\(\s*["']([^"']+)["']\s*\)/g),
+  ];
+  for (const match of imports) {
     const specifier = match[1].split("?")[0];
     if (!specifier.startsWith(".")) continue;
     pending.push(path.resolve(path.dirname(file), specifier));

@@ -3,9 +3,14 @@ declare(strict_types=1);
 
 namespace App\Aplicacao;
 
+use App\Persistencia\RepositorioComandosClp;
+use App\Persistencia\RepositorioDisponibilidadeClp;
 use PDO;
 use RuntimeException;
 use Throwable;
+
+require_once __DIR__ . "/../Persistencia/RepositorioComandosClp.php";
+require_once __DIR__ . "/../Persistencia/RepositorioDisponibilidadeClp.php";
 
 final class ExcecaoComandoClp extends RuntimeException
 {
@@ -23,12 +28,16 @@ final class ServicoComandoClp
     private const COMANDO_DE_EMERGENCIA = "EMERGENCIA";
 
     private readonly PDO $connection;
+    private readonly RepositorioComandosClp $repositorio;
     private readonly ServicoDisponibilidadeClp $disponibilidadeClp;
 
     public function __construct(PDO $connection)
     {
         $this->connection = $connection;
-        $this->disponibilidadeClp = new ServicoDisponibilidadeClp($connection);
+        $this->repositorio = new RepositorioComandosClp($connection);
+        $this->disponibilidadeClp = new ServicoDisponibilidadeClp(
+            new RepositorioDisponibilidadeClp($connection),
+        );
     }
 
     /** @param array{id:int|string, company_id:int|string|null} $user */
@@ -50,7 +59,7 @@ final class ServicoComandoClp
 
         $this->connection->beginTransaction();
         try {
-            $loading = $this->localizarCarregamento($loadingId, (int) $user["company_id"]);
+            $loading = $this->repositorio->localizarCarregamento($loadingId, (int) $user["company_id"]);
             if (!$loading) {
                 throw new ExcecaoComandoClp(
                     "Carregamento não encontrado para esta empresa.",
@@ -70,7 +79,7 @@ final class ServicoComandoClp
             // já reservado pelo gateway. O início não é apagado depois de
             // reservado: o gateway conclui a sequência na ordem registrada,
             // mantendo o comando físico e o retorno auditável.
-            $pending = $this->comandoPendente($loadingId);
+            $pending = $this->repositorio->comandoPendente($loadingId);
             if (
                 $command === "INICIAR_CARREGAMENTO"
                 && $pending
@@ -98,7 +107,7 @@ final class ServicoComandoClp
                 );
             }
             if ($command === "INICIAR_CARREGAMENTO") {
-                $reversalCommand = $this->ultimaReversaoConfirmada(
+                $reversalCommand = $this->repositorio->ultimaReversaoConfirmada(
                     (int) $loading["equipment_id"],
                     (int) $user["company_id"],
                 );
@@ -132,62 +141,20 @@ final class ServicoComandoClp
                     );
                 }
                 if ($pending["status"] === "PENDENTE") {
-                    $cancel = $this->connection->prepare(
-                        "UPDATE solicitacoes_comandos_clp
-                         SET status = 'REJEITADO', completed_at = NOW(3),
-                             response_message = :message
-                         WHERE id = :id AND status = 'PENDENTE'",
+                    $this->cancelarComandoPendente(
+                        $user,
+                        $loading,
+                        $loadingId,
+                        $pending,
+                        $command,
                     );
-                    $cancel->execute([
-                        "id" => $pending["id"],
-                        "message" => "Comando substituído por {$command} antes da escrita física.",
-                    ]);
-                    if ($cancel->rowCount() === 1) {
-                        \record_operational_event(
-                            $this->connection,
-                            $user,
-                            "COMANDO_CLP_CONCLUIDO",
-                            "solicitacao_comando_clp",
-                            (int) $pending["id"],
-                            [
-                                "equipment_id" => (int) $loading["equipment_id"],
-                                "carregamento_id" => $loadingId,
-                                "command" => $pending["command"],
-                                "status" => "REJEITADO",
-                                "message" => "Comando substituído por {$command} antes da escrita física.",
-                                "replaced_by" => $command,
-                            ],
-                        );
-                    }
                 }
             }
-            $insert = $this->connection->prepare(
-                "INSERT INTO solicitacoes_comandos_clp
-                (company_id, equipment_id, carregamento_id, command, requested_by)
-                VALUES (:company_id, :equipment_id, :carregamento_id, :command, :requested_by)",
-            );
-            $insert->execute([
-                "company_id" => $user["company_id"],
-                "equipment_id" => $loading["equipment_id"],
-                "carregamento_id" => $loadingId,
-                "command" => $command,
-                "requested_by" => $user["id"],
-            ]);
-            $requestId = (int) $this->connection->lastInsertId();
-            \record_operational_event(
-                $this->connection,
+            $requestId = $this->registrarSolicitacaoComando(
                 $user,
+                $loading,
+                $loadingId,
                 $command,
-                "plc_command_request",
-                $requestId,
-                [
-                    "command" => $command,
-                    "carregamento_id" => $loadingId,
-                    "equipment_id" => (int) $loading["equipment_id"],
-                    "remote_carregamento_id" => $loading["remote_carregamento_id"] === null
-                        ? null : (int) $loading["remote_carregamento_id"],
-                    "requires_clp_adapter" => true,
-                ],
             );
             $this->connection->commit();
         } catch (Throwable $exception) {
@@ -239,7 +206,7 @@ final class ServicoComandoClp
 
         $this->connection->beginTransaction();
         try {
-            $loading = $this->localizarCarregamento($loadingId, (int) $user["company_id"]);
+            $loading = $this->repositorio->localizarCarregamento($loadingId, (int) $user["company_id"]);
             if (!$loading) {
                 throw new ExcecaoComandoClp(
                     "Carregamento não encontrado para esta empresa.",
@@ -253,7 +220,7 @@ final class ServicoComandoClp
                 );
             }
             if ($command === "REVERSAO_ATIVAR") {
-                $reversalCommand = $this->ultimaReversaoConfirmada(
+                $reversalCommand = $this->repositorio->ultimaReversaoConfirmada(
                     (int) $loading["equipment_id"],
                     (int) $user["company_id"],
                 );
@@ -268,7 +235,7 @@ final class ServicoComandoClp
                 (int) $user["company_id"],
                 (int) $loading["equipment_id"],
             );
-            $pending = $this->comandoPendente($loadingId);
+            $pending = $this->repositorio->comandoPendente($loadingId);
             if ($pending) {
                 if ($pending["status"] !== "PENDENTE") {
                     throw new ExcecaoComandoClp(
@@ -287,58 +254,21 @@ final class ServicoComandoClp
                         409,
                     );
                 }
-                $cancel = $this->connection->prepare(
-                    "UPDATE solicitacoes_comandos_clp
-                     SET status = 'REJEITADO', completed_at = NOW(3),
-                         response_message = :message
-                     WHERE id = :id AND status = 'PENDENTE'",
-                );
                 $message = "Comando substituído por {$command} antes da escrita física.";
-                $cancel->execute(["id" => $pending["id"], "message" => $message]);
-                if ($cancel->rowCount() === 1) {
-                    \record_operational_event(
-                        $this->connection,
-                        $user,
-                        "COMANDO_CLP_CONCLUIDO",
-                        "solicitacao_comando_clp",
-                        (int) $pending["id"],
-                        [
-                            "equipment_id" => (int) $loading["equipment_id"],
-                            "carregamento_id" => $loadingId,
-                            "command" => $pending["command"],
-                            "status" => "REJEITADO",
-                            "message" => $message,
-                            "replaced_by" => $command,
-                        ],
-                    );
-                }
+                $this->cancelarComandoPendente(
+                    $user,
+                    $loading,
+                    $loadingId,
+                    $pending,
+                    $command,
+                    $message,
+                );
             }
-            $insert = $this->connection
-                ->prepare("INSERT INTO solicitacoes_comandos_clp
-                (company_id, equipment_id, carregamento_id, command, requested_by)
-                VALUES (:company_id, :equipment_id, :carregamento_id, :command, :requested_by)");
-            $insert->execute([
-                "company_id" => $user["company_id"],
-                "equipment_id" => $loading["equipment_id"],
-                "carregamento_id" => $loadingId,
-                "command" => $command,
-                "requested_by" => $user["id"],
-            ]);
-            $requestId = (int) $this->connection->lastInsertId();
-            \record_operational_event(
-                $this->connection,
+            $requestId = $this->registrarSolicitacaoComando(
                 $user,
+                $loading,
+                $loadingId,
                 $command,
-                "plc_command_request",
-                $requestId,
-                [
-                    "command" => $command,
-                    "carregamento_id" => $loadingId,
-                    "equipment_id" => (int) $loading["equipment_id"],
-                    "remote_carregamento_id" => $loading["remote_carregamento_id"] === null
-                        ? null : (int) $loading["remote_carregamento_id"],
-                    "requires_clp_adapter" => true,
-                ],
             );
             $this->connection->commit();
         } catch (Throwable $exception) {
@@ -382,7 +312,7 @@ final class ServicoComandoClp
 
         $this->connection->beginTransaction();
         try {
-            $loading = $this->localizarCarregamento($loadingId, (int) $user["company_id"]);
+            $loading = $this->repositorio->localizarCarregamento($loadingId, (int) $user["company_id"]);
             if (!$loading) {
                 throw new ExcecaoComandoClp(
                     "Carregamento não encontrado para esta empresa.",
@@ -401,7 +331,7 @@ final class ServicoComandoClp
             // de desbloqueio ainda em voo.
             $this->cancelarDesbloqueiosPendentes($user, $loadingId);
 
-            $pending = $this->comandoPendente($loadingId, self::COMANDO_DE_EMERGENCIA);
+            $pending = $this->repositorio->comandoPendente($loadingId, self::COMANDO_DE_EMERGENCIA);
             if ($pending) {
                 if ($loading["state"] !== "EMERGENCIA") {
                     $this->definirEstadoEmergencia($user, $loadingId, $loading);
@@ -422,34 +352,12 @@ final class ServicoComandoClp
                 $this->definirEstadoEmergencia($user, $loadingId, $loading);
             }
 
-            $insert = $this->connection->prepare(
-                "INSERT INTO solicitacoes_comandos_clp
-                (company_id, equipment_id, carregamento_id, command, requested_by)
-                VALUES (:company_id, :equipment_id, :carregamento_id, :command, :requested_by)",
-            );
-            $insert->execute([
-                "company_id" => $user["company_id"],
-                "equipment_id" => $loading["equipment_id"],
-                "carregamento_id" => $loadingId,
-                "command" => self::COMANDO_DE_EMERGENCIA,
-                "requested_by" => $user["id"],
-            ]);
-            $requestId = (int) $this->connection->lastInsertId();
-            \record_operational_event(
-                $this->connection,
+            $requestId = $this->registrarSolicitacaoComando(
                 $user,
+                $loading,
+                $loadingId,
                 self::COMANDO_DE_EMERGENCIA,
-                "plc_command_request",
-                $requestId,
-                [
-                    "command" => self::COMANDO_DE_EMERGENCIA,
-                    "carregamento_id" => $loadingId,
-                    "equipment_id" => (int) $loading["equipment_id"],
-                    "remote_carregamento_id" => $loading["remote_carregamento_id"] === null
-                        ? null : (int) $loading["remote_carregamento_id"],
-                    "requires_clp_adapter" => true,
-                    "safety_priority" => true,
-                ],
+                ["safety_priority" => true],
             );
             $this->connection->commit();
         } catch (Throwable $exception) {
@@ -477,76 +385,15 @@ final class ServicoComandoClp
         ];
     }
 
-    private function localizarCarregamento(int $loadingId, int $companyId): array|false
-    {
-        $statement = $this->connection->prepare(
-            "SELECT id, state, equipment_id, remote_carregamento_id, stop_reason, operator_alert
-             FROM carregamentos WHERE id = :id AND company_id = :company_id LIMIT 1 FOR UPDATE",
-        );
-        $statement->execute(["id" => $loadingId, "company_id" => $companyId]);
-        return $statement->fetch();
-    }
-
-    private function comandoPendente(int $loadingId, ?string $command = null): array|false
-    {
-        $where = "carregamento_id = :carregamento_id AND status IN ('PENDENTE', 'PROCESSANDO')";
-        $params = ["carregamento_id" => $loadingId];
-        if ($command !== null) {
-            $where .= " AND command = :command";
-            $params["command"] = $command;
-        }
-        $statement = $this->connection->prepare(
-            "SELECT id, status, command FROM solicitacoes_comandos_clp
-             WHERE {$where} ORDER BY id DESC LIMIT 1 FOR UPDATE",
-        );
-        $statement->execute($params);
-        return $statement->fetch();
-    }
-
-    private function ultimaReversaoConfirmada(int $equipmentId, int $companyId): ?string
-    {
-        $statement = $this->connection->prepare(
-            "SELECT command FROM solicitacoes_comandos_clp
-             WHERE equipment_id = :equipment_id AND company_id = :company_id
-               AND command IN ('REVERSAO_ATIVAR', 'REVERSAO_DESATIVAR')
-               AND status = 'APLICADO'
-             ORDER BY id DESC LIMIT 1",
-        );
-        $statement->execute([
-            "equipment_id" => $equipmentId,
-            "company_id" => $companyId,
-        ]);
-        $command = $statement->fetchColumn();
-        return $command === false ? null : (string) $command;
-    }
-
     /** @param array{id:int|string, company_id:int|string|null} $user */
     private function cancelarDesbloqueiosPendentes(array $user, int $loadingId): void
     {
-        $pending = $this->connection->prepare(
-            "SELECT r.id, r.equipment_id, r.remote_command_id,
-                    c.remote_carregamento_id, e.remote_equipment_id, e.equipment_code
-             FROM solicitacoes_comandos_clp r
-             JOIN carregamentos c ON c.id = r.carregamento_id
-             JOIN equipamentos e ON e.id = r.equipment_id
-             WHERE r.carregamento_id = :loading_id AND r.company_id = :company_id
-               AND r.command = 'DESBLOQUEAR_MAQUINA'
-               AND r.status IN ('PENDENTE', 'PROCESSANDO')
-             ORDER BY r.id FOR UPDATE",
+        $pending = $this->repositorio->desbloqueiosPendentes(
+            $loadingId,
+            $user["company_id"],
         );
-        $pending->execute([
-            "loading_id" => $loadingId,
-            "company_id" => $user["company_id"],
-        ]);
-        $cancel = $this->connection->prepare(
-            "UPDATE solicitacoes_comandos_clp
-             SET status = 'REJEITADO', completed_at = NOW(3),
-                 response_message = 'Nova emergência cancelou o desbloqueio pendente.'
-             WHERE id = :id AND status IN ('PENDENTE', 'PROCESSANDO')",
-        );
-        foreach ($pending->fetchAll() as $request) {
-            $cancel->execute(["id" => $request["id"]]);
-            if ($cancel->rowCount() !== 1) {
+        foreach ($pending as $request) {
+            if (!$this->repositorio->rejeitarDesbloqueioPendente($request["id"])) {
                 continue;
             }
             \record_operational_event(
@@ -573,19 +420,17 @@ final class ServicoComandoClp
         }
     }
 
-    /** @param array<string,mixed> $loading */
+    /**
+     * @param array{id:int|string,company_id:int|string} $user
+     * @param array<string,mixed> $loading
+     */
     private function definirEstadoEmergencia(array $user, int $loadingId, array $loading): void
     {
-        $update = $this->connection->prepare(
-            "UPDATE carregamentos SET state = 'EMERGENCIA'
-             WHERE id = :id AND company_id = :company_id AND state = :previous_state",
-        );
-        $update->execute([
-            "id" => $loadingId,
-            "company_id" => $user["company_id"],
-            "previous_state" => $loading["state"],
-        ]);
-        if ($update->rowCount() !== 1) {
+        if (!$this->repositorio->alterarEstadoParaEmergencia(
+            $loadingId,
+            $user["company_id"],
+            (string) $loading["state"],
+        )) {
             throw new ExcecaoComandoClp(
                 "O estado do carregamento mudou. Atualize a operação antes de acionar a emergência.",
                 409,
@@ -603,6 +448,80 @@ final class ServicoComandoClp
                 "remote_carregamento_id" => $loading["remote_carregamento_id"] === null
                     ? null : (int) $loading["remote_carregamento_id"],
                 "safety_priority" => true,
+            ],
+        );
+    }
+
+    /**
+     * Persiste uma solicitação física e sua trilha de auditoria na transação atual.
+     * Regras de autorização, intertravamento e estado permanecem nos fluxos chamadores.
+     *
+     * @param array{id:int|string, company_id:int|string|null} $user
+     * @param array<string,mixed> $loading
+     * @param array<string,mixed> $metadataAdicional
+     */
+    private function registrarSolicitacaoComando(
+        array $user,
+        array $loading,
+        int $loadingId,
+        string $command,
+        array $metadataAdicional = [],
+    ): int {
+        $requestId = $this->repositorio->inserirSolicitacao(
+            $user["company_id"],
+            $loading["equipment_id"],
+            $loadingId,
+            $command,
+            $user["id"],
+        );
+        $metadata = [
+            "command" => $command,
+            "carregamento_id" => $loadingId,
+            "equipment_id" => (int) $loading["equipment_id"],
+            "remote_carregamento_id" => $loading["remote_carregamento_id"] === null
+                ? null : (int) $loading["remote_carregamento_id"],
+            "requires_clp_adapter" => true,
+        ] + $metadataAdicional;
+
+        \record_operational_event(
+            $this->connection,
+            $user,
+            $command,
+            "plc_command_request",
+            $requestId,
+            $metadata,
+        );
+
+        return $requestId;
+    }
+
+    /** @param array<string,mixed> $loading @param array{id:int|string,status:string,command:string} $pending */
+    private function cancelarComandoPendente(
+        array $user,
+        array $loading,
+        int $loadingId,
+        array $pending,
+        string $command,
+        ?string $message = null,
+    ): void {
+        $message ??= "Comando substituído por {$command} antes da escrita física.";
+        if (!$this->repositorio->rejeitarComandoPendente($pending["id"], $message)) {
+            return;
+        }
+
+        \record_operational_event(
+            $this->connection,
+            $user,
+            "COMANDO_CLP_CONCLUIDO",
+            "solicitacao_comando_clp",
+            (int) $pending["id"],
+            [
+                "equipment_id" => (int) $loading["equipment_id"],
+                "carregamento_id" => $loadingId,
+                "command" => $pending["command"],
+                "status" => "REJEITADO",
+                "message" => $message,
+                "replaced_by" => $command,
             ],
         );
     }

@@ -45,4 +45,6 @@ test("API aceita logs de cliente com CSRF, pagina consulta e expõe transições
   assert.match(endpoint, /"retention_days" => \$retentionDays/);
   assert.match(heartbeat, /in_array\(\$status, \["OFFLINE", "ERRO"\], true\)/);
   assert.match(heartbeat, /heartbeat\.dispositivo/);
+  assert.match(heartbeat, /\$clpReportsAttachedSensor/);
+  assert.match(heartbeat, /"device_type" => \$deviceType/);
 });

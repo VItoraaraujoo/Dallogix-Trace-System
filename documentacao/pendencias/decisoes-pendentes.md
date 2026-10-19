@@ -19,7 +19,7 @@ Impacto: o worker RTSP e a geração de evidência PDF estão implementados. A c
 - Fabricante/modelo informado: **INVT TS621**. Registrar também o sufixo exato da etiqueta antes de validar a ligação elétrica.
 - IP/porta cadastrados na Dala: `192.168.1.10:502`; confirmar a topologia final da bancada.
 - Protocolo: **Modbus TCP por Ethernet**.
-- Mapa aprovado: `M2049` comando da esteira, `M2050` reversão, `M2051` emergência e `M17` retorno da emergência. `M2052` é um bit da área M e é consultado por FC1; falta confirmar no Ladder se ele pulsa ou permanece ativo por passagem. A semântica do Ladder decide como gerar eventos sem duplicar ou perder sacos.
+- Mapa aprovado: `M2049` comando da esteira, `M2050` reversão, `M2051` emergência, `M17` retorno da emergência e `M2052` sensor. O gateway agora lê M2052 por FC1 a cada 200 ms; a configuração local padrão registra a borda de subida, com `rising_edge`, `falling_edge` ou `toggle` disponíveis. Ainda falta homologar no Ladder qual modo representa exatamente uma passagem. Pulsos menores que 200 ms podem ser perdidos e precisam de alargamento/latch no CLP ou polling mais rápido validado.
 - Retorno de movimento da esteira: **não configurado**; o Central mostra “sem retorno de movimento configurado”.
 - Comportamento em perda de comunicação: ainda precisa de aceite no Ladder e teste físico.
 
@@ -58,7 +58,7 @@ Impacto: o projeto usa `SYNC_REMOTE_URL` e permanece portátil para futura migra
 
 - Configurar e testar um sinal de retorno de movimento separado do comando de saída; não reutilizar o retorno M17 da emergência como estado da esteira.
 - Integrar a leitura do sensor do CLP ao evento de saco e associar esse evento à leitura USB.
-- Testar ausência de leitura após o sensor: registro `SEM_LEITURA`, operação mantida em andamento e captura de evidência pela câmera.
+- Testar ausência de leitura após o sensor: aguardar `TRACE_SCANNER_NO_READ_TIMEOUT_MS` (padrão 1500 ms), confirmar registro único `SEM_LEITURA`, operação mantida em andamento e uma captura pontual da câmera.
 - Validar em bancada o comportamento seguro na perda de comunicação com o PC.
 - Confirmar o texto/alarme exibido ao operador quando a quantidade planejada for atingida.
 
