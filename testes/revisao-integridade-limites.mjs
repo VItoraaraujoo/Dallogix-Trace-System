@@ -129,7 +129,7 @@ test("listas internas usam cursor e o cliente percorre páginas sem truncar sile
   assert.match(client, /industrialEquipmentOptions = equipmentOptions/);
 });
 
-test("a migration recusa vínculos entre empresas antes de instalar chaves compostas", () => {
+test("a migration recusa vínculos entre empresas e roda sem criar triggers", () => {
   const migration = read("banco-de-dados/migrations/067_integridade_referencial_por_empresa.sql");
   for (const expected of [
     "Migration 067 bloqueada",
@@ -140,11 +140,23 @@ test("a migration recusa vínculos entre empresas antes de instalar chaves compo
     "fk_loading_equipment_company",
     "fk_loading_truck_romaneio",
     "fk_romaneio_assigned_installation_company",
+    "chk_romaneio_assigned_installation_pair",
     "fk_api_idempotency_key_company",
     "fk_api_idempotency_romaneio_company",
-    "trg_romaneios_installation_pair_insert_067",
-    "trg_romaneios_installation_pair_update_067",
   ]) assert.ok(migration.includes(expected), `restrição ausente: ${expected}`);
+  assert.match(migration, /ON DELETE RESTRICT/);
+  assert.doesNotMatch(migration, /CREATE\s+TRIGGER/i);
+});
+
+test("a exclusão do PC limpa a atribuição composta antes de remover a instalação", () => {
+  const source = read("servidor/api/instalacoes_industriais.php");
+  const deletion = source.slice(source.indexOf('if ($action === "delete_archived")'));
+  const clearAssignments = deletion.indexOf("UPDATE romaneios");
+  const deleteInstallation = deletion.indexOf("DELETE FROM instalacoes_industriais");
+  assert.ok(clearAssignments >= 0, "O fluxo de exclusão precisa limpar os romaneios atribuídos.");
+  assert.ok(deleteInstallation > clearAssignments, "A FK RESTRICT exige limpar os dois campos antes da exclusão.");
+  assert.match(deletion.slice(clearAssignments, deleteInstallation), /assigned_installation_id = NULL, assigned_installation_company_id = NULL/);
+  assert.match(deletion, /\$pdo->beginTransaction\(\)/);
 });
 
 test("todos os caminhos de inclusão de itens gravam a empresa no próprio registro", () => {

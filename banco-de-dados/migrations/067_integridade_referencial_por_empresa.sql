@@ -188,14 +188,6 @@ BEGIN
   IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema = DATABASE() AND table_name = 'carregamentos' AND constraint_name = 'fk_loading_truck_romaneio') THEN
     ALTER TABLE carregamentos ADD CONSTRAINT fk_loading_truck_romaneio FOREIGN KEY (truck_id, romaneio_id) REFERENCES romaneio_caminhoes (id, romaneio_id);
   END IF;
-  IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema = DATABASE() AND table_name = 'romaneios' AND constraint_name = 'fk_romaneio_assigned_installation_company') THEN
-    IF EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema = DATABASE() AND table_name = 'romaneios' AND constraint_name = 'fk_romaneio_assigned_installation') THEN
-      ALTER TABLE romaneios DROP FOREIGN KEY fk_romaneio_assigned_installation;
-    END IF;
-    ALTER TABLE romaneios ADD CONSTRAINT fk_romaneio_assigned_installation_company
-      FOREIGN KEY (assigned_installation_id, assigned_installation_company_id)
-      REFERENCES instalacoes_industriais (id, company_id) ON DELETE SET NULL;
-  END IF;
   IF NOT EXISTS (SELECT 1 FROM information_schema.table_constraints WHERE constraint_schema = DATABASE() AND table_name = 'api_romaneios_idempotencia' AND constraint_name = 'fk_api_idempotency_key_company') THEN
     ALTER TABLE api_romaneios_idempotencia ADD CONSTRAINT fk_api_idempotency_key_company
       FOREIGN KEY (api_key_id, company_id) REFERENCES chaves_api_integracao (id, company_id);
@@ -209,30 +201,53 @@ DELIMITER ;
 CALL trace_ensure_integrity_constraints_067();
 DROP PROCEDURE trace_ensure_integrity_constraints_067;
 
--- MySQL não permite CHECK nas colunas alcançadas por ON DELETE SET NULL.
--- Os gatilhos validam o par em escritas normais; a cascata de FK desassocia
--- os dois campos sem disparar gatilhos, mantendo o par nulo ao excluir o PC.
-DROP TRIGGER IF EXISTS trg_romaneios_installation_pair_insert_067;
-DROP TRIGGER IF EXISTS trg_romaneios_installation_pair_update_067;
+-- A API limpa os dois campos na mesma transação antes de excluir um PC
+-- industrial arquivado. A FK RESTRICT evita depender de gatilhos, que exigiriam
+-- privilégios SUPER no MySQL com binary logging habilitado.
+DROP PROCEDURE IF EXISTS trace_ensure_installation_pair_check_067;
 DELIMITER //
-CREATE TRIGGER trg_romaneios_installation_pair_insert_067
-BEFORE INSERT ON romaneios
-FOR EACH ROW
+CREATE PROCEDURE trace_ensure_installation_pair_check_067()
 BEGIN
-  IF (NEW.assigned_installation_id IS NULL AND NEW.assigned_installation_company_id IS NOT NULL)
-     OR (NEW.assigned_installation_id IS NOT NULL AND NEW.assigned_installation_company_id IS NULL) THEN
-    SIGNAL SQLSTATE '45000'
-      SET MESSAGE_TEXT = 'A atribuição do PC industrial deve informar o PC e a empresa juntos.';
+  IF EXISTS (
+    SELECT 1 FROM information_schema.referential_constraints
+    WHERE constraint_schema = DATABASE() AND table_name = 'romaneios'
+      AND constraint_name = 'fk_romaneio_assigned_installation_company'
+      AND delete_rule <> 'RESTRICT'
+  ) THEN
+    ALTER TABLE romaneios DROP FOREIGN KEY fk_romaneio_assigned_installation_company;
   END IF;
-END//
-CREATE TRIGGER trg_romaneios_installation_pair_update_067
-BEFORE UPDATE ON romaneios
-FOR EACH ROW
-BEGIN
-  IF (NEW.assigned_installation_id IS NULL AND NEW.assigned_installation_company_id IS NOT NULL)
-     OR (NEW.assigned_installation_id IS NOT NULL AND NEW.assigned_installation_company_id IS NULL) THEN
-    SIGNAL SQLSTATE '45000'
-      SET MESSAGE_TEXT = 'A atribuição do PC industrial deve informar o PC e a empresa juntos.';
+
+  IF EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_schema = DATABASE() AND table_name = 'romaneios'
+      AND constraint_name = 'fk_romaneio_assigned_installation'
+  ) THEN
+    ALTER TABLE romaneios DROP FOREIGN KEY fk_romaneio_assigned_installation;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_schema = DATABASE() AND table_name = 'romaneios'
+      AND constraint_name = 'fk_romaneio_assigned_installation_company'
+  ) THEN
+    ALTER TABLE romaneios ADD CONSTRAINT fk_romaneio_assigned_installation_company
+      FOREIGN KEY (assigned_installation_id, assigned_installation_company_id)
+      REFERENCES instalacoes_industriais (id, company_id) ON DELETE RESTRICT;
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.table_constraints
+    WHERE constraint_schema = DATABASE() AND table_name = 'romaneios'
+      AND constraint_name = 'chk_romaneio_assigned_installation_pair'
+      AND constraint_type = 'CHECK'
+  ) THEN
+    ALTER TABLE romaneios ADD CONSTRAINT chk_romaneio_assigned_installation_pair
+      CHECK (
+        (assigned_installation_id IS NULL AND assigned_installation_company_id IS NULL)
+        OR (assigned_installation_id IS NOT NULL AND assigned_installation_company_id IS NOT NULL)
+      );
   END IF;
 END//
 DELIMITER ;
+CALL trace_ensure_installation_pair_check_067();
+DROP PROCEDURE trace_ensure_installation_pair_check_067;

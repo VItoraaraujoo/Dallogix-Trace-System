@@ -26,6 +26,10 @@ services:
     build:
       context: ./docker/mysql
       dockerfile: Dockerfile
+    command:
+      - --log-bin=trace-bin
+      - --server-id=1
+      - --log-bin-trust-function-creators=OFF
     restart: unless-stopped
     environment:
       MYSQL_DATABASE: ${MYSQL_DATABASE:?}
