@@ -267,7 +267,7 @@ test("liberação de emergência não aparece sem carregamento selecionado", () 
   assert.equal(podeLiberarEmergencia({ role: "ADMIN_DALLOGIX", loadingId: 42 }), false);
 });
 
-test("comandos permanecem visíveis e direção fica bloqueada em emergência ou finalização", () => {
+test("comandos permanecem clicáveis em emergência ou finalização e reversão-off exige estado ativo", () => {
   for (const operationalState of ["FINALIZADO", "EMERGENCIA"]) {
     const markup = work({
       state: {
@@ -291,13 +291,27 @@ test("comandos permanecem visíveis e direção fica bloqueada em emergência ou
     for (const label of ["Ligar esteira", "Desligar esteira", "Ligar reversão", "Desligar reversão", "EMERGÊNCIA"]) {
       assert.match(markup, new RegExp(label));
     }
-    assert.match(markup, /data-action="run"[^>]*disabled/);
-    assert.match(markup, /data-action="reverse-on"[^>]*disabled/);
-    assert.match(markup, /data-action="emergency"(?![^>]*disabled)/);
+    for (const action of ["run", "stop", "reverse-on", "emergency"]) {
+      assert.match(markup, new RegExp(`data-action="${action}"(?![^>]*disabled)`));
+    }
+    assert.match(markup, /data-action="reverse-off"[^>]*disabled/);
     assert.doesNotMatch(markup, /Última comunicação/);
     assert.match(markup, /Leitura automática/);
     assert.doesNotMatch(markup, /Sensor|Câmera|Servidor/);
   }
+});
+
+test("emergência permanece clicável mesmo sem carregamento selecionado", () => {
+  const markup = work({ state: {
+    loadingId: null,
+    selectedLoadingId: null,
+    activeLoadings: [],
+    operationalState: "AGUARDANDO",
+    userRole: "USUARIO",
+  } });
+
+  assert.match(markup, /data-action="emergency"(?![^>]*disabled)/);
+  assert.match(markup, /title="Nenhum carregamento selecionado"/);
 });
 
 test("falha de comando fica fora da tela de operação", () => {
@@ -394,7 +408,7 @@ test("divergência mantém alerta, pausa do gateway e confirmação física expl
   assert.match(markup, /O gateway não confirmou a parada: Timeout Modbus/);
   assert.match(markup, /name="confirmar_remocao" value="true" required/);
   assert.match(markup, /a esteira está fisicamente parada/);
-  assert.match(markup, /data-action="run"[^>]*disabled/);
+  assert.match(markup, /data-action="run"(?![^>]*disabled)/);
 });
 
 test("cancelamento antigo da parada não permanece como aviso na tela", () => {
@@ -445,8 +459,9 @@ test("início pendente deixa a parada e a emergência disponíveis", () => {
   }
   assert.match(markup, /data-action="stop"(?![^>]*disabled)/);
   assert.match(markup, /data-action="emergency"(?![^>]*disabled)/);
-  assert.match(markup, /data-action="run"[^>]*disabled/);
-  assert.match(markup, /data-action="reverse-on"[^>]*disabled/);
+  assert.match(markup, /data-action="run"(?![^>]*disabled)/);
+  assert.match(markup, /data-action="reverse-on"(?![^>]*disabled)/);
+  assert.match(markup, /data-action="reverse-off"[^>]*disabled/);
   assert.match(markup, /Iniciar carregamento · aguardando CLP/);
 });
 
@@ -463,7 +478,7 @@ test("esteira parada libera iniciar e ligar reversão, mas não oferece parada r
   assert.equal(locks["reverse-off"], "A reversão já está desligada.");
 });
 
-test("CLP indisponível bloqueia comandos normais e mantém a solicitação de emergência disponível", () => {
+test("CLP indisponível mantém os comandos clicáveis e a emergência sempre disponível", () => {
   const message = "CLP sem comunicação há 5 segundos. Novos comandos estão bloqueados.";
   const state = {
     selectedLoadingId: 7,
@@ -494,15 +509,14 @@ test("CLP indisponível bloqueia comandos normais e mantém a solicitação de e
     clpDisponivel: () => false,
     mensagemClpIndisponivel: () => message,
   });
-  for (const action of ["run", "stop", "reverse-on", "reverse-off"]) {
-    assert.match(markup, new RegExp(`data-action="${action}"[^>]*disabled`));
+  for (const action of ["run", "stop", "reverse-on", "emergency"]) {
+    assert.match(markup, new RegExp(`data-action="${action}"(?![^>]*disabled)`));
   }
-  assert.match(markup, /data-action="emergency"(?![^>]*disabled)/);
+  assert.match(markup, /data-action="reverse-off"[^>]*disabled/);
   assert.doesNotMatch(markup, /class="work-command-error"/);
-  assert.match(markup, /data-action="run"[^>]*disabled/);
 });
 
-test("gateway sem liberação bloqueia comandos de rotina e mantém a emergência disponível", () => {
+test("gateway sem liberação mantém comandos clicáveis, com reversão-off condicionada", () => {
   const message = "O gateway ainda não confirmou a liberação dos comandos da máquina.";
   const state = {
     selectedLoadingId: 7,
@@ -528,10 +542,10 @@ test("gateway sem liberação bloqueia comandos de rotina e mantém a emergênci
     comandosMaquinaDisponiveis: () => false,
     mensagemComandosMaquinaIndisponiveis: () => message,
   });
-  for (const action of ["run", "stop", "reverse-on", "reverse-off"]) {
-    assert.match(markup, new RegExp(`data-action="${action}"[^>]*disabled`));
+  for (const action of ["run", "stop", "reverse-on", "emergency"]) {
+    assert.match(markup, new RegExp(`data-action="${action}"(?![^>]*disabled)`));
   }
-  assert.match(markup, /data-action="emergency"(?![^>]*disabled)/);
+  assert.match(markup, /data-action="reverse-off"[^>]*disabled/);
   assert.doesNotMatch(markup, /work-control-lock-reasons|work-command-history/);
 });
 
@@ -564,7 +578,7 @@ test("parada pendente aguarda o CLP antes de liberar nova direção", () => {
   assert.notEqual(locks["reverse-off"], "");
 });
 
-test("quando a reversão está ativa, só ficam disponíveis desligar reversão e emergência", () => {
+test("razões de bloqueio refletem o estado quando a reversão está ativa", () => {
   const locks = workControlLocks({
     loadingId: 7,
     operationalState: "PAUSADO",
@@ -589,7 +603,7 @@ test("romaneio finalizado não bloqueia comandos por seu status, somente o estad
   assert.equal(locks["reverse-on"], "");
 });
 
-test("início para frente exige reversão confirmada desligada e esteira parada", () => {
+test("iniciar continua clicável e informa as condições exigidas pelo servidor", () => {
   const base = {
     selectedLoadingId: 7,
     loadingId: 7,
@@ -602,12 +616,12 @@ test("início para frente exige reversão confirmada desligada e esteira parada"
     pendingReadings: [],
   };
   const render = (extra) => work({ state: { ...base, ...extra } });
-  assert.match(render({ reversalCommand: "REVERSAO_ATIVAR" }), /data-action="run"[^>]*disabled/);
-  assert.match(render({ reversalCommand: null }), /data-action="run"[^>]*disabled/);
+  assert.match(render({ reversalCommand: "REVERSAO_ATIVAR" }), /data-action="run"(?![^>]*disabled)/);
+  assert.match(render({ reversalCommand: null }), /data-action="run"(?![^>]*disabled)/);
   assert.doesNotMatch(render({ reversalCommand: null }), /work-control-lock-reasons/);
-  assert.match(render({ reversalCommand: null }), /Confirme a reversão desligada antes de ligar a esteira para frente/);
+  assert.match(render({ reversalCommand: null }), /title="Confirme a reversão desligada antes de ligar a esteira para frente/);
   assert.doesNotMatch(render({ reversalCommand: "REVERSAO_DESATIVAR" }), /data-action="run"[^>]*disabled/);
-  assert.match(render({ operationalState: "CARREGANDO", reversalCommand: "REVERSAO_DESATIVAR" }), /data-action="run"[^>]*disabled/);
+  assert.match(render({ operationalState: "CARREGANDO", reversalCommand: "REVERSAO_DESATIVAR" }), /data-action="run"(?![^>]*disabled)/);
 });
 
 test("Dala sem histórico pode confirmar a reversão desligada antes de iniciar", () => {
@@ -624,12 +638,15 @@ test("Dala sem histórico pode confirmar a reversão desligada antes de iniciar"
   assert.equal(unknownLocks["reverse-off"], "");
 
   const markup = work({ state: base });
-  assert.match(markup, /data-action="reverse-off"(?![^>]*disabled)/);
-  assert.match(markup, /data-action="run"[^>]*disabled/);
+  assert.match(markup, /data-action="reverse-off"[^>]*disabled/);
+  assert.match(markup, /data-action="run"(?![^>]*disabled)/);
 
   const confirmedLocks = workControlLocks({ ...base, reversalCommand: "REVERSAO_DESATIVAR" });
   assert.equal(confirmedLocks.run, "");
   assert.match(confirmedLocks["reverse-off"], /já está desligada/);
+
+  const activeMarkup = work({ state: { ...base, reversalCommand: "REVERSAO_ATIVAR" } });
+  assert.match(activeMarkup, /data-action="reverse-off"(?![^>]*disabled)/);
 });
 
 test("status e comando visíveis sempre pertencem à solicitação mais recente", () => {
