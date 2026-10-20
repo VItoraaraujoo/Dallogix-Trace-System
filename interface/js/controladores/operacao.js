@@ -123,8 +123,8 @@ export function updateOperationScannerFocus(root, activeElement = globalThis.doc
   status.textContent = input.disabled
     ? "Leitor indisponível enquanto a leitura estiver bloqueada."
     : ready
-      ? "Elgin EL8600 pronto para leitura."
-      : "Aguardando foco do leitor USB Elgin EL8600.";
+      ? "Leitor pronto para leitura."
+      : "Leitor sem foco. Toque no campo Código de barras antes de ler.";
   status.classList.toggle("is-error", !ready);
   return ready;
 }

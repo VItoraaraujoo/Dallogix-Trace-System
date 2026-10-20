@@ -123,6 +123,45 @@ final class ServicoMonitoramentoTest extends TestCase
         self::assertStringNotContainsString("logs_auditoria", $pdo->queries[0]);
     }
 
+    public function testStatusDoClpExpõeCapacidadeDeComandoSemExporDetalhesInternos(): void
+    {
+        $pdo = new MonitoramentoPdoFake([[
+            "equipment_id" => 8,
+            "device_type" => "CLP",
+            "status" => "ONLINE",
+            "last_seen_at" => "2026-10-19 12:00:00",
+            "segundos_sem_sinal" => 0,
+            "micros_sem_sinal" => 0,
+            "equipment_code" => "DALA-8",
+            "details" => '{"command_capability":{"available":true,"mode":"FISICO"},"secret":"nao-expor"}',
+        ]]);
+
+        $devices = (new ServicoMonitoramento($pdo))->obterStatusDispositivos(5);
+
+        self::assertTrue($devices[0]["machine_commands_available"]);
+        self::assertSame("FISICO", $devices[0]["machine_command_mode"]);
+        self::assertArrayNotHasKey("details", $devices[0]);
+    }
+
+    public function testStatusDoClpSemCapacidadeExplicitaBloqueiaComandos(): void
+    {
+        $pdo = new MonitoramentoPdoFake([[
+            "equipment_id" => 8,
+            "device_type" => "CLP",
+            "status" => "ONLINE",
+            "last_seen_at" => "2026-10-19 12:00:00",
+            "segundos_sem_sinal" => 0,
+            "micros_sem_sinal" => 0,
+            "equipment_code" => "DALA-8",
+            "details" => '{"command_capability":{"available":"true","mode":"INVALIDO"}}',
+        ]]);
+
+        $devices = (new ServicoMonitoramento($pdo))->obterStatusDispositivos(5);
+
+        self::assertFalse($devices[0]["machine_commands_available"]);
+        self::assertSame("DESCONHECIDO", $devices[0]["machine_command_mode"]);
+    }
+
     public function testScannerUsaLimiteDeHeartbeatProprioEStatusDesconhecidoQuandoAgenteAtrasa(): void
     {
         $device = static fn (int $id, string $status, int $ageMicros): array => [

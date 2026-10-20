@@ -42,6 +42,29 @@ function criarArmazenamento() {
   return armazenamento;
 }
 
+test("comandos da máquina só ficam liberados com CLP online e capacidade recente confirmada", () => {
+  const store = criarArmazenamento();
+  store.state.equipmentId = 8;
+  store.state.deviceStatusesUpdatedAt = new Date().toISOString();
+  store.state.deviceStatuses = [{
+    equipment_id: 8,
+    device_type: "CLP",
+    status: "ONLINE",
+    machine_commands_available: false,
+    machine_command_mode: "BLOQUEADO",
+  }];
+
+  assert.equal(store.comandosMaquinaDisponiveis(), false);
+  assert.match(store.mensagemComandosMaquinaIndisponiveis(), /escrita física não foi habilitada/);
+
+  store.state.deviceStatuses[0].machine_commands_available = true;
+  assert.equal(store.comandosMaquinaDisponiveis(), true);
+
+  store.state.deviceStatusesUpdatedAt = new Date(Date.now() - 7000).toISOString();
+  assert.equal(store.comandosMaquinaDisponiveis(), false);
+  assert.match(store.mensagemComandosMaquinaIndisponiveis(), /Sem confirmação recente/);
+});
+
 test("somente administrador da empresa e supervisor recebem a ação de vincular Dala", () => {
   assert.equal(podeVincularDala("ADMIN_EMPRESA"), true);
   assert.equal(podeVincularDala("SUPERVISOR"), true);
@@ -129,10 +152,10 @@ test("indicador do scanner distingue foco, perda de foco e bloqueio", () => {
     querySelector: (selector) => selector === "[data-scanner-focus]" ? status : input,
   };
   assert.equal(updateOperationScannerFocus(root, input), true);
-  assert.match(status.textContent, /Elgin EL8600 pronto/);
+  assert.match(status.textContent, /Leitor pronto/);
   assert.equal(status.classList["is-error"], false);
   assert.equal(updateOperationScannerFocus(root, {}), false);
-  assert.match(status.textContent, /Aguardando foco do leitor USB Elgin EL8600/);
+  assert.match(status.textContent, /Leitor sem foco/);
   input.disabled = true;
   assert.equal(updateOperationScannerFocus(root, input), false);
   assert.match(status.textContent, /Leitor indisponível/);
@@ -163,7 +186,7 @@ test("leitor Elgin recupera o foco depois de toques fora de campos e respeita ca
     assert.equal(instalarRecuperacaoFocoLeitor(root), false);
     pointerUp({ target: { closest: () => null } });
     assert.equal(focusCalls, 1);
-    assert.match(status.textContent, /Elgin EL8600 pronto/);
+    assert.match(status.textContent, /Leitor pronto/);
     pointerUp({ target: { closest: (selector) => selector.includes("manual-reading-keyboard-toggle") ? {} : null } });
     assert.equal(focusCalls, 1, "o botão do teclado virtual não deve devolver o foco ao leitor");
     activeElement = { matches: () => true, closest: () => null };
@@ -296,7 +319,7 @@ test("comandos permanecem visíveis e direção fica bloqueada em emergência ou
     assert.match(markup, /data-action="reverse-on"[^>]*disabled/);
     assert.match(markup, /data-action="emergency"(?![^>]*disabled)/);
     assert.doesNotMatch(markup, /Última comunicação/);
-    assert.match(markup, /Scanner USB · Elgin EL8600/);
+    assert.match(markup, /Leitura automática/);
     assert.doesNotMatch(markup, /Sensor|Câmera|Servidor/);
   }
 });
@@ -327,7 +350,7 @@ test("falha do comando aparece na tela de operação com mensagem escapada", () 
   assert.doesNotMatch(markup, /<script>alert\(1\)<\/script>/);
 });
 
-test("erro final do gateway fica visível na tela de operação", () => {
+test("erro final antigo do gateway não permanece como cartão na tela de operação", () => {
   const markup = work({
     state: {
       selectedLoadingId: 7,
@@ -352,9 +375,8 @@ test("erro final do gateway fica visível na tela de operação", () => {
     },
   });
 
-  assert.match(markup, /Tempo limite Modbus; estado físico não confirmado\./);
-  assert.match(markup, /class="work-command-history" role="status"/);
-  assert.match(markup, /Último comando \(Iniciar carregamento\)/);
+  assert.doesNotMatch(markup, /Tempo limite Modbus; estado físico não confirmado\./);
+  assert.doesNotMatch(markup, /work-command-history|Último comando/);
 });
 
 test("divergência mantém alerta, pausa do gateway e confirmação física explícita", () => {
@@ -384,7 +406,7 @@ test("divergência mantém alerta, pausa do gateway e confirmação física expl
   assert.match(markup, /data-action="run"[^>]*disabled/);
 });
 
-test("cancelamento da parada pendente após confirmação é mostrado como informação", () => {
+test("cancelamento antigo da parada não permanece como aviso na tela", () => {
   const markup = work({ state: {
     selectedLoadingId: 7,
     loadingId: 7,
@@ -401,7 +423,7 @@ test("cancelamento da parada pendente após confirmação é mostrado como infor
       response_message: "Solicitação cancelada após confirmação física do operador, antes de ser reservada pelo gateway.",
     },
   } });
-  assert.match(markup, /Parada cancelada antes do envio ao gateway/);
+  assert.doesNotMatch(markup, /Parada cancelada antes do envio ao gateway/);
   assert.doesNotMatch(markup, /class="work-command-error" role="alert"/);
 });
 
@@ -450,7 +472,7 @@ test("esteira parada libera iniciar e ligar reversão, mas não oferece parada r
   assert.equal(locks["reverse-off"], "A reversão já está desligada.");
 });
 
-test("CLP indisponível bloqueia comandos normais e mantém o pedido de emergência disponível", () => {
+test("CLP indisponível bloqueia comandos normais e mantém a solicitação de emergência disponível", () => {
   const message = "CLP sem comunicação há 5 segundos. Novos comandos estão bloqueados.";
   const state = {
     selectedLoadingId: 7,
@@ -487,6 +509,39 @@ test("CLP indisponível bloqueia comandos normais e mantém o pedido de emergên
   assert.match(markup, /data-action="emergency"(?![^>]*disabled)/);
   assert.match(markup, /class="work-command-error" role="status" aria-live="polite"/);
   assert.match(markup, /CLP sem comunicação há 5 segundos/);
+});
+
+test("gateway sem liberação bloqueia comandos de rotina e mantém a emergência disponível", () => {
+  const message = "O gateway ainda não confirmou a liberação dos comandos da máquina.";
+  const state = {
+    selectedLoadingId: 7,
+    loadingId: 7,
+    activeLoadings: [{ id: 7, state: "PAUSADO", equipment_id: 3 }],
+    loadingItems: [],
+    equipmentCode: "EST-001",
+    operationalState: "PAUSADO",
+    reversalCommand: "REVERSAO_DESATIVAR",
+    userRole: "USUARIO",
+    commandInFlight: false,
+    pendingReadings: [],
+  };
+  const options = { machineCommandsAvailable: false, machineCommandsUnavailableMessage: message };
+  const locks = workControlLocks(state, options);
+  for (const action of ["run", "stop", "reverse-on", "reverse-off"]) {
+    assert.equal(locks[action], message);
+  }
+
+  const markup = work({
+    state,
+    clpDisponivel: () => true,
+    comandosMaquinaDisponiveis: () => false,
+    mensagemComandosMaquinaIndisponiveis: () => message,
+  });
+  for (const action of ["run", "stop", "reverse-on", "reverse-off"]) {
+    assert.match(markup, new RegExp(`data-action="${action}"[^>]*disabled`));
+  }
+  assert.match(markup, /data-action="emergency"(?![^>]*disabled)/);
+  assert.doesNotMatch(markup, /work-control-lock-reasons|work-command-history/);
 });
 
 test("esteira em movimento deixa disponível somente parar entre os comandos normais", () => {
@@ -558,7 +613,7 @@ test("início para frente exige reversão confirmada desligada e esteira parada"
   const render = (extra) => work({ state: { ...base, ...extra } });
   assert.match(render({ reversalCommand: "REVERSAO_ATIVAR" }), /data-action="run"[^>]*disabled/);
   assert.match(render({ reversalCommand: null }), /data-action="run"[^>]*disabled/);
-  assert.match(render({ reversalCommand: null }), /class="work-control-lock-reasons" role="status"/);
+  assert.doesNotMatch(render({ reversalCommand: null }), /work-control-lock-reasons/);
   assert.match(render({ reversalCommand: null }), /Confirme a reversão desligada antes de ligar a esteira para frente/);
   assert.doesNotMatch(render({ reversalCommand: "REVERSAO_DESATIVAR" }), /data-action="run"[^>]*disabled/);
   assert.match(render({ operationalState: "CARREGANDO", reversalCommand: "REVERSAO_DESATIVAR" }), /data-action="run"[^>]*disabled/);
