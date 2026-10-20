@@ -6,7 +6,6 @@ namespace App\Persistencia;
 
 use PDO;
 
-/** Consultas paginadas e agregações da listagem de romaneios. */
 final class RepositorioRomaneiosLista
 {
     public function __construct(private readonly PDO $connection)

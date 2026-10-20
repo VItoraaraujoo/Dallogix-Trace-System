@@ -7,7 +7,6 @@ function definirBotoesDesabilitados(form, disabled) {
   });
 }
 
-/** Liga o formulário de produto à validação, gravação e atualização da tela. */
 export function bindProductForm({
   form,
   store,

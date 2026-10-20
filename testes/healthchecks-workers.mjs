@@ -39,7 +39,7 @@ test("FFmpeg captura um único quadro JPEG somente quando existe pedido", () => 
   assert.match(compose, /CAMERA_CAPTURE_TIMEOUT_MS: \$\{CAMERA_CAPTURE_TIMEOUT_MS:-10000\}/);
 });
 
-test("worker mantém limites de configuração em um helper único", () => {
+test("worker mantém os limites de configuração em um único validador", () => {
   assert.equal(boundedInteger(undefined, 200, 100, 5000), 200);
   assert.equal(boundedInteger("100", 200, 100, 5000), 100);
   assert.equal(boundedInteger("5000", 200, 100, 5000), 5000);

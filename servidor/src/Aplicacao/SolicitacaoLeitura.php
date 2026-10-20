@@ -6,7 +6,6 @@ namespace App\Aplicacao;
 
 use InvalidArgumentException;
 
-/** Normaliza e valida os campos recebidos ao registrar uma leitura operacional. */
 final readonly class SolicitacaoLeitura
 {
     private function __construct(

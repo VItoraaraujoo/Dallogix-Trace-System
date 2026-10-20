@@ -11,7 +11,6 @@ use App\Persistencia\RepositorioProdutosEventos;
 use App\Persistencia\RepositorioRomaneiosEventos;
 use RuntimeException;
 
-/** Coordena a gravação dos eventos que preparam um carregamento remoto. */
 final class ServicoPreparacaoCarregamentoSincronizado
 {
     public function __construct(

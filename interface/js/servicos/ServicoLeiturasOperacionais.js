@@ -1,4 +1,3 @@
-/** Coordena consulta e registro de leituras ligadas ao carregamento ativo. */
 export class ServicoLeiturasOperacionais {
   constructor({
     api,

@@ -1,4 +1,3 @@
-/** Encapsula consulta e ativação da instalação local. */
 export class ServicoAtivacaoLocal {
   constructor({ api, state, jsonHeaders, jsonResponse }) {
     this.api = api;

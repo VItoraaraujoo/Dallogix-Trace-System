@@ -1,6 +1,5 @@
 import { statusRelogio, sincronizarRelogio, usarRelogioDoPc } from "../funcoes/relogio.js?v=202609170015";
 
-/** Coordena saúde local, relógio offline, fila pendente e atualização do shell. */
 export function createLocalConnectivityController({
   store,
   api,

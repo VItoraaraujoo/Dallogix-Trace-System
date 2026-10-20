@@ -6,7 +6,6 @@ namespace App\Persistencia;
 
 use PDO;
 
-/** Consultas agregadas de indicadores exibidos no dashboard da empresa. */
 final class RepositorioDashboard
 {
     public function __construct(private readonly PDO $connection)

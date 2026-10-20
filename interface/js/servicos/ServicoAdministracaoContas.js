@@ -1,6 +1,5 @@
 import { ServicoAtivacaoLocal } from "./ServicoAtivacaoLocal.js?v=202610190001";
 
-/** Encapsula o acesso da interface às contas, usuários e licenças. */
 export class ServicoAdministracaoContas {
   constructor({ api, state, jsonHeaders, jsonResponse, fetchAllPages, loadIndustrialInstallations }) {
     this.api = api;

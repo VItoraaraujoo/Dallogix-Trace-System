@@ -1,4 +1,3 @@
-/** Mantém as ações e os gatilhos configuráveis de uma Dala. */
 export class ServicoAcoesDala {
   constructor({ api, state, jsonHeaders, jsonResponse }) {
     this.api = api;

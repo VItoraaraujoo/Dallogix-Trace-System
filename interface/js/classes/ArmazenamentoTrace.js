@@ -293,7 +293,7 @@ export class ArmazenamentoTrace {
   }
   async jsonResponse(response, fallback) {
     if (!response.ok) {
-      // Classifique o erro antes de consumir o corpo. O helper usa clone()
+      // Classifique o erro antes de consumir o corpo. erroRespostaHttp() usa clone()
       // para preservar a mensagem enviada pelo servidor, inclusive quando a
       // resposta não contém JSON válido.
       const error = await erroRespostaHttp(response, fallback);

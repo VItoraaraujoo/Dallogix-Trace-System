@@ -222,16 +222,37 @@ function workControls(store) {
   const bloqueioEmergencia = store.state.loadingId
     ? ""
     : { title: "Nenhum carregamento selecionado" };
+  const estadoOperacional = String(store.state.operationalState || "").toUpperCase();
+  const esteiraEmMovimentoOuIniciando = estadoOperacional === "CARREGANDO" ||
+    store.state.running === true ||
+    (currentCommandPending && pendingCommand === "INICIAR_CARREGAMENTO");
+  const atributosReversaoDuranteMovimento = (reason) => ({
+    disabled: true,
+    "aria-disabled": "true",
+    title: reason || "A esteira precisa estar parada para alterar a reversão.",
+  });
   const reversaoLigadaConfirmada = store.state.reversalCommand === "REVERSAO_ATIVAR" && !(
     currentCommandPending && pendingCommand === "REVERSAO_ATIVAR"
   );
-  const atributosDesligarReversao = reversaoLigadaConfirmada
-    ? bloqueio(commandLocks["reverse-off"])
-    : {
-      disabled: true,
-      "aria-disabled": "true",
-      title: commandLocks["reverse-off"] || "A reversão precisa estar confirmada como ligada.",
-    };
+  const atributosLigarReversao = esteiraEmMovimentoOuIniciando
+    ? atributosReversaoDuranteMovimento(commandLocks["reverse-on"])
+    : bloqueio(commandLocks["reverse-on"]);
+  const atributosDesligarReversao = esteiraEmMovimentoOuIniciando
+    ? atributosReversaoDuranteMovimento(commandLocks["reverse-off"])
+    : reversaoLigadaConfirmada
+      ? bloqueio(commandLocks["reverse-off"])
+      : {
+        disabled: true,
+        "aria-disabled": "true",
+        title: commandLocks["reverse-off"] || "A reversão precisa estar confirmada como ligada.",
+      };
+  const atributosPararEsteira = commandLocks.stop === "A esteira já está parada."
+    ? {
+        disabled: true,
+        "aria-disabled": "true",
+        title: commandLocks.stop,
+      }
+    : bloqueio(commandLocks.stop);
   const loadingPicker = `<div class="work-header-actions"><button class="button secondary small work-back-button" data-action="goto-manifests" type="button">← Romaneios</button>${(store.state.activeLoadings || []).length > 1 ? `<button class="button secondary small work-back-button" data-action="change-loading" type="button">Trocar Dala</button>` : ""}</div>`;
   const pausePending = pendingCommand === "PAUSAR_CARREGAMENTO" && ["PENDENTE", "PROCESSANDO"].includes(pendingStatus);
   const pendingReadings = store.state.pendingReadings || [];
@@ -257,7 +278,7 @@ function workControls(store) {
   const manualIdentification = pendingReadingsTotal
     ? `<section class="work-scanner-corrections" aria-labelledby="work-scanner-corrections-title"><div class="work-scanner-corrections-heading"><div><span class="kicker">Conferência pendente</span><h3 id="work-scanner-corrections-title">Leituras sem código</h3><p>${pendingReadingsTotal} pendente${pendingReadingsTotal === 1 ? "" : "s"} · página ${pendingReadingsPage} de ${pendingReadingsPages}</p></div><p>Passe o leitor de código de barras ou digite o código conferido.</p></div><div class="work-scanner-corrections-list">${pendingReadings.map((reading, index) => `<form class="manual-reading-form" data-reading-id="${reading.id}"><label>Leitura #${reading.id}<input name="barcode" type="text" required maxlength="128" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" placeholder="Leia o código do produto" aria-label="Código de barras da leitura ${reading.id}"${index === 0 ? " autofocus" : ""} /></label>${button("Confirmar código", "identify-reading", "secondary")}<p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form>`).join("")}</div>${pendingReadingsPages > 1 ? `<div class="actions"><button class="button ghost small" type="button" data-action="pending-readings-page" data-page="${pendingReadingsPage - 1}"${pendingReadingsPage <= 1 ? " disabled" : ""}>Anterior</button><button class="button ghost small" type="button" data-action="pending-readings-page" data-page="${pendingReadingsPage + 1}"${pendingReadingsPage >= pendingReadingsPages ? " disabled" : ""}>Próxima</button></div>` : ""}</section>`
     : "";
-  const controls = `<div class="work-controls"><div class="work-routine-controls">${button("Ligar esteira", "run", "primary", bloqueio(commandLocks.run))}${button("Desligar esteira", "stop", "ghost", bloqueio(commandLocks.stop))}${button("Ligar reversão", "reverse-on", "secondary", bloqueio(commandLocks["reverse-on"]))}${button("Desligar reversão", "reverse-off", "secondary", atributosDesligarReversao)}</div><div class="work-emergency-zone">${button("EMERGÊNCIA", "emergency", "danger", bloqueioEmergencia)}</div></div>`;
+  const controls = `<div class="work-controls"><div class="work-routine-controls">${button("Ligar esteira", "run", "primary", bloqueio(commandLocks.run))}${button("Desligar esteira", "stop", "ghost", atributosPararEsteira)}${button("Ligar reversão", "reverse-on", "secondary", atributosLigarReversao)}${button("Desligar reversão", "reverse-off", "secondary", atributosDesligarReversao)}</div><div class="work-emergency-zone">${button("EMERGÊNCIA", "emergency", "danger", bloqueioEmergencia)}</div></div>`;
   const summaryReady = ["FINALIZANDO", "FINALIZADO"].includes(
     store.state.operationalState,
   );

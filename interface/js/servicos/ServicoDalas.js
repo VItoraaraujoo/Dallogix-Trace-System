@@ -1,4 +1,3 @@
-/** Coordena a leitura e a manutenção do cadastro de Dalas na API local. */
 export class ServicoDalas {
   constructor({ api, state, jsonHeaders, jsonResponse, fetchAllPages }) {
     this.api = api;

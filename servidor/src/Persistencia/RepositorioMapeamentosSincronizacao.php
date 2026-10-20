@@ -8,7 +8,6 @@ use PDO;
 use PDOStatement;
 use RuntimeException;
 
-/** Persiste os identificadores locais e remotos devolvidos pelo Central. */
 final class RepositorioMapeamentosSincronizacao
 {
     public function __construct(private readonly PDO $connection)

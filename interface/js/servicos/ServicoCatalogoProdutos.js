@@ -1,6 +1,5 @@
 const CACHE_PRODUTOS_MS = 60_000;
 
-/** Mantém o catálogo de produtos em memória e concentra suas gravações na API local. */
 export class ServicoCatalogoProdutos {
   constructor({ api, state, jsonHeaders, jsonResponse, fetchAllPages }) {
     this.api = api;

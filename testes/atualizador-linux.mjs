@@ -5,25 +5,33 @@ import test from "node:test";
 
 const updater = readFileSync(new URL("../scripts/update_trace.sh", import.meta.url), "utf8");
 const workflow = readFileSync(new URL("../.github/workflows/release-production.yml", import.meta.url), "utf8");
-const helper = updater.match(/adiar_atualizacao\(\) \{[\s\S]*?\n\}/)?.[0];
+const funcaoAdiarAtualizacao = updater.match(/adiar_atualizacao\(\) \{[\s\S]*?\n\}/)?.[0];
 
 test("adiamento do verificador automático é sucesso e mantém a mensagem", () => {
-  assert.ok(helper, "script deve definir o tratamento de adiamentos esperados");
-  const result = spawnSync("bash", ["-c", `${helper}\nadiar_atualizacao 14 'carga ativa'`], {
-    encoding: "utf8",
-    env: { ...process.env, TRACE_UPDATE_EXPECT_VERSION: "" },
-  });
+  assert.ok(funcaoAdiarAtualizacao, "script deve definir o tratamento de adiamentos esperados");
+  const result = spawnSync(
+    "bash",
+    ["-c", `${funcaoAdiarAtualizacao}\nadiar_atualizacao 14 'carga ativa'`],
+    {
+      encoding: "utf8",
+      env: { ...process.env, TRACE_UPDATE_EXPECT_VERSION: "" },
+    },
+  );
   assert.equal(result.status, 0);
   assert.equal(result.stdout.trim(), "carga ativa");
   assert.equal(result.stderr, "");
 });
 
 test("publicação explícita preserva os códigos de retry do atualizador", () => {
-  assert.ok(helper, "script deve definir o tratamento de adiamentos esperados");
-  const result = spawnSync("bash", ["-c", `${helper}\nadiar_atualizacao 9 'atualização em execução'`], {
-    encoding: "utf8",
-    env: { ...process.env, TRACE_UPDATE_EXPECT_VERSION: "v1.0.170" },
-  });
+  assert.ok(funcaoAdiarAtualizacao, "script deve definir o tratamento de adiamentos esperados");
+  const result = spawnSync(
+    "bash",
+    ["-c", `${funcaoAdiarAtualizacao}\nadiar_atualizacao 9 'atualização em execução'`],
+    {
+      encoding: "utf8",
+      env: { ...process.env, TRACE_UPDATE_EXPECT_VERSION: "v1.0.170" },
+    },
+  );
   assert.equal(result.status, 9);
   assert.equal(result.stdout.trim(), "atualização em execução");
   assert.equal(result.stderr, "");

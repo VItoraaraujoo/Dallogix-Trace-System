@@ -6,7 +6,6 @@ namespace App\Persistencia;
 
 use PDO;
 
-/** Lê os identificadores e as credenciais persistidos para esta instalação. */
 final class RepositorioInstalacaoLocal
 {
     public function __construct(private readonly PDO $connection)

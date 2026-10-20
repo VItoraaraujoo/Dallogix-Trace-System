@@ -4,7 +4,9 @@ import { existsSync } from "node:fs";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
-const helper = fileURLToPath(new URL("./lib/ambiente_descartavel.sh", import.meta.url));
+const scriptAmbienteDescartavel = fileURLToPath(
+  new URL("./lib/ambiente_descartavel.sh", import.meta.url),
+);
 const regression = fileURLToPath(new URL("./regressao_completa.sh", import.meta.url));
 const invoke = (environment = {}) => {
   const env = { ...process.env, ...environment };
@@ -13,7 +15,12 @@ const invoke = (environment = {}) => {
   }
   return spawnSync(
     "bash",
-    ["-c", 'source "$1"; trace_preparar_ambiente_descartavel; printf "%s\\n%s\\n%s\\n" "$TRACE_BASE_URL" "$trace_test_tmp_dir" "$(umask)"', "test", helper],
+    [
+      "-c",
+      'source "$1"; trace_preparar_ambiente_descartavel; printf "%s\\n%s\\n%s\\n" "$TRACE_BASE_URL" "$trace_test_tmp_dir" "$(umask)"',
+      "test",
+      scriptAmbienteDescartavel,
+    ],
     { encoding: "utf8", env },
   );
 };

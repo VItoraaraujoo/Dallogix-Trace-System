@@ -13,7 +13,6 @@ function informarStatusDeConexao(store, equipmentId, notify, label) {
     .catch((error) => notify(`${label}, mas a verificação de conexão falhou: ${error.message}`));
 }
 
-/** Liga o cadastro de Dala à validação, persistência e consulta de conectividade. */
 export function bindDalaCreationForm({
   form,
   store,

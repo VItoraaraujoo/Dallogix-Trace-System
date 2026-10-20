@@ -11,7 +11,6 @@ use App\Aplicacao\ValidadorCodigoDala;
 
 require_once __DIR__ . "/../Aplicacao/ValidadorCodigoDala.php";
 
-/** Persiste alterações de Dalas recebidas na fila de sincronização remota. */
 final class RepositorioDalasEventos
 {
     public function __construct(private readonly PDO $connection)

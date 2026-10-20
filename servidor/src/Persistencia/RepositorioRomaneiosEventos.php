@@ -8,7 +8,6 @@ use DateTime;
 use PDO;
 use RuntimeException;
 
-/** Persiste romaneios e caminhões recebidos nos eventos da instalação local. */
 final class RepositorioRomaneiosEventos
 {
     public function __construct(

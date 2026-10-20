@@ -12,7 +12,6 @@ function nomeDoArquivo(form) {
   });
 }
 
-/** Importa um PDF e preenche os campos do formulário manual do romaneio. */
 export function bindPdfManifestImportForm({
   form,
   store,
@@ -32,35 +31,35 @@ export function bindPdfManifestImportForm({
     if (button) button.disabled = true;
     showFeedback("Lendo o PDF…");
     try {
-      const data = await store.importPdf(formDataFactory(form));
-      const fields = data.fields || {};
+      const respostaPdf = await store.importPdf(formDataFactory(form));
+      const camposPdf = respostaPdf.fields || {};
       for (const [name, value] of Object.entries({
-        number: fields.codigo,
-        scheduled_date: fields.data_iso,
-        plate: fields.placa,
-        expedidor: fields.expedidor,
-        driver_name: fields.motorista,
+        number: camposPdf.codigo,
+        scheduled_date: camposPdf.data_iso,
+        plate: camposPdf.placa,
+        expedidor: camposPdf.expedidor,
+        driver_name: camposPdf.motorista,
       })) {
         const input = documentRef.querySelector(`#new-manifest-form [name="${name}"]`);
         if (input && value) input.value = value;
       }
 
-      if (data.product && fields.quantidade_numero) {
-        const items = documentRef.querySelector("#manifest-items tbody");
-        if (items) {
-          items.innerHTML = "";
-          items.insertAdjacentHTML(
+      if (respostaPdf.product && camposPdf.quantidade_numero) {
+        const itensRomaneio = documentRef.querySelector("#manifest-items tbody");
+        if (itensRomaneio) {
+          itensRomaneio.innerHTML = "";
+          itensRomaneio.insertAdjacentHTML(
             "beforeend",
-            renderManifestItem(store, data.product.id, fields.quantidade_numero),
+            renderManifestItem(store, respostaPdf.product.id, camposPdf.quantidade_numero),
           );
         }
       }
 
-      const missing = data.missing || [];
-      showFeedback(
-        `PDF importado.${missing.length ? ` Campos não encontrados: ${missing.join(", ")}.` : " Confira os dados e salve."}`,
-        missing.length ? "warning" : "success",
-      );
+      const camposAusentes = respostaPdf.missing || [];
+      const mensagemImportacaoPdf = camposAusentes.length
+        ? `PDF importado. Campos não encontrados: ${camposAusentes.join(", ")}.`
+        : "PDF importado. Confira os dados e salve.";
+      showFeedback(mensagemImportacaoPdf, camposAusentes.length ? "warning" : "success");
     } catch (error) {
       showFeedback(error.message || "Não foi possível importar o PDF.", "error");
     } finally {
@@ -71,7 +70,6 @@ export function bindPdfManifestImportForm({
   return true;
 }
 
-/** Importa um CSV, atualiza a lista de romaneios e apresenta o resultado. */
 export function bindCsvManifestImportForm({
   form,
   api,
@@ -96,11 +94,17 @@ export function bindCsvManifestImportForm({
         headers: store.csrfToken ? { "X-CSRF-Token": store.csrfToken } : {},
         body: formDataFactory(form),
       });
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || "Falha ao importar CSV.");
+      const respostaCsv = await response.json();
+      if (!response.ok) throw new Error(respostaCsv.error || "Falha ao importar CSV.");
       await store.loadManifests();
+      const {
+        romaneios,
+        items: itens,
+        linhas,
+      } = respostaCsv.data;
       showFeedback(
-        `${result.data.romaneios} romaneio(s), ${result.data.items} item(ns) consolidados em ${result.data.linhas} linha(s) importada(s).`,
+        `${romaneios} romaneio(s), ${itens} item(ns) consolidados em ` +
+          `${linhas} linha(s) importada(s).`,
         "success",
       );
     } catch (error) {

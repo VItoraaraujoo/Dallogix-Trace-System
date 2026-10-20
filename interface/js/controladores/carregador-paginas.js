@@ -1,4 +1,3 @@
-/** Monta e executa as consultas iniciais necessárias para cada tela. */
 export function criarCarregadorPaginas({
   store,
   obterPerfil,

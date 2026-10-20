@@ -22,7 +22,6 @@ function bloquearBotoes(form, disabled) {
   });
 }
 
-/** Liga o envio do cadastro de romaneio à validação, API e navegação. */
 export function bindManifestCreationForm({
   form,
   store,

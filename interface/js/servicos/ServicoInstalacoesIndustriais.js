@@ -1,4 +1,3 @@
-/** Centraliza as consultas e ações de administração dos PCs industriais. */
 const TAMANHO_PAGINA = 100;
 const LIMITE_PAGINAS = 100;
 const LIMITE_REGISTROS = TAMANHO_PAGINA * LIMITE_PAGINAS;

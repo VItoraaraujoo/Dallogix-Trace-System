@@ -1,4 +1,3 @@
-/** Encaminha ações de catálogo e edição de itens de romaneio. */
 export function criarTratadorAcoesCadastros({
   store,
   render,

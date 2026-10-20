@@ -41,7 +41,6 @@ function registrarFormulario({
   return true;
 }
 
-/** Liga os cadastros administrativos aos serviços e mantém o feedback uniforme. */
 export function bindAdministrativeForms({
   root = document,
   store,

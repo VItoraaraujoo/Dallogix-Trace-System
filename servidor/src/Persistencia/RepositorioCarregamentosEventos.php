@@ -6,7 +6,6 @@ namespace App\Persistencia;
 
 use PDO;
 
-/** Consultas de carregamentos recebidas e atualizadas por eventos remotos. */
 final class RepositorioCarregamentosEventos
 {
     public function __construct(private readonly PDO $connection)

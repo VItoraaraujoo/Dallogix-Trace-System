@@ -123,16 +123,26 @@ test("o atualizador exige MySQL saudável, com prazo limitado, antes das migrati
 
 test("rollback verifica o dump e remove relações parciais antes de restaurar", () => {
   const source = readFileSync(updater, "utf8");
-  const helperStart = source.indexOf("restore_database_from_verified_backup() {");
-  const helperEnd = source.indexOf("\n}\n", helperStart);
-  assert.ok(helperStart >= 0 && helperEnd > helperStart, "Rotina de recuperação verificada não encontrada.");
-  const helper = source.slice(helperStart, helperEnd);
-  const verify = helper.indexOf("verify_backup.sh");
-  const enumerate = helper.indexOf("information_schema.tables");
-  const drop = helper.indexOf("SET FOREIGN_KEY_CHECKS=0");
-  const restore = helper.indexOf('< "$backup_file"');
-  assert.ok(verify >= 0 && verify < enumerate, "O dump deve ser validado antes de alterar o schema.");
-  assert.ok(enumerate < drop && drop < restore, "Tabelas e FKs parciais devem sair antes da importação do dump.");
+  const rotinaInicio = source.indexOf("restore_database_from_verified_backup() {");
+  const rotinaFim = source.indexOf("\n}\n", rotinaInicio);
+  assert.ok(
+    rotinaInicio >= 0 && rotinaFim > rotinaInicio,
+    "Rotina de recuperação verificada não encontrada.",
+  );
+  const rotinaRecuperacao = source.slice(rotinaInicio, rotinaFim);
+  const validacaoBackup = rotinaRecuperacao.indexOf("verify_backup.sh");
+  const consultaTabelas = rotinaRecuperacao.indexOf("information_schema.tables");
+  const desativacaoChavesEstrangeiras = rotinaRecuperacao.indexOf("SET FOREIGN_KEY_CHECKS=0");
+  const importacaoDump = rotinaRecuperacao.indexOf('< "$backup_file"');
+  assert.ok(
+    validacaoBackup >= 0 && validacaoBackup < consultaTabelas,
+    "O dump deve ser validado antes de alterar o schema.",
+  );
+  assert.ok(
+    consultaTabelas < desativacaoChavesEstrangeiras &&
+      desativacaoChavesEstrangeiras < importacaoDump,
+    "Tabelas e FKs parciais devem sair antes da importação do dump.",
+  );
   const rollbackStart = source.indexOf("rollback() {");
   const rollbackEnd = source.indexOf("\n}\n", rollbackStart);
   assert.match(source.slice(rollbackStart, rollbackEnd), /restore_database_from_verified_backup "\$db_backup"/);

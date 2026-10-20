@@ -460,22 +460,26 @@ test("início pendente deixa a parada e a emergência disponíveis", () => {
   assert.match(markup, /data-action="stop"(?![^>]*disabled)/);
   assert.match(markup, /data-action="emergency"(?![^>]*disabled)/);
   assert.match(markup, /data-action="run"(?![^>]*disabled)/);
-  assert.match(markup, /data-action="reverse-on"(?![^>]*disabled)/);
+  assert.match(markup, /data-action="reverse-on"[^>]*disabled/);
   assert.match(markup, /data-action="reverse-off"[^>]*disabled/);
   assert.match(markup, /Iniciar carregamento · aguardando CLP/);
 });
 
 test("esteira parada libera iniciar e ligar reversão, mas não oferece parada redundante", () => {
-  const locks = workControlLocks({
+  const state = {
     loadingId: 7,
     operationalState: "PAUSADO",
     reversalCommand: "REVERSAO_DESATIVAR",
     userRole: "USUARIO",
-  });
+  };
+  const locks = workControlLocks(state);
   assert.equal(locks.run, "");
   assert.equal(locks.stop, "A esteira já está parada.");
   assert.equal(locks["reverse-on"], "");
   assert.equal(locks["reverse-off"], "A reversão já está desligada.");
+
+  const markup = work({ state });
+  assert.match(markup, /data-action="stop"[^>]*disabled/);
 });
 
 test("CLP indisponível mantém os comandos clicáveis e a emergência sempre disponível", () => {
@@ -550,17 +554,23 @@ test("gateway sem liberação mantém comandos clicáveis, com reversão-off con
 });
 
 test("esteira em movimento deixa disponível somente parar entre os comandos normais", () => {
-  const locks = workControlLocks({
+  const state = {
     loadingId: 7,
     operationalState: "CARREGANDO",
     running: true,
     reversalCommand: "REVERSAO_DESATIVAR",
     userRole: "USUARIO",
-  });
+  };
+  const locks = workControlLocks(state);
   assert.notEqual(locks.run, "");
   assert.equal(locks.stop, "");
   assert.notEqual(locks["reverse-on"], "");
   assert.notEqual(locks["reverse-off"], "");
+
+  const markup = work({ state });
+  assert.match(markup, /data-action="stop"(?![^>]*disabled)/);
+  assert.match(markup, /data-action="reverse-on"[^>]*disabled/);
+  assert.match(markup, /data-action="reverse-off"[^>]*disabled/);
 });
 
 test("parada pendente aguarda o CLP antes de liberar nova direção", () => {

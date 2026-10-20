@@ -12,7 +12,6 @@ export function criarDelegacaoAcoes(root) {
   };
 }
 
-/** Cria o despachante da delegação de ações da aplicação. */
 export function criarDespachanteAcoes({
   api,
   store,

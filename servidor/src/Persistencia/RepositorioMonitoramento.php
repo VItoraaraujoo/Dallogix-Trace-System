@@ -6,7 +6,6 @@ namespace App\Persistencia;
 
 use PDO;
 
-/** Consultas de leitura usadas pelos snapshots de monitoramento. */
 final class RepositorioMonitoramento
 {
     public function __construct(private readonly PDO $connection)

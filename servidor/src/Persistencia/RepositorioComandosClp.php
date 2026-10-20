@@ -6,7 +6,6 @@ namespace App\Persistencia;
 
 use PDO;
 
-/** Acesso aos dados das solicitações de comando enviadas ao CLP. */
 final class RepositorioComandosClp
 {
     public function __construct(private readonly PDO $connection)

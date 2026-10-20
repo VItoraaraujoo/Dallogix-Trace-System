@@ -174,7 +174,6 @@ function confirmarRemocaoDeParada({ root, store, render, notify, setFeedback }) 
   });
 }
 
-/** Agrupa o envio e a confirmação de formulários usados durante a operação. */
 export function bindOperationalForms({
   root = document,
   store,

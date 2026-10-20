@@ -1,4 +1,3 @@
-/** Coordena leitura, estado e transições do carregamento ativo. */
 export class ServicoCarregamentoAtivo {
   constructor({
     api,

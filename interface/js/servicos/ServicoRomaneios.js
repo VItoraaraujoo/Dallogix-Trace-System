@@ -1,4 +1,3 @@
-/** Coordena consultas e gravações do domínio de romaneios na API local. */
 export class ServicoRomaneios {
   constructor({ api, state, jsonHeaders, jsonResponse, getCsrfToken, setManifestRows }) {
     this.api = api;
@@ -22,14 +21,17 @@ export class ServicoRomaneios {
     const response = await this.api.fetch(
       `/api/romaneios.php${query ? `?${query}` : ""}`,
     );
-    const result = await this.jsonResponse(response, "Não foi possível carregar os romaneios.");
-    const rows = result.data || [];
-    this.setManifestRows(rows);
-    this.state.manifestMeta = result.meta || {
+    const respostaRomaneios = await this.jsonResponse(
+      response,
+      "Não foi possível carregar os romaneios.",
+    );
+    const romaneiosDaPagina = respostaRomaneios.data || [];
+    this.setManifestRows(romaneiosDaPagina);
+    this.state.manifestMeta = respostaRomaneios.meta || {
       page,
       per_page: 50,
-      total: rows.length,
-      pages: rows.length ? 1 : 0,
+      total: romaneiosDaPagina.length,
+      pages: romaneiosDaPagina.length ? 1 : 0,
     };
   }
 
@@ -65,8 +67,8 @@ export class ServicoRomaneios {
 
   async loadManifest(id) {
     const response = await this.api.fetch(`/api/romaneios.php?id=${id}`);
-    const result = await this.jsonResponse(response, "Romaneio não encontrado.");
-    this.state.manifestDetail = result.data;
+    const respostaRomaneio = await this.jsonResponse(response, "Romaneio não encontrado.");
+    this.state.manifestDetail = respostaRomaneio.data;
   }
 
   async createManifest(payload) {
@@ -84,9 +86,12 @@ export class ServicoRomaneios {
       headers: this.jsonHeaders(),
       body: JSON.stringify({ action: "update", ...payload }),
     });
-    const result = await this.jsonResponse(response, "Não foi possível atualizar o romaneio.");
+    const respostaAtualizacao = await this.jsonResponse(
+      response,
+      "Não foi possível atualizar o romaneio.",
+    );
     await this.loadManifests();
-    return result.data;
+    return respostaAtualizacao.data;
   }
 
   async importPdf(formData) {
@@ -96,7 +101,7 @@ export class ServicoRomaneios {
       headers: csrfToken ? { "X-CSRF-Token": csrfToken } : {},
       body: formData,
     });
-    const result = await this.jsonResponse(response, "Falha ao importar o PDF.");
-    return result.data;
+    const respostaPdf = await this.jsonResponse(response, "Falha ao importar o PDF.");
+    return respostaPdf.data;
   }
 }
