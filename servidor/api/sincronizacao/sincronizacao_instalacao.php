@@ -5,6 +5,7 @@ declare(strict_types=1);
 define("TRACE_SKIP_SESSION", true);
 
 require_once __DIR__ . "/../../configuracao/bootstrap.php";
+require_once __DIR__ . "/../../src/Aplicacao/DetalhesHeartbeatInstalacao.php";
 
 if (trace_e_instalacao_local()) {
     responder_json(["error" => "Endpoint disponível somente no servidor central."], 403);
@@ -130,7 +131,14 @@ if ($_SERVER["REQUEST_METHOD"] === "POST") {
         }
         $remoteEquipmentId = filter_var($heartbeat["remote_equipment_id"] ?? null, FILTER_VALIDATE_INT);
         $equipmentCode = trim((string) ($heartbeat["equipment_code"] ?? ""));
-        $details = json_encode(["source" => "instalacao_local"], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR);
+        $details = json_encode(
+            App\Aplicacao\DetalhesHeartbeatInstalacao::normalizar(
+                $deviceType,
+                $status,
+                $heartbeat["details"] ?? null,
+            ),
+            JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_THROW_ON_ERROR,
+        );
         $upsert->execute([
             "device_type" => $deviceType,
             "status" => $status,

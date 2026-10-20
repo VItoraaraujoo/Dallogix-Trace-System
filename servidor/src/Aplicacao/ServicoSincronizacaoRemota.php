@@ -15,6 +15,7 @@ use RuntimeException;
 use Throwable;
 
 require_once __DIR__ . "/ValidadorInstantaneoRemoto.php";
+require_once __DIR__ . "/DetalhesHeartbeatInstalacao.php";
 require_once __DIR__ . "/../Persistencia/RepositorioFilaSincronizacao.php";
 require_once __DIR__ . "/../Persistencia/RepositorioProdutosRemotos.php";
 require_once __DIR__ . "/../Persistencia/RepositorioRomaneiosRemotos.php";
@@ -346,7 +347,7 @@ final class ServicoSincronizacaoRemota
             throw new RuntimeException("A instalação não possui uma Dala vinculada para enviar o heartbeat.");
         }
         $statement = $this->connection->prepare(
-            "SELECT e.remote_equipment_id, e.equipment_code, s.device_type, s.status, s.last_seen_at
+            "SELECT e.remote_equipment_id, e.equipment_code, s.device_type, s.status, s.last_seen_at, s.details
              FROM status_dispositivos s JOIN equipamentos e ON e.id = s.equipment_id
              WHERE e.company_id = :company_id AND e.remote_equipment_id = :remote_equipment_id",
         );
@@ -360,6 +361,11 @@ final class ServicoSincronizacaoRemota
             "device_type" => $row["device_type"],
             "status" => $row["status"],
             "last_seen_at" => $row["last_seen_at"],
+            "details" => DetalhesHeartbeatInstalacao::normalizar(
+                (string) $row["device_type"],
+                (string) $row["status"],
+                $row["details"] ?? null,
+            ),
         ], $statement->fetchAll());
         $storagePath = dirname(__DIR__, 3) . "/armazenamento";
         $diskFree = is_dir($storagePath) ? @disk_free_space($storagePath) : false;

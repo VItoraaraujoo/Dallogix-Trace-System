@@ -108,6 +108,22 @@ final class ContratosEndpointsTest extends TestCase
         self::assertStringContainsString('"delivered_queue_id"', $service);
     }
 
+    public function testHeartbeatReplicaCapacidadeFisicaDoClpParaHabilitarComandosNoCentral(): void
+    {
+        $endpoint = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao/sincronizacao_instalacao.php");
+        $service = file_get_contents(__DIR__ . "/../../servidor/src/Aplicacao/ServicoSincronizacaoRemota.php");
+        $normalizer = file_get_contents(__DIR__ . "/../../servidor/src/Aplicacao/DetalhesHeartbeatInstalacao.php");
+
+        self::assertIsString($endpoint);
+        self::assertIsString($service);
+        self::assertIsString($normalizer);
+        self::assertStringContainsString('s.details', $service);
+        self::assertStringContainsString('"details" => DetalhesHeartbeatInstalacao::normalizar(', $service);
+        self::assertStringContainsString('DetalhesHeartbeatInstalacao::normalizar(', $endpoint);
+        self::assertStringContainsString('"command_capability"', $normalizer);
+        self::assertStringContainsString('$status === "ONLINE"', $normalizer);
+    }
+
     public function testSnapshotCentralEntregaCancelamentosEEventosAtrasadosNaoReabremRomaneios(): void
     {
         $snapshot = file_get_contents(__DIR__ . "/../../servidor/api/sincronizacao/sincronizacao_instalacao.php");
