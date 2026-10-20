@@ -6,7 +6,6 @@ import {
   paradaPodeSubstituirInicio,
   podeLiberarEmergencia,
   podeVincularDala,
-  alternarTecladoLeituraManual,
   workControlLocks,
   work,
 } from "../interface/telas/operacao/operacao.js";
@@ -188,11 +187,12 @@ test("leitor Elgin recupera o foco depois de toques fora de campos e respeita ca
     pointerUp({ target: { closest: () => null } });
     assert.equal(focusCalls, 1);
     assert.match(status.textContent, /Leitor pronto/);
-    pointerUp({ target: { closest: (selector) => selector.includes("manual-reading-keyboard-toggle") ? {} : null } });
-    assert.equal(focusCalls, 1, "o botão do teclado virtual não deve devolver o foco ao leitor");
+    activeElement = { matches: () => false, closest: () => null };
+    pointerUp({ target: { closest: () => null } });
+    assert.equal(focusCalls, 2, "toques em controles não editáveis devem devolver o foco ao leitor");
     activeElement = { matches: () => true, closest: () => null };
-    pointerUp({ target: { closest: () => ({}) } });
-    assert.equal(focusCalls, 1);
+    pointerUp({ target: { closest: () => null } });
+    assert.equal(focusCalls, 2);
   } finally {
     if (originalDocument === undefined) delete globalThis.document;
     else globalThis.document = originalDocument;
@@ -200,7 +200,7 @@ test("leitor Elgin recupera o foco depois de toques fora de campos e respeita ca
   }
 });
 
-test("a leitura principal oferece entrada pelo teclado touch sem perder o leitor", () => {
+test("a leitura principal mantém o campo automático para o leitor sem botão de digitação", () => {
   const markup = work({ state: {
     selectedLoadingId: 7,
     loadingId: 7,
@@ -218,33 +218,8 @@ test("a leitura principal oferece entrada pelo teclado touch sem perder o leitor
     emergency: false,
     pendingReadings: [],
   } });
-  assert.match(markup, /inputmode="none"/);
-  assert.match(markup, /class="button ghost small manual-reading-keyboard-toggle" type="button" aria-pressed="false">Digitar código/);
-});
-
-test("alternar teclado touch mantém o leitor de código como modo reversível", () => {
-  const attributes = new Map([["inputmode", "none"]]);
-  const input = {
-    disabled: false,
-    getAttribute: (name) => attributes.get(name) || null,
-    setAttribute: (name, value) => attributes.set(name, value),
-    focus(options) { this.focusOptions = options; },
-  };
-  const button = {
-    textContent: "Digitar código",
-    setAttribute(name, value) { this[name] = value; },
-  };
-
-  assert.equal(alternarTecladoLeituraManual(input, button), true);
-  assert.equal(attributes.get("inputmode"), "text");
-  assert.equal(button.textContent, "Usar leitor");
-  assert.equal(button["aria-pressed"], "true");
-  assert.deepEqual(input.focusOptions, { preventScroll: true });
-
-  assert.equal(alternarTecladoLeituraManual(input, button), false);
-  assert.equal(attributes.get("inputmode"), "none");
-  assert.equal(button.textContent, "Digitar código");
-  assert.equal(button["aria-pressed"], "false");
+  assert.match(markup, /id="manual-operation-barcode" name="barcode"[^>]*inputmode="none"[^>]*autofocus/);
+  assert.doesNotMatch(markup, /manual-reading-keyboard-toggle|Digitar código/);
 });
 
 test("parada pode substituir um início ainda pendente em pausa", () => {

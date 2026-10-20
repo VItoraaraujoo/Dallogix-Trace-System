@@ -139,3 +139,30 @@ test("falha na atualização posterior não transforma leitura confirmada em err
   assert.equal(result.refreshWarning, "Consulta GET indisponível.");
   assert.equal(posts, 1);
 });
+
+test("leitura USB confirmada recarrega a contagem do carregamento", async () => {
+  const state = { loadingId: 7, loaded: 0 };
+  const refreshed = [];
+  const service = new ServicoLeiturasOperacionais({
+    state,
+    api: {},
+    jsonHeaders: () => ({}),
+    jsonResponse: async (response) => response.json(),
+    requestWithOfflineQueue: async () => new Response(JSON.stringify({
+      data: { id: 43, result: "VALIDO", load_status: "EM_ANDAMENTO" },
+    }), { status: 200 }),
+    nextPendingReadingsRequestId: () => 1,
+    getPendingReadingsRequestId: () => 1,
+    loadActiveLoading: async (loadingId) => {
+      refreshed.push(["loading", loadingId]);
+      state.loaded = 1;
+    },
+    loadPendingReadings: async () => { refreshed.push(["pending-readings"]); },
+  });
+
+  const result = await service.registerManualReading("7890123");
+
+  assert.equal(result.result, "VALIDO");
+  assert.equal(state.loaded, 1);
+  assert.deepEqual(refreshed, [["loading", 7], ["pending-readings"]]);
+});

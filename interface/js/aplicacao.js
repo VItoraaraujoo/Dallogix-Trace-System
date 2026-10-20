@@ -13,7 +13,6 @@ import { createOperationalRealtimeController } from "./controladores/tempo-real.
 import { createPageRefreshController } from "./controladores/page-refresh.js?v=202610130001";
 import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
 import { criarRegistroTelas } from "./controladores/registro-telas.js?v=202610190046";
-import { alternarTecladoLeituraManual } from "./controladores/teclado-leitura-manual.js?v=202610190046";
 import { criarTratadorAcoesNavegacao } from "./controladores/acoes-navegacao.js?v=202610190001";
 import { criarTratadorAcoesAdministracao } from "./controladores/acoes-administracao.js?v=202610190001";
 import { criarTratadorAcoesOperacionais } from "./controladores/acoes-operacionais.js?v=202610190040";
@@ -78,7 +77,7 @@ const registroTelas = criarRegistroTelas({
   division: () =>
     import("../telas/divisao-carga/divisao-carga.js?v=202610190046").then(({ division }) => division),
   work: () =>
-    import("../telas/operacao/operacao.js?v=202610200001").then(({ work }) => work),
+    import("../telas/operacao/operacao.js?v=202610200002").then(({ work }) => work),
   occurrences: () =>
     import("../telas/ocorrencias/ocorrencias.js?v=202610190046").then(({ occurrences }) => occurrences),
   summary: () =>
@@ -386,7 +385,7 @@ const conectividadeLocal = createLocalConnectivityController({
   focusScanner: (root) => focusOperationScanner(root),
   getScreenRoot: () => el("#screen-root"),
   logWarning: (...args) => logFrontend.aviso(...args),
-  serviceWorkerUrl: "/service-worker.js?v=202610200001",
+  serviceWorkerUrl: "/service-worker.js?v=202610200002",
 });
 
 function waitForDocumentStyles() {
@@ -407,7 +406,7 @@ function waitForDocumentStyles() {
 // tela que tem CSS próprio precisa garantir seu arquivo e sua versão antes do
 // primeiro render, inclusive quando a rota inicial veio de outra página.
 const SCREEN_STYLES = {
-  work: "/telas/operacao/operacao.css?v=202610200001",
+  work: "/telas/operacao/operacao.css?v=202610200002",
   import: "/telas/importar-romaneio/importar-romaneio.css?v=202610071845",
   settings: "/telas/configuracoes/configuracoes.css?v=202610160001",
   dalas: "/telas/dalas/dalas.css?v=202610160005",
@@ -731,7 +730,6 @@ function bindForms() {
     dashboardQuery: dashboardReturnQuery,
     render,
     notify: notificar,
-    toggleKeyboard: alternarTecladoLeituraManual,
     updateScannerFocus: updateOperationScannerFocus,
     logWarning: (...args) => logFrontend.aviso(...args),
   });
