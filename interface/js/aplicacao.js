@@ -78,7 +78,7 @@ const registroTelas = criarRegistroTelas({
   division: () =>
     import("../telas/divisao-carga/divisao-carga.js?v=202610190046").then(({ division }) => division),
   work: () =>
-    import("../telas/operacao/operacao.js?v=202610190063").then(({ work }) => work),
+    import("../telas/operacao/operacao.js?v=202610200001").then(({ work }) => work),
   occurrences: () =>
     import("../telas/ocorrencias/ocorrencias.js?v=202610190046").then(({ occurrences }) => occurrences),
   summary: () =>
@@ -232,7 +232,11 @@ async function executarComandoDeOperacao(node, action) {
     if (currentPage === "work") render();
   } catch (error) {
     if (currentPage === "work") {
-      store.state.commandFeedback = error?.message || String(error || "Não foi possível enviar o comando ao gateway industrial.");
+      logFrontend.erro("operacao.comando.falhou", error, {
+        acao: action,
+        carregamento_id: loadingId,
+      });
+      store.state.commandFeedback = "";
       render();
     } else {
       notificarForaDaOperacao(error.message, "erro");
@@ -382,7 +386,7 @@ const conectividadeLocal = createLocalConnectivityController({
   focusScanner: (root) => focusOperationScanner(root),
   getScreenRoot: () => el("#screen-root"),
   logWarning: (...args) => logFrontend.aviso(...args),
-  serviceWorkerUrl: "/service-worker.js?v=202610190063",
+  serviceWorkerUrl: "/service-worker.js?v=202610200001",
 });
 
 function waitForDocumentStyles() {
@@ -403,7 +407,7 @@ function waitForDocumentStyles() {
 // tela que tem CSS próprio precisa garantir seu arquivo e sua versão antes do
 // primeiro render, inclusive quando a rota inicial veio de outra página.
 const SCREEN_STYLES = {
-  work: "/telas/operacao/operacao.css?v=202610190063",
+  work: "/telas/operacao/operacao.css?v=202610200001",
   import: "/telas/importar-romaneio/importar-romaneio.css?v=202610071845",
   settings: "/telas/configuracoes/configuracoes.css?v=202610160001",
   dalas: "/telas/dalas/dalas.css?v=202610160005",

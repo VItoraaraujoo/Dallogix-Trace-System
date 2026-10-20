@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 import {
   paradaPodeSerEnfileiradaAposInicio,
@@ -324,7 +325,7 @@ test("comandos permanecem visíveis e direção fica bloqueada em emergência ou
   }
 });
 
-test("falha do comando aparece na tela de operação com mensagem escapada", () => {
+test("falha de comando fica fora da tela de operação", () => {
   const markup = work({
     state: {
       selectedLoadingId: 7,
@@ -345,9 +346,24 @@ test("falha do comando aparece na tela de operação com mensagem escapada", () 
     },
   });
 
-  assert.match(markup, /class="work-command-error" role="alert"/);
-  assert.match(markup, /Falha &lt;script&gt;alert\(1\)&lt;\/script&gt;/);
+  assert.doesNotMatch(markup, /work-command-error|Falha/);
   assert.doesNotMatch(markup, /<script>alert\(1\)<\/script>/);
+});
+
+test("cabeçalho da operação fica preso ao topo e alinhado à área principal", () => {
+  const css = readFileSync(new URL("../interface/telas/operacao/operacao.css", import.meta.url), "utf8");
+  const topbarRule = css.match(/body\.work-page:has\(\.work-operation-screen\) \.topbar\s*\{([^}]+)\}/)?.[1] || "";
+
+  assert.match(topbarRule, /position:\s*sticky/);
+  assert.match(topbarRule, /top:\s*0/);
+  assert.doesNotMatch(topbarRule, /inset:|left:/);
+  assert.doesNotMatch(css, /body\.work-page:has\(\.work-operation-screen\) \.main\s*\{\s*padding-top:/);
+});
+
+test("falha de comando é registrada nos logs sem aviso visual", () => {
+  const aplicacao = readFileSync(new URL("../interface/js/aplicacao.js", import.meta.url), "utf8");
+
+  assert.match(aplicacao, /logFrontend\.erro\("operacao\.comando\.falhou"/);
 });
 
 test("erro final antigo do gateway não permanece como cartão na tela de operação", () => {
@@ -507,8 +523,8 @@ test("CLP indisponível bloqueia comandos normais e mantém a solicitação de e
     assert.match(markup, new RegExp(`data-action="${action}"[^>]*disabled`));
   }
   assert.match(markup, /data-action="emergency"(?![^>]*disabled)/);
-  assert.match(markup, /class="work-command-error" role="status" aria-live="polite"/);
-  assert.match(markup, /CLP sem comunicação há 5 segundos/);
+  assert.doesNotMatch(markup, /class="work-command-error"/);
+  assert.match(markup, /data-action="run"[^>]*disabled/);
 });
 
 test("gateway sem liberação bloqueia comandos de rotina e mantém a emergência disponível", () => {

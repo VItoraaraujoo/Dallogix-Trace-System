@@ -4,28 +4,12 @@
 /* A tela trabalha com três blocos claros: cabeçalho, acompanhamento e controle.
    Todas as regras ficam escopadas para não alterar as demais telas. */
 body.work-page:has(.work-operation-screen) .topbar {
-  position: fixed;
-  inset: 0 0 auto var(--trace-sidebar);
+  position: sticky;
+  top: 0;
   z-index: 250;
   min-height: var(--trace-topbar);
   height: var(--trace-topbar);
   padding: 8px clamp(14px, 2.2vw, 28px);
-}
-
-body.work-page:has(.work-operation-screen) .main {
-  padding-top: var(--trace-topbar);
-}
-
-@media (min-width: 761px) {
-  body.work-page:has(.work-operation-screen) .shell.sidebar-collapsed .topbar {
-    left: var(--trace-sidebar-collapsed);
-  }
-}
-
-@media (max-width: 760px), (orientation: landscape) and (min-width: 600px) and (max-width: 900px) {
-  body.work-page:has(.work-operation-screen) .topbar {
-    left: var(--trace-sidebar);
-  }
 }
 
 body.work-page:has(.work-operation-screen) .topbar h1 {
@@ -664,17 +648,6 @@ body.work-page:has(.work-operation-screen) .work-machine-controls .work-emergenc
 
 body.work-page:has(.work-operation-screen) .work-machine-panel .work-command-feedback {
   margin: 0;
-}
-
-body.work-page:has(.work-operation-screen) .work-command-error {
-  margin: 12px 0 0;
-  padding: 12px 14px;
-  border: 1px solid #f2a6a6;
-  border-radius: 10px;
-  background: #fff1f1;
-  color: #8f1d1d;
-  font-weight: 700;
-  line-height: 1.45;
 }
 
 body.work-page:has(.work-operation-screen) .work-command-history {

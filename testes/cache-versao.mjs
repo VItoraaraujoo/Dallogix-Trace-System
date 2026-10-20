@@ -4,15 +4,15 @@ import { join } from "node:path";
 import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
-const versaoAplicacao = "202610190063";
-const versaoAplicacaoImportacao = "202610190063";
-const versaoServiceWorker = "202610190063";
+const versaoAplicacao = "202610200001";
+const versaoAplicacaoImportacao = "202610200001";
+const versaoServiceWorker = "202610200001";
 const versaoTela = "202610190063";
 const versaoTelaImportacao = "202610190046";
 const versaoEstiloConfiguracoes = "202610160001";
 const versaoEstiloDalas = "202610160005";
 const versaoEstiloResponsivo = "202610160004";
-const versaoEstiloOperacao = "202610190063";
+const versaoEstiloOperacao = "202610200001";
 const versaoEstiloImportacao = "202610071845";
 
 test("o shell invalida cache quando a aplicação muda", () => {
@@ -22,22 +22,22 @@ test("o shell invalida cache quando a aplicação muda", () => {
   const telaAcesso = readFileSync(join(raiz, "telas", "acesso", "acesso.html"), "utf8");
   const armazenamento = readFileSync(join(raiz, "js", "classes", "ArmazenamentoTrace.js"), "utf8");
   const estadoVisualizacao = readFileSync(join(raiz, "js", "controladores", "estado-visualizacao.js"), "utf8");
-  assert.match(serviceWorker, /trace-shell-20261019-50/);
+  assert.match(serviceWorker, /trace-shell-20261020-51/);
   assert.match(serviceWorker, /const PRECACHE_CONCURRENCY = 4/);
   assert.match(serviceWorker, /const workerCount = Math\.min\(PRECACHE_CONCURRENCY, SHELL\.length\)/);
   assert.match(serviceWorker, /await Promise\.all\(Array\.from\(\{ length: workerCount \}, \(\) => worker\(\)\)\)/);
   assert.match(serviceWorker, /console\.warn\("Não foi possível pré-carregar o recurso do shell:"/);
-  assert.match(serviceWorker, /APPLICATION_ASSET_VERSION = "202610190063"/);
+  assert.match(serviceWorker, /APPLICATION_ASSET_VERSION = "202610200001"/);
   assert.match(serviceWorker, /currentCache\.match\(url\.pathname\)/);
   assert.match(aplicacao, /notificacoes\.js\?v=202610160002/);
   assert.match(aplicacao, /registro-telas\.js\?v=202610190046/);
   assert.match(aplicacao, /teclado-leitura-manual\.js\?v=202610190046/);
   assert.doesNotMatch(aplicacao, /^import .* from ["']\.\.\/telas\//m);
-  assert.match(aplicacao, /import\("\.\.\/telas\/operacao\/operacao\.js\?v=202610190063"\)/);
+  assert.match(aplicacao, /import\("\.\.\/telas\/operacao\/operacao\.js\?v=202610200001"\)/);
   assert.match(telaAcesso, /\/js\/login\.js\?v=202610190036/);
   assert.match(aplicacao, new RegExp(`/service-worker\\.js\\?v=${versaoServiceWorker}`));
   assert.match(aplicacao, new RegExp(`ArmazenamentoTrace\\.js\\?v=${versaoTela}`));
-  assert.match(aplicacao, /operacao\.js\?v=202610190063/);
+  assert.match(aplicacao, /operacao\.js\?v=202610200001/);
   assert.match(aplicacao, new RegExp(`importar-romaneio\\.js\\?v=${versaoTelaImportacao}`));
   assert.match(aplicacao, /page-refresh\.js\?v=202610130001/);
   assert.match(aplicacao, /tempo-real\.js\?v=202610190018/);
@@ -196,9 +196,10 @@ test("a tela inicial da operação usa o CSS com cache atualizado", () => {
   const tela = readFileSync(join(raiz, "telas", "operacao", "operacao.html"), "utf8");
   const estilos = readFileSync(join(raiz, "telas", "operacao", "operacao.css"), "utf8");
   assert.match(tela, new RegExp(`/telas/operacao/operacao\\.css\\?v=${versaoEstiloOperacao}`));
-  assert.match(estilos, /\.topbar\s*\{[^}]*position:\s*fixed;[^}]*inset:\s*0 0 auto var\(--trace-sidebar\)/s);
+  assert.match(estilos, /\.topbar\s*\{[^}]*position:\s*sticky;[^}]*top:\s*0/s);
+  assert.doesNotMatch(estilos, /\.topbar\s*\{[^}]*position:\s*fixed;[^}]*inset:/s);
   assert.match(estilos, /\.topbar\s*\{[^}]*height:\s*var\(--trace-topbar\)/s);
-  assert.match(estilos, /\.main\s*\{[^}]*padding-top:\s*var\(--trace-topbar\)/s);
+  assert.doesNotMatch(estilos, /body\.work-page:has\(\.work-operation-screen\) \.main\s*\{\s*padding-top:/);
 });
 
 test("Novo romaneio referencia o CSS alinhado com cache versionado", () => {
