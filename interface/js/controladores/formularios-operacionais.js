@@ -52,7 +52,6 @@ function registrarLeituraDaOperacao({
   store,
   render,
   setFeedback,
-  toggleKeyboard,
   updateScannerFocus,
   logWarning,
   schedule,
@@ -60,8 +59,6 @@ function registrarLeituraDaOperacao({
 }) {
   root.querySelectorAll(".manual-operation-reading-form").forEach((form) => {
     const barcodeInput = form.querySelector('[name="barcode"]');
-    const keyboardToggle = form.querySelector(".manual-reading-keyboard-toggle");
-    keyboardToggle?.addEventListener("click", () => toggleKeyboard(barcodeInput, keyboardToggle));
     barcodeInput?.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" || barcodeInput.disabled) return;
       event.preventDefault();
@@ -75,7 +72,8 @@ function registrarLeituraDaOperacao({
       event.preventDefault();
       if (form.dataset.submitting === "1") return;
       form.dataset.submitting = "1";
-      desabilitarBotaoEnviar(form, true);
+      const inputWasDisabled = barcodeInput?.disabled === true;
+      if (barcodeInput) barcodeInput.disabled = true;
       setFeedback(form, "Registrando leitura…");
       try {
         const raw = readForm(form);
@@ -97,7 +95,7 @@ function registrarLeituraDaOperacao({
       } finally {
         if (form.isConnected) {
           form.dataset.submitting = "";
-          desabilitarBotaoEnviar(form, false);
+          if (barcodeInput) barcodeInput.disabled = inputWasDisabled;
         }
       }
     });
@@ -186,7 +184,6 @@ export function bindOperationalForms({
   render,
   notify,
   setFeedback = setFormFeedback,
-  toggleKeyboard = () => {},
   updateScannerFocus = () => {},
   logWarning = () => {},
   schedule = (callback, delay) => window.setTimeout(callback, delay),
@@ -199,7 +196,6 @@ export function bindOperationalForms({
     store,
     render,
     setFeedback,
-    toggleKeyboard,
     updateScannerFocus,
     logWarning,
     schedule,

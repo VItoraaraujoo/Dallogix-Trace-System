@@ -1,5 +1,5 @@
-const CACHE_NAME = "trace-shell-20261020-51";
-const APPLICATION_ASSET_VERSION = "202610200001";
+const CACHE_NAME = "trace-shell-20261020-52";
+const APPLICATION_ASSET_VERSION = "202610200002";
 const PRECACHE_CONCURRENCY = 4;
 const SHELL = [
   "/",
@@ -126,7 +126,6 @@ const SHELL = [
   "/js/controladores/page-refresh.js",
   "/js/controladores/comandos-maquina.js",
   "/js/controladores/registro-telas.js",
-  "/js/controladores/teclado-leitura-manual.js",
   "/js/controladores/acoes-navegacao.js",
   "/js/controladores/acoes-administracao.js",
   "/js/controladores/acoes-operacionais.js",

@@ -15,7 +15,7 @@ function criarFormulario({ dataset = {}, fields = {}, buttons = [] } = {}) {
     querySelectorAll(selector) {
       return selector === "button" ? buttons : [];
     },
-    requestSubmit() { return this.submit(); },
+    requestSubmit() { this.lastSubmission = this.submit(); return this.lastSubmission; },
     submit() { return listeners.get("submit")({ preventDefault() {} }); },
   };
   return form;
@@ -51,7 +51,6 @@ function criarHarness({ root, store = {}, values = {} } = {}) {
     render: () => { renders += 1; },
     notify: (message) => notifications.push(message),
     setFeedback: (...args) => feedback.push(args),
-    toggleKeyboard: (...args) => calls.push(["toggleKeyboard", ...args]),
     updateScannerFocus: (...args) => calls.push(["updateScannerFocus", ...args]),
     logWarning: (...args) => warnings.push(args),
     schedule: (callback) => callback(),
@@ -96,18 +95,14 @@ test("reassociar Dala apresenta feedback de progresso e atualiza a tela", async 
 });
 
 test("leitura confirmada limpa o campo e devolve o foco ao scanner", async () => {
+  const inputListeners = new Map();
   const input = {
     value: "COD-123",
     disabled: false,
-    addEventListener() {},
+    addEventListener(type, handler) { inputListeners.set(type, handler); },
     focus() { this.focused = true; },
   };
-  const keyboardToggle = { addEventListener() {} };
-  const submitButton = { disabled: false };
-  const form = criarFormulario({
-    fields: { '[name="barcode"]': input, ".manual-reading-keyboard-toggle": keyboardToggle, 'button[type="submit"]': submitButton },
-    buttons: [submitButton],
-  });
+  const form = criarFormulario({ fields: { '[name="barcode"]': input } });
   const harness = criarHarness({
     root: criarRoot({
       one: { ".manual-operation-reading-form": form, "#screen-root": {} },
@@ -116,7 +111,10 @@ test("leitura confirmada limpa o campo e devolve o foco ao scanner", async () =>
     values: new Map([[form, { barcode: "COD-123" }]]),
   });
 
-  await form.submit();
+  let defaultPrevented = false;
+  inputListeners.get("keydown")({ key: "Enter", preventDefault() { defaultPrevented = true; } });
+  assert.equal(defaultPrevented, true);
+  await form.lastSubmission;
 
   assert.deepEqual(harness.calls[0], ["registerManualReading", "COD-123"]);
   assert.deepEqual(harness.feedback, [
@@ -127,7 +125,7 @@ test("leitura confirmada limpa o campo e devolve o foco ao scanner", async () =>
   assert.equal(input.focused, true);
   assert.equal(harness.renders, 1);
   assert.equal(form.dataset.submitting, "");
-  assert.equal(submitButton.disabled, false);
+  assert.equal(input.disabled, false);
 });
 
 test("leitura offline informa que não deve ser repetida e não a marca como validada", async () => {

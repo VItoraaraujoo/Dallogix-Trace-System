@@ -134,7 +134,7 @@ export function instalarRecuperacaoFocoLeitor(root) {
   if (root.dataset) root.dataset.scannerFocusRecovery = "installed";
   root.addEventListener("pointerup", (event) => {
     const target = event.target;
-    if (target?.closest?.("input, select, textarea, [contenteditable='true'], .manual-reading-keyboard-toggle, [role='dialog'], dialog, [aria-modal='true']")) return;
+    if (target?.closest?.("input, select, textarea, [contenteditable='true'], [role='dialog'], dialog, [aria-modal='true']")) return;
     globalThis.setTimeout?.(() => {
       if (!root.isConnected) return;
       const input = root.querySelector?.(".manual-operation-reading-form input[name=\"barcode\"]");
