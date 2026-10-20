@@ -38,6 +38,18 @@ final class ServicoMonitoramento
         $devices = $this->repositorio->listarStatusDispositivos($companyId);
         foreach ($devices as &$device) {
             $deviceType = (string) $device["device_type"];
+            if ($deviceType === "CLP") {
+                $details = json_decode((string) ($device["details"] ?? ""), true);
+                $capability = is_array($details) && is_array($details["command_capability"] ?? null)
+                    ? $details["command_capability"]
+                    : [];
+                $device["machine_commands_available"] = ($capability["available"] ?? false) === true;
+                $mode = strtoupper((string) ($capability["mode"] ?? "DESCONHECIDO"));
+                $device["machine_command_mode"] = in_array($mode, ["FISICO", "SIMULADO", "BLOQUEADO"], true)
+                    ? $mode
+                    : "DESCONHECIDO";
+            }
+            unset($device["details"]);
             $limit = match ($deviceType) {
                 "CAMERA" => $cameraSignalLimit,
                 "SCANNER" => $scannerSignalLimit,

@@ -135,6 +135,23 @@ test("resposta FC1 publica os estados 0 e 1 do bit M2052", () => {
 test("resposta correlacionada e completa produz ONLINE", () => {
   assert.equal(runtime()("modbus-result", resultMessage(response()))[0].payload.status, "ONLINE");
 });
+test("heartbeat do CLP divulga a capacidade real de enviar comandos", () => {
+  const blocked = runtime()("modbus-result", resultMessage(response()))[0].payload.details.command_capability;
+  assert.deepEqual(blocked, { available: false, mode: "BLOQUEADO" });
+
+  const simulated = runtime({
+    ...configuration,
+    TRACE_LOCAL_SIMULATION: "1",
+    TRACE_SIMULATOR_ONLY_COMMANDS: "1",
+  })("modbus-result", resultMessage(response()))[0].payload.details.command_capability;
+  assert.deepEqual(simulated, { available: true, mode: "SIMULADO" });
+
+  const physical = runtime({
+    ...approvedPhysicalConfiguration,
+    TRACE_PHYSICAL_CLP_ENABLED: "1",
+  })("modbus-result", resultMessage(response()))[0].payload.details.command_capability;
+  assert.deepEqual(physical, { available: true, mode: "FISICO" });
+});
 for (const [name, change] of [
   ["transação diferente", (b) => b.writeUInt16BE(41, 0)],
   ["unidade diferente", (b) => { b[6] = 1; }],

@@ -6,9 +6,9 @@ import { confirmarAcao, limparNotificacao, notificar, solicitarTexto } from "./c
 import { setFormFeedback } from "./componentes/form-feedback.js?v=202610190001";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610190058";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610190063";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
-import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, instalarRecuperacaoFocoLeitor, changeOperationLoading, linhaItemRomaneio } from "./controladores/operacao.js?v=202610190001";
+import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, instalarRecuperacaoFocoLeitor, changeOperationLoading, linhaItemRomaneio } from "./controladores/operacao.js?v=202610190063";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610190018";
 import { createPageRefreshController } from "./controladores/page-refresh.js?v=202610130001";
 import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
@@ -23,7 +23,7 @@ import { criarTratadorAcoesInterface, instalarInteracoesGlobaisInterface } from 
 import { criarTratadorAcoesRelatorios } from "./controladores/acoes-relatorios.js?v=202610190043";
 import { criarDelegacaoAcoes, criarDespachanteAcoes } from "./controladores/despachante-acoes.js?v=202610190059";
 import { criarCarregadorPaginas } from "./controladores/carregador-paginas.js?v=202610190041";
-import { createLiveViewController } from "./controladores/estado-visualizacao.js?v=202610190029";
+import { createLiveViewController } from "./controladores/estado-visualizacao.js?v=202610190063";
 import { createLocalConnectivityController } from "./controladores/conectividade-local.js?v=202610190029";
 import { bindManifestCreationForm, bindManifestEditForm } from "./controladores/formulario-romaneio.js?v=202610190001";
 import { bindProductForm } from "./controladores/formulario-produto.js?v=202610190001";
@@ -78,7 +78,7 @@ const registroTelas = criarRegistroTelas({
   division: () =>
     import("../telas/divisao-carga/divisao-carga.js?v=202610190046").then(({ division }) => division),
   work: () =>
-    import("../telas/operacao/operacao.js?v=202610190046").then(({ work }) => work),
+    import("../telas/operacao/operacao.js?v=202610190063").then(({ work }) => work),
   occurrences: () =>
     import("../telas/ocorrencias/ocorrencias.js?v=202610190046").then(({ occurrences }) => occurrences),
   summary: () =>
@@ -382,7 +382,7 @@ const conectividadeLocal = createLocalConnectivityController({
   focusScanner: (root) => focusOperationScanner(root),
   getScreenRoot: () => el("#screen-root"),
   logWarning: (...args) => logFrontend.aviso(...args),
-  serviceWorkerUrl: "/service-worker.js?v=202610190062",
+  serviceWorkerUrl: "/service-worker.js?v=202610190063",
 });
 
 function waitForDocumentStyles() {
@@ -403,7 +403,7 @@ function waitForDocumentStyles() {
 // tela que tem CSS próprio precisa garantir seu arquivo e sua versão antes do
 // primeiro render, inclusive quando a rota inicial veio de outra página.
 const SCREEN_STYLES = {
-  work: "/telas/operacao/operacao.css?v=202610140001",
+  work: "/telas/operacao/operacao.css?v=202610190063",
   import: "/telas/importar-romaneio/importar-romaneio.css?v=202610071845",
   settings: "/telas/configuracoes/configuracoes.css?v=202610160001",
   dalas: "/telas/dalas/dalas.css?v=202610160005",
@@ -461,22 +461,6 @@ function hydrateChrome() {
     const mobileOpen = shell?.classList.contains("mobile-menu-open") || false;
     menuToggle.setAttribute("aria-expanded", String(mobileOpen));
     menuToggle.setAttribute("title", mobileOpen ? "Fechar menu" : "Abrir menu");
-    if (menuToggle.dataset.menuBound !== "1") {
-      menuToggle.dataset.menuBound = "1";
-      menuToggle.dataset.actionBound = "1";
-      menuToggle.addEventListener("click", () => {
-        const currentShell = document.querySelector(".shell");
-        if (isMobileMenuViewport()) {
-          const open = currentShell?.classList.toggle("mobile-menu-open") || false;
-          setMobileMenuState(open);
-          menuToggle.setAttribute("aria-expanded", String(open));
-          menuToggle.setAttribute("title", open ? "Fechar menu" : "Abrir menu");
-          return;
-        }
-        const collapsed = currentShell?.classList.toggle("sidebar-collapsed") || false;
-        saveSidebarCollapsedPreference(collapsed);
-      });
-    }
   }
   if (shell && sidebarCollapsed()) shell.classList.add("sidebar-collapsed");
   if (nav)

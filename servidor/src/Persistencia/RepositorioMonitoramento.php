@@ -17,7 +17,7 @@ final class RepositorioMonitoramento
     public function listarStatusDispositivos(int $companyId): array
     {
         return $this->consultar(
-            "SELECT d.equipment_id, d.device_type, d.status, d.last_seen_at,
+            "SELECT d.equipment_id, d.device_type, d.status, d.last_seen_at, d.details,
                     CASE WHEN d.last_seen_at IS NULL THEN NULL
                          ELSE TIMESTAMPDIFF(SECOND, d.last_seen_at, NOW(3))
                     END AS segundos_sem_sinal,

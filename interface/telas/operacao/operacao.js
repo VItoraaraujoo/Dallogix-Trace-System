@@ -79,6 +79,8 @@ export function podeLiberarEmergencia({ role, loadingId }) {
 export function workControlLocks(state, {
   clpAvailable = true,
   clpUnavailableMessage = "Comunicação com o CLP indisponível. Novos comandos estão bloqueados.",
+  machineCommandsAvailable = true,
+  machineCommandsUnavailableMessage = "O gateway não confirmou a liberação dos comandos da máquina.",
 } = {}) {
   const operationalState = String(state.operationalState || "").toUpperCase();
   const currentCommand = resolverComandoAtual(state.plcCommand, state.commandIntent);
@@ -105,6 +107,11 @@ export function workControlLocks(state, {
 
   if (!clpAvailable) {
     for (const action of Object.keys(locks)) locks[action] = clpUnavailableMessage;
+    return locks;
+  }
+
+  if (!machineCommandsAvailable) {
+    for (const action of Object.keys(locks)) locks[action] = machineCommandsUnavailableMessage;
     return locks;
   }
 
@@ -193,15 +200,23 @@ function workControls(store) {
   const clpUnavailableMessage = typeof store.mensagemClpIndisponivel === "function"
       ? store.mensagemClpIndisponivel()
       : "Comunicação com o CLP indisponível. Novos comandos estão bloqueados.";
+  const machineCommandsAvailable = typeof store.comandosMaquinaDisponiveis === "function"
+    ? store.comandosMaquinaDisponiveis()
+    : clpAvailable;
+  const machineCommandsUnavailableMessage = typeof store.mensagemComandosMaquinaIndisponiveis === "function"
+    ? store.mensagemComandosMaquinaIndisponiveis()
+    : "O gateway não confirmou a liberação dos comandos da máquina.";
   const commandLocks = workControlLocks(store.state, {
     clpAvailable,
     clpUnavailableMessage,
+    machineCommandsAvailable,
+    machineCommandsUnavailableMessage,
   });
   const bloqueio = (reason) => reason
     ? { disabled: true, "aria-disabled": "true", title: reason }
     : "";
-  // A emergência continua disponível para registrar a intenção; comandos
-  // normais ficam bloqueados porque o servidor não os encaminha sem heartbeat.
+  // A emergência continua disponível para registrar a intenção; o gateway
+  // valida a comunicação e a autorização antes de qualquer escrita física.
   const bloqueioEmergencia = store.state.loadingId
     ? ""
     : { disabled: true, "aria-disabled": "true", title: "Nenhum carregamento selecionado" };
@@ -228,16 +243,12 @@ function workControls(store) {
       ? "Aguardando início da esteira…"
       : "Aguardando leitura…";
   const manualOperationReading = store.state.loadingId
-    ? `<div class="work-manual-reading"><div class="work-manual-reading-heading"><span class="kicker">Scanner USB · Elgin EL8600</span></div>${offlineOperations > 0 ? `<p class="form-feedback is-error" role="alert">${numero(offlineOperations)} operação${offlineOperations === 1 ? "" : "ões"} aguardando envio. Não faça novas leituras até confirmar a sincronização.</p>` : ""}<form class="manual-operation-reading-form"><label for="manual-operation-barcode">Código de barras<input id="manual-operation-barcode" name="barcode" type="text" required maxlength="128" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="none" placeholder="${manualReadingPlaceholder}"${manualReadingDisabled ? " disabled" : " autofocus"} /></label><button class="button ghost small manual-reading-keyboard-toggle" type="button" aria-pressed="false"${manualReadingDisabled ? " disabled" : ""}>Digitar código</button><p class="form-feedback is-error" data-scanner-focus role="status" aria-live="polite">Aguardando foco do leitor USB Elgin EL8600.</p><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form></div>`
+    ? `<div class="work-manual-reading"><div class="work-manual-reading-heading"><span class="kicker">Leitura automática</span></div>${offlineOperations > 0 ? `<p class="form-feedback is-error" role="alert">${numero(offlineOperations)} operação${offlineOperations === 1 ? "" : "ões"} aguardando envio. Não faça novas leituras até confirmar a sincronização.</p>` : ""}<form class="manual-operation-reading-form"><label for="manual-operation-barcode">Código de barras<input id="manual-operation-barcode" name="barcode" type="text" required maxlength="128" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="none" placeholder="${manualReadingPlaceholder}"${manualReadingDisabled ? " disabled" : " autofocus"} /></label><button class="button ghost small manual-reading-keyboard-toggle" type="button" aria-pressed="false"${manualReadingDisabled ? " disabled" : ""}>Digitar código</button><p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form></div>`
     : "";
   const manualIdentification = pendingReadingsTotal
     ? `<section class="work-scanner-corrections" aria-labelledby="work-scanner-corrections-title"><div class="work-scanner-corrections-heading"><div><span class="kicker">Conferência pendente</span><h3 id="work-scanner-corrections-title">Leituras sem código</h3><p>${pendingReadingsTotal} pendente${pendingReadingsTotal === 1 ? "" : "s"} · página ${pendingReadingsPage} de ${pendingReadingsPages}</p></div><p>Passe o leitor de código de barras ou digite o código conferido.</p></div><div class="work-scanner-corrections-list">${pendingReadings.map((reading, index) => `<form class="manual-reading-form" data-reading-id="${reading.id}"><label>Leitura #${reading.id}<input name="barcode" type="text" required maxlength="128" autocomplete="off" autocapitalize="off" spellcheck="false" inputmode="text" placeholder="Leia o código do produto" aria-label="Código de barras da leitura ${reading.id}"${index === 0 ? " autofocus" : ""} /></label>${button("Confirmar código", "identify-reading", "secondary")}<p class="form-feedback" data-form-feedback role="status" aria-live="polite" hidden></p></form>`).join("")}</div>${pendingReadingsPages > 1 ? `<div class="actions"><button class="button ghost small" type="button" data-action="pending-readings-page" data-page="${pendingReadingsPage - 1}"${pendingReadingsPage <= 1 ? " disabled" : ""}>Anterior</button><button class="button ghost small" type="button" data-action="pending-readings-page" data-page="${pendingReadingsPage + 1}"${pendingReadingsPage >= pendingReadingsPages ? " disabled" : ""}>Próxima</button></div>` : ""}</section>`
     : "";
-  const lockReasons = [...new Set(Object.values(commandLocks).filter(Boolean))];
-  const lockNotice = lockReasons.length
-    ? `<div class="work-control-lock-reasons" role="status" aria-live="polite">${lockReasons.map((reason) => `<p>${esc(reason)}</p>`).join("")}</div>`
-    : "";
-  const controls = `<div class="work-controls"><div class="work-routine-controls">${button("Ligar esteira", "run", "primary", bloqueio(commandLocks.run))}${button("Desligar esteira", "stop", "ghost", bloqueio(commandLocks.stop))}${button("Ligar reversão", "reverse-on", "secondary", bloqueio(commandLocks["reverse-on"]))}${button("Desligar reversão", "reverse-off", "secondary", bloqueio(commandLocks["reverse-off"]))}</div><div class="work-emergency-zone">${button("EMERGÊNCIA", "emergency", "danger", bloqueioEmergencia)}</div>${lockNotice}</div>`;
+  const controls = `<div class="work-controls"><div class="work-routine-controls">${button("Ligar esteira", "run", "primary", bloqueio(commandLocks.run))}${button("Desligar esteira", "stop", "ghost", bloqueio(commandLocks.stop))}${button("Ligar reversão", "reverse-on", "secondary", bloqueio(commandLocks["reverse-on"]))}${button("Desligar reversão", "reverse-off", "secondary", bloqueio(commandLocks["reverse-off"]))}</div><div class="work-emergency-zone">${button("EMERGÊNCIA", "emergency", "danger", bloqueioEmergencia)}</div></div>`;
   const summaryReady = ["FINALIZANDO", "FINALIZADO"].includes(
     store.state.operationalState,
   );
@@ -246,11 +257,6 @@ function workControls(store) {
     : "";
   const commandFailureNotice = store.state.commandFeedback
     ? `<p class="work-command-error" role="alert">${esc(store.state.commandFeedback)}</p>`
-    : pendingStatus === "REJEITADO" && pendingCommand === "PAUSAR_CARREGAMENTO" &&
-        String(currentCommand?.response_message || "").includes("cancelada após confirmação física")
-      ? '<p class="work-command-history" role="status">Parada cancelada antes do envio ao gateway, após confirmação física do operador.</p>'
-    : ["ERRO", "REJEITADO", "EXPIRADO"].includes(pendingStatus)
-      ? `<p class="work-command-history" role="status">Último comando (${esc(rotuloComando(pendingCommand))}): ${esc(currentCommand?.response_message || "o gateway não confirmou a solicitação.")}</p>`
     : !clpAvailable
       ? `<p class="work-command-error" role="status" aria-live="polite">${esc(clpUnavailableMessage)}</p>`
       : "";

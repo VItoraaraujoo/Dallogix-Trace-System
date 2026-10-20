@@ -509,6 +509,24 @@ export class ArmazenamentoTrace {
     const status = String(this.clpDaDalaAtual()?.status || "").toUpperCase();
     return status === "ONLINE";
   }
+  comandosMaquinaDisponiveis() {
+    if (!this.clpDisponivel()) return false;
+    return this.clpDaDalaAtual()?.machine_commands_available === true;
+  }
+  mensagemComandosMaquinaIndisponiveis() {
+    if (!this.monitoramentoOperacionalAtual()) {
+      return "Sem confirmação recente do gateway. Os comandos da máquina estão bloqueados.";
+    }
+    const device = this.clpDaDalaAtual();
+    if (String(device?.status || "").toUpperCase() !== "ONLINE") {
+      return this.mensagemClpIndisponivel();
+    }
+    const mode = String(device?.machine_command_mode || "").toUpperCase();
+    if (mode === "BLOQUEADO") {
+      return "O gateway está conectado, mas a escrita física não foi habilitada para esta Dala.";
+    }
+    return "O gateway ainda não confirmou que os comandos da máquina estão liberados.";
+  }
   mensagemClpIndisponivel() {
     if (!this.monitoramentoOperacionalAtual()) {
       return "Sem comunicação recente com o servidor local. Novos comandos estão bloqueados até o status ser atualizado.";

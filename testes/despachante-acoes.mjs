@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
-import { criarDespachanteAcoes } from "../interface/js/controladores/despachante-acoes.js";
+import { criarDelegacaoAcoes, criarDespachanteAcoes } from "../interface/js/controladores/despachante-acoes.js";
+import { criarTratadorAcoesInterface } from "../interface/js/controladores/acoes-interface.js";
 
 function criarTratadores(overrides = {}) {
   return Object.fromEntries([
@@ -57,6 +59,48 @@ test("o despachante mantém a prioridade e interrompe após uma ação tratada",
   await criarDespachanteAcoes(options)(criarNode());
 
   assert.deepEqual(order, ["navegacao", "administracao", "operacional"]);
+});
+
+test("o menu alterna uma vez por clique delegado, sem handler duplicado na hidratação", () => {
+  const originalDocument = globalThis.document;
+  const classes = new Set();
+  const shell = {
+    classList: {
+      contains: (name) => classes.has(name),
+      toggle(name) {
+        if (classes.has(name)) {
+          classes.delete(name);
+          return false;
+        }
+        classes.add(name);
+        return true;
+      },
+    },
+  };
+  globalThis.document = { querySelector: () => shell };
+
+  try {
+    let clickHandler;
+    const root = { addEventListener: (_type, handler) => { clickHandler = handler; } };
+    const delegate = criarDelegacaoAcoes(root);
+    const collapsedStates = [];
+    const node = { dataset: { action: "toggle-menu" }, setAttribute() {} };
+    const interfaceHandler = criarTratadorAcoesInterface({
+      isMobileMenuViewport: () => false,
+      setMobileMenuState: () => {},
+      saveSidebarCollapsedPreference: (value) => collapsedStates.push(value),
+    });
+    delegate((target) => interfaceHandler(target.dataset.action, target));
+    clickHandler({ target: { closest: () => node } });
+
+    assert.equal(classes.has("sidebar-collapsed"), true);
+    assert.deepEqual(collapsedStates, [true]);
+    const application = readFileSync(new URL("../interface/js/aplicacao.js", import.meta.url), "utf8");
+    assert.doesNotMatch(application, /menuToggle\.addEventListener\("click"/);
+  } finally {
+    if (originalDocument === undefined) delete globalThis.document;
+    else globalThis.document = originalDocument;
+  }
 });
 
 test("a ação de formulário não duplica o submit do botão", async () => {
