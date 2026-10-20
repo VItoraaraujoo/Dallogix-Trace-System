@@ -11,6 +11,7 @@ import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, instalarRecuperacaoFocoLeitor, changeOperationLoading, linhaItemRomaneio } from "./controladores/operacao.js?v=202610190063";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610190018";
 import { createPageRefreshController } from "./controladores/page-refresh.js?v=202610130001";
+import { createDalaStatusRealtimeController } from "./controladores/status-dalas-tempo-real.js?v=202610200003";
 import { createMachineCommandQueue } from "./controladores/comandos-maquina.js?v=202610070203";
 import { criarRegistroTelas } from "./controladores/registro-telas.js?v=202610190046";
 import { criarTratadorAcoesNavegacao } from "./controladores/acoes-navegacao.js?v=202610190001";
@@ -261,6 +262,12 @@ const statusScreensRealtime = createPageRefreshController({
   getPage: () => currentPage,
   pages: PAGE_REFRESHERS,
 });
+const dalaStatusRealtime = createDalaStatusRealtimeController({
+  store,
+  getPage: () => currentPage,
+  isAuthenticated: () => Number(authenticatedUser?.company_id) > 0,
+  refresh: refreshLiveStatusView,
+});
 
 function sidebarCollapsed() {
   try {
@@ -385,7 +392,7 @@ const conectividadeLocal = createLocalConnectivityController({
   focusScanner: (root) => focusOperationScanner(root),
   getScreenRoot: () => el("#screen-root"),
   logWarning: (...args) => logFrontend.aviso(...args),
-  serviceWorkerUrl: "/service-worker.js?v=202610200002",
+  serviceWorkerUrl: "/service-worker.js?v=202610200003",
 });
 
 function waitForDocumentStyles() {
@@ -507,6 +514,8 @@ function renderScreen() {
   if (["work", "emergency"].includes(currentPage)) startWorkPolling();
   else stopWorkPolling();
   statusScreensRealtime.start();
+  if (Number(authenticatedUser?.company_id) > 0) dalaStatusRealtime.start();
+  else dalaStatusRealtime.stop();
   if (currentPage === "master-home") companyViewSignature = companyStatusViewSignature();
 }
 function render() {

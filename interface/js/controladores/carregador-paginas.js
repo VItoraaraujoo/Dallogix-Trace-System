@@ -59,7 +59,7 @@ export function criarCarregadorPaginas({
   };
 
   const carregadoresAoVivo = {
-    dashboard: () => [store.loadDalaStatuses(), carregarStatusEquipamentos()],
+    dashboard: () => [carregarStatusEquipamentos()],
     manifests: () => [store.loadManifests()],
     manifest: () => [store.loadManifest(idDaConsulta())],
     occurrences: () => [store.loadOccurrences()],
@@ -71,10 +71,10 @@ export function criarCarregadorPaginas({
     ],
     products: () => [store.loadProducts({ force: true })],
     alerts: () => [store.loadAlertMonitoring(), store.loadSyncStatus()],
-    dalas: () => [store.loadDalaStatuses(), carregarStatusEquipamentos()],
-    dala: () => [store.loadDalaCommandHistory(idDaConsulta()), store.loadDalaStatuses()],
+    dalas: () => [carregarStatusEquipamentos()],
+    dala: () => [store.loadDalaCommandHistory(idDaConsulta())],
     users: () => [store.loadUsers()],
-    settings: () => [store.loadDeviceStatuses(), store.loadSyncStatus(), store.loadDalaStatuses()],
+    settings: () => [store.loadDeviceStatuses(), store.loadSyncStatus()],
     companies: () => [store.loadCompanies()],
     "master-home": () => [store.loadCompanies()],
     company: () => [store.loadCompanyDetail()],
