@@ -119,6 +119,20 @@ command -v openssl >/dev/null || { echo "openssl é necessário para verificar a
 command -v python3 >/dev/null || { echo "python3 é necessário para validar o manifesto." >&2; exit 7; }
 command -v rsync >/dev/null || { echo "rsync é necessário para uma instalação segura." >&2; exit 8; }
 
+# A verificação automática roda a cada minuto. Adiamentos por carga ativa,
+# manutenção ou outra atualização são resultados esperados; a publicação
+# explícita passa TRACE_UPDATE_EXPECT_VERSION e precisa receber o código para
+# continuar aguardando e validar o deploy.
+adiar_atualizacao() {
+  local codigo="$1"
+  shift
+  echo "$*"
+  if [[ -n "${TRACE_UPDATE_EXPECT_VERSION:-}" ]]; then
+    exit "$codigo"
+  fi
+  exit 0
+}
+
 state_dir="$root_dir/armazenamento/updates"
 if ! mkdir -p "$state_dir/releases" "$state_dir/backups"; then
   echo "Não foi possível preparar o estado da atualização; verifique as permissões de $state_dir." >&2
@@ -132,8 +146,7 @@ maintenance_file="$root_dir/armazenamento/.maintenance"
 lock_dir="$state_dir/.install.lock"
 if ! mkdir "$lock_dir" 2>/dev/null; then
   if [[ -d "$lock_dir" ]]; then
-    echo "Já existe uma atualização em execução." >&2
-    exit 9
+    adiar_atualizacao 9 "Já existe uma atualização em execução; nova verificação agendada."
   fi
   echo "Não foi possível criar a trava de atualização; verifique as permissões de $state_dir." >&2
   exit 23
@@ -219,13 +232,11 @@ fi
 # Bloqueia novas preparações antes de consultar cargas ativas; o endpoint de
 # preparação consulta este marcador dentro da mesma instalação.
 if [[ -e "$maintenance_file" ]]; then
-  echo "O sistema já está em manutenção; atualização adiada." >&2
-  exit 14
+  adiar_atualizacao 14 "O sistema já está em manutenção; atualização adiada."
 fi
 if ! (set -o noclobber; : > "$maintenance_file") 2>/dev/null; then
   if [[ -e "$maintenance_file" ]]; then
-    echo "O sistema já está em manutenção; atualização adiada." >&2
-    exit 14
+    adiar_atualizacao 14 "O sistema já está em manutenção; atualização adiada."
   fi
   echo "Não foi possível gravar o marcador de manutenção; verifique as permissões de $root_dir/armazenamento." >&2
   exit 23
@@ -240,8 +251,7 @@ active="$(compose exec -T mysql sh -lc 'export MYSQL_PWD="$MYSQL_PASSWORD"; mysq
   exit 13
 }
 if [[ "$active" != "0" ]]; then
-  echo "Atualização adiada: existe carregamento ativo ou em estado de intervenção." >&2
-  exit 14
+  adiar_atualizacao 14 "Atualização adiada: existe carregamento ativo ou em estado de intervenção."
 fi
 
 # Reexecuta a preparação como root antes de parar a aplicação. Além de corrigir

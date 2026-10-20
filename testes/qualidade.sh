@@ -46,6 +46,7 @@ fi
 python3 -m py_compile scripts/test_modbus_virtual.py integracoes/modbus-virtual/server.py testes/modbus-transporte.py
 bash testes/sync-github-fetch.sh
 node --test testes/atualizador-permissoes.mjs
+node --test testes/atualizador-linux.mjs
 node --test testes/verificacao-producao.mjs testes/html-seguro.mjs
 node --test testes/cliente-api.mjs testes/operacoes-offline.mjs testes/servico-emergencia.mjs testes/servico-operacao.mjs testes/servico-sincronizacao.mjs testes/componentes-estados.mjs testes/status-servidor.mjs testes/cache-versao.mjs testes/romaneio-criacao.mjs testes/acoes-cadastros.mjs testes/acoes-relatorios.mjs testes/despachante-acoes.mjs testes/paginacao-api.mjs testes/status-configuracoes.mjs testes/status-dalas.mjs testes/status-empresas.mjs testes/comandos-maquina.mjs testes/alertas.mjs testes/atualizador-windows.mjs testes/validadores.mjs testes/armazenamento-permissoes.mjs
 node --test testes/armazenamento-resposta.mjs

@@ -6,7 +6,7 @@ import { confirmarAcao, limparNotificacao, notificar, solicitarTexto } from "./c
 import { setFormFeedback } from "./componentes/form-feedback.js?v=202610190001";
 import { ServicoEmergencia } from "./servicos/ServicoEmergencia.js?v=202610060001";
 import { ServicoOperacao } from "./servicos/ServicoOperacao.js?v=202610060001";
-import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610190063";
+import { ArmazenamentoTrace } from "./classes/ArmazenamentoTrace.js?v=202610200004";
 import { FORM_ACTIONS } from "./constantes/acoes.js?v=202609140210";
 import { captureOperationScanner, restoreOperationScanner, focusOperationScanner, updateOperationScannerFocus, instalarRecuperacaoFocoLeitor, changeOperationLoading, linhaItemRomaneio } from "./controladores/operacao.js?v=202610190063";
 import { createOperationalRealtimeController } from "./controladores/tempo-real.js?v=202610190018";
@@ -392,7 +392,7 @@ const conectividadeLocal = createLocalConnectivityController({
   focusScanner: (root) => focusOperationScanner(root),
   getScreenRoot: () => el("#screen-root"),
   logWarning: (...args) => logFrontend.aviso(...args),
-  serviceWorkerUrl: "/service-worker.js?v=202610200003",
+  serviceWorkerUrl: "/service-worker.js?v=202610200004",
 });
 
 function waitForDocumentStyles() {

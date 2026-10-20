@@ -106,6 +106,7 @@ export class ServicoSincronizacao {
     const controller = new AbortController();
     let fechado = false;
     const escutar = async () => {
+      let eventoRecebido = false;
       try {
         const response = await this.api.fetch("/api/eventos_carregamento.php?period_days=30", {
           headers: { Accept: "text/event-stream" },
@@ -129,6 +130,7 @@ export class ServicoSincronizacao {
               throw new Error("Evento de carregamento inválido.", { cause: error });
             }
             onData?.(payload);
+            eventoRecebido = true;
           }
           nomeEvento = "";
           dados = [];
@@ -178,9 +180,15 @@ export class ServicoSincronizacao {
         return;
       }
       if (!fechado) {
-        const error = new Error("Conexão de eventos encerrada.");
-        logFrontend.aviso("sincronizacao.eventos", error);
-        onError?.(error);
+        if (!eventoRecebido) {
+          const error = new Error("Fluxo de eventos encerrado sem entregar um evento.");
+          logFrontend.aviso("sincronizacao.eventos", error);
+          onError?.(error);
+          return;
+        }
+        // Este endpoint entrega um snapshot e fecha a resposta por projeto.
+        // O controlador agenda a próxima conexão; EOF após evento é normal.
+        onError?.();
       }
     };
     void escutar();
