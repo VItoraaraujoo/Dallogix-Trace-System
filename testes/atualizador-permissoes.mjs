@@ -32,7 +32,7 @@ function fixture() {
   }
   return {
     state,
-    run() {
+    run(expectedVersion = "") {
       return spawnSync("bash", [script], {
         ...identity,
         encoding: "utf8",
@@ -42,6 +42,7 @@ function fixture() {
           TRACE_UPDATE_ROOT: installation,
           UPDATE_PUBLIC_KEY_FILE: key,
           TRACE_UPDATE_MANIFEST_FILE: join(base, "absent-manifest.json"),
+          TRACE_UPDATE_EXPECT_VERSION: expectedVersion,
         },
       });
     },
@@ -67,15 +68,21 @@ test("estado sem permissão falha com diagnóstico próprio, sem fingir atualiza
   }
 });
 
-test("uma trava existente continua adiando e permanece preservada", () => {
+test("uma trava existente adia a verificação automática sem falha e preserva o retry da publicação", () => {
   const setup = fixture();
   try {
     const lock = join(setup.state, ".install.lock");
     mkdirSync(lock);
-    const result = setup.run();
-    assert.equal(result.error, undefined);
-    assert.equal(result.status, 9, result.stderr);
-    assert.match(result.stderr, /Já existe uma atualização/);
+    const automaticResult = setup.run();
+    assert.equal(automaticResult.error, undefined);
+    assert.equal(automaticResult.status, 0, automaticResult.stderr);
+    assert.match(automaticResult.stdout, /Já existe uma atualização/);
+    assert.equal(existsSync(lock), true);
+
+    const releaseResult = setup.run("v1.0.170");
+    assert.equal(releaseResult.error, undefined);
+    assert.equal(releaseResult.status, 9, releaseResult.stderr);
+    assert.match(releaseResult.stdout, /Já existe uma atualização/);
     assert.equal(existsSync(lock), true);
   } finally {
     setup.dispose();

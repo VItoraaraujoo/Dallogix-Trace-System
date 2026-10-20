@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ServicoSincronizacao } from "../interface/js/servicos/ServicoSincronizacao.js";
+import { limparLogsFrontend } from "../interface/js/utilitarios/LogFrontend.js";
 
 function response(data, { ok = true, status = 200 } = {}) {
   return { ok, status, async json() { return data; } };
@@ -118,6 +119,41 @@ test("processa evento SSE dividido em quadros e no fim do stream", async () => {
   service.assinarEventos({ onData(data) { entregue = data; liberar(); } });
   await Promise.race([finalizado, new Promise((_, reject) => setTimeout(() => reject(new Error("evento não recebido")), 500))]);
   assert.deepEqual(entregue, { id: 7 });
+});
+
+test("EOF após snapshot SSE é encerramento normal e não gera aviso", async () => {
+  const originalWarn = console.warn;
+  let avisos = 0;
+  let dadosRecebidos;
+  limparLogsFrontend();
+  console.warn = () => { avisos += 1; };
+  const stream = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode('event: carregamento\ndata: {"id":8}\n\n'));
+      controller.close();
+    },
+  });
+  const service = new ServicoSincronizacao({
+    api: { async fetch() { return { ok: true, body: stream }; } },
+    offlineBuffer: { flush: async () => ({}) },
+  });
+  let liberar;
+  const reconectado = new Promise((resolve) => { liberar = resolve; });
+  try {
+    service.assinarEventos({
+      onData(data) { dadosRecebidos = data; },
+      onError(error) { assert.equal(error, undefined); liberar(); },
+    });
+    await Promise.race([
+      reconectado,
+      new Promise((_, reject) => setTimeout(() => reject(new Error("EOF não acionou reconexão")), 500)),
+    ]);
+    assert.deepEqual(dadosRecebidos, { id: 8 });
+    assert.equal(avisos, 0);
+  } finally {
+    console.warn = originalWarn;
+    limparLogsFrontend();
+  }
 });
 
 test("encerra stream SSE que ultrapassa o limite sem acumular memória", async () => {

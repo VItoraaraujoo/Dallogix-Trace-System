@@ -95,6 +95,19 @@ test("CLAIM serializa comandos por Dala e mantém a emergência prioritária", (
   assert.match(gatewayService, /r\.command = 'EMERGENCIA' AND NOT EXISTS \([\s\S]*?processing\.command = 'EMERGENCIA'[\s\S]*?processing\.status = 'PROCESSANDO'/);
   assert.match(gatewayService, /r\.command <> 'EMERGENCIA' AND NOT EXISTS \([\s\S]*?processing\.status = 'PROCESSANDO'/);
 });
+test("ACK bloqueia o carregamento antes da solicitação para evitar deadlock", () => {
+  const complete = gatewayService.slice(gatewayService.indexOf("public function concluirComando"));
+  const candidateRead = complete.indexOf("SELECT command, carregamento_id, company_id");
+  const loadingLock = complete.indexOf("SELECT state FROM carregamentos");
+  const requestLock = complete.indexOf("SELECT r.id, r.company_id, r.equipment_id, r.command");
+  assert.ok(candidateRead >= 0, "deve identificar sem lock quais ACKs alteram o carregamento");
+  assert.ok(loadingLock >= 0, "deve bloquear o carregamento antes do ACK");
+  assert.ok(requestLock > loadingLock, "a linha do comando deve ser bloqueada depois do carregamento");
+  const beforeRequestLock = complete.slice(0, requestLock);
+  assert.match(beforeRequestLock, /claimed_by_device_id = :device_id[\s\S]*status = 'PROCESSANDO'/);
+  assert.match(beforeRequestLock, /if \(\$status === "APLICADO"\)/);
+  assert.match(beforeRequestLock, /\$commandsThatChangeLoading = \[[\s\S]*?"INICIAR_CARREGAMENTO"[\s\S]*?"PAUSAR_CARREGAMENTO"[\s\S]*?"DESBLOQUEAR_MAQUINA"/);
+});
 test("PC industrial usa um token de CLP para sua única Dala", () => {
   const call = runtime();
   for (const id of ["heartbeat-build", "command-claim-build"]) {

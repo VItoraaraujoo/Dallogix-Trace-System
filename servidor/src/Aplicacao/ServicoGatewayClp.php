@@ -174,26 +174,39 @@ final class ServicoGatewayClp
 
         $this->connection->beginTransaction();
         try {
+            // A API de comando bloqueia primeiro o carregamento e depois a
+            // solicitação. Preserve a mesma ordem no ACK: inverter esses locks
+            // permitia um deadlock quando o operador enviava outro comando.
+            $lockedLoadingState = null;
             if ($status === "APLICADO") {
-                // A emergência bloqueia carregamento antes do comando. Faça o
-                // mesmo no ACK de desbloqueio para evitar inversão/deadlock.
                 $candidate = $this->connection->prepare(
                     "SELECT command, carregamento_id, company_id
-                     FROM solicitacoes_comandos_clp WHERE id = :id LIMIT 1",
+                     FROM solicitacoes_comandos_clp
+                     WHERE id = :id AND claimed_by_device_id = :device_id
+                       AND status = 'PROCESSANDO'
+                       AND (expires_at IS NULL OR expires_at >= NOW(3))
+                     LIMIT 1",
                 );
-                $candidate->execute(["id" => $requestId]);
-                $unlock = $candidate->fetch();
-                if ($unlock && $unlock["command"] === "DESBLOQUEAR_MAQUINA") {
+                $candidate->execute(["id" => $requestId, "device_id" => $deviceId]);
+                $candidateRequest = $candidate->fetch();
+                $commandsThatChangeLoading = [
+                    "INICIAR_CARREGAMENTO",
+                    "PAUSAR_CARREGAMENTO",
+                    "DESBLOQUEAR_MAQUINA",
+                ];
+                if ($candidateRequest && in_array($candidateRequest["command"], $commandsThatChangeLoading, true)) {
                     $loadingLock = $this->connection->prepare(
                         "SELECT state FROM carregamentos
                          WHERE id = :id AND company_id = :company_id LIMIT 1 FOR UPDATE",
                     );
                     $loadingLock->execute([
-                        "id" => $unlock["carregamento_id"],
-                        "company_id" => $unlock["company_id"],
+                        "id" => $candidateRequest["carregamento_id"],
+                        "company_id" => $candidateRequest["company_id"],
                     ]);
+                    $lockedLoadingState = $loadingLock->fetchColumn();
                 }
             }
+
             $statement = $this->connection->prepare(
                 "SELECT r.id, r.company_id, r.equipment_id, r.command, r.carregamento_id,
                         r.remote_command_id, c.remote_carregamento_id,
@@ -229,15 +242,7 @@ final class ServicoGatewayClp
             }
 
             if ($status === "APLICADO" && in_array($request["command"], ["INICIAR_CARREGAMENTO", "PAUSAR_CARREGAMENTO"], true)) {
-                $loadingState = $this->connection->prepare(
-                    "SELECT state FROM carregamentos
-                     WHERE id = :id AND company_id = :company_id LIMIT 1 FOR UPDATE",
-                );
-                $loadingState->execute([
-                    "id" => $request["carregamento_id"],
-                    "company_id" => $request["company_id"],
-                ]);
-                $previousState = (string) $loadingState->fetchColumn();
+                $previousState = (string) $lockedLoadingState;
                 $targetState = $request["command"] === "INICIAR_CARREGAMENTO"
                     ? "CARREGANDO"
                     : "PAUSADO";
