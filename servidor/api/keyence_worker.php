@@ -88,8 +88,8 @@ if ($bytes === false || $bytes < 100 || $bytes > 10 * 1024 * 1024) {
 }
 $mime = (new finfo(FILEINFO_MIME_TYPE))->file($upload["tmp_name"]);
 $imageInfo = getimagesize($upload["tmp_name"]);
-if ($mime !== "image/jpeg" || !is_array($imageInfo) || ($imageInfo["mime"] ?? "") !== "image/jpeg"
-    || (int) ($imageInfo[0] ?? 0) < 1 || (int) ($imageInfo[1] ?? 0) < 1
+if ($mime !== "image/jpeg" || !is_array($imageInfo) || $imageInfo["mime"] !== "image/jpeg"
+    || $imageInfo[0] < 1 || $imageInfo[1] < 1
     || (int) $imageInfo[0] * (int) $imageInfo[1] > 40000000) {
     json_response(["error" => "A evidência deve ser uma imagem JPEG válida de até 40 megapixels."], 422);
 }
