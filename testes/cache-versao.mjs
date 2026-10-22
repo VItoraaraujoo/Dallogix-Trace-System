@@ -4,10 +4,10 @@ import { join } from "node:path";
 import test from "node:test";
 
 const raiz = join(process.cwd(), "interface");
-const versaoAplicacao = "202610200004";
-const versaoAplicacaoImportacao = "202610200004";
-const versaoServiceWorker = "202610200004";
-const versaoTela = "202610200004";
+const versaoAplicacao = "202610220001";
+const versaoAplicacaoImportacao = "202610220001";
+const versaoServiceWorker = "202610220001";
+const versaoTela = "202610220001";
 const versaoTelaImportacao = "202610190046";
 const versaoEstiloConfiguracoes = "202610160001";
 const versaoEstiloDalas = "202610160005";
@@ -22,12 +22,12 @@ test("o shell invalida cache quando a aplicação muda", () => {
   const telaAcesso = readFileSync(join(raiz, "telas", "acesso", "acesso.html"), "utf8");
   const armazenamento = readFileSync(join(raiz, "js", "classes", "ArmazenamentoTrace.js"), "utf8");
   const estadoVisualizacao = readFileSync(join(raiz, "js", "controladores", "estado-visualizacao.js"), "utf8");
-  assert.match(serviceWorker, /trace-shell-20261020-54/);
+  assert.match(serviceWorker, /trace-shell-20261022-55/);
   assert.match(serviceWorker, /const PRECACHE_CONCURRENCY = 4/);
   assert.match(serviceWorker, /const workerCount = Math\.min\(PRECACHE_CONCURRENCY, SHELL\.length\)/);
   assert.match(serviceWorker, /await Promise\.all\(Array\.from\(\{ length: workerCount \}, \(\) => worker\(\)\)\)/);
   assert.match(serviceWorker, /console\.warn\("Não foi possível pré-carregar o recurso do shell:"/);
-  assert.match(serviceWorker, /APPLICATION_ASSET_VERSION = "202610200004"/);
+  assert.match(serviceWorker, /APPLICATION_ASSET_VERSION = "202610220001"/);
   assert.match(serviceWorker, /currentCache\.match\(url\.pathname\)/);
   assert.match(aplicacao, /notificacoes\.js\?v=202610160002/);
   assert.match(aplicacao, /registro-telas\.js\?v=202610190046/);
@@ -74,7 +74,7 @@ test("o shell invalida cache quando a aplicação muda", () => {
   assert.match(armazenamento, /import\("\.\.\/servicos\/ServicoAcoesDala\.js\?v=202610190051"\)/);
   assert.doesNotMatch(armazenamento, /^import .*Servico(?:InstalacoesIndustriais|AdministracaoContas|Romaneios|CatalogoProdutos|AcoesDala)/m);
   assert.match(armazenamento, /servicos\/ServicoDalas\.js\?v=202610190001/);
-  assert.match(armazenamento, /servicos\/ServicoCarregamentoAtivo\.js\?v=202610190054/);
+  assert.match(armazenamento, /servicos\/ServicoCarregamentoAtivo\.js\?v=202610220001/);
   assert.match(armazenamento, /servicos\/ServicoSincronizacao\.js\?v=202610200004/);
   assert.match(armazenamento, /servicos\/ServicoObservabilidade\.js\?v=202610190003/);
   assert.match(aplicacao, /controladores\/carregador-paginas\.js\?v=202610190041/);

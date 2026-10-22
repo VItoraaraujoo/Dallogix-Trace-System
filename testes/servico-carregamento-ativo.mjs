@@ -174,6 +174,31 @@ test("finalização atualiza estado, resumo e disponibilidade das Dalas", async 
   ]);
 });
 
+test("último carregamento prepara o PDF do romaneio e informa falha sem apagar evidências", async () => {
+  const { servico, estado, chamadas } = criarServico({
+    state: { loadingId: 22, operationalState: "FINALIZANDO", running: true },
+    respostas: [
+      { body: { data: { id: 22, state: "FINALIZADO", romaneio_finalizado: true, romaneio_id: 91 } } },
+      { body: { data: { romaneio_id: 91, status: "PREPARADO" } } },
+    ],
+  });
+
+  await servico.finishLoading(22);
+
+  assert.equal(estado.operationalState, "FINALIZADO");
+  assert.equal(chamadas.at(-1).url, "/api/relatorio_auditoria.php?romaneio_id=91&preparar=1");
+
+  const falha = criarServico({
+    state: { loadingId: 23, operationalState: "FINALIZANDO", running: true },
+    respostas: [
+      { body: { data: { id: 23, state: "FINALIZADO", romaneio_finalizado: true, romaneio_id: 92 } } },
+      { status: 503, body: { error: "Armazenamento indisponível." } },
+    ],
+  });
+  await assert.rejects(falha.servico.finishLoading(23), /Carregamento finalizado, mas houve falha ao gerar o PDF ou concluir a limpeza das evidências/);
+  assert.equal(falha.estado.operationalState, "FINALIZADO");
+});
+
 test("operações sem carregamento são recusadas antes de chamar a API", async (context) => {
   await context.test("desbloqueio", async () => {
     const { servico, chamadas } = criarServico({ state: { loadingId: null } });

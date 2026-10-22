@@ -240,15 +240,19 @@ test("buscas de código de barras usam o escopo e o índice da empresa", () => {
   assert.match(barcodeIndex, /UNIQUE KEY uq_company_product_barcode \(company_id, barcode\)/);
 });
 
-test("relatório preserva PDFs de captura no servidor até a rotina de retenção", () => {
+test("relatório remove fontes locais depois de persistir as evidências no PDF final", () => {
   const auditReport = read("servidor/api/relatorios/relatorio_auditoria.php");
   const cleanupStart = auditReport.indexOf("function trace_cleanup_report_evidence");
   const cleanupEnd = auditReport.indexOf("\n$apiClient", cleanupStart);
   const cleanup = auditReport.slice(cleanupStart, cleanupEnd);
 
-  assert.equal(cleanup.includes('str_ends_with(strtolower($relativePath), ".pdf")'), true);
-  assert.equal(cleanup.includes("AND (LOWER(i.path) LIKE '%.jpg' OR LOWER(i.path) LIKE '%.png')"), true);
-  assert.doesNotMatch(cleanup, /SET r\.evidence_pdf_path = NULL/);
+  assert.match(cleanup, /capture-\[0-9\]\+.*\\\.pdf/);
+  assert.match(cleanup, /camera-pc\/request-/);
+  assert.match(cleanup, /AND i\.reason <> 'NORMAL'/);
+  assert.match(cleanup, /SET evidence_pdf_path = NULL/);
+  const reportSaved = auditReport.indexOf("!chmod($temporaryReportPath, 0600) || !rename($temporaryReportPath, $reportPath)");
+  const cleanupAfterSave = auditReport.indexOf("trace_cleanup_report_evidence($pdo, $loadIds", reportSaved);
+  assert.ok(reportSaved >= 0 && cleanupAfterSave > reportSaved);
 });
 
 test("listagem de romaneios limita agregações à empresa antes de agrupar", () => {

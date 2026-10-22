@@ -97,13 +97,27 @@ export class ServicoCarregamentoAtivo {
       headers: this.jsonHeaders(),
       body: JSON.stringify({ carregamento_id: loadingId, justification }),
     });
-    await this.jsonResponse(response, "Não foi possível finalizar o carregamento.");
+    const finishResult = await this.jsonResponse(response, "Não foi possível finalizar o carregamento.");
     this.state.operationalState = "FINALIZADO";
     this.state.running = false;
     await Promise.all([
       this.loadSummaryMonitoring(),
       this.loadEquipments({ force: true }),
     ]);
+    if (finishResult?.data?.romaneio_finalizado && Number(finishResult.data.romaneio_id) > 0) {
+      try {
+        const reportResponse = await this.api.fetch(
+          `/api/relatorio_auditoria.php?romaneio_id=${Number(finishResult.data.romaneio_id)}&preparar=1`,
+        );
+        await this.jsonResponse(
+          reportResponse,
+          "O carregamento foi finalizado, mas não foi possível gerar o PDF do romaneio.",
+        );
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : "erro inesperado";
+        throw new Error(`Carregamento finalizado, mas houve falha ao gerar o PDF ou concluir a limpeza das evidências. ${reason}`);
+      }
+    }
   }
 
   load(

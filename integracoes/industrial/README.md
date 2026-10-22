@@ -1,16 +1,17 @@
 # Integração industrial
 
-Esta pasta descreve o contrato entre o PC industrial, o scanner Elgin EL8600 e o CLP INVT TS621 informado para a bancada. O mapa aprovado e os endereços usados pelo gateway estão documentados em [`integracoes/node-red/README.md`](../node-red/README.md).
+Esta pasta descreve o contrato entre o PC industrial, os leitores de código e o CLP INVT TS621 informado para a bancada. O mapa aprovado e os endereços usados pelo gateway estão documentados em [`integracoes/node-red/README.md`](../node-red/README.md).
+
+A integração opcional do KEYENCE SR-X100W está implementada em [`documentacao/operacao/preparacao-keyence-sr-x100w.md`](../../documentacao/operacao/preparacao-keyence-sr-x100w.md). O Elgin EL8600 continua como leitor de produção até a configuração física e a homologação do Keyence passarem.
 
 ## Responsabilidades
 
-- O único modelo previsto para produção é o Elgin EL8600 por USB HID (teclado). A tela de Operação recupera o foco do campo de leitura depois de toques fora de campos e quando a janela volta ao primeiro plano.
+- O Elgin EL8600 permanece como leitor de produção por USB HID (teclado). A tela de Operação recupera o foco do campo de leitura depois de toques fora de campos e quando a janela volta ao primeiro plano.
 - Configure o scanner para enviar Enter ao final do código. O navegador recebe as teclas como um teclado comum; por isso, o Trace confirma uma leitura recebida, mas não consegue verificar a conexão USB enquanto o leitor está ocioso.
 - O leitor USB genérico usado para testes de leitura não substitui a homologação do Elgin EL8600 no PC industrial.
-- Cada leitura é enviada pelo formulário da tela; ainda falta associá-la ao evento de passagem do sensor do CLP.
-- O sinal `sack_sensor` do CLP deve abrir a janela para associar a leitura ao saco; o fluxo Node-RED publicado ainda não emite esse evento.
-- Código válido ou incorreto é enviado para `/api/leituras.php`.
-- Se a janela expirar sem código, o adaptador envia uma leitura sem `barcode`; o servidor registra `SEM_LEITURA`, solicita a captura de incidente e mantém o carregamento em andamento, sem pedir pausa automática.
+- O resultado do Keyence chega diretamente ao PC por TCP e é enviado à mesma classificação de produto por `/api/leituras.php`, autenticado como `SCANNER` da Dala vinculada.
+- O Node-RED monitora M2052 e publica eventos de passagem. O servidor associa a leitura ao evento pendente mais recente dentro da janela configurada.
+- Se a janela expirar sem código, o servidor registra `SEM_LEITURA` e solicita evidência. O SR-X100W pode enviar um JPEG por FTP; se não houver foto compatível sem ambiguidade, a câmera Hikvision é acionada após a espera configurada.
 - Comandos de operação são enviados ao CLP somente depois de o adaptador validar os intertravamentos informados pelo CLP.
 
 ## Sequência de um saco

@@ -13,7 +13,13 @@ use App\Aplicacao\SolicitacaoLeitura;
 use App\Aplicacao\ServicoLeituras;
 use App\Persistencia\RepositorioLeituras;
 
-$usuarioAtor = exigir_sessao_usuario();
+$dispositivoScanner = null;
+if ($_SERVER["REQUEST_METHOD"] === "POST" && trim((string) ($_SERVER["HTTP_X_DEVICE_TOKEN"] ?? "")) !== "") {
+    $dispositivoScanner = require_device_token(["SCANNER"]);
+    $usuarioAtor = ["id" => null, "company_id" => $dispositivoScanner["company_id"]];
+} else {
+    $usuarioAtor = exigir_sessao_usuario();
+}
 if ($usuarioAtor["company_id"] === null) {
     responder_json(["error" => "Usuário sem empresa vinculada."], 403);
 }
@@ -33,7 +39,9 @@ if ($_SERVER["REQUEST_METHOD"] === "GET") {
 if ($_SERVER["REQUEST_METHOD"] !== "POST") {
     responder_json(["error" => "Método não permitido."], 405);
 }
-exigir_csrf();
+if ($dispositivoScanner === null) {
+    exigir_csrf();
+}
 session_write_close();
 
 $payload = ler_json_da_requisicao();
@@ -74,6 +82,10 @@ if (!$loading) {
         ["error" => "Carregamento não encontrado para esta empresa."],
         404,
     );
+}
+if ($dispositivoScanner !== null && (int) $loading["equipment_id"] !== (int) $dispositivoScanner["equipment_id"]) {
+    $pdo->rollBack();
+    responder_json(["error" => "O scanner só pode registrar leituras na própria Dala."], 403);
 }
 $readingRepository = new RepositorioLeituras($pdo);
 if ($offlineEventId !== "") {
@@ -164,6 +176,29 @@ if ($sensorEventId) {
             ["error" => "Evento de sensor não pertence ao carregamento."],
             422,
         );
+    }
+}
+if ($dispositivoScanner !== null) {
+    if (!$sensorEventId || $barcode === "") {
+        $pdo->rollBack();
+        responder_json(["error" => "A leitura Keyence precisa de um código e de um evento de passagem pendente."], 409);
+    }
+    $availableSensorEvent = $pdo->prepare(
+        "SELECT s.id FROM eventos_sensor s
+         WHERE s.id = :sensor_event_id AND s.carregamento_id = :carregamento_id
+           AND s.equipment_id = :equipment_id
+           AND s.detected_at >= DATE_SUB(NOW(3), INTERVAL 10 SECOND)
+           AND NOT EXISTS (SELECT 1 FROM leituras l WHERE l.sensor_event_id = s.id)
+         LIMIT 1 FOR UPDATE",
+    );
+    $availableSensorEvent->execute([
+        "sensor_event_id" => $sensorEventId,
+        "carregamento_id" => $loadingId,
+        "equipment_id" => $dispositivoScanner["equipment_id"],
+    ]);
+    if (!$availableSensorEvent->fetch()) {
+        $pdo->rollBack();
+        responder_json(["error" => "O evento de passagem já foi processado ou expirou."], 409);
     }
 }
 

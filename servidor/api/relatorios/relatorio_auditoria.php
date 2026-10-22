@@ -7,7 +7,7 @@ require_once __DIR__ . "/../../../scripts/image_storage_path.php";
 
 use App\Aplicacao\RelatorioAuditoriaPdf;
 
-/** Remove imagens legadas soltas; PDFs de captura ficam até a política de retenção. */
+/** Remove fontes de evidência somente depois que o PDF final já está persistido. */
 function trace_cleanup_report_evidence(PDO $pdo, array $loadIds, int $companyId, string $storageRoot): void
 {
     if ($loadIds === []) {
@@ -16,11 +16,12 @@ function trace_cleanup_report_evidence(PDO $pdo, array $loadIds, int $companyId,
     $placeholders = implode(",", array_fill(0, count($loadIds), "?"));
     $pathsQuery = $pdo->prepare(
         "SELECT i.path FROM imagens i JOIN carregamentos c ON c.id = i.carregamento_id
-         WHERE c.company_id = ? AND i.carregamento_id IN ({$placeholders})
+         WHERE c.company_id = ? AND i.carregamento_id IN ({$placeholders}) AND i.reason <> 'NORMAL'
          UNION ALL
          SELECT r.evidence_pdf_path FROM solicitacoes_captura_camera r
          JOIN carregamentos c ON c.id = r.carregamento_id
-         WHERE c.company_id = ? AND r.carregamento_id IN ({$placeholders}) AND r.evidence_pdf_path IS NOT NULL",
+         WHERE c.company_id = ? AND r.carregamento_id IN ({$placeholders})
+           AND r.reason <> 'NORMAL' AND r.evidence_pdf_path IS NOT NULL",
     );
     $pathsQuery->execute([$companyId, ...$loadIds, $companyId, ...$loadIds]);
     $paths = array_unique(array_filter(array_map(
@@ -32,17 +33,46 @@ function trace_cleanup_report_evidence(PDO $pdo, array $loadIds, int $companyId,
         if (str_starts_with($relativePath, "armazenamento/")) {
             $relativePath = substr($relativePath, strlen("armazenamento/"));
         }
-        if (str_ends_with(strtolower($relativePath), ".pdf")) {
-            continue;
-        }
-        if (preg_match(
-            '/\\Acompany_' . $companyId . '\/equipment_[0-9]+\/capture-[0-9]+-[a-f0-9]{64}\\.(jpg|png)\\z/',
+        $isImageSource = preg_match(
+            '/\\Acompany_' . $companyId . '\/equipment_[0-9]+\/(?:capture|keyence)-[0-9]+-[a-f0-9]{64}\\.(jpg|png)\\z/',
             $relativePath,
-        ) !== 1) {
+        ) === 1;
+        $isCapturePdf = preg_match(
+            '/\\Acompany_' . $companyId . '\/equipment_[0-9]+\/capture-[0-9]+-[a-f0-9]{64}\\.pdf\\z/',
+            $relativePath,
+        ) === 1;
+        if (!$isImageSource && !$isCapturePdf) {
             continue;
         }
-        if (trace_remove_image_storage_file($storageRoot, $relativePath) === false) {
+        $resolved = trace_image_storage_path($storageRoot, $relativePath);
+        if ($resolved === null) {
+            $candidate = $storageRoot . DIRECTORY_SEPARATOR . $relativePath;
+            if (is_link($candidate) || file_exists($candidate)) {
+                throw new RuntimeException("Não foi possível validar uma fonte de evidência após salvar o PDF final.");
+            }
+        } elseif (trace_remove_image_storage_file($storageRoot, $relativePath) !== true) {
             throw new RuntimeException("Não foi possível remover um arquivo de captura após salvar o PDF final.");
+        }
+    }
+    $localCaptures = $pdo->prepare(
+        "SELECT id, requested_at FROM solicitacoes_captura_camera
+         WHERE carregamento_id IN ({$placeholders}) AND status = 'CAPTURADA' AND reason <> 'NORMAL'",
+    );
+    $localCaptures->execute($loadIds);
+    foreach ($localCaptures->fetchAll(PDO::FETCH_ASSOC) as $capture) {
+        $requestedAt = preg_replace('/\\D/', '', (string) $capture["requested_at"]);
+        if (!is_string($requestedAt) || preg_match('/\\A\\d{14,20}\\z/', $requestedAt) !== 1) {
+            continue;
+        }
+        $localPath = "camera-pc/request-" . (int) $capture["id"] . "-" . $requestedAt . ".pdf";
+        $resolved = trace_image_storage_path($storageRoot, $localPath);
+        if ($resolved === null) {
+            $candidate = $storageRoot . DIRECTORY_SEPARATOR . $localPath;
+            if (is_link($candidate) || file_exists($candidate)) {
+                throw new RuntimeException("Não foi possível validar uma cópia local da evidência após salvar o PDF final.");
+            }
+        } elseif (trace_remove_image_storage_file($storageRoot, $localPath) !== true) {
+            throw new RuntimeException("Não foi possível remover uma cópia local da evidência após salvar o PDF final.");
         }
     }
     $pdo->beginTransaction();
@@ -50,9 +80,14 @@ function trace_cleanup_report_evidence(PDO $pdo, array $loadIds, int $companyId,
         $deleteImages = $pdo->prepare(
             "DELETE i FROM imagens i JOIN carregamentos c ON c.id = i.carregamento_id
              WHERE c.company_id = ? AND i.carregamento_id IN ({$placeholders})
-               AND (LOWER(i.path) LIKE '%.jpg' OR LOWER(i.path) LIKE '%.png')",
+               AND i.reason <> 'NORMAL'",
         );
         $deleteImages->execute([$companyId, ...$loadIds]);
+        $clearCapturePaths = $pdo->prepare(
+            "UPDATE solicitacoes_captura_camera SET evidence_pdf_path = NULL
+             WHERE carregamento_id IN ({$placeholders}) AND status = 'CAPTURADA' AND reason <> 'NORMAL'",
+        );
+        $clearCapturePaths->execute($loadIds);
         $pdo->commit();
     } catch (Throwable $exception) {
         if ($pdo->inTransaction()) {
@@ -87,6 +122,7 @@ $reportFailure = static function (Throwable $exception) use ($respondJson): neve
     );
 };
 $romaneioId = filter_var($_GET["romaneio_id"] ?? null, FILTER_VALIDATE_INT);
+$prepararRelatorio = filter_var($_GET["preparar"] ?? false, FILTER_VALIDATE_BOOLEAN);
 if ($user["company_id"] === null || !$romaneioId) {
     $respondJson(["error" => "Romaneio obrigatório."], 422);
 }
@@ -158,6 +194,12 @@ if ($savedReport !== null) {
         trace_cleanup_report_evidence($pdo, $loadIds, (int) $user["company_id"], $storageRoot);
     } catch (Throwable $exception) {
         $reportFailure($exception);
+    }
+    if ($prepararRelatorio) {
+        if (!is_array($apiClient)) {
+            record_operational_event($pdo, $user, "RELATORIO_AUDITORIA_PREPARADO", "romaneio", (int) $romaneioId, []);
+        }
+        json_response(["data" => ["romaneio_id" => (int) $romaneioId, "status" => "PREPARADO", "path" => $reportRelativePath]]);
     }
     if (is_array($apiClient)) {
         api_v1_registrar_download_pdf($pdo, $apiClient, (int) $romaneioId);
@@ -377,6 +419,12 @@ try {
     trace_cleanup_report_evidence($pdo, $loadIds, (int) $user["company_id"], $storageRoot);
 } catch (Throwable $exception) {
     $reportFailure($exception);
+}
+if ($prepararRelatorio) {
+    if (!is_array($apiClient)) {
+        record_operational_event($pdo, $user, "RELATORIO_AUDITORIA_PREPARADO", "romaneio", (int) $romaneioId, []);
+    }
+    json_response(["data" => ["romaneio_id" => (int) $romaneioId, "status" => "PREPARADO", "path" => $reportRelativePath]]);
 }
 if (is_array($apiClient)) {
     api_v1_registrar_download_pdf($pdo, $apiClient, (int) $romaneioId);

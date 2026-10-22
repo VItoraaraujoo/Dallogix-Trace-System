@@ -39,7 +39,7 @@ final readonly class SolicitacaoLeitura
         if ($sensorEventInput !== null && $sensorEventInput !== "" && $sensorEventId === false) {
             throw new InvalidArgumentException("Evento de sensor inválido.");
         }
-        if (mb_strlen($barcode, "UTF-8") > 128 || preg_match('/[\x00-\x1F\x7F]/', $barcode) === 1) {
+        if (mb_strlen($barcode, "UTF-8") > 128 || preg_match('/[\x00-\x08\x0A-\x1C\x1E-\x1F\x7F]/', $barcode) === 1) {
             throw new InvalidArgumentException("Código de barras inválido ou longo demais.");
         }
         if ($attemptNumber !== 1) {

@@ -174,6 +174,7 @@ try {
     json_response([
         "data" => [
             "id" => (int) $loadingId,
+            "romaneio_id" => (int) $loading["romaneio_id"],
             "state" => "FINALIZADO",
             "romaneio_finalizado" => $romaneioFinalizado,
         ],

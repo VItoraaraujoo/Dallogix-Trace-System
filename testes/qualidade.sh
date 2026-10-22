@@ -65,6 +65,7 @@ node --test testes/carregador-paginas-performance.mjs testes/registro-telas.mjs 
 node --test testes/ocorrencias-performance.mjs
 node --test testes/notificacoes.mjs
 node --test testes/healthchecks-workers.mjs
+node --test testes/keyence-worker.mjs
 node --test testes/mysql-recursos.mjs
 node --test testes/camera-worker-frames.mjs
 node --test testes/camera-upload-http.mjs

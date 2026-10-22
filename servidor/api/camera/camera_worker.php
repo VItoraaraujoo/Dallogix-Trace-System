@@ -13,6 +13,15 @@ $action = strtoupper(trim((string) ($payload["action"] ?? "CLAIM")));
 $pdo = db();
 
 if ($action === "CLAIM") {
+    $keyenceEnabled = getenv("KEYENCE_ENABLED") === "1";
+    $keyenceWaitMs = filter_var(getenv("KEYENCE_CAMERA_FALLBACK_DELAY_MS") ?: "6000", FILTER_VALIDATE_INT);
+    $keyenceWaitMs = max(1000, min(30000, $keyenceWaitMs === false ? 6000 : (int) $keyenceWaitMs));
+    $keyenceFallbackCondition = $keyenceEnabled
+        ? "OR (r.reason = 'SEM_LEITURA' AND r.requested_at <= NOW(3) - INTERVAL " . ($keyenceWaitMs * 1000) . " MICROSECOND)"
+        : "";
+    $keyenceUpdateFallbackCondition = $keyenceEnabled
+        ? "OR (reason = 'SEM_LEITURA' AND requested_at <= NOW(3) - INTERVAL " . ($keyenceWaitMs * 1000) . " MICROSECOND)"
+        : "";
     $pdo->beginTransaction();
     try {
         $statement = $pdo->prepare(
@@ -22,7 +31,7 @@ if ($action === "CLAIM") {
              JOIN carregamentos c ON c.id = r.carregamento_id
              WHERE r.equipment_id = :equipment_id
                AND (
-                   r.status = 'PENDENTE'
+                   (r.status = 'PENDENTE' {$keyenceFallbackCondition})
                    OR (
                        r.status = 'CAPTURANDO'
                        AND COALESCE(r.updated_at, r.created_at, r.requested_at)
@@ -44,7 +53,7 @@ if ($action === "CLAIM") {
                  error_message = NULL, updated_at = NOW()
              WHERE id = :id AND equipment_id = :equipment_id
                AND (
-                   status = 'PENDENTE'
+                   (status = 'PENDENTE' {$keyenceUpdateFallbackCondition})
                    OR (
                        status = 'CAPTURANDO'
                        AND COALESCE(updated_at, created_at, requested_at)

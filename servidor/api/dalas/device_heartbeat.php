@@ -10,9 +10,9 @@ $device = require_device_token();
 $payload = request_json();
 $equipmentId = array_key_exists("equipment_id", $payload)
     ? filter_var($payload["equipment_id"], FILTER_VALIDATE_INT)
-    : (strtoupper((string) $device["device_type"]) === "CAMERA" ? $device["equipment_id"] : false);
+    : (in_array(strtoupper((string) $device["device_type"]), ["CAMERA", "SCANNER"], true) ? $device["equipment_id"] : false);
 $deviceType = strtoupper(trim((string) ($payload["device_type"] ?? (
-    strtoupper((string) $device["device_type"]) === "CAMERA" ? $device["device_type"] : ""
+    in_array(strtoupper((string) $device["device_type"]), ["CAMERA", "SCANNER"], true) ? $device["device_type"] : ""
 ))));
 $status = strtoupper(trim((string) ($payload["status"] ?? "ONLINE")));
 $sameDeviceType = $deviceType === $device["device_type"];
