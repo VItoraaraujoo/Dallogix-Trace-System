@@ -8,7 +8,7 @@
 - healthcheck não retorna detalhes do erro do banco;
 - limite de CSV de 5 MB e 10.000 linhas;
 - portas do Docker vinculadas a `127.0.0.1` por padrão;
-- token padrão do leitor Keyence recusado em produção;
+- token padrão da câmera recusado em produção;
 - senha não fica mais preenchida na tela de login;
 - Content Security Policy no Nginx, com `connect-src 'self'`;
 - rate limit de login e ativação no PHP em todos os ambientes, por IP e combinação IP/identidade ou IP/código, sem bloqueio global de uma conta/código;

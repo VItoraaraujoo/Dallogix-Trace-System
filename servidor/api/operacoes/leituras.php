@@ -138,8 +138,8 @@ if ($loading["state"] !== "CARREGANDO") {
 }
 
 $loadingValidCount = (int) $loading["leituras_validas"];
-// O Keyence envia o código por TCP. Se a API precisar associar o evento,
-// consome primeiro a passagem pendente mais antiga dentro da janela.
+// O Elgin EL8600 envia o código como teclado USB. Associe a leitura ao evento
+// de passagem mais recente ainda dentro da janela, sem exigir outro pedido do navegador.
 if (!$sensorEventId && $barcode !== "") {
     $associationWindowMs = max(500, min(10000, (int) (getenv("TRACE_SCANNER_NO_READ_TIMEOUT_MS") ?: 1500)));
     $associationWindowMicroseconds = $associationWindowMs * 1000;
@@ -150,7 +150,7 @@ if (!$sensorEventId && $barcode !== "") {
            AND s.equipment_id = :equipment_id
            AND s.detected_at >= DATE_SUB(NOW(3), INTERVAL {$associationWindowMicroseconds} MICROSECOND)
            AND NOT EXISTS (SELECT 1 FROM leituras l WHERE l.sensor_event_id = s.id)
-         ORDER BY s.detected_at ASC, s.id ASC LIMIT 1 FOR UPDATE",
+         ORDER BY s.detected_at DESC, s.id DESC LIMIT 1 FOR UPDATE",
     );
     $pendingSensor->execute([
         "carregamento_id" => $loadingId,
@@ -349,7 +349,7 @@ record_operational_event(
     ],
 );
 $occurrenceId = null;
-$evidenceStatus = "NAO_SOLICITADA";
+$cameraStatus = "NAO_SOLICITADA";
 if ($result === "SEM_LEITURA") {
     $occurrence = $pdo->prepare(
         'INSERT INTO ocorrencias (company_id, carregamento_id, type, quantity, description, created_by) VALUES (:company_id, :carregamento_id, \'FALHA_SEM_LEITURA\', 1, :description, :created_by)',
@@ -370,7 +370,7 @@ if ($result === "SEM_LEITURA") {
         $occurrenceId,
         ["carregamento_id" => (int) $loadingId, "leitura_id" => $readingId],
     );
-    $evidenceStatus = $sensorEventId ? "IMAGEM_PENDENTE_INCIDENTE" : "NAO_SOLICITADA";
+    $cameraStatus = $sensorEventId ? "CAPTURA_PENDENTE_INCIDENTE" : "NAO_SOLICITADA";
 }
 if ($result === "PRODUTO_INCORRETO") {
     $occurrence = $pdo->prepare(
@@ -391,7 +391,7 @@ if ($result === "PRODUTO_INCORRETO") {
         $occurrenceId,
         ["carregamento_id" => (int) $loadingId, "leitura_id" => $readingId],
     );
-    $evidenceStatus = "NAO_SOLICITADA";
+    $cameraStatus = "NAO_SOLICITADA";
 }
 if ($result === "EXCESSO") {
     record_operational_event(
@@ -458,34 +458,34 @@ if (
     $result === "SEM_LEITURA" &&
     $sensorEventId
 ) {
-    $evidenceRequest = $pdo->prepare(
-        'INSERT INTO solicitacoes_imagens_evidencia (sensor_event_id, carregamento_id, equipment_id, reason, requested_at)
+    $cameraRequest = $pdo->prepare(
+        'INSERT INTO solicitacoes_captura_camera (sensor_event_id, carregamento_id, equipment_id, reason, requested_at)
          VALUES (:sensor_event_id, :carregamento_id, :equipment_id, :reason, NOW(3))
          ON DUPLICATE KEY UPDATE reason = VALUES(reason), status = IF(status = \'ERRO\', \'PENDENTE\', status), requested_at = VALUES(requested_at)',
     );
-    $evidenceRequest->execute([
+    $cameraRequest->execute([
         "sensor_event_id" => $sensorEventId,
         "carregamento_id" => $loadingId,
         "equipment_id" => $loading["equipment_id"],
         "reason" => $result,
     ]);
-    $evidenceIdStatement = $pdo->prepare(
-        "SELECT id FROM solicitacoes_imagens_evidencia WHERE sensor_event_id = :sensor_event_id LIMIT 1",
+    $cameraIdStatement = $pdo->prepare(
+        "SELECT id FROM solicitacoes_captura_camera WHERE sensor_event_id = :sensor_event_id LIMIT 1",
     );
-    $evidenceIdStatement->execute(["sensor_event_id" => $sensorEventId]);
-    $evidenceRequestId = (int) ($evidenceIdStatement->fetchColumn() ?: 0);
-    if ($evidenceRequestId < 1) {
-        throw new RuntimeException("Solicitação de imagem de evidência não encontrada após gravação.");
+    $cameraIdStatement->execute(["sensor_event_id" => $sensorEventId]);
+    $cameraRequestId = (int) ($cameraIdStatement->fetchColumn() ?: 0);
+    if ($cameraRequestId < 1) {
+        throw new RuntimeException("Solicitação de captura da câmera não encontrada após gravação.");
     }
     record_operational_event(
         $pdo,
         $usuarioAtor,
-        "IMAGEM_EVIDENCIA_SOLICITADA",
-        "evidence_request",
-        $evidenceRequestId,
+        "CAMERA_CAPTURA_SOLICITADA",
+        "camera_request",
+        $cameraRequestId,
         ["sensor_event_id" => $sensorEventId, "reason" => $result],
     );
-    $evidenceStatus = "IMAGEM_PENDENTE_INCIDENTE";
+    $cameraStatus = "CAPTURA_PENDENTE_INCIDENTE";
 }
 $loadStatus = "EM_ANDAMENTO";
 if (
@@ -563,7 +563,7 @@ responder_json(
             "retry" => false,
             "final" => true,
             "occurrence_id" => $occurrenceId,
-            "evidence_status" => $evidenceStatus,
+            "camera_status" => $cameraStatus,
             "load_status" => $loadStatus,
             "excesso" => $result === "EXCESSO",
             "stop_reason" => $result === "PRODUTO_INCORRETO" ? $result : null,

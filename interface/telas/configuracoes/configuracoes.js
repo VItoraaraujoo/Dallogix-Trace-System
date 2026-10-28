@@ -2,8 +2,9 @@ import { button, esc } from "../../js/funcoes/html.js";
 
 const DEVICE_TYPES = [
   ["SENSOR", "Sensor", "Sinal de passagem no CLP"],
-  ["SCANNER", "Leitor Keyence", "SR-X100W · TCP e FTP"],
+  ["SCANNER", "Scanner", "Elgin EL8600 · USB HID"],
   ["CLP", "CLP", "Controle da esteira"],
+  ["CAMERA", "Câmera", "Registro visual"],
   ["SERVER", "Servidor", "API desta instalação"],
 ];
 
@@ -44,7 +45,7 @@ export function apresentacaoStatusDispositivo(value, type = "") {
         online: true,
         tone: "online",
         label: "CONECTADO",
-        detail: "KEYENCE SR-X100W comunicando com o Trace.",
+        detail: "Elgin EL8600 detectado no USB.",
       };
     }
     if (normalized === "OFFLINE") {
@@ -53,7 +54,7 @@ export function apresentacaoStatusDispositivo(value, type = "") {
         online: false,
         tone: "offline",
         label: "DESCONECTADO",
-        detail: "KEYENCE SR-X100W sem comunicação com o Trace.",
+        detail: "Elgin EL8600 não detectado no USB.",
       };
     }
     if (normalized === "ERRO") {
@@ -62,7 +63,7 @@ export function apresentacaoStatusDispositivo(value, type = "") {
         online: false,
         tone: "error",
         label: "ERRO",
-        detail: "Falha no serviço de comunicação do KEYENCE.",
+        detail: "Falha na verificação USB do PC.",
       };
     }
     return {
@@ -70,7 +71,7 @@ export function apresentacaoStatusDispositivo(value, type = "") {
       online: false,
       tone: "unknown",
       label: "NÃO VERIFICADO",
-      detail: "O serviço do KEYENCE ainda não enviou heartbeat nesta instalação.",
+      detail: "Detecção USB não configurada neste PC.",
     };
   }
   const online = ["ONLINE", "LOCAL", "OK"].includes(normalized);
@@ -156,7 +157,7 @@ function deviceStatusPanel(store) {
     <div class="settings-device-status-heading"><div><span class="kicker">Status da máquina</span><h3>Dispositivos e serviços</h3><p>Atualização automática enquanto esta tela estiver aberta.</p></div></div>
     <div class="settings-device-status-summary"><div><strong data-device-summary="online-count">${onlineCount}</strong><span>online</span></div><div><strong data-device-summary="attention-count">${attentionCount}</strong><span data-device-summary="attention-label">sem sinal ou com falha</span></div><div><strong data-device-summary="unmonitored-count">${unmonitoredCount}</strong><span>não confirmado</span></div></div>
     <div class="settings-device-status-grid">${cards}</div>
-    <p class="settings-device-status-note">Sensor: o CLP responde pelo sinal M2052, mas isso não confirma a conexão física. Leitor: o estado vem do heartbeat do serviço Keyence no PC industrial.</p>
+    <p class="settings-device-status-note">Sensor: o CLP responde pelo sinal M2052, mas isso não confirma a conexão física. Scanner: conectado/desconectado só é exibido quando a detecção USB está configurada neste PC.</p>
   </section><br>`;
 }
 

@@ -7,7 +7,7 @@
 - Autorização por perfil e isolamento por empresa em todas as APIs operacionais.
 - Consultas SQL parametrizadas.
 - Escape de conteúdo dinâmico no frontend.
-- Tokens internos somente por variável de ambiente para gateway, CLP e leitor Keyence.
+- Tokens internos somente por variável de ambiente para gateway, CLP e câmera.
 - URL e credenciais de sincronização somente no backend.
 - Logs operacionais sem senhas, tokens ou conteúdo de formulários.
 - Respostas de API sem cache e rejeição de JSON inválido ou acima de 1 MB.

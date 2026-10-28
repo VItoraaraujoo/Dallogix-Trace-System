@@ -15,7 +15,7 @@
 ## 3. Segurança da aplicação
 - Rodar `bash scripts/check_production_env.sh` antes do deploy.
 - Garantir que o bootstrap e a API usem CSRF, sessão segura e headers rígidos.
-- Verificar que os tokens internos do CLP e do leitor Keyence foram trocados.
+- Verificar que tokens internos de câmera e CLP foram trocados.
 - Confirmar autenticação por sessão com cookie `HttpOnly` e `SameSite=Lax`.
 
 ## 4. Banco de dados

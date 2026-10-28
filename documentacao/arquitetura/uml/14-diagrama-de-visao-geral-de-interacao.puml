@@ -6,8 +6,8 @@ start
 if (CLP/gateway disponível?) then (sim)
   :ref: atualizar estado via gateway;
   :ref: registrar leitura e auditoria;
-  if (Há ocorrência com imagem de erro?) then (sim)
-    :ref: sequência de recepção da imagem Keyence;
+  if (Há ocorrência com captura?) then (sim)
+    :ref: sequência de captura da câmera;
     if (Evidência PDF concluída?) then (sim)
       :Disponibilizar relatório de auditoria;
     else (não)

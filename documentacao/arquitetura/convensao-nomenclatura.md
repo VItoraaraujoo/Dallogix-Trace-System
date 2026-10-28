@@ -60,7 +60,7 @@ Os endpoints PHP ficam agrupados por domínio, pois vários deles atendem mais d
 ```text
 servidor/api/
 ├── autenticacao/
-├── keyence_worker.php
+├── camera/
 ├── dalas/
 ├── empresas/
 ├── monitoramento/

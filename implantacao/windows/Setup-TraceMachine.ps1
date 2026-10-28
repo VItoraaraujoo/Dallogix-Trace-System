@@ -32,7 +32,7 @@ function Get-TraceNetworkRouteHint {
         $routes = @(Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop |
             Where-Object { $_.NextHop -and $_.NextHop -ne '0.0.0.0' })
         if ($routes.Count -eq 0) {
-            return 'O Windows não possui uma rota padrão IPv4. Conecte uma interface de internet por Wi-Fi ou Ethernet com gateway e DNS. As interfaces do CLP e do Keyence devem permanecer separadas e sem gateway.'
+            return 'O Windows não possui uma rota padrão IPv4. Conecte uma interface de internet por Wi-Fi ou Ethernet com gateway e DNS. As interfaces do CLP e da câmera devem permanecer separadas e sem gateway.'
         }
         return 'Há uma rota padrão IPv4, mas o destino HTTPS não respondeu. Verifique DNS, proxy e firewall para a conta que executará o atualizador.'
     } catch {
@@ -112,7 +112,30 @@ function Ask([string]$Label, [string]$Default = "") {
     return $value
 }
 
-$centralUrl = Ask "URL HTTPS do servidor central" "https://trace.dallogix.com"
+function Get-TraceUsbHidCandidates {
+    try {
+        $devices = @(Get-PnpDevice -PresentOnly -ErrorAction Stop | Where-Object {
+            $_.Class -in @("Keyboard", "HIDClass") -and
+            ([string]$_.InstanceId) -like "USB\VID_*" -and
+            $_.Status -eq "OK"
+        })
+        $candidates = foreach ($device in $devices) {
+            $instanceId = [string]$device.InstanceId
+            if ($instanceId -match '\A(USB\\VID_[0-9A-F]{4}&PID_[0-9A-F]{4}(?:&MI_[0-9A-F]{2})?)') {
+                [pscustomobject]@{
+                    Name = [string]$device.FriendlyName
+                    Pattern = $Matches[1]
+                }
+            }
+        }
+        return @($candidates | Sort-Object Pattern -Unique)
+    } catch {
+        Write-Warning "Não foi possível listar dispositivos USB HID: $($_.Exception.Message)"
+        return @()
+    }
+}
+
+$centralUrl = Ask "URL HTTPS do servidor central" "https://trace.santocloud.com.br"
 $centralUri = $null
 if (-not [Uri]::TryCreate($centralUrl, [UriKind]::Absolute, [ref]$centralUri) -or
     $centralUri.Scheme -ne 'https' -or $centralUri.AbsolutePath -ne '/' -or
@@ -219,6 +242,25 @@ if (-not [string]::IsNullOrWhiteSpace($equipmentIdText)) {
     }
 }
 $traceUrl = Ask "URL local do Trace" "http://127.0.0.1:8080"
+$scannerUsbPattern = ""
+$scannerCandidates = @(Get-TraceUsbHidCandidates)
+if ($scannerCandidates.Count -gt 0) {
+    Write-Output "Dispositivos USB HID encontrados. Selecione somente o Elgin EL8600; deixe 0 se não conseguir identificá-lo agora."
+    for ($index = 0; $index -lt $scannerCandidates.Count; $index++) {
+        Write-Output ("{0}. {1} — {2}" -f ($index + 1), $scannerCandidates[$index].Name, $scannerCandidates[$index].Pattern)
+    }
+    $scannerSelectionText = Ask "Número do Elgin EL8600 (0 para configurar depois)" "0"
+    $scannerSelection = 0
+    if (-not [int]::TryParse($scannerSelectionText, [ref]$scannerSelection) -or
+        $scannerSelection -lt 0 -or $scannerSelection -gt $scannerCandidates.Count) {
+        throw "Seleção USB inválida. Nenhuma configuração foi aplicada."
+    }
+    if ($scannerSelection -gt 0) {
+        $scannerUsbPattern = $scannerCandidates[$scannerSelection - 1].Pattern
+    }
+} else {
+    Write-Warning "Nenhum dispositivo USB HID elegível encontrado. A detecção do scanner ficará sem configuração."
+}
 $physicalConnection = (Ask "A máquina terá conexão prevista com CLP físico? (S/N)" "N").ToUpperInvariant() -eq "S"
 $plcModel = if ($physicalConnection) { Ask "Modelo do CLP (digite INVT TS621 para selecionar o mapa aprovado)" "" } else { "" }
 $hasApprovedTs621Map = $physicalConnection -and $plcModel.Trim().Equals("INVT TS621", [StringComparison]::OrdinalIgnoreCase)
@@ -241,6 +283,7 @@ $machineConfig = [ordered]@{
     device_token = $deviceToken
     trace_url = $traceUrl
     heartbeat_seconds = 30
+    scanner_usb_pattern = $scannerUsbPattern
     operation_mode = if ($physicalConnection) { "PHYSICAL" } else { "SIMULATED" }
     physical_clp_enabled = $enablePhysicalCommands
     io_map_status = if ($approvedMapConfirmed) { "APPROVED" } else { "CONFIRMAR" }

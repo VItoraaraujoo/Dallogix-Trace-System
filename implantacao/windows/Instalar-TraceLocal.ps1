@@ -300,7 +300,7 @@ try {
 
     $envPath = Join-Path $PackageRoot ".env"
     if (-not (Test-Path -LiteralPath $envPath)) {
-        $defaultCentral = "https://trace.dallogix.com"
+        $defaultCentral = "https://trace.santocloud.com.br"
         $answer = if ($CentralUrl) { $CentralUrl } else { Read-Host "URL HTTPS do servidor central [$defaultCentral]" }
         if ([string]::IsNullOrWhiteSpace($answer)) { $answer = $defaultCentral }
         $centralUrl = Get-CentralBaseUrl $answer
@@ -311,7 +311,7 @@ try {
                 MYSQL_PASSWORD = (New-HexSecret $generator)
                 MYSQL_ROOT_PASSWORD = (New-HexSecret $generator)
                 TRACE_DEVICE_TOKEN = (New-HexSecret $generator)
-                KEYENCE_DEVICE_TOKEN = (New-HexSecret $generator)
+                CAMERA_DEVICE_TOKEN = (New-HexSecret $generator)
                 TRACE_CENTRAL_URL = $centralUrl
                 TRACE_INSTALLATION_MODE = "local"
                 WEB_BIND_ADDRESS = "127.0.0.1"
@@ -345,13 +345,6 @@ try {
         Write-Host "Arquivo .env existente preservado. Conferindo campos obrigatorios..."
     }
 
-    $generator = [Security.Cryptography.RandomNumberGenerator]::Create()
-    try {
-        Ensure-EnvDefaults $envPath @{ KEYENCE_DEVICE_TOKEN = (New-HexSecret $generator) }
-    } finally {
-        $generator.Dispose()
-    }
-
     # O perfil padrão usa somente a leitura do sensor M2052 informado para o
     # INVT TS621. Os valores continuam sobrescrevíveis para outro modelo, mas
     # uma instalação nova nunca inicia com a sonda Modbus vazia.
@@ -363,7 +356,7 @@ try {
         NODE_RED_ADMIN_PASSWORD_HASH = ''
     }
     $values = Read-EnvValues $envPath
-    foreach ($key in @("MYSQL_PASSWORD", "MYSQL_ROOT_PASSWORD", "TRACE_DEVICE_TOKEN", "KEYENCE_DEVICE_TOKEN", "TRACE_CENTRAL_URL")) {
+    foreach ($key in @("MYSQL_PASSWORD", "MYSQL_ROOT_PASSWORD", "TRACE_DEVICE_TOKEN", "CAMERA_DEVICE_TOKEN", "TRACE_CENTRAL_URL")) {
         if (-not $values.ContainsKey($key) -or [string]::IsNullOrWhiteSpace($values[$key])) {
             throw "O campo $key esta vazio em .env. Preencha-o sem alterar os demais valores e execute o instalador novamente."
         }

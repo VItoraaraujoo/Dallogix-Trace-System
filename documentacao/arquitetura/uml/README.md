@@ -14,15 +14,15 @@ Este diretório reúne os 14 tipos de diagrama UML 2.5 aplicados ao Trace. Cada 
 8. Diagrama de casos de uso — atores e funcionalidades.
 9. Diagrama de atividades — processamento de uma leitura industrial.
 10. Diagrama de máquina de estados — transições de um carregamento.
-11. Diagrama de sequência — recepção da imagem de erro Keyence e inclusão de evidência no relatório.
+11. Diagrama de sequência — captura e inclusão de evidência no relatório.
 12. Diagrama de comunicação — mensagens do mesmo fluxo vistas pelas ligações entre participantes.
-13. Diagrama de tempo — parâmetros temporais configurados para o sensor, o leitor Keyence e a imagem, sem tratá-los como SLA medido.
+13. Diagrama de tempo — parâmetros temporais configurados para a câmera, sem tratá-los como SLA medido.
 14. Diagrama de visão geral de interação — visão de alto nível dos fluxos e seus desvios.
 
 ## Limites do modelo
 
-- Os diagramas descrevem arquitetura e contratos; não substituem o esquema completo do banco, a configuração de cada instalação nem a homologação do CLP e do Keyence.
-- O modelo é local-first: interface, API PHP, MySQL, Node-RED, sincronização, worker Keyence e arquivos locais ficam no PC industrial. O PC inicia a sincronização HTTPS de saída; o Central não abre conexão TCP direta com o CLP.
+- Os diagramas descrevem arquitetura e contratos; não substituem o esquema completo do banco, a configuração de cada instalação nem a homologação do CLP e da câmera.
+- O modelo é local-first: interface, API PHP, MySQL, Node-RED, sincronização, câmera e arquivos locais ficam no PC industrial. O PC inicia a sincronização HTTPS de saída; o Central não abre conexão TCP direta com o CLP.
 - Comandos físicos são encaminhados pelo gateway industrial autenticado e dependem da confirmação do CLP. Emergência e intertravamentos permanecem no CLP.
 - O fluxo de API pública v1 aparece como integração em preparação no checkout local. Os arquivos correspondentes ainda não fazem parte do commit b01d13e; não representam uma API publicada em produção.
 - O diagrama de tempo usa padrões de configuração do código. Os valores não são medições de latência nem compromisso de desempenho.

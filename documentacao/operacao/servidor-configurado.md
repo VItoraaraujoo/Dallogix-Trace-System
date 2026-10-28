@@ -59,10 +59,6 @@ envolva. A CSP permite o beacon e o script de detecção injetado pelo Cloudflar
 somente junto às origens necessárias; os PNGs da identidade visual estão com
 permissão de leitura para o Nginx.
 
-Este registro é uma referência histórica da instalação do servidor em
-setembro de 2026. O trecho antigo sobre câmera física não representa o
-hardware atual: não há câmera Hikvision nem contingência de câmera em uso.
-O leitor vigente é o Keyence SR-X100W, documentado em
-`preparacao-keyence-sr-x100w.md`; sua configuração física e associação
-sensor/leitor ainda precisam de homologação na estação industrial correta.
-O container Modbus virtual está saudável, mas não substitui essa validação.
+O teste de CLP e câmera físicos ainda depende de informar o endereço do CLP,
+o protocolo e as credenciais/endereço da câmera na estação da esteira. O
+container Modbus virtual está saudável, mas não substitui essa validação.

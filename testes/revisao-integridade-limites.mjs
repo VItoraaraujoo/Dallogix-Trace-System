@@ -247,7 +247,7 @@ test("relatório remove fontes locais depois de persistir as evidências no PDF 
   const cleanup = auditReport.slice(cleanupStart, cleanupEnd);
 
   assert.match(cleanup, /capture-\[0-9\]\+.*\\\.pdf/);
-  assert.doesNotMatch(cleanup, /camera-pc\/request-/);
+  assert.match(cleanup, /camera-pc\/request-/);
   assert.match(cleanup, /AND i\.reason <> 'NORMAL'/);
   assert.match(cleanup, /SET evidence_pdf_path = NULL/);
   const reportSaved = auditReport.indexOf("!chmod($temporaryReportPath, 0600) || !rename($temporaryReportPath, $reportPath)");

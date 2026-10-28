@@ -30,7 +30,7 @@ class EventoSensor {
   id
   detected_at
 }
-class SolicitacaoImagemEvidencia {
+class SolicitacaoCapturaCamera {
   id
   status
   evidence_pdf_path
@@ -60,8 +60,8 @@ Equipamento "1" -- "0..*" Carregamento : opera
 Romaneio "1" -- "0..*" Carregamento : agrupa
 Carregamento "1" -- "0..*" Leitura : registra
 Leitura "0..*" --> "0..1" EventoSensor : pode referenciar
-Carregamento "1" -- "0..*" SolicitacaoImagemEvidencia : solicita após falha
-SolicitacaoImagemEvidencia "1" --> "0..1" EvidenciaPDF : caminho persistido
+Carregamento "1" -- "0..*" SolicitacaoCapturaCamera : solicita
+SolicitacaoCapturaCamera "1" --> "0..1" EvidenciaPDF : caminho persistido
 Carregamento "1" -- "0..*" EventoAuditoria : audita
 EventoAuditoria "1" --> "0..*" FilaSincronizacao : publica evento
 

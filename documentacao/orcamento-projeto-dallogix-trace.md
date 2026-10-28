@@ -4,13 +4,11 @@
 **Versão:** 0.1 — estimativa para validação comercial  
 **Moeda:** Real brasileiro (R$)
 
-**Atualização de escopo em 27/10/2026:** não existe equipamento Hikvision disponível e ele não será usado. O Keyence SR-X100W atende à leitura de códigos e ao envio das imagens de erro. Os valores abaixo são estimativas antigas e não foram recalculados para a nova integração.
-
 ## 1. Objetivo
 
-Implantar o Dallogix Trace para controle e rastreabilidade do carregamento de sacarias em uma esteira industrial, com operação local-first, leitor Keyence SR-X100W, evidências de erro, integração com CLP, auditoria e sincronização remota.
+Implantar o Dallogix Trace para controle e rastreabilidade do carregamento de sacarias em uma esteira industrial, com operação local-first, leitura por scanner, tratamento de incidentes com câmera, integração com CLP, auditoria e sincronização remota.
 
-Este documento é uma estimativa preliminar. O preço fechado depende da confirmação do mapa de I/O, variante do CLP, configuração TCP/FTP do Keyence e arquitetura cloud.
+Este documento é uma estimativa preliminar. O preço fechado depende da confirmação do mapa de I/O, variante do CLP, interface do scanner, protocolo da câmera e arquitetura cloud.
 
 ## 2. Situação atual considerada
 
@@ -32,9 +30,9 @@ Premissa de referência: **R$ 200/hora técnica**, equipe com desenvolvimento de
 
 | Etapa | Escopo | Horas | Estimativa |
 | --- | --- | ---: | ---: |
-| 1. Levantamento e especificação de campo | confirmar CLP, I/O, Ladder, rede, Keyence SR-X100W e critérios de aceite | 24–32 | R$ 4.800–6.400 |
+| 1. Levantamento e especificação de campo | confirmar CLP, I/O, Ladder, rede, scanner, câmera e critérios de aceite | 24–32 | R$ 4.800–6.400 |
 | 2. Integração real do CLP | adaptador Modbus, estados, sensores, comandos autorizados, perda de comunicação e intertravamentos | 60–90 | R$ 12.000–18.000 |
-| 3. Leitor Keyence SR-X100W | recepção TCP de códigos, buffer, FTP de imagens de erro e testes de latência | 32–48 | R$ 6.400–9.600 |
+| 3. Scanner e câmera | driver/interface do EL8600, buffer de leitura, captura de incidente e testes de latência | 32–48 | R$ 6.400–9.600 |
 | 4. Produção, sincronização e segurança | configuração de servidor, segredos, HTTPS, backup, observabilidade, sincronização e retenção | 60–90 | R$ 12.000–18.000 |
 | 5. Bancada e homologação | testes funcionais, offline/reconexão, carga, falhas de leitura, emergência e reversão | 48–72 | R$ 9.600–14.400 |
 | 6. Implantação e treinamento | instalação no PC industrial, configuração da Dala, treinamento e acompanhamento inicial | 40–64 | R$ 8.000–12.800 |
@@ -58,7 +56,7 @@ Esse valor inclui a reserva técnica e deve ser dividido por marcos de entrega, 
 
 Para fins de composição comercial e reconhecimento do ativo existente, a base atual pode ser apresentada separadamente como **R$ 80.000 a R$ 120.000** em valor de desenvolvimento, sujeito a auditoria técnica detalhada.
 
-Esse valor não substitui o custo de homologação industrial. Código, simuladores e testes locais reduzem o risco e o prazo, mas não comprovam a operação segura com o CLP e o leitor Keyence reais.
+Esse valor não substitui o custo de homologação industrial. Código, simuladores e testes locais reduzem o risco e o prazo, mas não comprovam a operação segura com o CLP, scanner e câmera reais.
 
 ## 5. Itens opcionais
 
@@ -71,7 +69,7 @@ Esse valor não substitui o custo de homologação industrial. Código, simulado
 
 ## 6. Não inclusos
 
-- CLP, módulo Ethernet/RS-485, leitor Keyence SR-X100W, PC industrial, tablet, cabeamento, rede e nobreak;
+- CLP, módulo Ethernet/RS-485, scanner, câmera, PC industrial, tablet, cabeamento, rede e nobreak;
 - alterações no programa Ladder ou na instalação elétrica da máquina;
 - deslocamento, hospedagem e despesas de viagem;
 - mensalidade de AWS, domínio, certificados, armazenamento, backups externos e serviços de terceiros;
@@ -82,7 +80,8 @@ Esse valor não substitui o custo de homologação industrial. Código, simulado
 ## 7. Premissas e riscos comerciais
 
 - O cliente fornecerá o mapa oficial de I/O, programa Ladder ou documentação equivalente, IP, porta, unit ID e comportamento seguro do CLP.
-- O Keyence SR-X100W será disponibilizado com TCP para códigos e FTP passivo para imagens de erro, com IPs fixos e formato de leitura documentado.
+- A câmera terá protocolo acessível e posição adequada para capturar o incidente sem atraso perceptível.
+- O scanner será disponibilizado com a interface física escolhida e formato de leitura documentado.
 - O piloto será realizado em uma única Dala e em uma única instalação.
 - O software não substitui intertravamentos, emergência ou lógica determinística do CLP.
 - Mudanças de escopo, novos equipamentos ou integrações serão orçados como aditivo.
@@ -103,6 +102,7 @@ O piloto será considerado aceito após demonstrar, em ambiente controlado:
 
 1. confirmar se o objetivo é somente o piloto ou também o servidor central/cloud;
 2. enviar modelo/sufixo exato do Delta DVP14SS e mapa de registradores;
-3. confirmar IPs, formato dos códigos e configuração TCP/FTP do Keyence SR-X100W;
-4. definir prazo desejado, local da instalação e quantidade de Dalas;
-5. definir valor da hora técnica, margem e regime tributário da proposta.
+3. confirmar USB ou RS-232 no Elgin EL8600;
+4. informar modelo, protocolo e IP da câmera;
+5. definir prazo desejado, local da instalação e quantidade de Dalas;
+6. definir valor da hora técnica, margem e regime tributário da proposta.

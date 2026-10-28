@@ -42,8 +42,8 @@ sleep 1
 incident="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" -d "{\"carregamento_id\":$loading_id,\"equipment_id\":$equipment_id,\"event_uuid\":\"$incident_uuid\"}" "$base_url/api/sensor_eventos.php")"
 incident_id="$(printf '%s' "$incident" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
 failed="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"sensor_event_id\":$incident_id}" "$base_url/api/leituras.php")"
-if ! printf '%s' "$failed" | grep -q 'IMAGEM_PENDENTE_INCIDENTE'; then
-  echo "FAIL: imagem de evidência do incidente não permaneceu pendente: $failed"
+if ! printf '%s' "$failed" | grep -q 'CAPTURA_PENDENTE_INCIDENTE'; then
+  echo "FAIL: captura do incidente não permaneceu pendente: $failed"
   exit 1
 fi
 if ! printf '%s' "$failed" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const d=JSON.parse(s).data||{};if(d.result!=="SEM_LEITURA"||d.load_status!=="EM_ANDAMENTO"||d.pause_command_request_id!==null)process.exitCode=1})'; then
@@ -62,10 +62,10 @@ if [[ "$pause_requests" != "0" ]]; then
   exit 1
 fi
 
-loading_summary="$(curl -sS -b "$cookie_file" "$base_url/api/resumo_carregamento.php?carregamento_id=$loading_id")"
-if ! printf '%s' "$loading_summary" | grep -q '"imagens_pendentes":1'; then
-  echo "FAIL: imagem de erro Keyence não ficou pendente para o incidente: $loading_summary"
+requests="$(curl -sS -b "$cookie_file" "$base_url/api/camera_requests.php")"
+if ! printf '%s' "$requests" | grep -q '"reason":"SEM_LEITURA"'; then
+  echo "FAIL: pedido de foto não registrou o motivo do incidente: $requests"
   exit 1
 fi
 
-echo "OK: leitura válida não solicita imagem; SEM_LEITURA solicita imagem de evidência e mantém o carregamento ativo sem comando de pausa."
+echo "OK: leitura válida não solicita foto; SEM_LEITURA solicita foto e mantém o carregamento ativo sem comando de pausa."

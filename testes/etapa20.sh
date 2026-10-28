@@ -55,24 +55,25 @@ printf '%s' "$claimed_unlock" | grep -q "\"id\":$request_id" || { echo "FAIL: ga
 completed_unlock="$(curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" -d "{\"action\":\"COMPLETE\",\"request_id\":$request_id,\"status\":\"APLICADO\",\"message\":\"Intertravamentos confirmados no teste\"}" "$base_url/api/plc_gateway.php")"
 printf '%s' "$completed_unlock" | grep -q '"status":"APLICADO"' || { echo "FAIL: gateway não confirmou desbloqueio: $completed_unlock"; exit 1; }
 
-# A fixture não tem Keyence conectado. Espera o prazo da imagem e deixa a API
-# encerrar essa solicitação como ERRO antes de liberar a Dala para outra etapa.
-curl -sS -b "$cookie_file" -X PATCH -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php" >/dev/null
-finish=""
-for attempt in $(seq 1 121); do
-  finish="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' \
-    -d "{\"carregamento_id\":$loading_id,\"justification\":\"Fixture local de teste encerrada pelo cenário de emergência.\"}" \
-    "$base_url/api/encerrar_carregamento.php")"
-  if printf '%s' "$finish" | grep -q '"state":"FINALIZADO"'; then break; fi
-  if ! printf '%s' "$finish" | grep -q 'imagens de falha do Keyence aguardando envio'; then
-    echo "FAIL: não foi possível encerrar a fixture: $finish"
-    exit 1
-  fi
-  sleep 1
+# Processa as evidências da própria fixture no worker simulado e encerra a
+# operação, liberando a Dala para as etapas de preparação seguintes.
+camera_fixture="$(mktemp "$trace_test_tmp_dir/camera.XXXXXX")"
+php -r 'file_put_contents($argv[1], base64_decode("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/NssAAAAASUVORK5CYII=", true));' "$camera_fixture"
+for attempt in 1 2 3 4 5 6 7 8 9 10; do
+  claim="$(curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: ${CAMERA_DEVICE_TOKEN:-}" -d '{"action":"CLAIM"}' "$base_url/api/camera_worker.php" || true)"
+  request_id="$(printf '%s' "$claim" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
+  [ -n "$request_id" ] || break
+  uploaded="$(curl -sS -H "X-Device-Token: ${CAMERA_DEVICE_TOKEN:-}" \
+    -F "request_id=${request_id}" -F "file=@${camera_fixture};type=image/png" \
+    "$base_url/api/camera_upload.php")"
+  evidence_pdf_path="$(printf '%s' "$uploaded" | php -r '$v=json_decode(stream_get_contents(STDIN),true); echo $v["data"]["evidence_pdf_path"]??"";')"
+  [ -n "$evidence_pdf_path" ] || { echo "FAIL: upload da evidência: $uploaded"; exit 1; }
+  completed="$(curl -sS -H 'Content-Type: application/json' -H "X-Device-Token: ${CAMERA_DEVICE_TOKEN:-}" \
+    -d "{\"action\":\"COMPLETE\",\"request_id\":${request_id},\"evidence_pdf_path\":\"${evidence_pdf_path}\"}" \
+    "$base_url/api/camera_worker.php")"
+  printf '%s' "$completed" | grep -q '"status":"CAPTURADA"' || { echo "FAIL: captura não confirmada: $completed"; exit 1; }
 done
-if ! printf '%s' "$finish" | grep -q '"state":"FINALIZADO"'; then
-  echo "FAIL: a solicitação de imagem não expirou no prazo configurado: $finish"
-  exit 1
-fi
+curl -sS -b "$cookie_file" -X PATCH -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"state\":\"CARREGANDO\"}" "$base_url/api/estado_carregamento.php" >/dev/null
+  curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"justification\":\"Fixture local de teste encerrada pelo cenário de emergência.\"}" "$base_url/api/encerrar_carregamento.php" >/dev/null
 
 echo "OK: botão/API de desbloqueio liberam emergência, retornam a PREPARANDO e registram comando."

@@ -5,7 +5,7 @@ O n8n entra na camada de integração corporativa e cloud. Ele não deve control
 ## Divisão de responsabilidades
 
 ```text
-CLP INVT + leitor Keyence SR-X100W
+CLP Delta + scanner + câmera
           ↓
 Adaptador industrial / Node-RED
           ↓
@@ -20,9 +20,10 @@ n8n → ERP, TMS, WMS, e-mail, WhatsApp, BI e APIs externas
 
 Use Node-RED no PC industrial para:
 
-- comunicação Modbus com o CLP;
-- leitura de códigos e imagens de erro do Keyence;
+- comunicação Modbus com o Delta;
+- leitura contínua do scanner;
 - eventos de sensor com baixa latência;
+- acionamento da câmera;
 - heartbeat dos dispositivos;
 - operação mesmo sem internet.
 

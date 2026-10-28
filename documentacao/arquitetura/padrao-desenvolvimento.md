@@ -14,7 +14,7 @@ O sistema fica preparado para extrair, quando houver necessidade real de escala,
 | Controle     | Navegação, eventos de tela, autenticação e composição das respostas | `interface/js/aplicacao.js`, `interface/js/controladores/` e `servidor/api/`      |
 | Aplicação    | Regras de carregamento, permissões, auditoria, filas e validações   | `servidor/src/Aplicacao/` e `servidor/configuracao/`                              |
 | Dados        | Migrations, repositórios SQL e persistência local                   | `banco-de-dados/`, `servidor/src/Persistencia/` e MySQL                         |
-| Integração   | CLP, leitor Keyence, imagens de evidência e sincronização remota por filas autenticadas | `integracoes/`, `keyence_worker.php` e `sync_queue.php` |
+| Integração   | CLP, scanner, câmera e sincronização remota por filas autenticadas  | `integracoes/`, `plc_gateway.php`, `camera_worker.php` e `sync_queue.php`     |
 
 Na interface, `ArmazenamentoTrace` mantém a fachada do estado compartilhado. Os
 serviços em `interface/js/servicos/` coordenam o acesso à API por domínio;
@@ -48,7 +48,7 @@ rejeita cursores repetidos para limitar memória e impedir buscas incompletas.
 1. A tela apenas solicita uma ação; nunca decide a permissão definitiva.
 2. O endpoint valida sessão, empresa, perfil, dados e transição de estado antes de gravar.
 3. Acesso ao banco usa consultas preparadas e migrações versionadas; SQL fica em repositórios, enquanto serviços de aplicação chamam operações nomeadas.
-4. Comandos ao CLP entram em fila; códigos e imagens de erro chegam do leitor Keyence pelo worker industrial.
+4. Comandos ao CLP e à câmera entram em fila; a interface nunca escreve diretamente no equipamento.
 5. Toda alteração operacional relevante gera auditoria e evento de sincronização.
 6. Antes de integrar uma função, execute `bash testes/qualidade.sh` e o teste de etapa correspondente.
 7. Ações de interface por assunto devem ficar em `interface/js/controladores/`; `aplicacao.js` fica responsável por compor a tela, navegar e ligar os controladores.

@@ -24,6 +24,7 @@ function runCheck({ result = "0", exitCode = "0", missingDocker = false, skipDat
     "MYSQL_PASSWORD=fixture-database-only-for-tests",
     "MYSQL_ROOT_PASSWORD=fixture-root-only-for-tests",
     "TRACE_DEVICE_TOKEN=fixture-device-only-for-tests",
+    "CAMERA_DEVICE_TOKEN=fixture-camera-only-for-tests",
     "APP_URL=https://fixture.example.invalid",
     "APP_ENV=production", "TRACE_INSTALLATION_MODE=central", "SESSION_SECURE=true",
     "BIND_ADDRESS=127.0.0.1", "WEB_BIND_ADDRESS=127.0.0.1",

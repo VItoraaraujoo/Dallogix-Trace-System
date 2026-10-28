@@ -67,6 +67,8 @@ node --test testes/notificacoes.mjs
 node --test testes/healthchecks-workers.mjs
 node --test testes/keyence-worker.mjs
 node --test testes/mysql-recursos.mjs
+node --test testes/camera-worker-frames.mjs
+node --test testes/camera-upload-http.mjs
 node --test testes/dialogo-acessibilidade.mjs
 node --test testes/log-frontend.mjs
 node --test testes/revisao-integridade-limites.mjs

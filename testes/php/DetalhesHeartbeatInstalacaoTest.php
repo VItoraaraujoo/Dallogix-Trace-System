@@ -32,7 +32,7 @@ final class DetalhesHeartbeatInstalacaoTest extends TestCase
 
     public function testIgnoraCapacidadeDeDispositivosQueNaoSaoClp(): void
     {
-        $details = DetalhesHeartbeatInstalacao::normalizar("SCANNER", "ONLINE", [
+        $details = DetalhesHeartbeatInstalacao::normalizar("CAMERA", "ONLINE", [
             "command_capability" => ["available" => true, "mode" => "FISICO"],
         ]);
 

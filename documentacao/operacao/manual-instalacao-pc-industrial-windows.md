@@ -9,7 +9,7 @@ Este procedimento instala o Trace como operação local de produção. O banco e
 - Docker Desktop instalado e iniciado;
 - Edge ou Chrome instalado;
 - disco com pelo menos 30 GB livres e uma conexão de internet estável por Wi-Fi ou Ethernet;
-- IP, porta e protocolo do CLP confirmados; o leitor Keyence pode ser configurado depois.
+- IP, porta e protocolo do CLP confirmados; a câmera pode ser configurada depois.
 
 Crie duas contas Windows: `trace-operator`, sem privilégios administrativos, e `trace-tech`, exclusiva para manutenção. A conta técnica não deve ser usada na operação diária.
 
@@ -17,7 +17,7 @@ Crie duas contas Windows: `trace-operator`, sem privilégios administrativos, e 
 
 Use uma conexão de internet estável por Wi-Fi ou por uma interface Ethernet separada, com gateway e DNS válidos. Se usar Wi-Fi, proteja a rede com WPA2/WPA3, mantenha sinal estável e desative a economia de energia do adaptador. O PC deve reconectar automaticamente após reinício ou perda de sinal. A instalação verifica o acesso HTTPS ao Central, ao manifesto de release e ao pacote publicado; ela não termina se algum deles estiver inacessível.
 
-Mantenha as interfaces do CLP e do Keyence separadas da conexão de internet e sem gateway padrão. A rede de internet precisa permitir HTTPS (porta 443) para `trace.dallogix.com`, `github.com` e os ativos de release do GitHub. Se a rede da fábrica bloquear esses destinos, configure uma rota de saída aprovada antes da instalação; não use a interface do CLP ou do leitor como gateway.
+Mantenha as interfaces do CLP e da câmera separadas da conexão de internet e sem gateway padrão. A rede de internet precisa permitir HTTPS (porta 443) para `trace.santocloud.com.br`, `github.com` e os ativos de release do GitHub. Se a rede da fábrica bloquear esses destinos, configure uma rota de saída aprovada antes da instalação; não use a interface do CLP ou da câmera como gateway.
 
 Mesmo conectado à internet, a interface do Trace permanece limitada a `127.0.0.1`: outros dispositivos da rede não acessam o sistema local. O PC usa a conexão de saída para sincronizar com o Central e buscar releases assinadas por HTTPS.
 
@@ -29,7 +29,7 @@ Mesmo conectado à internet, a interface do Trace permanece limitada a `127.0.0.
 
 Se `.env` já existir, o instalador preserva seus valores e informa quais campos obrigatórios estão vazios. Depois provisione cada dispositivo com `scripts/provision_device.php` e token próprio.
 
-Configure o IP fixo do Keyence e do PC industrial, além da conta FTP dedicada, seguindo o [guia do SR-X100W](preparacao-keyence-sr-x100w.md). Depois de preencher os campos obrigatórios, defina `KEYENCE_ENABLED=1`; o instalador, o launcher e o atualizador ativam o perfil do leitor automaticamente.
+Quando o adaptador de rede dedicado estiver conectado, configure IP privado fixo para a câmera e preencha `CAMERA_RTSP_HOST`, `CAMERA_RTSP_USERNAME` e `CAMERA_RTSP_PASSWORD` no mesmo arquivo. Até essa etapa, o worker inicia automaticamente sem abrir o stream; o status fica OFFLINE e os pedidos de captura aguardam a rede. Depois da configuração, o worker faz uma sonda TCP leve e abre o RTSP apenas para tirar uma foto solicitada. Siga o [guia de captura da câmera](../../integracoes/node-red/README.md#captura-imediata).
 
 No PC industrial, cadastre o endereço e a porta de cada CLP na própria Dala.
 Ao salvar, o Trace tenta abrir uma conexão TCP para esse destino, limitado a
@@ -65,7 +65,7 @@ O `TraceSetup.exe` executa essa preparação automaticamente. Se for necessário
 .\implantacao\windows\Setup-TraceMachine.ps1
 ```
 
-Informe o nome cadastrado para o PC industrial, `https://trace.dallogix.com` como servidor central e, se já houver Dala vinculada, o ID, o código e a credencial exclusiva dela. Caso contrário, deixe o ID do equipamento vazio. Na primeira instalação, responda `N` para CLP físico habilitado.
+Informe o nome cadastrado para o PC industrial, `https://trace.santocloud.com.br` como servidor central e, se já houver Dala vinculada, o ID, o código e a credencial exclusiva dela. Caso contrário, deixe o ID do equipamento vazio. Na primeira instalação, responda `N` para CLP físico habilitado.
 
 O instalador inicia os containers, agenda a verificação diária de releases assinadas para 03:30 e registra o agente do Trace somente quando uma Dala já estiver vinculada. Consulte `schtasks.exe /Query /TN "Dallogix Trace Atualizacao Estavel" /V /FO LIST` no CMD para confirmar o registro. O log fica em `C:\DallogixTrace\armazenamento\logs\update-stable.log` após a primeira consulta.
 
@@ -93,11 +93,11 @@ Ele inicia os serviços locais, aguarda o healthcheck e abre o Trace em tela che
 
 O operador não deve ter acesso ao desktop, Explorer, configurações ou terminal. A manutenção ocorre somente após entrar com `trace-tech`.
 
-## 6. Homologar CLP e leitor Keyence
+## 6. Homologar CLP e câmera
 
 Antes de habilitar CLP físico, registre e valide: modelo, IP, porta, protocolo, Unit ID, mapa de registradores, permissivos, retorno de estado, timeout, parada de emergência e reversão. A aplicação nunca substitui os intertravamentos do CLP.
 
-Depois da homologação em bancada, altere a configuração para habilitar o CLP físico e reinicie os serviços em uma janela de manutenção. Configure o SR-X100W conforme o [guia do leitor](preparacao-keyence-sr-x100w.md). O Trace recebe códigos por TCP e imagens de erro por FTP passivo; confirme no relatório a associação da imagem à ocorrência antes do go-live.
+Depois da homologação em bancada, altere a configuração para habilitar o CLP físico e reinicie os serviços em uma janela de manutenção. Configure a câmera com endereço, protocolo e credencial fora da interface do operador.
 
 ## 7. Backup e atualização
 

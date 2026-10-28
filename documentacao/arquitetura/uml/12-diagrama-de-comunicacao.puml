@@ -1,5 +1,5 @@
 @startuml trace-12-communication
-title 12. Comunicação — imagem de erro enviada pelo Keyence
+title 12. Comunicação — mensagens entre participantes da captura
 left to right direction
 skinparam linetype ortho
 
@@ -7,23 +7,24 @@ object Operador
 object Gateway
 object "API PHP" as API
 object "MySQL" as DB
-object "keyence-worker" as Worker
-object "Leitor Keyence SR-X100W" as Reader
-object "Serviço de relatório" as PDF
+object "camera-worker" as Worker
+object "Câmera RTSP" as Camera
+object "Serviço PDF" as PDF
 object "Armazenamento" as Storage
 
-Gateway --> API : 1: registrar evento de passagem
-API --> DB : 2: gravar leitura SEM_LEITURA e solicitação
-Reader --> Worker : 3: enviar imagem JPEG por FTP
-Worker --> API : 4: consultar fila de imagens pendentes
-API --> DB : 5: reservar solicitação compatível
-Worker --> API : 6: enviar imagem autenticada
-API --> Storage : 7: validar e persistir imagem
-API --> DB : 8: vincular imagem ao evento
-Worker <-- API : 9: confirmar recebimento
-Operador --> API : 10: encerrar carregamento e gerar relatório
-API --> PDF : 11: compor relatório com a imagem
-PDF --> Storage : 12: persistir PDF final
+Operador --> Gateway : 1: evento de ocorrência
+Gateway --> API : 2: solicitar captura autenticada
+API --> DB : 3: gravar solicitação
+Worker --> API : 4: CLAIM da fila
+API --> DB : 5: reservar solicitação
+Worker --> Camera : 6: abrir RTSP e solicitar 1 JPEG
+Camera --> Worker : 7: devolver JPEG e encerrar sessão
+Worker --> API : 8: upload da evidência
+API --> PDF : 9: converter e compor PDF
+PDF --> Storage : 10: persistir arquivo
+PDF --> API : 11: devolver caminho
+API --> DB : 12: salvar caminho e concluir
+API --> Worker : 13: confirmar COMPLETE
 
 note bottom
 As mensagens numeradas mostram a ordem do cenário.

@@ -51,7 +51,7 @@ final class ServicoMonitoramentoTest extends TestCase
         self::assertSame(2, (int) $rows[0]['detected_bags']);
     }
 
-    public function testScannerMantemStatusOnlineEntreHeartbeatsSemAtrasarDeteccaoDoClp(): void
+    public function testCameraMantemStatusOnlineEntreHeartbeatsSemAtrasarDeteccaoDoClp(): void
     {
         $device = static fn (int $id, string $type, string $status, ?int $ageMicros): array => [
             "equipment_id" => $id,
@@ -64,10 +64,10 @@ final class ServicoMonitoramentoTest extends TestCase
         ];
         $pdo = new MonitoramentoPdoFake([
             $device(1, "CLP", "ONLINE", 4_000_000),
-            $device(2, "SCANNER", "ONLINE", 8_000_000),
-            $device(3, "SCANNER", "ONLINE", 15_000_001),
-            $device(4, "SCANNER", "ERRO", 20_000_000),
-            $device(5, "SCANNER", "ONLINE", null),
+            $device(2, "CAMERA", "ONLINE", 8_000_000),
+            $device(3, "CAMERA", "ONLINE", 15_000_001),
+            $device(4, "CAMERA", "ERRO", 20_000_000),
+            $device(5, "CAMERA", "ONLINE", null),
             $device(6, "SENSOR", "ONLINE", 8_000_000),
         ]);
         $service = new ServicoMonitoramento($pdo);
@@ -77,12 +77,12 @@ final class ServicoMonitoramentoTest extends TestCase
         self::assertSame([
             1 => "OFFLINE",
             2 => "ONLINE",
-            3 => "DESCONHECIDO",
-            4 => "DESCONHECIDO",
-            5 => "DESCONHECIDO",
+            3 => "OFFLINE",
+            4 => "ERRO",
+            5 => "OFFLINE",
             6 => "OFFLINE",
         ], array_column($snapshot["dispositivos"], "status", "equipment_id"));
-        self::assertSame(15, $snapshot["limite_sinal_scanner_segundos"]);
+        self::assertSame(15, $snapshot["limite_sinal_camera_segundos"]);
         self::assertArrayNotHasKey("micros_sem_sinal", $snapshot["dispositivos"][0]);
         $machineQueries = array_values(array_filter(
             $pdo->queries,
@@ -98,14 +98,14 @@ final class ServicoMonitoramentoTest extends TestCase
         );
 
         $shorterLimit = $service->obterInstantaneo(5, 30, 3, 6);
-        self::assertSame("DESCONHECIDO", $shorterLimit["dispositivos"][1]["status"]);
+        self::assertSame("OFFLINE", $shorterLimit["dispositivos"][1]["status"]);
     }
 
     public function testStatusDosDispositivosUsaConsultaLeveSemAgregacoesDoSnapshot(): void
     {
         $pdo = new MonitoramentoPdoFake([[
             "equipment_id" => 8,
-            "device_type" => "SCANNER",
+            "device_type" => "CAMERA",
             "status" => "ONLINE",
             "last_seen_at" => "2026-10-19 12:00:00",
             "segundos_sem_sinal" => 8,
@@ -183,10 +183,10 @@ final class ServicoMonitoramentoTest extends TestCase
         $devices = (new ServicoMonitoramento($pdo))->obterStatusDispositivos(5, 3, 15, 90);
 
         self::assertSame([
-            1 => "DESCONHECIDO",
-            2 => "DESCONHECIDO",
+            1 => "ONLINE",
+            2 => "OFFLINE",
             3 => "DESCONHECIDO",
-            4 => "DESCONHECIDO",
+            4 => "ERRO",
         ], array_column($devices, "status", "equipment_id"));
     }
 

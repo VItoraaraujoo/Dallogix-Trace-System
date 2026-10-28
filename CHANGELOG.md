@@ -154,8 +154,8 @@ um release, mova os itens para uma seção com a versão/tag e a data reais.
 - Alinhado o perfil padrão do gateway à leitura do bit M2052 por FC1, unidade 1,
   endereço 2052. A leitura FC1 foi confirmada no PC industrial; a FC3 no mesmo
   endereço lê um registrador holding separado e não valida o bit do sensor.
-- `SEM_LEITURA` registra a ocorrência e pede evidência de erro do Keyence sem
-  pausar o carregamento; a confirmação automatizada do sensor/leitor continua pendente.
+- `SEM_LEITURA` registra a ocorrência e pede evidência da câmera sem pausar o
+  carregamento; a confirmação automatizada do sensor/leitor continua pendente.
 - Mantidas as proteções CSRF e de limite de tentativas de login/ativação mesmo
   quando as antigas variáveis de teste estiverem definidas.
 - Restringido o sistema de arquivos do MySQL, mantendo o processo como UID 999,
