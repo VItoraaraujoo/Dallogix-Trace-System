@@ -9,7 +9,7 @@ frame "Classificador estruturado: PC industrial Trace" {
   component "API PHP\n+ regras de aplicação" as API
   database "MySQL local" as DB
   component "Node-RED\nGateway industrial" as NR
-  component "Worker da câmera" as CAM
+  component "Worker Keyence" as KEYENCE
   component "Worker de sincronização" as SYNC
   folder "Armazenamento local\nPDFs e evidências" as STORAGE
 }
@@ -20,17 +20,17 @@ API --> DB : consultas e transações
 API --> STORAGE : leitura e gravação
 NR --> API : gateway autenticado
 NR <--> CLP : Modbus TCP
-CAM --> API : health, captura e evidência
-CAM --> CAMERA : RTSP/TCP
+KEYENCE --> API : códigos, imagens e heartbeat
+KEYENCE <--> KEYENCE_READER : TCP/FTP
 SYNC --> API : fila local
 SYNC --> CENTRAL : HTTPS de saída
 
 component "CLP / Dala" as CLP
-component "Câmera" as CAMERA
+component "Leitor Keyence SR-X100W" as KEYENCE_READER
 cloud "Central Trace" as CENTRAL
 
 note bottom
 Visão interna dos elementos cooperantes no PC industrial.
-CLP e câmera são nós externos conectados ao PC.
+CLP e leitor Keyence são nós externos conectados ao PC.
 end note
 @enduml

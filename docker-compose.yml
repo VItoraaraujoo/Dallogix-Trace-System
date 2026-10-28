@@ -16,11 +16,11 @@ services:
       - -c
       - >-
         set -eu;
-        mkdir -p /var/www/armazenamento/backups /var/www/armazenamento/logs /var/www/armazenamento/camera-pc;
+        mkdir -p /var/www/armazenamento/backups /var/www/armazenamento/logs /var/www/armazenamento/keyence-inbox;
         chown -R 82:82 /var/www/armazenamento;
         chmod -R u+rwX /var/www/armazenamento;
-        chown 1000:82 /var/www/armazenamento/camera-pc;
-        chmod 2770 /var/www/armazenamento/camera-pc;
+        chown 1000:82 /var/www/armazenamento/keyence-inbox;
+        chmod 2770 /var/www/armazenamento/keyence-inbox;
         probe=/var/www/armazenamento/.trace-write-probe;
         : > "$$probe";
         rm -f "$$probe"
@@ -99,13 +99,12 @@ services:
       TRACE_DEBOUNCE_MS: ${TRACE_DEBOUNCE_MS:-400}
       TRACE_SCANNER_NO_READ_TIMEOUT_MS: ${TRACE_SCANNER_NO_READ_TIMEOUT_MS:-1500}
       KEYENCE_ENABLED: ${KEYENCE_ENABLED:-0}
-      KEYENCE_CAMERA_FALLBACK_DELAY_MS: ${KEYENCE_CAMERA_FALLBACK_DELAY_MS:-6000}
       TRACE_END_PRODUCT_ALERT_THRESHOLD: ${TRACE_END_PRODUCT_ALERT_THRESHOLD:-5}
       TRACE_LOCAL_SIMULATION: ${TRACE_LOCAL_SIMULATION:-0}
       TRACE_VERSION: ${TRACE_VERSION:-development}
       TRACE_COMMIT: ${TRACE_COMMIT:-unknown}
       CLP_SIGNAL_LIMIT_SECONDS: ${CLP_SIGNAL_LIMIT_SECONDS:-3}
-      CAMERA_SIGNAL_LIMIT_SECONDS: ${CAMERA_SIGNAL_LIMIT_SECONDS:-15}
+      SCANNER_SIGNAL_LIMIT_SECONDS: ${SCANNER_SIGNAL_LIMIT_SECONDS:-15}
       HEALTH_DEVICE_STALE_SECONDS: ${HEALTH_DEVICE_STALE_SECONDS:-30}
       HEALTH_MIN_DISK_FREE_PERCENT: ${HEALTH_MIN_DISK_FREE_PERCENT:-5}
       HEALTH_MAX_QUEUE_AGE_SECONDS: ${HEALTH_MAX_QUEUE_AGE_SECONDS:-604800}
@@ -115,7 +114,6 @@ services:
       SYNC_SENT_RETENTION_DAYS: ${SYNC_SENT_RETENTION_DAYS:-30}
       ERROR_LOG_RETENTION_DAYS: ${ERROR_LOG_RETENTION_DAYS:-365}
       TRACE_DEVICE_TOKEN: ${TRACE_DEVICE_TOKEN:?TRACE_DEVICE_TOKEN é obrigatório}
-      CAMERA_DEVICE_TOKEN: ${CAMERA_DEVICE_TOKEN:?CAMERA_DEVICE_TOKEN é obrigatório}
       LOGIN_EMAIL_DOMAIN: ${LOGIN_EMAIL_DOMAIN:-dallogix.local}
       LOGIN_EMAIL_BASE_DOMAIN: ${LOGIN_EMAIL_BASE_DOMAIN:-dallogix}
     healthcheck:
@@ -242,55 +240,6 @@ services:
       timeout: 5s
       retries: 10
 
-  camera-worker:
-    profiles: ["industrial"]
-    image: trace-industrial-pc-camera-worker:1.0
-    build:
-      context: ./integracoes/camera-worker
-      dockerfile: Dockerfile
-    restart: unless-stopped
-    init: true
-    user: "1000:1000"
-    read_only: true
-    cap_drop: [ALL]
-    security_opt: [no-new-privileges:true]
-    depends_on:
-      nginx:
-        condition: service_started
-      armazenamento-init:
-        condition: service_completed_successfully
-    pids_limit: 128
-    mem_limit: 384m
-    cpus: "1.50"
-    stop_grace_period: 20s
-    environment:
-      TRACE_API_URL: http://nginx
-      CAMERA_DEVICE_TOKEN: ${CAMERA_DEVICE_TOKEN:?CAMERA_DEVICE_TOKEN é obrigatório}
-      CAMERA_RTSP_HOST: ${CAMERA_RTSP_HOST:-}
-      CAMERA_RTSP_PORT: ${CAMERA_RTSP_PORT:-554}
-      CAMERA_RTSP_CHANNEL: ${CAMERA_RTSP_CHANNEL:-101}
-      CAMERA_RTSP_USERNAME: ${CAMERA_RTSP_USERNAME:-}
-      CAMERA_RTSP_PASSWORD: ${CAMERA_RTSP_PASSWORD:-}
-      CAMERA_JOB_POLL_MS: ${CAMERA_JOB_POLL_MS:-200}
-      CAMERA_CAPTURE_TIMEOUT_MS: ${CAMERA_CAPTURE_TIMEOUT_MS:-10000}
-      CAMERA_HEARTBEAT_INTERVAL_MS: ${CAMERA_HEARTBEAT_INTERVAL_MS:-5000}
-      CAMERA_EVIDENCE_DIR: /var/lib/trace/camera-evidence
-    volumes:
-      - ./armazenamento/camera-pc:/var/lib/trace/camera-evidence
-    healthcheck:
-      test:
-        [
-          "CMD",
-          "node",
-          "-e",
-          "fetch('http://127.0.0.1:8090/health').then(async (response) => { const health = response.ok ? await response.json() : null; process.exit(health?.running === true && health?.capture_mode === 'ON_DEMAND' ? 0 : 1); }).catch(() => process.exit(1))",
-        ]
-      interval: 15s
-      timeout: 3s
-      retries: 3
-      start_period: 10s
-    logging: *trace-logging
-
   keyence-worker:
     profiles: ["keyence"]
     image: trace-industrial-pc-keyence-worker:1.0
@@ -332,11 +281,11 @@ services:
       KEYENCE_IMAGE_MATCH_WINDOW_MS: ${KEYENCE_IMAGE_MATCH_WINDOW_MS:-3000}
       KEYENCE_IMAGE_SETTLE_MS: ${KEYENCE_IMAGE_SETTLE_MS:-800}
       KEYENCE_IMAGE_MAX_AGE_MS: ${KEYENCE_IMAGE_MAX_AGE_MS:-300000}
-      KEYENCE_CAMERA_FALLBACK_DELAY_MS: ${KEYENCE_CAMERA_FALLBACK_DELAY_MS:-6000}
+      KEYENCE_IMAGE_RECEIVE_TIMEOUT_MS: ${KEYENCE_IMAGE_RECEIVE_TIMEOUT_MS:-6000}
       KEYENCE_INBOX_DIR: /var/lib/trace/keyence-inbox
       KEYENCE_SERVICE_BIND: 0.0.0.0
     volumes:
-      - ./armazenamento/camera-pc/keyence-inbox:/var/lib/trace/keyence-inbox
+      - ./armazenamento/keyence-inbox:/var/lib/trace/keyence-inbox
     healthcheck:
       test:
         [
@@ -458,7 +407,6 @@ services:
       TRACE_INSTALLATION_MODE: ${TRACE_INSTALLATION_MODE:-}
       TRACE_LOCAL_SIMULATION: ${TRACE_LOCAL_SIMULATION:-0}
       TRACE_DEVICE_TOKEN: ${TRACE_DEVICE_TOKEN:?TRACE_DEVICE_TOKEN é obrigatório}
-      CAMERA_DEVICE_TOKEN: ${CAMERA_DEVICE_TOKEN:?CAMERA_DEVICE_TOKEN é obrigatório}
       SYNC_BATCH_SIZE: ${SYNC_BATCH_SIZE:-50}
       SYNC_MAX_ATTEMPTS: ${SYNC_MAX_ATTEMPTS:-5}
       SYNC_POLL_INTERVAL_SECONDS: ${SYNC_POLL_INTERVAL_SECONDS:-1}

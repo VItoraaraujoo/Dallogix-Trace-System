@@ -8,7 +8,7 @@ HTML, CSS, JavaScript, PHP, MySQL, Node-RED, Nginx, Docker e Docker Compose.
 
 ## Estado atual
 
-Operação local-first integrada. Cada tela possui seu próprio HTML (`interface/*.html`) com núcleo compartilhado em `js/aplicacao.js`; login em `index.html`. O ambiente base, operação persistida, auditoria, fila de sincronização, monitoramento, ocorrências, catálogo, importação transacional, preparação e encerramento de carregamentos, solicitação de captura seletiva, PDFs de evidência e relatórios de auditoria persistidos, retenção de dados operacionais, relatório CSV e controles por perfil estão disponíveis. O gateway lê o sensor M2052 e associa a leitura do Elgin EL8600 ao evento da passagem; se nenhum código chegar no prazo configurado, registra `SEM_LEITURA` e solicita uma única foto. O worker só abre o RTSP para essa captura e não mantém decodificação contínua de imagens. A configuração da câmera e a semântica do sinal do Ladder ainda precisam de homologação física.
+Operação local-first integrada. Cada tela possui seu próprio HTML (`interface/*.html`) com núcleo compartilhado em `js/aplicacao.js`; login em `index.html`. O ambiente base, operação persistida, auditoria, fila de sincronização, monitoramento, ocorrências, catálogo, importação transacional, preparação e encerramento de carregamentos, solicitação de evidência, PDFs e relatórios de auditoria persistidos, retenção de dados operacionais, relatório CSV e controles por perfil estão disponíveis. O gateway lê o sensor M2052; o KEYENCE SR-X100W deve operar com um trigger de leitura única por passagem e envia o código por TCP e as imagens de erro por FTP. Se nenhum código chegar no prazo, o Trace registra `SEM_LEITURA` e associa a imagem do leitor ao evento antes de montar o PDF. A configuração física e a homologação do Keyence ainda estão pendentes.
 
 A reversão e as ações configuráveis por Dala usam uma fila própria para o gateway industrial: o painel só registra a solicitação; o gateway autenticado confirma ou rejeita o comando após validar o CLP. Gatilhos, como atingir 100% da quantidade planejada, seguem a mesma fila. Nenhuma escrita física é feita pelo servidor. A ligação real ainda depende do mapa de I/O homologado, do programa Ladder e dos testes de bancada.
 
@@ -39,7 +39,7 @@ seguinte apaga também os dados relacionados de forma irreversível.
 ## Executar
 
 1. Copie `.env.example` para `.env` e ajuste os valores.
-2. No PC industrial, execute: `docker compose --profile industrial up -d --build`. Esse perfil inicia também o gateway Node-RED e o worker automático da câmera. Em instalações centrais, mantenha o perfil industrial desligado.
+2. No PC industrial, execute: `docker compose --profile industrial up -d --build`. Esse perfil inicia o gateway Node-RED. Depois de configurar o Keyence, habilite `KEYENCE_ENABLED=1` e inicie também o perfil `keyence`. Em instalações centrais, mantenha os perfis industriais desligados.
 3. Acesse `http://localhost:8080` no quiosque do PC industrial.
 4. Verifique a API local em `http://localhost:8080/api/index.php`.
 5. Verifique a saúde em `http://localhost:8080/api/health.php`.
@@ -64,10 +64,10 @@ Com os containers ativos, aplique somente as migrations controladas:
 
 Em uma instalação já existente, `scripts/migrate.sh` cria o controle de versão e registra o schema legado sem reaplicar migrations históricas. O script aplica somente as versões ausentes em `schema_migrations`; não é necessário reaplicar SQL manualmente. As migrations 054–057 fortalecem o código de ativação, preservam o horário informado pelo dispositivo como metadado, indexam a retenção dos limites de login e renomeiam o caminho temporário de imagem para caminho de PDF de evidência.
 
-As credenciais técnicas não possuem valor padrão público. Defina `TRACE_DEVICE_TOKEN` e `CAMERA_DEVICE_TOKEN` no `.env` e, depois de cadastrar a Dala real, provisione os dispositivos com tokens próprios usando `php scripts/provision_device.php`.
+As credenciais técnicas não possuem valor padrão público. Defina `TRACE_DEVICE_TOKEN` e `KEYENCE_DEVICE_TOKEN` no `.env`; a instalação local provisiona o CLP e o leitor Keyence com credenciais separadas.
 Cada reprovisionamento gera um novo `token_id`, invalida a credencial anterior e registra a criação e o último uso sem armazenar o token em texto puro. A expiração e a revogação ficam associadas somente ao dispositivo provisionado.
 
-Na instalação industrial, configure também `CAMERA_RTSP_HOST`, `CAMERA_RTSP_USERNAME` e `CAMERA_RTSP_PASSWORD` no `.env` local. O guia de [captura da câmera](integracoes/node-red/README.md#captura-imediata) descreve a ligação Ethernet e o canal RTSP.
+Na instalação industrial, configure os IPs e a conta FTP exclusiva do leitor conforme o [guia do KEYENCE SR-X100W](documentacao/operacao/preparacao-keyence-sr-x100w.md).
 
 O código de ativação novo usa 80 bits aleatórios, é de uso único e expira após
 7 dias, no formato `TRC-XXXX-XXXX-XXXX-XXXX`. Códigos fortes já emitidos no
@@ -175,8 +175,7 @@ systemctl status dallogix-trace-backup.timer
 ## Pendências técnicas
 
 - Sufixo exato, protocolo e mapa de registradores do CLP Delta DVP14SS.
-- Escolha da interface física do scanner Elgin EL8600 (USB ou RS-232), terminador e formato de leitura.
-- IP fixo e credenciais RTSP da câmera na instalação.
+- IPs fixos, formato de código, delimitador TCP e envio FTP passivo do KEYENCE SR-X100W.
 - Credenciais e endpoint da nuvem Dallogix.
 
 O licenciamento mensal é controlado manualmente pelo Master Dallogix; o Trace não realiza cobranças automáticas nem integra gateways de pagamento.

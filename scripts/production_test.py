@@ -66,7 +66,7 @@ def main():
     else:
         env_text = ENV.read_text()
         missing = []
-        for key in ('TRACE_DEVICE_TOKEN', 'CAMERA_DEVICE_TOKEN'):
+        for key in ('TRACE_DEVICE_TOKEN',):
             if not any(line.startswith(f'{key}=') for line in env_text.splitlines()):
                 missing.append(f'{key}={secrets.token_hex(32)}')
         if missing:
@@ -126,7 +126,6 @@ def main():
     equipment_id = sql("SELECT id FROM equipamentos WHERE equipment_code = 'EST-001' LIMIT 1")
     for device_type, device_code, token_key in (
         ('CLP', 'PLC-EST-001', 'TRACE_DEVICE_TOKEN'),
-        ('CAMERA', 'CAM-EST-001', 'CAMERA_DEVICE_TOKEN'),
     ):
         token = env_value(token_key)
         if equipment_id and token:

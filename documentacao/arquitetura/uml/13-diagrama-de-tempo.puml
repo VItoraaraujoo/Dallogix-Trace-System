@@ -1,10 +1,10 @@
 @startuml trace-13-timing
-title 13. Tempo — sensor, scanner e captura sob demanda
-robust "Fila de captura" as Queue
-concise "camera-worker" as Worker
+title 13. Tempo — sensor, Keyence e imagem de erro
+robust "Fila de imagens" as Queue
+concise "keyence-worker" as Worker
 concise "Sensor M2052" as Sensor
-robust "Timeout do scanner" as Scanner
-concise "Heartbeat câmera" as Heartbeat
+robust "Timeout do leitor" as Scanner
+concise "Heartbeat Keyence" as Heartbeat
 
 @0
 Queue is aguardando
@@ -17,15 +17,15 @@ Sensor is consultado (padrão 200 ms)
 
 @1500
 Scanner is SEM_LEITURA se não houver código
-Queue is captura pendente
-Worker is abre RTSP e solicita um JPEG
+Queue is imagem de erro pendente
+Worker is aguarda FTP do Keyence
 
 @5000
-Heartbeat is sonda TCP padrão (5 s)
+Heartbeat is leitor reporta serviço online
 
 note bottom
 Marcas mostram parâmetros padrão, não uma medição no hardware.
-O intervalo do sensor e o timeout podem precisar de ajuste
-depois de observar o Ladder e medir a captura na bancada.
+O intervalo do sensor, timeout do código e janela de associação da imagem
+precisam ser confirmados com o Ladder e o Keyence na bancada.
 end note
 @enduml

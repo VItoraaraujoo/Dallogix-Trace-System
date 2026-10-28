@@ -6,7 +6,7 @@
   por inatividade de 30 minutos.
 - Regeneração de sessão no login e invalidação no logout.
 - CSRF para mutações em produção, RBAC por empresa e tokens internos para
-  gateway industrial e câmera.
+  gateway industrial e leitor Keyence.
 - CSP, `X-Frame-Options`, `nosniff`, políticas de origem cruzada e rate limit
   no Nginx e no login.
 - Consultas parametrizadas, limites de upload, MIME real, proteção contra

@@ -25,15 +25,15 @@ event="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -H "X-De
 event_id="$(printf '%s' "$event" | sed -n 's/.*"id":\([0-9][0-9]*\).*/\1/p')"
 [ -n "$event_id" ] || { echo "FAIL: evento de sensor não foi criado: $event"; exit 1; }
 pending="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id,\"sensor_event_id\":$event_id}" "$base_url/api/leituras.php")"
-printf '%s' "$pending" | grep -q 'CAPTURA_PENDENTE_INCIDENTE' || { echo "FAIL: não foi possível criar evidência pendente: $pending"; exit 1; }
+printf '%s' "$pending" | grep -q 'IMAGEM_PENDENTE_INCIDENTE' || { echo "FAIL: não foi possível criar imagem de evidência pendente: $pending"; exit 1; }
 summary="$(curl -sS -b "$cookie_file" "$base_url/api/resumo_carregamento.php?carregamento_id=$loading_id")"
-if ! printf '%s' "$summary" | grep -q '"capturas_pendentes"'; then
-  echo "FAIL: resumo não retornou capturas pendentes"
+if ! printf '%s' "$summary" | grep -q '"imagens_pendentes"'; then
+  echo "FAIL: resumo não retornou imagens pendentes"
   exit 1
 fi
 
 finish="$(curl -sS -b "$cookie_file" -H "$csrf_header" -H 'Content-Type: application/json' -d "{\"carregamento_id\":$loading_id}" "$base_url/api/encerrar_carregamento.php")"
-if ! printf '%s' "$finish" | grep -q 'capturas de incidentes pendentes'; then
+if ! printf '%s' "$finish" | grep -q 'imagens de falha do Keyence aguardando envio'; then
   echo "FAIL: encerramento ignorou evidências pendentes: $finish"
   exit 1
 fi

@@ -18,7 +18,7 @@ package "banco-de-dados" {
 }
 package "integracoes" {
   package "node-red"
-  package "camera-worker"
+  package "keyence-worker"
 }
 package "scripts"
 package "armazenamento"

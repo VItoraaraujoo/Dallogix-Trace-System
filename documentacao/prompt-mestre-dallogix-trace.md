@@ -20,6 +20,12 @@ Seu objetivo é PROJETAR E DESENVOLVER o sistema DALLOGIX TRACE completo, seguin
 
 IMPORTANTE:
 
+Atualização de hardware em 27/10/2026: não existe equipamento Hikvision disponível
+nem contingência Hikvision. Não criar, provisionar ou reintroduzir integração de
+câmera. O leitor Keyence SR-X100W fornece os códigos por TCP e as imagens de erro
+por FTP passivo para o PC industrial. Esta decisão substitui as referências antigas
+a câmera neste documento.
+
 Não desenvolva tudo de forma desorganizada.
 
 O projeto deve ser criado de forma incremental, modular, testável e preparada para produção.
@@ -28,7 +34,7 @@ Antes de implementar qualquer funcionalidade importante, analise a arquitetura e
 
 Não invente informações sobre equipamentos industriais.
 
-Quando alguma informação técnica do CLP, scanner, câmera ou protocolo não estiver confirmada, marque:
+Quando alguma informação técnica do CLP, sensor, leitor Keyence SR-X100W ou protocolo não estiver confirmada, marque:
 
 "PENDENTE DE CONFIRMAÇÃO"
 
@@ -118,8 +124,8 @@ A arquitetura deverá seguir:
        |                      |                      |
       CLP                    CLP                    CLP
        |                      |                      |
- SENSOR / SCANNER       SENSOR / SCANNER       SENSOR / SCANNER
- CÂMERA                 CÂMERA                 CÂMERA
+ SENSOR M2052           SENSOR M2052           SENSOR M2052
+ KEYENCE SR-X100W       KEYENCE SR-X100W       KEYENCE SR-X100W
 
 
 ============================================================
@@ -654,28 +660,27 @@ O valor deverá ser configurável.
 
 
 ============================================================
-22. CÂMERA
+22. LEITOR KEYENCE SR-X100W E IMAGENS DE ERRO
 ============================================================
 
-A câmera IP poderá registrar imagens de:
+O leitor Keyence SR-X100W lê códigos de barras e fornece imagens de erro.
+Na integração do Trace:
 
-- produto incorreto;
-- sem leitura;
-- excesso;
-- ocorrência;
-- falha;
-- eventos definidos.
+- receber os códigos pela conexão TCP local;
+- enviar imagens de erro em JPEG por FTP passivo para o PC industrial;
+- receber as imagens em uma pasta local temporária e associá-las somente a uma ocorrência compatível;
+- incluir a evidência no relatório do carregamento e manter o PDF final no armazenamento local.
 
-Não armazenar imagens diretamente no MySQL.
+Não criar serviço RTSP, integração Hikvision ou câmera de contingência.
 
-Salvar arquivos localmente.
+Não armazenar imagens diretamente no MySQL; salvar os arquivos localmente.
 
 No banco armazenar:
 
 - caminho;
 - data;
-- motivo;
-- evento;
+- motivo e resultado da leitura;
+- evento do sensor;
 - carregamento;
 - máquina.
 
@@ -729,8 +734,7 @@ BANCO
 Também poderá receber:
 
 - sensor;
-- scanner;
-- câmera;
+- leitor Keyence SR-X100W;
 - eventos.
 
 
@@ -762,9 +766,9 @@ Sem Internet, deverão continuar funcionando:
 - romaneios;
 - carregamentos;
 - sensor;
-- scanner;
+- leitor Keyence SR-X100W;
 - CLP;
-- câmera;
+- imagens de erro do Keyence;
 - banco;
 - histórico;
 - relatórios;
@@ -881,9 +885,9 @@ Para cada máquina mostrar:
 
 - ONLINE/OFFLINE;
 - CLP;
-- scanner;
+- leitor Keyence SR-X100W;
 - sensor;
-- câmera;
+- recebimento das imagens de erro;
 - produto atual;
 - quantidade;
 - progresso;
@@ -1051,9 +1055,9 @@ Testar:
 - CSV;
 - carregamento;
 - sensor;
-- scanner;
+- leitor Keyence SR-X100W;
 - eventos;
-- câmera;
+- imagens de erro do Keyence;
 - sincronização;
 - offline;
 - recuperação;
@@ -1069,8 +1073,8 @@ Simular:
 - Internet desligada;
 - Internet retornando;
 - CLP desconectado;
-- scanner desconectado;
-- câmera desconectada;
+- leitor Keyence desconectado;
+- recebimento FTP de imagem interrompido;
 - banco indisponível;
 - Node-RED parado;
 - arquivo CSV inválido;
@@ -1257,10 +1261,10 @@ FASE 12
 Sensor
 
 FASE 13
-Scanner
+Leitura de códigos pelo Keyence SR-X100W
 
 FASE 14
-Câmera
+Recepção FTP de imagens de erro do Keyence
 
 FASE 15
 Monitoramento local
@@ -1474,8 +1478,8 @@ O projeto somente será considerado concluído quando:
 [ ] Carregamento funcionando
 [ ] Simulador funcionando
 [ ] Sensor funcionando
-[ ] Scanner funcionando
-[ ] Câmera funcionando
+[ ] Keyence SR-X100W lendo códigos por TCP
+[ ] Imagens de erro do Keyence chegando por FTP
 [ ] Ocorrências funcionando
 [ ] Histórico funcionando
 [ ] Relatórios funcionando

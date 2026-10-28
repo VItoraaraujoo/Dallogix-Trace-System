@@ -18,7 +18,7 @@ function trace_cleanup_report_evidence(PDO $pdo, array $loadIds, int $companyId,
         "SELECT i.path FROM imagens i JOIN carregamentos c ON c.id = i.carregamento_id
          WHERE c.company_id = ? AND i.carregamento_id IN ({$placeholders}) AND i.reason <> 'NORMAL'
          UNION ALL
-         SELECT r.evidence_pdf_path FROM solicitacoes_captura_camera r
+         SELECT r.evidence_pdf_path FROM solicitacoes_imagens_evidencia r
          JOIN carregamentos c ON c.id = r.carregamento_id
          WHERE c.company_id = ? AND r.carregamento_id IN ({$placeholders})
            AND r.reason <> 'NORMAL' AND r.evidence_pdf_path IS NOT NULL",
@@ -54,27 +54,6 @@ function trace_cleanup_report_evidence(PDO $pdo, array $loadIds, int $companyId,
             throw new RuntimeException("Não foi possível remover um arquivo de captura após salvar o PDF final.");
         }
     }
-    $localCaptures = $pdo->prepare(
-        "SELECT id, requested_at FROM solicitacoes_captura_camera
-         WHERE carregamento_id IN ({$placeholders}) AND status = 'CAPTURADA' AND reason <> 'NORMAL'",
-    );
-    $localCaptures->execute($loadIds);
-    foreach ($localCaptures->fetchAll(PDO::FETCH_ASSOC) as $capture) {
-        $requestedAt = preg_replace('/\\D/', '', (string) $capture["requested_at"]);
-        if (!is_string($requestedAt) || preg_match('/\\A\\d{14,20}\\z/', $requestedAt) !== 1) {
-            continue;
-        }
-        $localPath = "camera-pc/request-" . (int) $capture["id"] . "-" . $requestedAt . ".pdf";
-        $resolved = trace_image_storage_path($storageRoot, $localPath);
-        if ($resolved === null) {
-            $candidate = $storageRoot . DIRECTORY_SEPARATOR . $localPath;
-            if (is_link($candidate) || file_exists($candidate)) {
-                throw new RuntimeException("Não foi possível validar uma cópia local da evidência após salvar o PDF final.");
-            }
-        } elseif (trace_remove_image_storage_file($storageRoot, $localPath) !== true) {
-            throw new RuntimeException("Não foi possível remover uma cópia local da evidência após salvar o PDF final.");
-        }
-    }
     $pdo->beginTransaction();
     try {
         $deleteImages = $pdo->prepare(
@@ -84,7 +63,7 @@ function trace_cleanup_report_evidence(PDO $pdo, array $loadIds, int $companyId,
         );
         $deleteImages->execute([$companyId, ...$loadIds]);
         $clearCapturePaths = $pdo->prepare(
-            "UPDATE solicitacoes_captura_camera SET evidence_pdf_path = NULL
+            "UPDATE solicitacoes_imagens_evidencia SET evidence_pdf_path = NULL
              WHERE carregamento_id IN ({$placeholders}) AND status = 'CAPTURADA' AND reason <> 'NORMAL'",
         );
         $clearCapturePaths->execute($loadIds);
@@ -158,14 +137,15 @@ $loads->execute(["id" => $romaneioId]);
 $loadRows = $loads->fetchAll();
 $loadIds = array_map(static fn(array $row): int => (int) $row["id"], $loadRows);
 if ($loadIds !== []) {
+    expirar_solicitacoes_imagem_keyence($pdo, null, $loadIds);
     $pendingCaptures = $pdo->prepare(
-        "SELECT COUNT(*) FROM solicitacoes_captura_camera
+        "SELECT COUNT(*) FROM solicitacoes_imagens_evidencia
          WHERE carregamento_id IN (" . implode(",", array_fill(0, count($loadIds), "?")) . ")
            AND status IN ('PENDENTE', 'CAPTURANDO')",
     );
     $pendingCaptures->execute($loadIds);
     if ((int) $pendingCaptures->fetchColumn() > 0) {
-        $respondJson(["error" => "Aguarde a conclusão das capturas de câmera antes de gerar o PDF."], 409);
+        $respondJson(["error" => "Aguarde o envio das imagens de erro do Keyence antes de gerar o PDF."], 409);
     }
 }
 $storageRoot = realpath(__DIR__ . "/../../../armazenamento");

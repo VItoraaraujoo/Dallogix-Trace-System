@@ -55,5 +55,5 @@ continua HTTP para desenvolvimento; o modelo TLS precisa ser instalado no servid
 
 Ainda dependem do destino: domínio/DNS, certificado confiável e sua renovação,
 acesso ao servidor, contas reais, backup externo e monitoramento. Para operação
-industrial, homologue CLP, scanner, câmera, perda de comunicação e intertravamentos.
+industrial, homologue CLP, leitor Keyence, perda de comunicação e intertravamentos.
 Os testes locais acima não comprovam capacidade sob carga nem operação física.

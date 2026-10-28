@@ -53,7 +53,7 @@ final class RepositorioDalasEventosTest extends TestCase
             company_id INTEGER NOT NULL, equipment_id INTEGER NULL, status TEXT NOT NULL,
             completed_at TEXT NULL, response_message TEXT NULL
         )");
-        $connection->exec("CREATE TABLE solicitacoes_captura_camera (
+        $connection->exec("CREATE TABLE solicitacoes_imagens_evidencia (
             equipment_id INTEGER NULL, status TEXT NOT NULL, error_message TEXT NULL
         )");
         foreach (["eventos_sensor", "imagens"] as $table) {
@@ -78,7 +78,7 @@ final class RepositorioDalasEventosTest extends TestCase
             (3, 7, 'FINALIZADO', '2026-10-19 10:00:00')");
         $connection->exec("INSERT INTO solicitacoes_comandos_clp VALUES (3, 7, 'PENDENTE', NULL, NULL),
             (3, 7, 'APLICADO', '2026-10-19 10:00:00', 'Confirmado')");
-        $connection->exec("INSERT INTO solicitacoes_captura_camera VALUES (7, 'PENDENTE', NULL), (7, 'CONCLUIDA', NULL)");
+        $connection->exec("INSERT INTO solicitacoes_imagens_evidencia VALUES (7, 'PENDENTE', NULL), (7, 'CONCLUIDA', NULL)");
         foreach (["eventos_sensor", "imagens"] as $table) {
             $connection->exec("INSERT INTO {$table} VALUES (7)");
         }
@@ -96,8 +96,8 @@ final class RepositorioDalasEventosTest extends TestCase
         self::assertSame("2026-10-19 12:00:00", $connection->query("SELECT completed_at FROM solicitacoes_comandos_clp WHERE status = 'ERRO'")->fetchColumn());
         self::assertSame("Dala excluída antes da conclusão do comando.", $connection->query("SELECT response_message FROM solicitacoes_comandos_clp WHERE status = 'ERRO'")->fetchColumn());
         self::assertSame("APLICADO", $connection->query("SELECT status FROM solicitacoes_comandos_clp WHERE response_message = 'Confirmado'")->fetchColumn());
-        self::assertSame("DESCARTADA", $connection->query("SELECT status FROM solicitacoes_captura_camera WHERE error_message IS NOT NULL")->fetchColumn());
-        self::assertSame(1, (int) $connection->query("SELECT COUNT(*) FROM solicitacoes_captura_camera WHERE status = 'CONCLUIDA'")->fetchColumn());
+        self::assertSame("DESCARTADA", $connection->query("SELECT status FROM solicitacoes_imagens_evidencia WHERE error_message IS NOT NULL")->fetchColumn());
+        self::assertSame(1, (int) $connection->query("SELECT COUNT(*) FROM solicitacoes_imagens_evidencia WHERE status = 'CONCLUIDA'")->fetchColumn());
         self::assertSame(1, (int) $connection->query("SELECT COUNT(*) FROM dispositivos WHERE company_id = 99 AND equipment_id = 9")->fetchColumn());
         self::assertSame(0, (int) $connection->query("SELECT COUNT(*) FROM dispositivos WHERE company_id = 3 AND equipment_id = 7")->fetchColumn());
         foreach (["eventos_sensor", "imagens"] as $table) {

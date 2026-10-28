@@ -82,9 +82,9 @@ test("status têm apresentação clara para online, offline, erro e ausência de
     online: false,
     tone: "unknown",
     label: "NÃO VERIFICADO",
-    detail: "Detecção USB não configurada neste PC.",
+    detail: "O serviço do KEYENCE ainda não enviou heartbeat nesta instalação.",
   });
-  assert.equal(apresentacaoStatusDispositivo("NAO_REGISTRADO", "CAMERA").label, "SEM SINAL");
+  assert.equal(apresentacaoStatusDispositivo("NAO_REGISTRADO", "SERVER").label, "SEM SINAL");
 });
 
 test("Configurações mostra cartões próprios e status vinculados à Dala", () => {
@@ -101,7 +101,7 @@ test("Configurações mostra cartões próprios e status vinculados à Dala", ()
   assert.match(markup, /data-device-status-card="SENSOR" data-live-status-equipment="4"/);
   assert.match(markup, /EST-04/);
   assert.match(markup, /data-device-summary="online-count">1<\/strong>/);
-  assert.match(markup, /data-device-summary="attention-count">2<\/strong><span data-device-summary="attention-label">sem sinal ou com falha/);
+  assert.match(markup, /data-device-summary="attention-count">1<\/strong><span data-device-summary="attention-label">sem sinal ou com falha/);
   assert.match(markup, /data-device-summary="unmonitored-count">2<\/strong><span>não confirmado/);
   assert.match(markup, /class="dala-status" data-equipment-id="4"><span class="settings-dala-status online"[^>]*>ON<\/span>/);
   assert.doesNotMatch(markup, /data-action="reload-monitoring"|data-action="reload-dalas"/);
@@ -121,13 +121,14 @@ test("sensor e scanner sem confirmação física não aparecem como conectados",
     userRole: "USUARIO",
   } });
   assert.match(markup, /data-device-status-card="SENSOR"[\s\S]*?NÃO VALIDADO[\s\S]*?Conexão física do sensor não validada/);
-  assert.match(markup, /data-device-status-card="SCANNER"[\s\S]*?NÃO VERIFICADO[\s\S]*?Detecção USB não configurada neste PC/);
-  assert.match(markup, /Elgin EL8600 · USB HID/);
+  assert.match(markup, /data-device-status-card="SCANNER"[\s\S]*?NÃO VERIFICADO[\s\S]*?KEYENCE ainda não enviou heartbeat nesta instalação/);
+  assert.match(markup, /Leitor Keyence/);
+  assert.match(markup, /SR-X100W · TCP e FTP/);
   assert.match(markup, /Sensor: o CLP responde pelo sinal M2052/);
-  assert.match(markup, /detecção USB está configurada neste PC/);
+  assert.match(markup, /estado vem do heartbeat do serviço Keyence no PC industrial/);
   assert.match(markup, /data-device-summary="unmonitored-count">2<\/strong><span>não confirmado/);
   assert.match(markup, /data-device-summary="online-count">0<\/strong>/);
-  assert.match(markup, /data-device-status-card="CAMERA"[\s\S]*?SEM SINAL/);
+  assert.doesNotMatch(markup, /data-device-status-card="CAMERA"/);
   assert.match(markup, /Instalação atual/);
 });
 
@@ -167,7 +168,7 @@ test("a tabela mostra comunicação do CLP em ON/OFF e preserva estado desconhec
 test("resumo separa dispositivos online, com atenção e sem integração de status", () => {
   assert.deepEqual(resumoStatusDispositivos([
     apresentacaoStatusDispositivo("ONLINE", "CLP"),
-    apresentacaoStatusDispositivo("OFFLINE", "CAMERA"),
+    apresentacaoStatusDispositivo("OFFLINE", "SERVER"),
     apresentacaoStatusDispositivo("NAO_REGISTRADO", "SENSOR"),
   ]), { online: 1, attention: 1, unmonitored: 1 });
 });

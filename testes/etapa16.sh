@@ -20,7 +20,7 @@ loading_id="${TRACE_LOADING_ID:-$(ensure_loading_carregando)}"
 equipment_id="${TRACE_EQUIPMENT_ID:-$(curl -sS -b "$cookie_file" "$base_url/api/carregamentos.php" | sed -n 's/.*"id":'"$loading_id"',"state":"[^"]*","equipment_id":\([0-9][0-9]*\).*/\1/p' | head -n 1)}"
 
 event="$(curl -sS -b "$cookie_file" -H 'Content-Type: application/json' -H "X-Device-Token: $gateway_token" -d "{\"carregamento_id\":$loading_id,\"equipment_id\":$equipment_id,\"event_uuid\":\"$event_uuid\"}" "$base_url/api/sensor_eventos.php")"
-if ! printf '%s' "$event" | grep -q '"camera_trigger":"AGUARDANDO_RESULTADO_LEITURA"'; then
+if ! printf '%s' "$event" | grep -q '"image_action":"AGUARDANDO_RESULTADO_LEITURA"'; then
   echo "FAIL: evento do sensor não aguardou o resultado da leitura: $event"
   exit 1
 fi

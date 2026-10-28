@@ -9,6 +9,16 @@ export function parseBarcodeFrame(value, maxLength = 128) {
   return barcode;
 }
 
+export function nextUnreservedSensorEventId(pendingEventIds, reservedEventIds = new Set()) {
+  for (const candidate of Array.isArray(pendingEventIds) ? pendingEventIds : []) {
+    const eventId = Number(candidate);
+    if (Number.isSafeInteger(eventId) && eventId > 0 && !reservedEventIds.has(eventId)) {
+      return eventId;
+    }
+  }
+  return null;
+}
+
 export function matchPendingImage(receivedAt, requests, windowMs) {
   const candidates = (Array.isArray(requests) ? requests : [])
     .map((request) => ({

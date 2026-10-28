@@ -64,16 +64,13 @@ if printf '%s' "$login" | grep -q '"authenticated":true'; then
   fi
   if [[ "${TRACE_REGRESSION_PROVISION_DEVICES:-0}" == "1" ]]; then
     regression_equipment_id="$(curl -sS -b "$fixture_cookie" "$base_url/api/equipamentos.php" | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const x=(JSON.parse(s).data||[])[0];if(x)process.stdout.write(String(x.id))})')"
-    if [[ -z "$regression_equipment_id" || -z "${TRACE_DEVICE_TOKEN:-}" || -z "${CAMERA_DEVICE_TOKEN:-}" ]]; then
+    if [[ -z "$regression_equipment_id" || -z "${TRACE_DEVICE_TOKEN:-}" ]]; then
       echo "FAIL: credenciais ou equipamento ausentes para provisionar os dispositivos de teste" >&2
       exit 1
     fi
     docker compose exec -T php php /var/www/scripts/provision_device.php \
       --equipment-id="$regression_equipment_id" --device-type=CLP \
       --device-code=PLC-EST-001 --token="$TRACE_DEVICE_TOKEN" >/dev/null
-    docker compose exec -T php php /var/www/scripts/provision_device.php \
-      --equipment-id="$regression_equipment_id" --device-type=CAMERA \
-      --device-code=CAM-EST-001 --token="$CAMERA_DEVICE_TOKEN" >/dev/null
     export TRACE_EQUIPMENT_ID="$regression_equipment_id"
   fi
   active="$(curl -sS -b "$fixture_cookie" "$base_url/api/carregamentos.php")"

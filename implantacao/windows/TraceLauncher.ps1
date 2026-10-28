@@ -4,6 +4,9 @@ $InstallRoot = Split-Path -Parent (Split-Path -Parent $MyInvocation.MyCommand.Pa
 $DatabaseVolumeGuard = Join-Path $PSScriptRoot 'TraceDatabaseVolume.ps1'
 if (-not (Test-Path -LiteralPath $DatabaseVolumeGuard -PathType Leaf)) { throw "Protecao do volume MySQL ausente: $DatabaseVolumeGuard" }
 . $DatabaseVolumeGuard
+$ComposeProfilesScript = Join-Path $PSScriptRoot 'TraceComposeProfiles.ps1'
+if (-not (Test-Path -LiteralPath $ComposeProfilesScript -PathType Leaf)) { throw "Validador dos perfis Compose não encontrado em $ComposeProfilesScript" }
+. $ComposeProfilesScript
 $ComposeFile = Join-Path $InstallRoot "docker-compose.yml"
 $EnvFile = Join-Path $InstallRoot ".env"
 $TraceUrl = if ($env:TRACE_KIOSK_URL) { $env:TRACE_KIOSK_URL } else { "http://127.0.0.1:8080" }
@@ -27,7 +30,8 @@ if (-not (Get-Command docker.exe -ErrorAction SilentlyContinue)) { throw "Docker
 
 Set-Location $InstallRoot
 Assert-TraceMySqlVolumeExists -InstallRoot $InstallRoot -RequireMarker | Out-Null
-& docker compose --profile industrial up -d
+$ComposeProfileArguments = Get-TraceComposeProfileArguments -EnvPath $EnvFile
+& docker compose @ComposeProfileArguments up -d
 
 $healthy = $false
 $lastActivationError = "A API ainda nao respondeu."

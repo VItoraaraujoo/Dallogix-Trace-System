@@ -38,10 +38,10 @@ replace_or_append() {
   mv -f "$temporary" "$env_file"
 }
 
-for key in TRACE_DEVICE_TOKEN CAMERA_DEVICE_TOKEN; do
+for key in TRACE_DEVICE_TOKEN KEYENCE_DEVICE_TOKEN; do
   current="$(awk -F= -v key="$key" '$1 == key { print substr($0, index($0, "=") + 1); exit }' "$env_file")"
   case "$current" in
-    ""|change-me-*|password|password1234|trace-device-local-token-2026-v1|trace-camera-local-token-2026-v1)
+    ""|change-me-*|password|password1234|trace-device-local-token-2026-v1|trace-keyence-local-token-2026-v1)
       replace_or_append "$key" "$(openssl rand -hex 32)"
       changed=1
       ;;

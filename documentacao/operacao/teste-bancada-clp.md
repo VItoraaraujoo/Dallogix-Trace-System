@@ -9,7 +9,7 @@ Este procedimento deve ser executado antes de conectar a esteira em produção.
 - Confirmar tensão da fonte, aterramento e proteção do painel.
 - Conectar o PC industrial e o módulo Ethernet do CLP à mesma rede industrial (cabo Ethernet/switch industrial).
 - Usar USB–RS485 somente se a variante instalada não disponibilizar Ethernet; nesse caso, confirmar a configuração Modbus RTU.
-- Conectar o Elgin EL8600 ao PC por USB ou RS-232.
+- Conectar o Keyence SR-X100W à rede industrial e configurar saída de código TCP e imagem de erro FTP.
 - Não conectar o motor da esteira durante o primeiro teste.
 
 ## 2. Comunicação sem comandos
@@ -26,7 +26,7 @@ Este procedimento deve ser executado antes de conectar a esteira em produção.
 2. Passar um código válido e confirmar que ele aparece no buffer.
 3. Passar um código incorreto e confirmar a classificação.
 4. Acionar o sensor do CLP e confirmar que a leitura mais próxima é associada ao evento.
-5. Acionar o sensor sem apresentar código; após o prazo padrão de 1500 ms, confirmar `SEM_LEITURA` único e uma captura pontual da câmera.
+5. Acionar o sensor sem apresentar código; após o prazo padrão de 1500 ms, confirmar `SEM_LEITURA` único e a imagem de erro enviada pelo Keyence.
 6. Confirmar que não existe segunda tentativa nem retorno do saco.
 
 ## 4. Saídas controladas
@@ -45,7 +45,7 @@ O Dallogix não deve forçar uma saída de segurança. O CLP e o circuito elétr
 
 - Nenhum evento duplicado após reconexão.
 - Nenhuma leitura associada ao saco errado.
-- Falha sem leitura registrada sem atraso intencional da câmera.
+- Falha sem leitura registrada sem atraso artificial; a imagem deve vir do SR-X100W e ser associada somente quando corresponder ao evento.
 - Operação local preservada sem internet.
 - Comando de desbloqueio auditado.
 - Parada de emergência funcionando independentemente do PC.

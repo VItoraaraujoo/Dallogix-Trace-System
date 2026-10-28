@@ -7,6 +7,9 @@ $ErrorActionPreference = "Stop"
 $databaseVolumeGuard = Join-Path $PSScriptRoot 'TraceDatabaseVolume.ps1'
 if (-not (Test-Path -LiteralPath $databaseVolumeGuard -PathType Leaf)) { throw "Protecao do volume MySQL ausente: $databaseVolumeGuard" }
 . $databaseVolumeGuard
+$composeProfilesScript = Join-Path $PSScriptRoot 'TraceComposeProfiles.ps1'
+if (-not (Test-Path -LiteralPath $composeProfilesScript -PathType Leaf)) { throw "Validador dos perfis Compose ausente: $composeProfilesScript" }
+. $composeProfilesScript
 
 if (-not ([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
     throw "Execute a preparação inicial com uma conta técnica administradora."
@@ -84,6 +87,7 @@ $nodeRedEnvLines = @($nodeRedEnvValues.GetEnumerator() | ForEach-Object { "$($_.
     ([System.Text.UTF8Encoding]::new($false))
 )
 Set-Location $PackageRoot
+$composeProfileArguments = Get-TraceComposeProfileArguments -EnvPath $envFile
 
 # O Docker Desktop precisa ser iniciado na sessão interativa do operador. A
 # tarefa antiga apontava para um .cmd em Downloads, que pode ser apagado ou
@@ -105,7 +109,7 @@ $dockerTaskSettings = New-ScheduledTaskSettingsSet -StartWhenAvailable -Multiple
 Register-ScheduledTask -TaskName "Trace-Docker-Start" -Action $dockerTaskAction -Trigger $dockerTaskTrigger -Principal $dockerTaskPrincipal -Settings $dockerTaskSettings -Description "Inicia o Docker Desktop do Trace após o login da conta técnica." -Force | Out-Null
 
 Assert-TraceMySqlVolumeExists -InstallRoot $PackageRoot -RequireMarker | Out-Null
-& docker.exe compose --profile industrial up -d
+& docker.exe compose @composeProfileArguments up -d
 if ($LASTEXITCODE -ne 0) { throw "Nao foi possivel iniciar os containers do Trace." }
 
 & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PackageRoot "implantacao\windows\Register-TraceUpdater.ps1") -PackageRoot $PackageRoot

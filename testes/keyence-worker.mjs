@@ -5,13 +5,12 @@ import { join } from "node:path";
 import { createConnection, createServer } from "node:net";
 import test from "node:test";
 import { createFtpReceiver } from "../integracoes/keyence-worker/ftp-receiver.mjs";
-import { matchPendingImage, parseBarcodeFrame } from "../integracoes/keyence-worker/keyence-core.mjs";
+import { matchPendingImage, nextUnreservedSensorEventId, parseBarcodeFrame } from "../integracoes/keyence-worker/keyence-core.mjs";
 
 const worker = await readFile(new URL("../integracoes/keyence-worker/keyence-worker.mjs", import.meta.url), "utf8");
 const imageEndpoint = await readFile(new URL("../servidor/api/keyence_worker.php", import.meta.url), "utf8");
 const readingsEndpoint = await readFile(new URL("../servidor/api/operacoes/leituras.php", import.meta.url), "utf8");
 const reportEndpoint = await readFile(new URL("../servidor/api/relatorios/relatorio_auditoria.php", import.meta.url), "utf8");
-const cameraEndpoint = await readFile(new URL("../servidor/api/camera/camera_worker.php", import.meta.url), "utf8");
 const compose = await readFile(new URL("../docker-compose.yml", import.meta.url), "utf8");
 
 function freePort() {
@@ -68,6 +67,20 @@ test("valida códigos TCP e só associa imagem quando há solicitação inequív
   assert.equal(matchPendingImage(40000, requests, 8000).reason, "sem_solicitacao_compativel");
 });
 
+test("associa códigos às passagens em ordem e reserva um evento por quadro", () => {
+  const reserved = new Set([101]);
+  assert.equal(nextUnreservedSensorEventId([101, 102, 103], reserved), 102);
+  reserved.add(102);
+  assert.equal(nextUnreservedSensorEventId([101, 102, 103], reserved), 103);
+  reserved.add(103);
+  assert.equal(nextUnreservedSensorEventId([101, 102, 103], reserved), null);
+  assert.match(imageEndpoint, /pending_sensor_event_ids/);
+  assert.match(imageEndpoint, /ORDER BY s\.detected_at ASC, s\.id ASC/);
+  assert.match(readingsEndpoint, /ORDER BY s\.detected_at ASC, s\.id ASC LIMIT 1 FOR UPDATE/);
+  assert.match(worker, /reservedSensorEventIds\.add\(sensorEventId\)/);
+  assert.match(worker, /enqueueBarcodeFrame\(frame\)/);
+});
+
 test("servidor FTP aceita JPEG somente após autenticação e grava em inbox local", async (context) => {
   const inboxDirectory = await mkdtemp(join(tmpdir(), "trace-keyence-ftp-"));
   const controlPort = await freePort();
@@ -115,20 +128,22 @@ test("servidor FTP aceita JPEG somente após autenticação e grava em inbox loc
   }
 });
 
-test("integra SCANNER, fila SEM_LEITURA, contingência RTSP e limpeza depois do PDF final", () => {
+test("integra SCANNER, fila SEM_LEITURA, imagem do Keyence e limpeza depois do PDF final", () => {
   assert.match(worker, /\/api\/keyence_worker\.php/);
   assert.match(worker, /\/api\/leituras\.php/);
   assert.match(worker, /X-Trace-Offline-Id/);
   assert.match(imageEndpoint, /require_device_token\(\["SCANNER"\]\)/);
   assert.match(readingsEndpoint, /require_device_token\(\["SCANNER"\]\)/);
-  assert.match(readingsEndpoint, /evento de passagem pendente/);
+  assert.match(readingsEndpoint, /evento de passagem/);
+  assert.match(readingsEndpoint, /"evidence_status" => \$evidenceStatus/);
+  assert.doesNotMatch(readingsEndpoint, /CAMERA_CAPTURA|camera_status/);
   assert.match(worker, /KEYENCE_TCP_ALLOWED_ADDRESS/);
   assert.match(imageEndpoint, /r\.reason = 'SEM_LEITURA'/);
   assert.match(imageEndpoint, /KEYENCE_IMAGEM_EVIDENCIA_RECEBIDA/);
-  assert.match(cameraEndpoint, /KEYENCE_CAMERA_FALLBACK_DELAY_MS/);
   assert.match(reportEndpoint, /prepararRelatorio/);
   assert.match(reportEndpoint, /(?:capture\|keyence)/);
-  assert.match(reportEndpoint, /camera-pc\/request-/);
+  assert.doesNotMatch(reportEndpoint, /camera-pc\/request-/);
+  assert.doesNotMatch(worker, /câmera Trace|contingência RTSP/i);
   assert.match(compose, /keyence-worker:[\s\S]*?profiles: \["keyence"\]/);
   assert.match(compose, /KEYENCE_FTP_PASSIVE_START/);
   assert.match(compose, /health\?\.running === true && health\?\.enabled === true/);

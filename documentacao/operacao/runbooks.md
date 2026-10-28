@@ -11,12 +11,12 @@ autorização do supervisor.
 - Ação segura: manter a operação local; não apagar a fila. Restabelecer a rede e aguardar o worker.
 - Escalar: se a fila tiver erros após três tentativas ou permanecer acumulada após o retorno.
 
-## RUNBOOK-002 — Câmera sem captura
+## RUNBOOK-002 — Imagem de erro do Keyence não recebida
 
-- Sintoma: captura pendente ou erro no painel técnico.
-- Confirmar: verificar o status CAMERA, espaço livre e os últimos comandos.
-- Ação segura: preservar a solicitação e validar energia, endereço e credencial da câmera.
-- Escalar: se houver falha de armazenamento ou captura repetida em mais de uma leitura.
+- Sintoma: imagem de evidência pendente ou erro no painel técnico.
+- Confirmar: verificar o status do leitor, espaço livre e os logs do worker Keyence.
+- Ação segura: preservar a ocorrência e validar energia, endereço IP e configuração FTP do leitor.
+- Escalar: se houver falha de armazenamento ou imagens ausentes em leituras consecutivas.
 
 ## RUNBOOK-003 — CLP não responde
 

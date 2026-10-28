@@ -3,7 +3,7 @@
 ## 1. Preparação do ambiente
 - [ ] Criar `.env` real de produção a partir de `.env.production.example`.
 - [ ] Definir senhas fortes para `MYSQL_PASSWORD` e `MYSQL_ROOT_PASSWORD`.
-- [ ] Provisionar um token distinto para cada CLP, câmera e outro dispositivo técnico.
+- [ ] Provisionar tokens distintos para o CLP e para o leitor Keyence.
 - [ ] Confirmar `APP_ENV=production`.
 - [ ] Confirmar `SESSION_SECURE=true`.
 - [ ] Confirmar `APP_URL` com HTTPS.
@@ -14,7 +14,7 @@
 - [ ] Validar acesso local do PC industrial.
 - [ ] Confirmar isolamento das portas internas do MySQL, Node-RED, Modbus e interface web.
 - [ ] Confirmar que o servidor central é o ponto de coordenação e não um ambiente local ativo.
-- [ ] Validar a rede do CLP, scanner e câmera.
+- [ ] Validar a rede do CLP e do leitor Keyence; restringir TCP/FTP à interface industrial e ao IP do leitor.
 
 ## 3. Banco e backup
 - [ ] Validar conexão com MySQL em produção.
@@ -45,7 +45,7 @@
 ## 6. Integridade industrial
 - [ ] Validar CLP em bancada.
 - [ ] Validar scanner em bancada.
-- [ ] Validar câmera e armazenamento de imagens.
+- [ ] Validar imagens de erro do Keyence, armazenamento local e inclusão no relatório.
 - [ ] Validar I/O e Ladder do equipamento.
 - [ ] Validar alarme e status de dispositivos.
 

@@ -14,7 +14,6 @@ const setupPackage = readFileSync(new URL("../implantacao/windows/TraceSetup.iss
 const masterHomologationUpdater = readFileSync(new URL("../implantacao/windows/auto-master-homologacao/Atualizar.ps1", import.meta.url), "utf8");
 const setupMachine = readFileSync(new URL("../implantacao/windows/Setup-TraceMachine.ps1", import.meta.url), "utf8");
 const traceAgent = readFileSync(new URL("../implantacao/windows/TraceAgent.ps1", import.meta.url), "utf8");
-const scannerConfigurator = readFileSync(new URL("../implantacao/windows/Configure-TraceScanner.ps1", import.meta.url), "utf8");
 const dockerStarter = readFileSync(new URL("../implantacao/windows/Start-TraceDocker.ps1", import.meta.url), "utf8");
 const desktopProgram = readFileSync(new URL("../desktop/DallogixTrace/Program.cs", import.meta.url), "utf8");
 
@@ -71,19 +70,11 @@ test("instalação valida Central, manifesto e pacote HTTPS antes de configurar 
   assert.ok(setupMachine.indexOf("Test-TraceReleaseAccess $updateManifestUrl") < setupMachine.indexOf("Instalar-TraceLocal.ps1"));
 });
 
-test("assistente configura o leitor USB e o agente relata presença Plug and Play", () => {
-  assert.match(setupMachine, /Get-PnpDevice -PresentOnly -ErrorAction Stop/);
-  assert.match(setupMachine, /Número do Elgin EL8600/);
-  assert.match(setupMachine, /scanner_usb_pattern = \$scannerUsbPattern/);
-  assert.match(traceAgent, /function Get-ScannerPresenceStatus/);
-  assert.match(traceAgent, /Get-PnpDevice -PresentOnly -ErrorAction Stop/);
-  assert.match(traceAgent, /StartsWith\(\$pattern, \[StringComparison\]::OrdinalIgnoreCase\)/);
-  assert.match(traceAgent, /Send-DeviceHeartbeat "SCANNER" \$scannerStatus/);
-  assert.match(traceAgent, /WINDOWS_PNP_USB_HID/);
-  assert.match(traceAgent, /Start-Sleep -Seconds 2/);
-  assert.match(scannerConfigurator, /Copy-Item -LiteralPath \$ConfigPath -Destination \$backupPath/);
-  assert.match(scannerConfigurator, /Start-ScheduledTask -TaskName "Dallogix Trace Agent"/);
-  assert.match(setupPackage, /Source: "Configure-TraceScanner\.ps1"/);
+test("instalador não configura scanner USB legado e mantém o token Keyence", () => {
+  assert.match(localInstaller, /KEYENCE_DEVICE_TOKEN/);
+  assert.doesNotMatch(setupMachine, /Elgin|scanner_usb_pattern|Get-PnpDevice/);
+  assert.doesNotMatch(traceAgent, /Get-ScannerPresenceStatus|WINDOWS_PNP_USB_HID/);
+  assert.doesNotMatch(setupPackage, /Configure-TraceScanner\.ps1/);
 });
 
 test("pré-verificação do Docker não fica presa quando o motor ainda está iniciando", () => {
@@ -192,8 +183,15 @@ test("atualizador e rotas Windows de inicialização validam o volume antes de c
   assert.match(updaterScript, /function Invoke-DockerCompose\(\[string\[\]\]\$Arguments\) \{[\s\S]*?if \(\$Arguments -contains 'up'\) \{[\s\S]*?Assert-TraceMySqlVolumeExists[\s\S]*?-RequireMarker/);
   assert.match(updaterScript, /Ensure-TraceDatabaseVolumeGuard/);
   assert.match(updaterScript, /Register-TraceMySqlVolumeAfterDatabaseCheck/);
-  assert.match(traceLauncher, /Assert-TraceMySqlVolumeExists -InstallRoot \$InstallRoot -RequireMarker[\s\S]*?docker compose --profile industrial up -d/);
-  assert.match(machineInstaller, /Assert-TraceMySqlVolumeExists -InstallRoot \$PackageRoot -RequireMarker[\s\S]*?docker\.exe compose --profile industrial up -d/);
+  const launcherComposeUp = traceLauncher.indexOf("& docker compose @ComposeProfileArguments up -d");
+  const launcherVolumeCheck = traceLauncher.indexOf("Assert-TraceMySqlVolumeExists -InstallRoot $InstallRoot -RequireMarker");
+  const launcherProfileCheck = traceLauncher.indexOf("Get-TraceComposeProfileArguments -EnvPath $EnvFile");
+  assert.ok(launcherVolumeCheck >= 0 && launcherProfileCheck >= 0 && launcherComposeUp > Math.max(launcherVolumeCheck, launcherProfileCheck));
+  const installerComposeUp = machineInstaller.indexOf("& docker.exe compose @composeProfileArguments up -d");
+  const installerVolumeCheck = machineInstaller.indexOf("Assert-TraceMySqlVolumeExists -InstallRoot $PackageRoot -RequireMarker");
+  const installerProfileCheck = machineInstaller.indexOf("Get-TraceComposeProfileArguments -EnvPath $envFile");
+  assert.ok(installerVolumeCheck >= 0 && installerProfileCheck >= 0 && installerComposeUp > Math.max(installerVolumeCheck, installerProfileCheck));
+  assert.match(readFileSync(new URL("../implantacao/windows/TraceComposeProfiles.ps1", import.meta.url), "utf8"), /KEYENCE_ENABLED[\s\S]*?@\('--profile', 'keyence'\)/);
   assert.match(masterHomologationUpdater, /Assert-TraceMySqlVolumeExists -InstallRoot \$installRoot[\s\S]*?docker\.exe compose exec/);
   assert.match(masterHomologationUpdater, /function Ensure-TraceDatabaseBackupSchedule/);
   assert.match(masterHomologationUpdater, /Ensure-TraceDatabaseVolumeMarker\n        Ensure-TraceDatabaseBackupSchedule/);

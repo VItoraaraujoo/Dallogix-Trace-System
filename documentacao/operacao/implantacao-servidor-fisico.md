@@ -13,7 +13,7 @@ O ambiente local integra o Trace com o `modbus-virtual` e com as abas de teste d
 ## Configuração
 
 1. Copie `.env.example` para `.env`.
-2. Defina `APP_ENV=production`, `SESSION_SECURE=true` e segredos aleatórios para banco, câmera, CLP e sincronização.
+2. Defina `APP_ENV=production`, `SESSION_SECURE=true` e segredos aleatórios para banco, leitor Keyence, CLP e sincronização.
 3. Não use valores `change-me-*` em produção; os endpoints internos recusam tokens padrão nesse ambiente.
 4. Cadastre cada Dala com o IP e a porta confirmados do CLP. O fluxo descobre automaticamente todas as Dalas, sem limite fixo.
 5. Mantenha `modbus-virtual` apenas para homologação. Em campo, use o endereço do CLP depois de confirmar variante, unit ID, registradores e intertravamentos.

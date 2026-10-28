@@ -60,12 +60,12 @@ Proteger o sistema sem bloquear operação local e sem expor itens sensíveis em
 
 ### Objetivo
 
-Manter os pontos de conexão com CLP, câmera, scanner e Node-RED controlados e documentados.
+Manter os pontos de conexão com CLP, sensor, leitor Keyence SR-X100W e Node-RED controlados e documentados.
 
 ### Ações
 
 - Documentar mapa de I/O e protocolo do CLP.
-- Definir canal e protocolo de scanner e câmera.
+- Definir TCP para códigos e FTP passivo para imagens de erro do Keyence SR-X100W.
 - Validar fila de comandos e confirmação do gateway industrial.
 - Garantir que a operação continue com o sistema local mesmo sem internet.
 

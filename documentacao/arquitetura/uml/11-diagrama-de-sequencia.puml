@@ -1,37 +1,29 @@
 @startuml trace-11-sequence
-title 11. Sequência — captura da câmera e PDF de evidência
+title 11. Sequência — imagem de erro do Keyence e relatório final
 autonumber
 
 actor "Fluxo industrial" as Flow
 participant "API PHP" as API
 database "MySQL local" as DB
-participant "camera-worker" as Worker
-participant "Câmera RTSP" as Camera
-participant "Serviço de relatório PDF" as PDF
+participant "keyence-worker" as Worker
+participant "Leitor Keyence SR-X100W" as Reader
 collections "Armazenamento local" as Storage
 
-Flow -> API : solicitar captura de ocorrência
-API -> DB : criar solicitação PENDENTE
-Worker -> API : consultar fila / CLAIM
-API -> DB : reservar solicitação
-API --> Worker : solicitação reservada
-Worker -> Camera : abrir RTSP e solicitar um quadro
-Camera --> Worker : um JPEG
-Worker -> Camera : encerrar sessão RTSP
-Worker -> PDF : montar PDF com o quadro
-PDF --> Worker : PDF final
-Worker -> Storage : gravar cópia PDF no PC industrial
-Worker -> API : enviar PDF autenticado
-API -> Storage : armazenar os mesmos bytes PDF no servidor local
-Storage --> API : caminho persistido
-API -> DB : salvar evidence_pdf_path
-Worker -> API : COMPLETE com confirmação
-API -> DB : concluir solicitação
-API --> Worker : captura concluída
+Flow -> API : registrar falha SEM_LEITURA
+API -> DB : criar solicitação de imagem PENDENTE
+Reader -> Worker : enviar imagem JPEG por FTP
+Worker -> API : consultar solicitações pendentes
+API --> Worker : solicitação com horário
+Worker -> Worker : associar imagem sem ambiguidade
+Worker -> API : enviar JPEG autenticado
+API -> Storage : validar e gravar imagem
+API -> DB : marcar solicitação como CAPTURADA
+API --> Worker : imagem vinculada
+Flow -> API : gerar relatório final do carregamento
+API -> Storage : compor PDF com ocorrências e imagens
 
 note over API,Storage
-O JPEG existe apenas em memória durante a captura e como dado
-incorporado ao PDF. Persistem somente cópias PDF no PC industrial
-e no servidor local, sujeitas à retenção configurada.
+O JPEG vem do leitor Keyence e fica no armazenamento local até o PDF
+final ser persistido. Não há câmera RTSP nem worker de captura.
 end note
 @enduml

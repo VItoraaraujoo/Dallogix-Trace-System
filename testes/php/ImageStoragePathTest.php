@@ -93,25 +93,25 @@ final class ImageStoragePathTest extends TestCase
         }
     }
 
-    public function testCapturaSoAceitaArquivoRealDaSolicitacaoCorreta(): void
+    public function testImagemDeEvidenciaAceitaSomenteArquivoRealDaSolicitacaoCorreta(): void
     {
-        $storage = sys_get_temp_dir() . '/trace-camera-evidence-' . bin2hex(random_bytes(6));
+        $storage = sys_get_temp_dir() . '/trace-image-evidence-' . bin2hex(random_bytes(6));
         $folder = $storage . '/company_1/equipment_7';
         mkdir($folder, 0700, true);
         $content = base64_decode(
             'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/NssAAAAASUVORK5CYII=',
             true,
         );
-        $relative = 'company_1/equipment_7/capture-42-' . hash('sha256', $content) . '.png';
+        $relative = 'company_1/equipment_7/keyence-42-' . hash('sha256', $content) . '.png';
         $image = $storage . '/' . $relative;
         file_put_contents($image, $content);
         try {
-            self::assertSame(realpath($image), trace_camera_evidence_path($storage, 1, 7, 42, $relative));
-            self::assertNull(trace_camera_evidence_path($storage, 2, 7, 42, $relative));
-            self::assertNull(trace_camera_evidence_path($storage, 1, 8, 42, $relative));
-            self::assertNull(trace_camera_evidence_path($storage, 1, 7, 43, $relative));
+            self::assertSame(realpath($image), trace_evidence_image_path($storage, 1, 7, 42, $relative));
+            self::assertNull(trace_evidence_image_path($storage, 2, 7, 42, $relative));
+            self::assertNull(trace_evidence_image_path($storage, 1, 8, 42, $relative));
+            self::assertNull(trace_evidence_image_path($storage, 1, 7, 43, $relative));
             file_put_contents($image, 'not an image');
-            self::assertNull(trace_camera_evidence_path($storage, 1, 7, 42, $relative));
+            self::assertNull(trace_evidence_image_path($storage, 1, 7, 42, $relative));
         } finally {
             $this->removeFixturePath($image);
             rmdir($folder);

@@ -10,12 +10,12 @@ component "API PHP" as API
 component "Serviços de aplicação" as APP
 database "MySQL local" as DB
 component "Node-RED gateway" as NR
-component "Worker da câmera" as CAM
+component "Worker Keyence" as KEYENCE
 component "Worker de sincronização" as SYNC
 component "Serviço de relatório PDF" as PDF
 folder "armazenamento" as STORAGE
 component "CLP" as PLC
-component "Câmera RTSP" as CAMERA
+component "Leitor Keyence SR-X100W" as KEYENCE_READER
 cloud "API Central" as CENTRAL
 component "API pública v1\n(em preparação local)" as PUBLIC_API
 
@@ -29,8 +29,8 @@ APP --> PDF : gera relatório
 PDF --> STORAGE : grava/lê PDF
 NR --> API : status e comandos validados
 NR <--> PLC : Modbus TCP
-CAM --> CAMERA : RTSP/TCP
-CAM --> API : captura/heartbeat
+KEYENCE_READER --> KEYENCE : códigos TCP e imagens FTP
+KEYENCE --> API : imagem de evidência e heartbeat
 SYNC --> APP : consome fila
 SYNC --> CENTRAL : HTTPS iniciado no PC
 PUBLIC_API --> APP : consultas autorizadas

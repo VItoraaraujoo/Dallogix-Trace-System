@@ -8,7 +8,7 @@ node "PC industrial" as PC {
     node "PHP / API" as PHP
     database "MySQL local" as MYSQL
     node "Node-RED" as NR
-    node "camera-worker" as CAM
+    node "keyence-worker" as KEYENCE
     node "sync-worker" as SYNC
     node "image-retention" as RET
   }
@@ -18,7 +18,7 @@ node "PC industrial" as PC {
 
 node "Rede industrial" as INDUSTRIAL {
   node "CLP / Dala" as PLC
-  node "Câmera IP" as CAMERA
+  node "Leitor Keyence SR-X100W" as KEYENCE_READER
 }
 cloud "Servidor Central" as CENTRAL
 node "Navegador do operador" as BROWSER
@@ -29,8 +29,8 @@ NGINX --> PHP : encaminhamento
 PHP --> MYSQL : rede Docker
 PHP --> FILES : arquivos locais
 NR <--> PLC : Modbus TCP
-CAMERA --> CAM : RTSP/TCP
-CAM --> PHP : API local
+KEYENCE_READER --> KEYENCE : TCP e FTP passivo
+KEYENCE --> PHP : API local
 SYNC --> CENTRAL : HTTPS de saída
 RET --> MYSQL : limpeza programada
 RET --> FILES : retenção de imagens

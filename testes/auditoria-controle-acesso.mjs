@@ -142,7 +142,7 @@ test("monitoramento oferece um resumo reduzido para a atualização automática 
   assert.match(endpoint, /obterInstantaneo\(\$companyId, \$periodDays/);
   assert.match(service, /public function obterResumoAlertas\(/);
   assert.match(service, /\$this->repositorio->contarLeituras\(\$companyId, \$periodDays\)/);
-  assert.match(service, /\$this->obterStatusDispositivos\(\$companyId, \$clpSignalLimit, \$cameraSignalLimit\)/);
+  assert.match(service, /\$this->obterStatusDispositivos\(\$companyId, \$clpSignalLimit, \$scannerSignalLimit\)/);
   assert.match(service, /\$this->obterMaquinas\(\$companyId, \$clpSignalLimit\)/);
 });
 

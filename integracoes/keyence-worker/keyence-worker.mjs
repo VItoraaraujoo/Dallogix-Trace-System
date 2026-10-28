@@ -3,7 +3,7 @@ import { createServer as createTcpServer, isIP } from "node:net";
 import { mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { createFtpReceiver } from "./ftp-receiver.mjs";
-import { matchPendingImage, parseBarcodeFrame, scanEventId, sha256 } from "./keyence-core.mjs";
+import { matchPendingImage, nextUnreservedSensorEventId, parseBarcodeFrame, scanEventId, sha256 } from "./keyence-core.mjs";
 
 const SERVICE_NAME = "keyence-worker";
 const boundedInteger = (rawValue, fallback, minimum, maximum) => {
@@ -41,8 +41,10 @@ let activeLoadingCheckedAt = 0;
 let lastError = "";
 let unmatchedImageCount = 0;
 let pollTimer = null;
-let processingScans = false;
 let processingImages = false;
+let scanQueuePromise = null;
+let scanFrameQueue = Promise.resolve();
+const reservedSensorEventIds = new Set();
 let ftpReceiver = null;
 let tcpServer = null;
 let healthServer = null;
@@ -99,10 +101,17 @@ async function apiRequest(path, { jsonBody = null, formBody = null, timeoutMs = 
 async function refreshActiveLoading() {
   const result = await apiRequest("/api/keyence_worker.php", { jsonBody: { action: "STATUS" } });
   const data = result?.data || {};
+  const pendingSensorEventIds = Array.isArray(data.pending_sensor_event_ids)
+    ? data.pending_sensor_event_ids.map(Number).filter((id) => Number.isSafeInteger(id) && id > 0)
+    : Number(data.pending_sensor_event_id) > 0 ? [Number(data.pending_sensor_event_id)] : [];
+  const pendingSensorEventSet = new Set(pendingSensorEventIds);
+  for (const eventId of reservedSensorEventIds) {
+    if (!pendingSensorEventSet.has(eventId)) reservedSensorEventIds.delete(eventId);
+  }
   activeLoading = Number(data.active_loading_id) > 0
     ? {
       id: Number(data.active_loading_id),
-      sensorEventId: Number(data.pending_sensor_event_id) > 0 ? Number(data.pending_sensor_event_id) : null,
+      sensorEventIds: pendingSensorEventIds,
     }
     : null;
   activeLoadingCheckedAt = Date.now();
@@ -118,10 +127,14 @@ async function queueBarcode(rawFrame) {
     return;
   }
   let loading = null;
+  let sensorEventId = null;
   try {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       loading = await refreshActiveLoading();
-      if (!loading || loading.sensorEventId) break;
+      sensorEventId = loading
+        ? nextUnreservedSensorEventId(loading.sensorEventIds, reservedSensorEventIds)
+        : null;
+      if (!loading || sensorEventId) break;
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
   } catch (error) {
@@ -136,15 +149,15 @@ async function queueBarcode(rawFrame) {
     log("warn", "Código Keyence recebido sem carregamento ativo; leitura ignorada.");
     return;
   }
-  if (!loading.sensorEventId) {
-    log("warn", "Código Keyence recebido sem evento de passagem pendente; leitura ignorada.", { loading_id: loading.id });
+  if (!sensorEventId) {
+    log("warn", "Código Keyence recebido sem passagem disponível; leitura ignorada.", { loading_id: loading.id });
     return;
   }
   const event = {
     offline_id: scanEventId(),
     barcode,
     loading_id: loading.id,
-    sensor_event_id: loading.sensorEventId,
+    sensor_event_id: sensorEventId,
     received_at: new Date().toISOString(),
   };
   await mkdir(SCAN_QUEUE_DIR, { recursive: true, mode: 0o770 });
@@ -152,67 +165,95 @@ async function queueBarcode(rawFrame) {
   const temporary = `${file}.tmp`;
   await writeFile(temporary, JSON.stringify(event), { flag: "wx", mode: 0o600 });
   await rename(temporary, file);
+  reservedSensorEventIds.add(sensorEventId);
   log("info", "Código recebido do Keyence e enfileirado para o Trace.", {
     loading_id: event.loading_id,
     sensor_event_id: event.sensor_event_id,
     barcode_length: Buffer.byteLength(barcode, "utf8"),
   });
-  void processScanQueue();
+  void processScanQueue().catch((error) => {
+    setError(error);
+    log("error", "Falha ao processar a fila local de códigos do Keyence.", { reason: lastError });
+  });
 }
 
-async function processScanQueue() {
-  if (processingScans || shuttingDown || !DEVICE_TOKEN) return;
-  processingScans = true;
-  try {
-    await mkdir(SCAN_QUEUE_DIR, { recursive: true, mode: 0o770 });
-    await mkdir(FAILED_SCAN_DIR, { recursive: true, mode: 0o770 });
-    const files = (await readdir(SCAN_QUEUE_DIR)).filter((name) => name.endsWith(".json")).sort();
-    for (const name of files) {
-      const file = join(SCAN_QUEUE_DIR, name);
-      let event;
-      try { event = JSON.parse(await readFile(file, "utf8")); }
-      catch (error) {
-        setError(error);
-        await rename(file, join(FAILED_SCAN_DIR, name + ".invalid"));
-        continue;
-      }
-      try {
-        await apiRequest("/api/leituras.php", {
-          jsonBody: {
-            carregamento_id: Number(event.loading_id),
-            sensor_event_id: Number(event.sensor_event_id) || null,
-            barcode: String(event.barcode),
-          },
-          timeoutMs: 10000,
-          idempotencyKey: String(event.offline_id),
-        }).then(async (result) => {
+async function loadScanQueueReservations() {
+  const files = (await readdir(SCAN_QUEUE_DIR)).filter((name) => name.endsWith(".json"));
+  for (const name of files) {
+    try {
+      const event = JSON.parse(await readFile(join(SCAN_QUEUE_DIR, name), "utf8"));
+      const eventId = Number(event.sensor_event_id);
+      if (Number.isSafeInteger(eventId) && eventId > 0) reservedSensorEventIds.add(eventId);
+    } catch {
+      // processScanQueue registra e move arquivos inválidos para a fila de falhas.
+    }
+  }
+}
+
+function processScanQueue() {
+  if (shuttingDown || !DEVICE_TOKEN) return Promise.resolve();
+  if (scanQueuePromise) return scanQueuePromise;
+  scanQueuePromise = (async () => {
+    try {
+      await mkdir(SCAN_QUEUE_DIR, { recursive: true, mode: 0o770 });
+      await mkdir(FAILED_SCAN_DIR, { recursive: true, mode: 0o770 });
+      const files = (await readdir(SCAN_QUEUE_DIR)).filter((name) => name.endsWith(".json")).sort();
+      for (const name of files) {
+        const file = join(SCAN_QUEUE_DIR, name);
+        let event;
+        try { event = JSON.parse(await readFile(file, "utf8")); }
+        catch (error) {
+          setError(error);
+          await rename(file, join(FAILED_SCAN_DIR, name + ".invalid"));
+          continue;
+        }
+        try {
+          const result = await apiRequest("/api/leituras.php", {
+            jsonBody: {
+              carregamento_id: Number(event.loading_id),
+              sensor_event_id: Number(event.sensor_event_id) || null,
+              barcode: String(event.barcode),
+            },
+            timeoutMs: 10000,
+            idempotencyKey: String(event.offline_id),
+          });
           if (!result?.data?.id) throw new Error("Trace não confirmou o registro da leitura.");
           await unlink(file);
+          reservedSensorEventIds.delete(Number(event.sensor_event_id));
           log("info", "Leitura Keyence registrada no Trace.", {
             reading_id: result.data.id,
             loading_id: Number(event.loading_id),
             result: result.data.result,
             duplicate: Boolean(result.data.duplicate),
           });
-        });
-      } catch (error) {
-        if (Number(error.status) >= 400 && Number(error.status) < 500 && error.status !== 429) {
+        } catch (error) {
+          if (Number(error.status) >= 400 && Number(error.status) < 500 && error.status !== 429) {
+            setError(error);
+            await rename(file, join(FAILED_SCAN_DIR, name));
+            log("error", "Leitura Keyence rejeitada pelo Trace e movida para a fila de falhas.", {
+              loading_id: Number(event.loading_id),
+              http_status: error.status,
+              reason: lastError,
+            });
+            continue;
+          }
           setError(error);
-          await rename(file, join(FAILED_SCAN_DIR, name));
-          log("error", "Leitura Keyence rejeitada pelo Trace e movida para a fila de falhas.", {
-            loading_id: Number(event.loading_id),
-            http_status: error.status,
-            reason: lastError,
-          });
-          continue;
+          break;
         }
-        setError(error);
-        break;
       }
+    } finally {
+      scanQueuePromise = null;
     }
-  } finally {
-    processingScans = false;
-  }
+  })();
+  return scanQueuePromise;
+}
+
+function enqueueBarcodeFrame(rawFrame) {
+  scanFrameQueue = scanFrameQueue.then(() => queueBarcode(rawFrame)).catch((error) => {
+    setError(error);
+    log("error", "Falha ao associar um quadro TCP do Keyence.", { reason: lastError });
+  });
+  return scanFrameQueue;
 }
 
 async function pendingImages() {
@@ -245,7 +286,7 @@ async function processImageQueue() {
       const receivedAt = Number(name.slice(0, 13));
       if (Number.isFinite(receivedAt) && Date.now() - receivedAt > IMAGE_MAX_AGE_MS) {
         await unlink(join(INBOX_DIR, name));
-        log("warn", "Imagem Keyence sem evento compatível foi removida após o prazo de associação; a câmera Trace permaneceu como contingência.", {
+        log("warn", "Imagem Keyence sem evento compatível foi removida após o prazo de associação.", {
           sha256: name.slice(15, 79),
         });
       }
@@ -266,14 +307,14 @@ async function processImageQueue() {
         if (match.reason === "solicitacoes_ambiguas") {
           await unlink(file);
           unmatchedImageCount -= 1;
-          log("warn", "Imagem Keyence ambígua; a câmera Trace fará a captura de contingência.", {
+          log("warn", "Imagem Keyence ambígua; não foi associada a uma solicitação.", {
             sha256: name.slice(15, 79),
             candidate_requests: available.length,
           });
         } else if (Date.now() - receivedAt > IMAGE_MATCH_WINDOW_MS + IMAGE_SETTLE_MS) {
           await unlink(file);
           unmatchedImageCount -= 1;
-          log("warn", "Imagem Keyence sem solicitação compatível; a câmera Trace fará a captura de contingência.", {
+          log("warn", "Imagem Keyence sem solicitação compatível; o arquivo foi descartado.", {
             sha256: name.slice(15, 79),
           });
         }
@@ -285,7 +326,7 @@ async function processImageQueue() {
         unmatchedImageCount -= 1;
       } catch (error) {
         if (error.status === 404 || error.status === 409) {
-          // A câmera pode ter reservado a mesma solicitação durante o envio.
+          // Outro processo pode ter reservado a mesma solicitação durante o envio.
           // Deixe o JPG na fila até o próximo ciclo, quando o estado ficará claro.
           continue;
         }
@@ -350,16 +391,13 @@ function startTcpReceiver() {
       buffer = frames.pop() || "";
       for (const frame of frames) {
         if (!frame) continue;
-        void queueBarcode(frame).catch((error) => {
-          setError(error);
-          log("error", "Falha ao enfileirar o código recebido do Keyence.", { reason: lastError });
-        });
+        void enqueueBarcodeFrame(frame);
       }
     });
     socket.on("close", () => {
       const finalFrame = buffer;
       buffer = "";
-      if (finalFrame) void queueBarcode(finalFrame).catch((error) => setError(error));
+      if (finalFrame) void enqueueBarcodeFrame(finalFrame);
     });
     socket.on("error", (error) => log("warn", "Conexão TCP do Keyence encerrada com erro.", { reason: error.message }));
   });
@@ -407,6 +445,7 @@ async function start() {
   await mkdir(INBOX_DIR, { recursive: true, mode: 0o770 });
   await mkdir(SCAN_QUEUE_DIR, { recursive: true, mode: 0o770 });
   await mkdir(FAILED_SCAN_DIR, { recursive: true, mode: 0o770 });
+  await loadScanQueueReservations();
   await startTcpReceiver();
   ftpReceiver = createFtpReceiver({
     bindAddress: TCP_BIND_ADDRESS,

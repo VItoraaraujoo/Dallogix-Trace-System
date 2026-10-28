@@ -24,36 +24,38 @@ if ($action === "STATUS") {
         "company_id" => $device["company_id"],
     ]);
     $loadingId = (int) ($active->fetchColumn() ?: 0);
-    $sensorEventId = null;
+    $pendingSensorEventIds = [];
     if ($loadingId > 0) {
         $windowMs = filter_var(getenv("TRACE_SCANNER_NO_READ_TIMEOUT_MS") ?: "1500", FILTER_VALIDATE_INT);
         $windowMs = max(500, min(10000, $windowMs === false ? 1500 : (int) $windowMs));
         $windowMicroseconds = $windowMs * 1000;
-        $pendingEvent = $pdo->prepare(
+        $pendingEvents = $pdo->prepare(
             "SELECT s.id FROM eventos_sensor s
              WHERE s.carregamento_id = :loading_id AND s.equipment_id = :equipment_id
                AND s.detected_at >= DATE_SUB(NOW(3), INTERVAL {$windowMicroseconds} MICROSECOND)
                AND NOT EXISTS (SELECT 1 FROM leituras l WHERE l.sensor_event_id = s.id)
-             ORDER BY s.detected_at DESC, s.id DESC LIMIT 1",
+             ORDER BY s.detected_at ASC, s.id ASC LIMIT 20",
         );
-        $pendingEvent->execute([
+        $pendingEvents->execute([
             "loading_id" => $loadingId,
             "equipment_id" => $device["equipment_id"],
         ]);
-        $sensorEventId = (int) ($pendingEvent->fetchColumn() ?: 0) ?: null;
+        $pendingSensorEventIds = array_map("intval", $pendingEvents->fetchAll(PDO::FETCH_COLUMN));
     }
     json_response(["data" => [
         "equipment_id" => $device["equipment_id"],
         "active_loading_id" => $loadingId ?: null,
-        "pending_sensor_event_id" => $sensorEventId,
+        "pending_sensor_event_id" => $pendingSensorEventIds[0] ?? null,
+        "pending_sensor_event_ids" => $pendingSensorEventIds,
     ]]);
 }
 
 if ($action === "PENDING_IMAGES") {
+    expirar_solicitacoes_imagem_keyence($pdo, (int) $device["equipment_id"]);
     $statement = $pdo->prepare(
         "SELECT r.id, r.sensor_event_id,
                 CAST(ROUND(UNIX_TIMESTAMP(r.requested_at) * 1000) AS UNSIGNED) AS requested_at_epoch_ms
-         FROM solicitacoes_captura_camera r
+         FROM solicitacoes_imagens_evidencia r
          JOIN carregamentos c ON c.id = r.carregamento_id
          WHERE r.equipment_id = :equipment_id AND c.company_id = :company_id
            AND r.reason = 'SEM_LEITURA' AND r.status = 'PENDENTE'
@@ -106,7 +108,7 @@ $storageRoot = realpath(__DIR__ . "/../../armazenamento");
 try {
     $requestStatement = $pdo->prepare(
         "SELECT r.id, r.sensor_event_id, r.carregamento_id, r.equipment_id, r.reason, r.status, c.company_id
-         FROM solicitacoes_captura_camera r
+         FROM solicitacoes_imagens_evidencia r
          JOIN carregamentos c ON c.id = r.carregamento_id
          WHERE r.id = :id AND r.equipment_id = :equipment_id AND c.company_id = :company_id
          LIMIT 1 FOR UPDATE",
@@ -163,6 +165,15 @@ try {
         }
         $createdFile = true;
     }
+    if (trace_evidence_image_path(
+        $storageRoot,
+        (int) $device["company_id"],
+        (int) $device["equipment_id"],
+        (int) $requestId,
+        $storedPath,
+    ) === null) {
+        throw new RuntimeException("A imagem Keyence não passou pela validação do arquivo persistido.");
+    }
 
     $image = $pdo->prepare(
         "INSERT INTO imagens (company_id, carregamento_id, equipment_id, path, reason, captured_at)
@@ -176,7 +187,7 @@ try {
     ]);
     $imageId = (int) $pdo->lastInsertId();
     $complete = $pdo->prepare(
-        "UPDATE solicitacoes_captura_camera
+        "UPDATE solicitacoes_imagens_evidencia
          SET status = 'CAPTURADA', captured_at = NOW(3), claimed_by_device_id = :device_id,
              error_message = NULL, updated_at = NOW(3)
          WHERE id = :id AND status = 'PENDENTE'",
@@ -189,7 +200,7 @@ try {
         $pdo,
         ["id" => null, "company_id" => (int) $device["company_id"]],
         "KEYENCE_IMAGEM_EVIDENCIA_RECEBIDA",
-        "camera_request",
+        "evidence_request",
         (int) $requestId,
         [
             "image_id" => $imageId,

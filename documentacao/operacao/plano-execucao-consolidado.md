@@ -2,6 +2,8 @@
 
 Este registro centraliza a execução das pendências reunidas nas conversas do projeto. A release imutável `v1.0.103` foi gerada a partir do commit de código `bc7cd745` e publicada no Central após a validação do pacote, das migrações e da saúde dos serviços; a `master` também contém o registro documental posterior dessa publicação.
 
+> **Atualização de escopo em 27/10/2026:** o estado abaixo é um retrato histórico de 15/10. A câmera Hikvision e qualquer contingência foram retiradas do escopo. O leitor vigente é o Keyence SR-X100W; consulte `preparacao-keyence-sr-x100w.md` para o fluxo atual de códigos TCP e imagens FTP, ainda pendente de homologação física. Não use os estados de versão e hardware deste retrato como confirmação do estado atual do Central ou do PC industrial.
+
 ## Estado verificado em 15/10/2026
 
 - **Git e release:** `origin/master` está no commit `a049656` e a release mais recente é `v1.0.145`, com o mesmo commit. O workflow de produção terminou com sucesso.

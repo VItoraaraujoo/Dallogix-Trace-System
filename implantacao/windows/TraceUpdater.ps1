@@ -9,6 +9,9 @@ $InstallRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $MyInv
 $DatabaseVolumeGuard = Join-Path $PSScriptRoot 'TraceDatabaseVolume.ps1'
 if (-not (Test-Path -LiteralPath $DatabaseVolumeGuard -PathType Leaf)) { throw "Protecao do volume MySQL ausente: $DatabaseVolumeGuard" }
 . $DatabaseVolumeGuard
+$ComposeProfilesScript = Join-Path $PSScriptRoot 'TraceComposeProfiles.ps1'
+if (-not (Test-Path -LiteralPath $ComposeProfilesScript -PathType Leaf)) { throw "Validador dos perfis Compose não encontrado em $ComposeProfilesScript" }
+. $ComposeProfilesScript
 $script:UpdaterScriptPath = Join-Path $PSScriptRoot 'TraceUpdater.ps1'
 $ComposeProfile = @('--profile', 'industrial')
 # O PC industrial tem memória limitada. O Compose padrão constrói várias
@@ -54,6 +57,7 @@ if (Test-Path $EnvPath) {
         if (-not (Get-Item "Env:$name" -ErrorAction SilentlyContinue)) { Set-Item "Env:$name" $value }
     }
 }
+$ComposeProfile = Get-TraceComposeProfileArguments -EnvPath $EnvPath
 $ManifestUrl = $env:UPDATE_MANIFEST_URL
 $PublicKey = $env:UPDATE_PUBLIC_KEY_FILE
 $Channel = if ($env:UPDATE_CHANNEL) { $env:UPDATE_CHANNEL } else { "stable" }

@@ -33,7 +33,7 @@ final class RelatorioAuditoriaPdfTest extends TestCase
         self::assertIsString($png);
 
         $report = new RelatorioAuditoriaPdf('Empresa teste', 'Relatório de evidência');
-        self::assertTrue($report->inserirDadosDaImagemDaOcorrencia($png, 'image/png', 'Camera 01', true));
+        self::assertTrue($report->inserirDadosDaImagemDaOcorrencia($png, 'image/png', 'Evidência 01', true));
 
         $pdf = $report->obterArquivoPdf();
         $images = RelatorioAuditoriaPdf::extrairImagensOriginaisDoPdf($pdf);
@@ -48,7 +48,7 @@ final class RelatorioAuditoriaPdfTest extends TestCase
     {
         $report = new RelatorioAuditoriaPdf('Empresa teste', 'Relatório de evidência');
 
-        self::assertFalse($report->inserirDadosDaImagemDaOcorrencia('imagem inválida', 'image/png', 'Camera 01', true));
+        self::assertFalse($report->inserirDadosDaImagemDaOcorrencia('imagem inválida', 'image/png', 'Evidência 01', true));
         self::assertSame([], RelatorioAuditoriaPdf::extrairImagensOriginaisDoPdf($report->obterArquivoPdf()));
     }
 }

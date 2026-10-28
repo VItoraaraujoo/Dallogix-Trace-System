@@ -33,8 +33,7 @@ Preparar o sistema Dallogix Trace para operação real em ambiente industrial co
 
 ## Prioridade 5 — Integrações fisicas
 - Validar CLP Delta DVP14SS no ambiente real.
-- Validar scanner Elgin EL8600 em USB ou serial.
-- Validar câmera IP e armazenamento local.
+- Validar o Keyence SR-X100W para código TCP, imagem FTP e armazenamento local.
 - Validar I/O e Ladder no PC industrial.
 - Confirmar que o servidor central permanece apenas como orquestrador e não como estação local ativa.
 
