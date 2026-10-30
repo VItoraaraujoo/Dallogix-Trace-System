@@ -53,11 +53,13 @@ export class ServicoLeiturasOperacionais {
     const code = String(barcode || "").trim();
     if (!loadingId) throw new Error("Nenhum carregamento selecionado.");
     if (!code) throw new Error("Informe o código de barras.");
+    // A chave deixa retries de transporte idempotentes. Sem sensor_event_id,
+    // a leitura não pode ser guardada para envio posterior sem risco de trocar a saca.
     const response = await this.requestWithOfflineQueue("/api/leituras.php", {
       method: "POST",
       headers: this.jsonHeaders(),
       body: JSON.stringify({ carregamento_id: loadingId, barcode: code, attempt_number: 1 }),
-    });
+    }, { queueOffline: false, idempotent: true });
     const result = await this.jsonResponse(response, "Não foi possível registrar a leitura manual.");
     if (result.data?.queued) return result.data;
     let refreshWarning = "";
@@ -85,6 +87,8 @@ export class ServicoLeiturasOperacionais {
   }
 
   async identifyReading(readingId, barcode) {
+    const loadingId = Number(this.state.loadingId) || 0;
+    if (!loadingId) throw new Error("Nenhum carregamento selecionado.");
     const response = await this.requestWithOfflineQueue("/api/identificar_leitura.php", {
       method: "POST",
       headers: this.jsonHeaders(),
@@ -92,8 +96,16 @@ export class ServicoLeiturasOperacionais {
     });
     const result = await this.jsonResponse(response, "Não foi possível identificar a leitura.");
     if (result.data?.queued) return result.data;
-    await this.reloadPendingReadings();
-    return result.data;
+    let refreshWarning = "";
+    try {
+      await Promise.all([
+        this.loadActiveLoading(loadingId),
+        this.reloadPendingReadings(),
+      ]);
+    } catch (error) {
+      refreshWarning = error?.message || "Falha ao atualizar os dados da operação.";
+    }
+    return refreshWarning ? { ...result.data, refreshWarning } : result.data;
   }
 
   async registerReturn(readingId, reason) {

@@ -122,9 +122,12 @@ test("falha na atualização posterior não transforma leitura confirmada em err
     api: {},
     jsonHeaders: () => ({}),
     jsonResponse: async (response) => response.json(),
-    requestWithOfflineQueue: async () => {
-    posts += 1;
-    return new Response(JSON.stringify({ data: { id: 42, result: "VALIDO" } }), { status: 200 });
+    requestWithOfflineQueue: async (path, options, policy) => {
+      assert.equal(path, "/api/leituras.php");
+      assert.deepEqual(policy, { queueOffline: false, idempotent: true });
+      assert.equal(options.headers["X-Trace-Offline-Id"], undefined);
+      posts += 1;
+      return new Response(JSON.stringify({ data: { id: 42, result: "VALIDO" } }), { status: 200 });
     },
     nextPendingReadingsRequestId: () => 1,
     getPendingReadingsRequestId: () => 1,
@@ -148,9 +151,13 @@ test("leitura USB confirmada recarrega a contagem do carregamento", async () => 
     api: {},
     jsonHeaders: () => ({}),
     jsonResponse: async (response) => response.json(),
-    requestWithOfflineQueue: async () => new Response(JSON.stringify({
-      data: { id: 43, result: "VALIDO", load_status: "EM_ANDAMENTO" },
-    }), { status: 200 }),
+    requestWithOfflineQueue: async (path, _options, policy) => {
+      assert.equal(path, "/api/leituras.php");
+      assert.deepEqual(policy, { queueOffline: false, idempotent: true });
+      return new Response(JSON.stringify({
+        data: { id: 43, result: "VALIDO", load_status: "EM_ANDAMENTO" },
+      }), { status: 200 });
+    },
     nextPendingReadingsRequestId: () => 1,
     getPendingReadingsRequestId: () => 1,
     loadActiveLoading: async (loadingId) => {
@@ -165,4 +172,31 @@ test("leitura USB confirmada recarrega a contagem do carregamento", async () => 
   assert.equal(result.result, "VALIDO");
   assert.equal(state.loaded, 1);
   assert.deepEqual(refreshed, [["loading", 7], ["pending-readings"]]);
+});
+
+test("identificação confirmada continua sucesso se a atualização da tela falhar", async () => {
+  const state = { loadingId: 7 };
+  let pendingReloaded = false;
+  const service = new ServicoLeiturasOperacionais({
+    state,
+    api: {},
+    jsonHeaders: () => ({}),
+    jsonResponse: async (response) => response.json(),
+    requestWithOfflineQueue: async (path) => {
+      assert.equal(path, "/api/identificar_leitura.php");
+      return new Response(JSON.stringify({
+        data: { id: 91, result: "VALIDO", product_id: 12 },
+      }), { status: 200 });
+    },
+    nextPendingReadingsRequestId: () => 1,
+    getPendingReadingsRequestId: () => 1,
+    loadActiveLoading: async () => { throw new Error("Consulta GET indisponível."); },
+    loadPendingReadings: async () => { pendingReloaded = true; },
+  });
+
+  const result = await service.identifyReading(91, "7890123");
+
+  assert.equal(result.result, "VALIDO");
+  assert.equal(result.refreshWarning, "Consulta GET indisponível.");
+  assert.equal(pendingReloaded, true);
 });

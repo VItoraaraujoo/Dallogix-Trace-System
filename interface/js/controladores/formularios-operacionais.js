@@ -1,5 +1,7 @@
 import { setFormFeedback } from "../componentes/form-feedback.js?v=202610190001";
 
+const SCANNER_IDLE_SUBMIT_MS = 300;
+
 function desabilitarBotaoEnviar(form, disabled) {
   const button = form.querySelector('button[type="submit"]');
   if (button) button.disabled = disabled;
@@ -59,9 +61,26 @@ function registrarLeituraDaOperacao({
 }) {
   root.querySelectorAll(".manual-operation-reading-form").forEach((form) => {
     const barcodeInput = form.querySelector('[name="barcode"]');
+    let scannerSubmitTimer = null;
+    const cancelScannerSubmit = () => {
+      if (scannerSubmitTimer === null) return;
+      globalThis.clearTimeout?.(scannerSubmitTimer);
+      scannerSubmitTimer = null;
+    };
+    const scheduleScannerSubmit = () => {
+      cancelScannerSubmit();
+      if (!barcodeInput || barcodeInput.disabled || !barcodeInput.value.trim()) return;
+      scannerSubmitTimer = globalThis.setTimeout?.(() => {
+        scannerSubmitTimer = null;
+        if (!form.isConnected || barcodeInput.disabled || form.dataset.submitting === "1") return;
+        if (barcodeInput.value.trim() && typeof form.requestSubmit === "function") form.requestSubmit();
+      }, SCANNER_IDLE_SUBMIT_MS) ?? null;
+    };
+    barcodeInput?.addEventListener("input", scheduleScannerSubmit);
     barcodeInput?.addEventListener("keydown", (event) => {
       if (event.key !== "Enter" || barcodeInput.disabled) return;
       event.preventDefault();
+      cancelScannerSubmit();
       if (typeof form.requestSubmit === "function") form.requestSubmit();
     });
     const refreshScannerFocus = () => updateScannerFocus(root.querySelector("#screen-root"));
@@ -70,6 +89,7 @@ function registrarLeituraDaOperacao({
 
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
+      cancelScannerSubmit();
       if (form.dataset.submitting === "1") return;
       form.dataset.submitting = "1";
       const inputWasDisabled = barcodeInput?.disabled === true;
@@ -116,8 +136,12 @@ function mensagemDaLeitura(result) {
   return messages[result.result] || "Leitura registrada.";
 }
 
-function confirmarLeiturasManuais({ root, store, render, setFeedback, readForm }) {
+function confirmarLeiturasManuais({ root, store, render, setFeedback, readForm, updateScannerFocus, schedule }) {
   root.querySelectorAll(".manual-reading-form").forEach((form) => {
+    const barcodeInput = form.querySelector('[name="barcode"]');
+    const refreshScannerFocus = () => updateScannerFocus(root.querySelector("#screen-root"));
+    barcodeInput?.addEventListener("focus", refreshScannerFocus);
+    barcodeInput?.addEventListener("blur", () => schedule(refreshScannerFocus, 0));
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
       if (form.dataset.submitting === "1") return;
@@ -126,8 +150,13 @@ function confirmarLeiturasManuais({ root, store, render, setFeedback, readForm }
       setFeedback(form, "Confirmando código…");
       try {
         const raw = readForm(form);
-        await store.identifyReading(form.dataset.readingId, raw.barcode);
+        const result = await store.identifyReading(form.dataset.readingId, raw.barcode);
         render();
+        const currentForm = root.querySelector(".manual-operation-reading-form");
+        if (currentForm) {
+          const isError = result.queued || result.refreshWarning || ["PRODUTO_INCORRETO", "EXCESSO", "SEM_LEITURA"].includes(result.result);
+          setFeedback(currentForm, mensagemDaLeitura(result), isError ? "error" : "");
+        }
       } catch (error) {
         setFeedback(form, error.message || "Não foi possível confirmar o código.", "error");
       } finally {
@@ -200,6 +229,6 @@ export function bindOperationalForms({
     schedule,
     readForm,
   });
-  confirmarLeiturasManuais({ root, store, render, setFeedback, readForm });
+  confirmarLeiturasManuais({ root, store, render, setFeedback, readForm, updateScannerFocus, schedule });
   confirmarRemocaoDeParada({ root, store, render, notify, setFeedback });
 }

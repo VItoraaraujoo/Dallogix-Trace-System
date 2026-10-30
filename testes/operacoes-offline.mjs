@@ -476,7 +476,7 @@ test("uma resposta perdida conserva o mesmo identificador no envio original e no
   }
 });
 
-test("leitura manual guarda um único envio com identificador estável quando a API cai", async () => {
+test("leitura do scanner não entra na fila offline sem vínculo com a saca", async () => {
   const store = new ArmazenamentoTrace();
   store.setUser({ id: 3, company_id: 7, role: "USUARIO" });
   store.setCsrfToken("atual");
@@ -486,14 +486,11 @@ test("leitura manual guarda um único envio com identificador estável quando a 
     sentId = options.headers["X-Trace-Offline-Id"];
     throw new Error("servidor indisponível");
   };
-  const result = await store.registerManualReading("7898250782592");
+  await assert.rejects(store.registerManualReading("7898250782592"), /servidor indisponível/);
   const pending = await store.offlineBuffer.all();
-  assert.equal(result.queued, true);
-  assert.equal(pending.length, 1);
-  assert.equal(pending[0].url, "/api/leituras.php");
-  assert.equal(pending[0].eventId, sentId);
-  assert.equal(JSON.parse(pending[0].body).carregamento_id, 12);
-  assert.equal(store.state.offlineQueueSize, 1);
+  assert.match(sentId, /^[a-f0-9-]{16,80}$/i);
+  assert.equal(pending.length, 0);
+  assert.equal(store.state.offlineQueueSize, 0);
 });
 
 test("o fallback usa bytes criptográficos quando randomUUID não existe", () => {

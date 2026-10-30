@@ -74,10 +74,10 @@ test("requisição operacional queueable preserva idempotência e atualiza a con
     headers: { "Content-Type": "application/json", "X-CSRF-Token": "csrf" },
     body: JSON.stringify({ carregamento_id: 12, barcode: "789" }),
   };
-  const queuedResponse = await service.requestWithOfflineQueue("/api/leituras.php", requestOptions);
+  const queuedResponse = await service.requestWithOfflineQueue("/api/retornos.php", requestOptions);
   const payload = await queuedResponse.json();
 
-  assert.equal(service.canQueueOffline("/api/leituras.php", requestOptions), true);
+  assert.equal(service.canQueueOffline("/api/retornos.php", requestOptions), true);
   assert.equal(queuedResponse.status, 202);
   assert.deepEqual(payload.data, { queued: true, offline_id: 42 });
   assert.equal(chamadas.length, 1);
@@ -88,12 +88,42 @@ test("requisição operacional queueable preserva idempotência e atualiza a con
   assert.equal(quantidadePendente, 1);
 });
 
+test("leitura do scanner preserva idempotência sem entrar na fila offline", async () => {
+  let request;
+  let enqueued = false;
+  const service = new ServicoSincronizacao({
+    api: { async fetch(url, options) {
+      request = { url, options };
+      throw new Error("rede indisponível");
+    } },
+    offlineBuffer: {
+      async enqueue() { enqueued = true; },
+      async flush() { return { pending: 0 }; },
+    },
+    createEventId: () => "11111111-1111-4111-8111-111111111144",
+  });
+
+  await assert.rejects(
+    service.requestWithOfflineQueue("/api/leituras.php", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ carregamento_id: 12, barcode: "789" }),
+    }, { queueOffline: false, idempotent: true }),
+    /rede indisponível/,
+  );
+
+  assert.equal(request.url, "/api/leituras.php");
+  assert.equal(request.options.headers["X-Trace-Offline-Id"], "11111111-1111-4111-8111-111111111144");
+  assert.equal(enqueued, false);
+});
+
 test("fila offline não intercepta consultas nem endpoints fora da lista permitida", async () => {
   const service = new ServicoSincronizacao({
     api: { async fetch() { throw new Error("offline"); } },
     offlineBuffer: { async flush() { return { pending: 0 }; } },
     createEventId: () => "event-id-43",
   });
+  assert.equal(service.canQueueOffline("/api/leituras.php", { method: "POST", body: "{}" }), false);
   assert.equal(service.canQueueOffline("/api/leituras.php", { method: "GET" }), false);
   assert.equal(service.canQueueOffline("/api/health.php", { method: "POST", body: "{}" }), false);
   assert.equal(service.canQueueOffline("/api/retornos.php", { method: "POST", body: {} }), false);

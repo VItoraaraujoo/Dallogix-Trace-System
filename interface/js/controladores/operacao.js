@@ -76,20 +76,35 @@ export function renderDalaStatuses(store, error = null) {
   }
 }
 
+const OPERATION_SCANNER_INPUT_SELECTOR = ".manual-operation-reading-form input[name=\"barcode\"], .manual-reading-form input[name=\"barcode\"]";
+const PENDING_SCANNER_INPUT_SELECTOR = ".manual-reading-form input[name=\"barcode\"]";
+const PRIMARY_SCANNER_INPUT_SELECTOR = ".manual-operation-reading-form input[name=\"barcode\"]";
+
+function operationScannerInput(root, activeElement = globalThis.document?.activeElement) {
+  if (
+    root?.contains?.(activeElement) &&
+    activeElement?.matches?.(PENDING_SCANNER_INPUT_SELECTOR)
+  ) return activeElement;
+  return root?.querySelector?.(PRIMARY_SCANNER_INPUT_SELECTOR) || null;
+}
+
 export function captureOperationScanner(root, activeElement = globalThis.document?.activeElement) {
-  const selector = ".manual-operation-reading-form input[name=\"barcode\"]";
-  if (!root?.contains?.(activeElement) || !activeElement?.matches?.(selector)) return null;
+  if (!root?.contains?.(activeElement) || !activeElement?.matches?.(OPERATION_SCANNER_INPUT_SELECTOR)) return null;
   return {
     value: activeElement.value,
     selectionStart: activeElement.selectionStart,
     selectionEnd: activeElement.selectionEnd,
     selectionDirection: activeElement.selectionDirection,
+    readingId: activeElement.closest?.(".manual-reading-form")?.dataset?.readingId || "",
   };
 }
 
 export function restoreOperationScanner(root, snapshot) {
   if (!snapshot) return false;
-  const input = root?.querySelector?.(".manual-operation-reading-form input[name=\"barcode\"]");
+  const pendingInputs = [...(root?.querySelectorAll?.(PENDING_SCANNER_INPUT_SELECTOR) || [])];
+  const input = snapshot.readingId
+    ? pendingInputs.find((candidate) => candidate.closest?.(".manual-reading-form")?.dataset?.readingId === String(snapshot.readingId))
+    : root?.querySelector?.(PRIMARY_SCANNER_INPUT_SELECTOR);
   if (!input || input.disabled) return false;
   input.value = snapshot.value;
   input.focus({ preventScroll: true });
@@ -100,10 +115,12 @@ export function restoreOperationScanner(root, snapshot) {
 }
 
 export function focusOperationScanner(root, activeElement = globalThis.document?.activeElement) {
-  const input = root?.querySelector?.(".manual-operation-reading-form input[name=\"barcode\"]");
+  const input = root?.querySelector?.(PRIMARY_SCANNER_INPUT_SELECTOR);
   if (!input || input.disabled) return false;
+  const documentRef = globalThis.document;
+  if (typeof documentRef?.hasFocus === "function" && !documentRef.hasFocus()) return false;
   if (activeElement !== input) {
-    const isEditable = activeElement?.matches?.(
+    const isEditable = !activeElement?.disabled && activeElement?.matches?.(
       "input, select, textarea, [contenteditable='true']",
     );
     const isDialogControl = Boolean(
@@ -117,33 +134,61 @@ export function focusOperationScanner(root, activeElement = globalThis.document?
 
 export function updateOperationScannerFocus(root, activeElement = globalThis.document?.activeElement) {
   const status = root?.querySelector?.("[data-scanner-focus]");
-  const input = root?.querySelector?.(".manual-operation-reading-form input[name=\"barcode\"]");
+  const input = operationScannerInput(root, activeElement);
   if (!status || !input) return false;
-  const ready = !input.disabled && activeElement === input;
+  const documentRef = globalThis.document;
+  const windowFocused = typeof documentRef?.hasFocus !== "function" || documentRef.hasFocus();
+  const pendingInputs = [...(root?.querySelectorAll?.(PENDING_SCANNER_INPUT_SELECTOR) || [])];
+  const pendingReadingId = input.closest?.(".manual-reading-form")?.dataset?.readingId || "";
+  const ready = !input.disabled && activeElement === input && windowFocused;
   status.textContent = input.disabled
-    ? "Leitor indisponível enquanto a leitura estiver bloqueada."
-    : ready
-      ? "Leitor pronto para leitura."
-      : "Leitor sem foco. Toque no campo Código de barras antes de ler.";
+    ? pendingInputs.length
+      ? "Há sacas com leitura pendente. Selecione abaixo a saca correspondente antes de ler."
+      : "Leitor indisponível enquanto a leitura estiver bloqueada."
+    : !windowFocused
+      ? "Trace está fora de foco. Volte para esta janela antes de ler."
+      : ready
+        ? pendingReadingId
+          ? `Campo pronto para conferir a leitura #${pendingReadingId}. Leia a mesma saca e confirme o código.`
+          : "Leitor pronto. O código será registrado automaticamente ao terminar a leitura."
+        : pendingReadingId
+          ? `Leitor sem foco. Toque no campo da leitura #${pendingReadingId} antes de ler.`
+          : "Leitor sem foco. Toque no campo Código de barras antes de ler.";
   status.classList.toggle("is-error", !ready);
+  status.classList.toggle("is-ready", ready);
   return ready;
 }
 
 export function instalarRecuperacaoFocoLeitor(root) {
   if (!root?.addEventListener || root.dataset?.scannerFocusRecovery === "installed") return false;
   if (root.dataset) root.dataset.scannerFocusRecovery = "installed";
+  const recoverFocus = () => {
+    if (!root.isConnected) return;
+    if (globalThis.document?.visibilityState === "hidden") {
+      updateOperationScannerFocus(root);
+      return;
+    }
+    focusOperationScanner(root, globalThis.document?.activeElement);
+    updateOperationScannerFocus(root, globalThis.document?.activeElement);
+  };
   root.addEventListener("pointerup", (event) => {
     const target = event.target;
     if (target?.closest?.("input, select, textarea, [contenteditable='true'], [role='dialog'], dialog, [aria-modal='true']")) return;
     globalThis.setTimeout?.(() => {
       if (!root.isConnected) return;
-      const input = root.querySelector?.(".manual-operation-reading-form input[name=\"barcode\"]");
-      if (!input || input.disabled) return;
       const activeElement = globalThis.document?.activeElement;
       if (activeElement?.closest?.("[role='dialog'], dialog, [aria-modal='true']")) return;
-      focusOperationScanner(root, activeElement);
-      updateOperationScannerFocus(root, globalThis.document?.activeElement);
+      recoverFocus();
     }, 0);
+  });
+  globalThis.window?.addEventListener?.("focus", () => globalThis.setTimeout?.(recoverFocus, 0));
+  globalThis.window?.addEventListener?.("blur", () => updateOperationScannerFocus(root));
+  globalThis.document?.addEventListener?.("visibilitychange", () => {
+    if (globalThis.document?.visibilityState === "visible") {
+      globalThis.setTimeout?.(recoverFocus, 0);
+    } else {
+      updateOperationScannerFocus(root);
+    }
   });
   return true;
 }

@@ -1,11 +1,11 @@
 import { OfflineOperationBuffer, secureRandomId } from "./OfflineOperationBuffer.js?v=202610190032";
 import { ClienteApi, erroRespostaHttp } from "../api/ClienteApi.js?v=202610140003";
-import { ServicoSincronizacao } from "../servicos/ServicoSincronizacao.js?v=202610200004";
+import { ServicoSincronizacao } from "../servicos/ServicoSincronizacao.js?v=202610300001";
 import { ServicoDalas } from "../servicos/ServicoDalas.js?v=202610190001";
 import { ServicoObservabilidade } from "../servicos/ServicoObservabilidade.js?v=202610190003";
 import { ServicoCarregamentoAtivo } from "../servicos/ServicoCarregamentoAtivo.js?v=202610220001";
 import { ServicoComandosMaquina } from "../servicos/ServicoComandosMaquina.js?v=202610190029";
-import { ServicoLeiturasOperacionais } from "../servicos/ServicoLeiturasOperacionais.js?v=202610190029";
+import { ServicoLeiturasOperacionais } from "../servicos/ServicoLeiturasOperacionais.js?v=202610300001";
 import { resolverComandoAtual } from "../funcoes/estado-comando.js?v=202610130003";
 import {
   buscarTodasPaginas,
@@ -316,8 +316,8 @@ export class ArmazenamentoTrace {
   canQueueOffline(url, options = {}) {
     return this.sincronizacao.canQueueOffline(url, options);
   }
-  requestWithOfflineQueue(url, options = {}) {
-    return this.sincronizacao.requestWithOfflineQueue(url, options);
+  requestWithOfflineQueue(url, options = {}, policy = {}) {
+    return this.sincronizacao.requestWithOfflineQueue(url, options, policy);
   }
   async flushOfflineOperations() {
     return this.sincronizacao.enviarPendencias(this.jsonHeaders());

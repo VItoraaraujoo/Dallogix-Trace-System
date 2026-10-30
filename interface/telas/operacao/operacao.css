@@ -270,6 +270,20 @@ body.work-page:has(.work-operation-screen) .work-manual-reading-heading small {
   line-height: 1.35;
 }
 
+body.work-page:has(.work-operation-screen) .work-manual-reading-heading .scanner-focus-status {
+  min-height: 15px;
+  margin-top: 3px;
+  font-weight: 600;
+}
+
+body.work-page:has(.work-operation-screen) .work-manual-reading-heading .scanner-focus-status.is-ready {
+  color: #18734a;
+}
+
+body.work-page:has(.work-operation-screen) .work-manual-reading-heading .scanner-focus-status.is-error {
+  color: #b42318;
+}
+
 body.work-page:has(.work-operation-screen) .manual-operation-reading-form {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
@@ -308,6 +322,19 @@ body.work-page:has(.work-operation-screen) .manual-reading-blocked {
 
 body.work-page:has(.work-operation-screen) .work-scanner-corrections {
   flex: 0 0 auto;
+}
+
+body.work-page:has(.work-operation-screen) .manual-reading-meta {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted, #6b7785);
+  font-size: 12px;
+}
+
+body.work-page:has(.work-operation-screen) .manual-reading-meta strong {
+  color: var(--ink, #17212b);
 }
 
 body.work-page:has(.work-operation-screen) .work-items-panel {

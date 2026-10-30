@@ -6,7 +6,6 @@ const LIMITE_DADOS_EVENTO = 128 * 1024;
 const ENDPOINTS_COM_FILA_OFFLINE = [
   "/api/identificar_leitura.php",
   "/api/retornos.php",
-  "/api/leituras.php",
 ];
 
 /**
@@ -40,14 +39,15 @@ export class ServicoSincronizacao {
       typeof options.body === "string";
   }
 
-  async requestWithOfflineQueue(url, options = {}) {
-    const queueable = this.canQueueOffline(url, options);
-    if (queueable && typeof this.createEventId !== "function") {
+  async requestWithOfflineQueue(url, options = {}, { queueOffline = true, idempotent = false } = {}) {
+    const queueable = queueOffline && this.canQueueOffline(url, options);
+    const needsEventId = queueable || idempotent;
+    if (needsEventId && typeof this.createEventId !== "function") {
       throw new Error("Gerador seguro de identificadores indisponível.");
     }
     // O mesmo ID no envio e na fila permite ao servidor deduplicar uma resposta perdida.
-    const eventId = queueable ? this.createEventId() : null;
-    const requestOptions = queueable
+    const eventId = needsEventId ? this.createEventId() : null;
+    const requestOptions = eventId
       ? { ...options, headers: { ...(options.headers || {}), "X-Trace-Offline-Id": eventId } }
       : options;
     try {

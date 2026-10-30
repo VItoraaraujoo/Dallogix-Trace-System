@@ -138,8 +138,9 @@ if ($loading["state"] !== "CARREGANDO") {
 }
 
 $loadingValidCount = (int) $loading["leituras_validas"];
-// O Elgin EL8600 envia o código como teclado USB. Associe a leitura ao evento
-// de passagem mais recente ainda dentro da janela, sem exigir outro pedido do navegador.
+// O Elgin EL8600 envia o código como teclado USB. Só associe automaticamente
+// quando houver exatamente uma passagem pendente dentro da janela; com mais
+// de uma, a ordem física não pode ser inferida com segurança pelo navegador.
 if (!$sensorEventId && $barcode !== "") {
     $associationWindowMs = max(500, min(10000, (int) (getenv("TRACE_SCANNER_NO_READ_TIMEOUT_MS") ?: 1500)));
     $associationWindowMicroseconds = $associationWindowMs * 1000;
@@ -150,15 +151,22 @@ if (!$sensorEventId && $barcode !== "") {
            AND s.equipment_id = :equipment_id
            AND s.detected_at >= DATE_SUB(NOW(3), INTERVAL {$associationWindowMicroseconds} MICROSECOND)
            AND NOT EXISTS (SELECT 1 FROM leituras l WHERE l.sensor_event_id = s.id)
-         ORDER BY s.detected_at DESC, s.id DESC LIMIT 1 FOR UPDATE",
+         ORDER BY s.detected_at DESC, s.id DESC LIMIT 2 FOR UPDATE",
     );
     $pendingSensor->execute([
         "carregamento_id" => $loadingId,
         "equipment_id" => $loading["equipment_id"],
     ]);
-    $matchedSensorEventId = $pendingSensor->fetchColumn();
-    if ($matchedSensorEventId !== false) {
-        $sensorEventId = (int) $matchedSensorEventId;
+    $pendingSensorIds = $pendingSensor->fetchAll(PDO::FETCH_COLUMN);
+    if (count($pendingSensorIds) > 1) {
+        $pdo->rollBack();
+        responder_json(
+            ["error" => "Há mais de uma passagem sem associação recente. O código ficou no campo para você vinculá-lo à saca correta nas leituras pendentes."],
+            409,
+        );
+    }
+    if (count($pendingSensorIds) === 1) {
+        $sensorEventId = (int) $pendingSensorIds[0];
     }
 }
 if ($sensorEventId) {

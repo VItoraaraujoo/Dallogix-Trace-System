@@ -229,7 +229,7 @@ test("buscas de código de barras usam o escopo e o índice da empresa", () => {
 
   assert.match(scanner, /WHERE pc\.company_id = :company_id\s+AND pc\.barcode = :barcode/);
   assert.match(read("servidor/api/operacoes/leituras.php"), /->buscarProdutoAtivoPorCodigo\(/);
-  assert.match(manualLookup, /WHERE pc\.company_id = :company_id AND pc\.barcode = :barcode/);
+  assert.match(manualLookup, /WHERE pc\.company_id = :company_id\s+AND pc\.barcode = :barcode/);
   assert.match(products, /LEFT JOIN codigos_produtos pc\s+ON pc\.company_id = p\.company_id AND pc\.product_id = p\.id/);
   assert.match(products, /pc\.company_id = p\.company_id AND pc\.product_id = p\.id AND pc\.barcode LIKE :search/);
   assert.match(syncPayload, /cp\.product_id = p\.id AND cp\.company_id = p\.company_id/);
@@ -238,6 +238,31 @@ test("buscas de código de barras usam o escopo e o índice da empresa", () => {
   assert.match(manifests, /WHERE pc\.company_id = p\.company_id AND pc\.product_id = p\.id/);
   assert.match(auditReport, /pc\.product_id = p\.id AND pc\.company_id = p\.company_id/);
   assert.match(barcodeIndex, /UNIQUE KEY uq_company_product_barcode \(company_id, barcode\)/);
+});
+
+test("correção de leitura manual valida o mesmo código, quantidade e estado do scanner", () => {
+  const endpoint = read("servidor/api/operacoes/identificar_leitura.php");
+
+  assert.match(endpoint, /pc\.barcode = :barcode/);
+  assert.match(endpoint, /AND p\.id = :product_id/);
+  assert.match(endpoint, /ClassificadorLeitura/);
+  assert.match(endpoint, /obterQuantidadesParaClassificar\(/);
+  assert.match(endpoint, /\["CARREGANDO", "PAUSADO"\]/);
+  assert.match(endpoint, /LEITURA_IDENTIFICADA_MANUALMENTE/);
+  assert.match(endpoint, /PRODUTO_INCORRETO/);
+  assert.match(endpoint, /EXCESSO_DETECTADO/);
+  assert.match(endpoint, /QUANTIDADE_PLANEJADA_ATINGIDA/);
+  assert.match(endpoint, /state = 'FINALIZANDO'/);
+  assert.match(endpoint, /event_uuid = :event_uuid AND company_id = :company_id/);
+});
+
+test("scanner recusa associação automática quando há mais de uma passagem candidata", () => {
+  const endpoint = read("servidor/api/operacoes/leituras.php");
+
+  assert.match(endpoint, /ORDER BY s\.detected_at DESC, s\.id DESC LIMIT 2 FOR UPDATE/);
+  assert.match(endpoint, /\$pendingSensorIds = \$pendingSensor->fetchAll\(PDO::FETCH_COLUMN\)/);
+  assert.match(endpoint, /count\(\$pendingSensorIds\) > 1/);
+  assert.match(endpoint, /O código ficou no campo para você vinculá-lo à saca correta/);
 });
 
 test("relatório remove fontes locais depois de persistir as evidências no PDF final", () => {

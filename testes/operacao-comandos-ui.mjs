@@ -101,10 +101,11 @@ test("a confirmação de código envia o formulário e deixa espaço para feedba
     userRole: "USUARIO",
     commandInFlight: false,
     emergency: false,
-    pendingReadings: [{ id: 31 }],
+    pendingReadings: [{ id: 31, read_at: "2026-10-30 14:00:00" }],
   } });
   assert.match(markup, /data-action="identify-reading" type="submit"/);
   assert.match(markup, /inputmode="text"/);
+  assert.match(markup, /Passagem detectada/);
   assert.match(markup, /class="form-feedback" data-form-feedback role="status"/);
 });
 

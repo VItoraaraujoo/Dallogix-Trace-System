@@ -128,19 +128,61 @@ test("leitura confirmada limpa o campo e devolve o foco ao scanner", async () =>
   assert.equal(input.disabled, false);
 });
 
-test("leitura offline informa que não deve ser repetida e não a marca como validada", async () => {
+test("identificação pendente mostra ao operador o resultado real da classificação", async () => {
+  const inputListeners = new Map();
+  const input = {
+    value: "COD-ERRADO",
+    disabled: false,
+    addEventListener(type, handler) { inputListeners.set(type, handler); },
+  };
+  const submitButton = { disabled: false };
+  const correctionForm = criarFormulario({
+    dataset: { readingId: "91" },
+    fields: { '[name="barcode"]': input },
+    buttons: [submitButton],
+  });
+  const operationForm = criarFormulario();
+  const result = {
+    result: "PRODUTO_INCORRETO",
+    operator_alert: "Produto incorreto identificado. Confira a unidade.",
+  };
+  let identification;
+  const harness = criarHarness({
+    root: criarRoot({
+      one: { ".manual-operation-reading-form": operationForm, "#screen-root": {} },
+      many: { ".manual-reading-form": [correctionForm] },
+    }),
+    store: { async identifyReading(...args) { identification = args; return result; } },
+    values: new Map([[correctionForm, { barcode: "COD-ERRADO" }]]),
+  });
+
+  await correctionForm.submit();
+
+  assert.deepEqual(identification, ["91", "COD-ERRADO"]);
+  assert.equal(harness.renders, 1);
+  assert.deepEqual(harness.feedback.at(-1), [
+    operationForm,
+    "Produto incorreto identificado. Confira a unidade.",
+    "error",
+  ]);
+  assert.equal(submitButton.disabled, false);
+});
+
+test("falha de rede mantém o código no campo para nova tentativa", async () => {
   const input = { value: "COD-456", disabled: false, addEventListener() {}, focus() {} };
   const form = criarFormulario({ fields: { '[name="barcode"]': input }, buttons: [{ disabled: false }] });
   const harness = criarHarness({
     root: criarRoot({ one: { ".manual-operation-reading-form": form, "#screen-root": {} }, many: { ".manual-operation-reading-form": [form] } }),
-    store: { async registerManualReading() { return { queued: true, result: "VALIDO" }; } },
+    store: { async registerManualReading() { throw new Error("servidor indisponível"); } },
     values: new Map([[form, { barcode: "COD-456" }]]),
   });
 
   await form.submit();
 
-  assert.match(harness.feedback.at(-1)[1], /validação está pendente; não repita/);
+  assert.match(harness.feedback.at(-1)[1], /servidor indisponível/);
   assert.equal(harness.feedback.at(-1)[2], "error");
+  assert.equal(input.value, "COD-456");
+  assert.equal(harness.renders, 0);
   assert.equal(harness.warnings.length, 0);
 });
 
